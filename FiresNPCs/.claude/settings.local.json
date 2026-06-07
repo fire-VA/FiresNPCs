@@ -212,7 +212,11 @@
       "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Sync-FiresRelease.ps1\")",
       "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" api repos/fire-VA/FiresUnifiedCore/git/trees/main)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(' ',t['type'],t['path']\\) for t in d['tree']]\")",
-      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" api repos/fire-VA/FiresUnifiedCore/contents)"
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" api repos/fire-VA/FiresUnifiedCore/contents)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" repo list fire-VA --limit 60 --json name,visibility,updatedAt --jq '.[] | select\\(.name|startswith\\(\"Fires\"\\)\\) | \" \\\\\\(.visibility|ascii_downcase|.[0:7]\\) \\\\\\(.name\\)\"')",
+      "Bash('/c/Program Files/GitHub CLI/gh.exe' api repos/fire-VA/FiresGhettoNetworking --jq '{name,visibility,disabled,archived,size}')",
+      "Bash(git ls-remote *)",
+      "Bash('/c/Program Files/GitHub CLI/gh.exe' api user --jq '{login,plan:.plan.name,private_repos:.total_private_repos,owned_private:.owned_private_repos,disk_usage:.disk_usage}')"
     ]
   }
 }
