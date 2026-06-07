@@ -141,7 +141,10 @@ namespace FiresRPGmaker.UI
             Debug.Log("[NpcMainPanelController] Wired " + _moduleScreens.Count + " extra module screens + " + _moduleTabs.Count + " extra tabs");
         }
 
-        /// <summary>Returns the (lazily-created) 2nd tab-row Transform — a sibling of TabsBar placed directly below it.</summary>
+        /// <summary>Returns the (lazily-created) 2nd tab-row Transform — a sibling of TabsBar placed directly below it.
+        /// Positions row 2 in NORMALIZED anchor space (not pixel offsets) so the layout is correct
+        /// regardless of when the runtime layout pass fires. Row 2 takes the same anchor band as row 1,
+        /// shifted down by the row's anchor height + a small gap.</summary>
         private Transform EnsureTabsRow2()
         {
             if (_tabsRow2 != null) return _tabsRow2;
@@ -155,17 +158,20 @@ namespace FiresRPGmaker.UI
             var tbrt = tabsBar.GetComponent<RectTransform>();
             if (tbrt != null)
             {
-                rrt.anchorMin = tbrt.anchorMin;
-                rrt.anchorMax = tbrt.anchorMax;
+                // Normalized-anchor placement — pixel-offset math broke when the row 1 rect hadn't been
+                // computed yet at construction time (rect.height returned 0 -> clamp to 28 -> overlap).
+                float bandH = tbrt.anchorMax.y - tbrt.anchorMin.y;
+                if (bandH <= 0.001f) bandH = 0.08f; // sane fallback for stretched anchors
+                const float gap = 0.01f; // ~1% panel height gap between rows
+                rrt.anchorMin = new Vector2(tbrt.anchorMin.x, tbrt.anchorMin.y - bandH - gap);
+                rrt.anchorMax = new Vector2(tbrt.anchorMax.x, tbrt.anchorMin.y - gap);
                 rrt.pivot = tbrt.pivot;
-                // Match width, shift down by row height + a small gap so the rows visually stack
-                float rowH = Mathf.Max(28f, tbrt.rect.height);
-                rrt.offsetMin = new Vector2(tbrt.offsetMin.x, tbrt.offsetMin.y - rowH - 4f);
-                rrt.offsetMax = new Vector2(tbrt.offsetMax.x, tbrt.offsetMax.y - rowH - 4f);
+                rrt.offsetMin = tbrt.offsetMin;
+                rrt.offsetMax = tbrt.offsetMax;
             }
             else
             {
-                rrt.anchorMin = new Vector2(0f, 0.78f); rrt.anchorMax = new Vector2(1f, 0.86f);
+                rrt.anchorMin = new Vector2(0f, 0.72f); rrt.anchorMax = new Vector2(1f, 0.80f);
                 rrt.offsetMin = Vector2.zero; rrt.offsetMax = Vector2.zero;
             }
 

@@ -130,38 +130,18 @@ namespace FiresRPGmaker.UI
    /// Admin configuration mode (Shift+E).
         /// </summary>
         private static void ConfigureAdminMode(Transform panelRoot, string npcName)
-      {
-          // SHOW core elements
+        {
             SetElementActive(panelRoot, "Header", true);
- SetElementActive(panelRoot, "SizeButton", true);
-  
-    // SHOW admin elements
+            SetElementActive(panelRoot, "SizeButton", true);
             SetElementActive(panelRoot, "TabsBar", true);
             SetElementActive(panelRoot, "DetailPanel", true);
-  SetElementActive(panelRoot, "PageControls", true);
-   SetElementActive(panelRoot, "TabContent", true);
- 
-       // HIDE unused elements
-      SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "PageControls", true);
+            SetElementActive(panelRoot, "TabContent", true);
+            SetElementActive(panelRoot, "SearchBar", false);
             SetElementActive(panelRoot, "SearchInput", false);
-       
-            // HIDE screen-specific elements
             SetElementActive(panelRoot, "QuestScreenContainer", false);
-    SetElementActive(panelRoot, "QuestConfigScreen", false);
-            SetElementActive(panelRoot, "InfoNpcScreen", false);
-            SetElementActive(panelRoot, "DressingRoomScreen", false);
-            SetElementActive(panelRoot, "DialogueEditorScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
-            SetElementActive(panelRoot, "InfoApplyButton", false);
-            // TraderConfigScreen + TraderApplyButton must hide in EVERY non-trader mode — otherwise switching
-            // away from the trader tab (or hitting back from it) leaves the trader form overlapping the
-            // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
-   
-      // Set header text with admin style
+            // No module screen active — admin uses DetailPanel instead; hide every module pair.
+            ShowOnlyModuleScreen(panelRoot, "", "");
             SetHeaderText(panelRoot, $"Configure NPC: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
         }
 
@@ -170,75 +150,35 @@ namespace FiresRPGmaker.UI
  /// </summary>
         private static void ConfigureQuestInteractionMode(Transform panelRoot, string npcName)
         {
-        // SHOW core elements
-      SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "Header", true);
             SetElementActive(panelRoot, "SizeButton", true);
-    
-    // SHOW quest interaction elements
             SetElementActive(panelRoot, "QuestScreenContainer", true);
-      
-            // HIDE admin elements
             SetElementActive(panelRoot, "TabsBar", false);
-  SetElementActive(panelRoot, "DetailPanel", false);
+            SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SearchBar", false);
             SetElementActive(panelRoot, "PageControls", false);
             SetElementActive(panelRoot, "TabContent", false);
-    
-     // HIDE other screen elements
-            SetElementActive(panelRoot, "QuestConfigScreen", false);
-      SetElementActive(panelRoot, "InfoNpcScreen", false);
-   SetElementActive(panelRoot, "DressingRoomScreen", false);
-            SetElementActive(panelRoot, "DialogueEditorScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
-            SetElementActive(panelRoot, "InfoApplyButton", false);
-            // TraderConfigScreen + TraderApplyButton must hide in EVERY non-trader mode — otherwise switching
-            // away from the trader tab (or hitting back from it) leaves the trader form overlapping the
-            // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
+            // No module screen active — player quest UI; hide every module pair.
+            ShowOnlyModuleScreen(panelRoot, "", "");
             SetElementActive(panelRoot, "QuestInteract", false);
-    
-            // Set header text with NPC name style (larger, for player-facing screens)
-        SetHeaderText(panelRoot, npcName ?? "Quest NPC", UIFontConfig.NpcNameHeader);
-     }
+            SetHeaderText(panelRoot, npcName ?? "Quest NPC", UIFontConfig.NpcNameHeader);
+        }
 
         /// <summary>
       /// Quest config mode (admin Quest NPC tab).
 /// </summary>
         private static void ConfigureQuestConfigMode(Transform panelRoot, string npcName)
         {
-        // SHOW core elements
-    SetElementActive(panelRoot, "Header", true);
-   SetElementActive(panelRoot, "SizeButton", true);
-       
-         // SHOW tabs (for navigation)
+            SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "SizeButton", true);
             SetElementActive(panelRoot, "TabsBar", true);
-   
-      // SHOW page controls (contains the back button for navigation)
-    SetElementActive(panelRoot, "PageControls", true);
- 
-            // SHOW quest config screen and its apply button
-            SetElementActive(panelRoot, "QuestConfigScreen", true);
-            SetElementActive(panelRoot, "QuestApplyButton", true);
-  
-          // HIDE other elements
-SetElementActive(panelRoot, "DetailPanel", false);
-    SetElementActive(panelRoot, "SearchBar", false);
-         SetElementActive(panelRoot, "TabContent", false);
-         SetElementActive(panelRoot, "QuestScreenContainer", false);
-       SetElementActive(panelRoot, "InfoNpcScreen", false);
-            SetElementActive(panelRoot, "DressingRoomScreen", false);
-        SetElementActive(panelRoot, "DialogueEditorScreen", false);
-            SetElementActive(panelRoot, "InfoApplyButton", false);
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
-
-            // Set header text with admin style
-   SetHeaderText(panelRoot, "Quest Config", UIFontConfig.AdminPanelHeader);
+            SetElementActive(panelRoot, "PageControls", true);
+            SetElementActive(panelRoot, "DetailPanel", false);
+            SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "TabContent", false);
+            SetElementActive(panelRoot, "QuestScreenContainer", false);
+            ShowOnlyModuleScreen(panelRoot, "QuestConfigScreen", "QuestApplyButton");
+            SetHeaderText(panelRoot, "Quest Config", UIFontConfig.AdminPanelHeader);
         }
 
         /// <summary>
@@ -250,21 +190,13 @@ SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SizeButton", true);
             SetElementActive(panelRoot, "TabsBar", true);
             SetElementActive(panelRoot, "PageControls", true);
-            SetElementActive(panelRoot, "TraderConfigScreen", true);
-            SetElementActive(panelRoot, "TraderApplyButton", true);
-            // HIDE other elements
             SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SearchBar", false);
             SetElementActive(panelRoot, "SearchInput", false);
             SetElementActive(panelRoot, "TabContent", false);
             SetElementActive(panelRoot, "QuestScreenContainer", false);
             SetElementActive(panelRoot, "QuestInteract", false);
-            SetElementActive(panelRoot, "QuestConfigScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
-            SetElementActive(panelRoot, "InfoNpcScreen", false);
-            SetElementActive(panelRoot, "InfoApplyButton", false);
-            SetElementActive(panelRoot, "DressingRoomScreen", false);
-            SetElementActive(panelRoot, "DialogueEditorScreen", false);
+            ShowOnlyModuleScreen(panelRoot, "TraderConfigScreen", "TraderApplyButton");
             SetHeaderText(panelRoot, "Trader Config", UIFontConfig.AdminPanelHeader);
         }
 
@@ -277,29 +209,19 @@ SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SizeButton", true);
             SetElementActive(panelRoot, "TabsBar", true);
             SetElementActive(panelRoot, "PageControls", true);
-            SetElementActive(panelRoot, "BankerConfigScreen", true);
-            SetElementActive(panelRoot, "BankerApplyButton", true);
             SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SearchBar", false);
             SetElementActive(panelRoot, "SearchInput", false);
             SetElementActive(panelRoot, "TabContent", false);
             SetElementActive(panelRoot, "QuestScreenContainer", false);
             SetElementActive(panelRoot, "QuestInteract", false);
-            SetElementActive(panelRoot, "QuestConfigScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
-            SetElementActive(panelRoot, "InfoNpcScreen", false);
-            SetElementActive(panelRoot, "InfoApplyButton", false);
-            SetElementActive(panelRoot, "DressingRoomScreen", false);
-            SetElementActive(panelRoot, "DialogueEditorScreen", false);
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
+            ShowOnlyModuleScreen(panelRoot, "BankerConfigScreen", "BankerApplyButton");
             SetHeaderText(panelRoot, "Banker Config", UIFontConfig.AdminPanelHeader);
         }
 
-        // Centralized list of every module screen + apply-button name so any new module is added in ONE
-        // place (here) — every Configure*Mode just toggles its own active pair and uses these for the rest.
+        // Centralized list of every module screen + apply-button name. Every Configure*Mode below uses
+        // these to hide every screen/apply EXCEPT the one it owns — that way adding a new module is a
+        // one-line append here and the existing modes don't leak its screen visible underneath.
         private static readonly string[] ALL_MODULE_SCREENS = {
             "QuestConfigScreen", "InfoNpcScreen", "DialogueEditorScreen", "DressingRoomScreen",
             "TraderConfigScreen", "BankerConfigScreen",
@@ -311,6 +233,13 @@ SetElementActive(panelRoot, "DetailPanel", false);
             "GamblerApplyButton", "MarketplaceApplyButton", "AchievementApplyButton",
             "LeaderboardApplyButton", "MailApplyButton", "TransmogApplyButton",
         };
+
+        /// <summary>Hides every known module screen + apply-button except the named pair.</summary>
+        public static void ShowOnlyModuleScreen(Transform panelRoot, string activeScreen, string activeApply)
+        {
+            foreach (var s in ALL_MODULE_SCREENS) SetElementActive(panelRoot, s, s == activeScreen);
+            foreach (var a in ALL_MODULE_APPLIES) SetElementActive(panelRoot, a, a == activeApply);
+        }
 
         /// <summary>Generic admin tab mode: shows header/tabs/page-controls + the one active screen + its
         /// apply button; hides every other module screen/apply. Used by every v1-stub module tab.</summary>
@@ -326,8 +255,7 @@ SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "TabContent", false);
             SetElementActive(panelRoot, "QuestScreenContainer", false);
             SetElementActive(panelRoot, "QuestInteract", false);
-            foreach (var s in ALL_MODULE_SCREENS) SetElementActive(panelRoot, s, s == activeScreen);
-            foreach (var a in ALL_MODULE_APPLIES) SetElementActive(panelRoot, a, a == activeApply);
+            ShowOnlyModuleScreen(panelRoot, activeScreen, activeApply);
             SetHeaderText(panelRoot, headerText, UIFontConfig.AdminPanelHeader);
         }
 
@@ -335,37 +263,17 @@ SetElementActive(panelRoot, "DetailPanel", false);
       /// Info config mode (admin Info NPC tab).
    /// </summary>
         private static void ConfigureInfoConfigMode(Transform panelRoot, string npcName)
-  {
-            // SHOW core elements
-          SetElementActive(panelRoot, "Header", true);
-          SetElementActive(panelRoot, "SizeButton", true);
-     
-            // SHOW tabs (for navigation)
-   SetElementActive(panelRoot, "TabsBar", true);
-   
- // SHOW page controls (contains the back button for navigation)
+        {
+            SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "SizeButton", true);
+            SetElementActive(panelRoot, "TabsBar", true);
             SetElementActive(panelRoot, "PageControls", true);
-  
-        // SHOW info screen
-        SetElementActive(panelRoot, "InfoNpcScreen", true);
-    SetElementActive(panelRoot, "InfoApplyButton", true);
- 
-            // HIDE other elements
-      SetElementActive(panelRoot, "DetailPanel", false);
+            SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SearchBar", false);
-     SetElementActive(panelRoot, "TabContent", false);
-        SetElementActive(panelRoot, "QuestScreenContainer", false);
-       SetElementActive(panelRoot, "QuestConfigScreen", false);
-SetElementActive(panelRoot, "DressingRoomScreen", false);
-  SetElementActive(panelRoot, "DialogueEditorScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
-
-     // Set header text with admin style
-     SetHeaderText(panelRoot, "Info NPC Config", UIFontConfig.AdminPanelHeader);
+            SetElementActive(panelRoot, "TabContent", false);
+            SetElementActive(panelRoot, "QuestScreenContainer", false);
+            ShowOnlyModuleScreen(panelRoot, "InfoNpcScreen", "InfoApplyButton");
+            SetHeaderText(panelRoot, "Info NPC Config", UIFontConfig.AdminPanelHeader);
         }
 
      /// <summary>
@@ -373,33 +281,16 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
         /// </summary>
         private static void ConfigureInfoInteractionMode(Transform panelRoot, string npcName)
         {
-          // SHOW core elements
-         SetElementActive(panelRoot, "Header", true);
-  SetElementActive(panelRoot, "SizeButton", true);
-   
-       // SHOW info display
-    SetElementActive(panelRoot, "InfoNpcScreen", true);
-   
-   // HIDE admin elements
-       SetElementActive(panelRoot, "TabsBar", false);
+            SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "SizeButton", true);
+            SetElementActive(panelRoot, "TabsBar", false);
             SetElementActive(panelRoot, "DetailPanel", false);
-         SetElementActive(panelRoot, "SearchBar", false);
-         SetElementActive(panelRoot, "PageControls", false);
-  SetElementActive(panelRoot, "TabContent", false);
-   
-            // HIDE other screens
-        SetElementActive(panelRoot, "QuestScreenContainer", false);
-        SetElementActive(panelRoot, "QuestConfigScreen", false);
-        SetElementActive(panelRoot, "DressingRoomScreen", false);
-            SetElementActive(panelRoot, "DialogueEditorScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
-     SetElementActive(panelRoot, "InfoApplyButton", false);
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
-
-            // Set header text with NPC name style (player-facing)
+            SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "PageControls", false);
+            SetElementActive(panelRoot, "TabContent", false);
+            SetElementActive(panelRoot, "QuestScreenContainer", false);
+            // Player-facing info display, no apply button.
+            ShowOnlyModuleScreen(panelRoot, "InfoNpcScreen", "");
             SetHeaderText(panelRoot, npcName ?? "Info", UIFontConfig.NpcNameHeader);
         }
 
@@ -408,35 +299,16 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
         /// </summary>
         private static void ConfigureDressingRoomMode(Transform panelRoot, string npcName)
         {
-          // SHOW core elements
-        SetElementActive(panelRoot, "Header", true);
-        SetElementActive(panelRoot, "SizeButton", true);
-       
-            // SHOW page controls (contains the back button for navigation)
-        SetElementActive(panelRoot, "PageControls", true);
-          
-            // SHOW dressing room screen
-      SetElementActive(panelRoot, "DressingRoomScreen", true);
-   
-            // HIDE admin elements (we're in a sub-screen)
-      SetElementActive(panelRoot, "TabsBar", false);
+            SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "SizeButton", true);
+            SetElementActive(panelRoot, "PageControls", true);
+            SetElementActive(panelRoot, "TabsBar", false);
             SetElementActive(panelRoot, "DetailPanel", false);
-    SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "SearchBar", false);
             SetElementActive(panelRoot, "TabContent", false);
-    
-     // HIDE other screens
             SetElementActive(panelRoot, "QuestScreenContainer", false);
-         SetElementActive(panelRoot, "QuestConfigScreen", false);
-            SetElementActive(panelRoot, "InfoNpcScreen", false);
-       SetElementActive(panelRoot, "DialogueEditorScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
- SetElementActive(panelRoot, "InfoApplyButton", false);
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
-
-// Set header text with admin style
+            // Dressing-room screen + no apply button.
+            ShowOnlyModuleScreen(panelRoot, "DressingRoomScreen", "");
             SetHeaderText(panelRoot, $"Dressing Room: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
         }
 
@@ -447,39 +319,17 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
         /// </summary>
         private static void ConfigureDialogueEditorMode(Transform panelRoot, string npcName)
         {
-            // SHOW core elements
             SetElementActive(panelRoot, "Header", true);
             SetElementActive(panelRoot, "SizeButton", true);
-
-            // SHOW tabs (for navigation between NPC types)
             SetElementActive(panelRoot, "TabsBar", true);
-
-            // SHOW page controls (contains the back button)
             SetElementActive(panelRoot, "PageControls", true);
-
-            // SHOW the dialogue editor screen itself
-            SetElementActive(panelRoot, "DialogueEditorScreen", true);
-
-            // HIDE everything else
             SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SearchBar", false);
             SetElementActive(panelRoot, "SearchInput", false);
             SetElementActive(panelRoot, "TabContent", false);
             SetElementActive(panelRoot, "QuestScreenContainer", false);
-            SetElementActive(panelRoot, "QuestConfigScreen", false);
-            SetElementActive(panelRoot, "InfoNpcScreen", false);
-            SetElementActive(panelRoot, "DressingRoomScreen", false);
-            SetElementActive(panelRoot, "QuestApplyButton", false);
-            SetElementActive(panelRoot, "InfoApplyButton", false);
-            // TraderConfigScreen + TraderApplyButton must hide in EVERY non-trader mode — otherwise switching
-            // away from the trader tab (or hitting back from it) leaves the trader form overlapping the
-            // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
-            SetElementActive(panelRoot, "TraderConfigScreen", false);
-            SetElementActive(panelRoot, "TraderApplyButton", false);
-            SetElementActive(panelRoot, "BankerConfigScreen", false);
-            SetElementActive(panelRoot, "BankerApplyButton", false);
-
-            // Set header text with admin style
+            // Dialogue editor has no apply button — pass "" so all module-apply buttons hide.
+            ShowOnlyModuleScreen(panelRoot, "DialogueEditorScreen", "");
             SetHeaderText(panelRoot, $"Setup Dialogue NPC: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
         }
 

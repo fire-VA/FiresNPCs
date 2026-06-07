@@ -260,7 +260,13 @@
       "Bash(ls -d *-inspect)",
       "Bash(ls -la woman3-inspect/)",
       "Bash(ls -la megumi-inspect/)",
-      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/inspect_model.py -- /c/Users/travi/Downloads/_model_triage3/attractive-female-model-3-base-mesh-meshy-6/source/Woman3.fbx /c/Users/travi/Downloads/_model_triage3/woman3-inspect)"
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/inspect_model.py -- /c/Users/travi/Downloads/_model_triage3/attractive-female-model-3-base-mesh-meshy-6/source/Woman3.fbx /c/Users/travi/Downloads/_model_triage3/woman3-inspect)",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/dump_bones.py -- '/c/Users/travi/Downloads/_model_triage3/t-pose-01-megumi-oka-voltes-v/source/\\(T-Pose\\) 01 Megumi Oka @ Action Formal Clothes.fbx')",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/marker_rig.py -- /c/Users/travi/Downloads/_model_triage3/female-model/source/01.fbx /c/Users/travi/Downloads/_model_triage3/fem01-markerrig)",
+      "Bash(mkdir -p /c/Users/travi/Downloads/_model_triage3/megumi-final)",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/retarget_to_player.py -- /c/Users/travi/Downloads/_model_triage/_preview/player_rig/player_rig.fbx '/c/Users/travi/Downloads/_model_triage3/t-pose-01-megumi-oka-voltes-v/source/\\(T-Pose\\) 01 Megumi Oka @ Action Formal Clothes.fbx' /c/Users/travi/Downloads/_model_triage3/megumi-final)",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/remap_bones.py -- /c/Users/travi/Downloads/_model_triage2/crimson-st.glb /c/Users/travi/Downloads/_model_triage2/crimson-markerrig/marker_rigged.fbx /c/Users/travi/Downloads/_model_triage2/crimson-st-named.fbx)",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/rename_rig_to_valheim.py -- /c/Users/travi/Downloads/arianna_iglesias.glb /c/Users/travi/Downloads/_model_triage2/arianna-named.fbx)"
     ]
   }
 }
