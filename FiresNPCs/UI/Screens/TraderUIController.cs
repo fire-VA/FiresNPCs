@@ -67,8 +67,11 @@ namespace FiresRPGmaker.UI.Screens
         private static readonly Color BADGE_OK  = new Color(1f,     1f,    1f,     1f);
         private static readonly Color BADGE_OUT = new Color(1f,     0.45f, 0.40f,  1f);
 
-        private const string PREFAB_PANEL = "MarketplaceTraderNewUI";
-        private const string PREFAB_ROW   = "TraderInstantiateV3";
+        // OUR prefabs (built fresh from KG's layout template via FiresTraderBuilder editor script).
+        // No more bundle-extracted KG prefabs — they had script GUIDs from his project that Unity stripped
+        // on bake. These are project-native, sprites resolved to project assets, all components ours.
+        private const string PREFAB_PANEL = "FiresTraderPanel";
+        private const string PREFAB_ROW   = "FiresTraderRow";
 
         // KG's prefab references sprite assets that live in his bundle (NOT ours) — when the prefab was
         // baked into firesnpcsui those refs became null because the sprite assets weren't packaged with it.
@@ -229,28 +232,10 @@ namespace FiresRPGmaker.UI.Screens
             var cr = canvasGo.GetComponent<RectTransform>();
             cr.anchorMin = Vector2.zero; cr.anchorMax = Vector2.one; cr.offsetMin = Vector2.zero; cr.offsetMax = Vector2.zero;
 
-            // KG's prefab is self-canvased: a plain-Transform root with a single [Canvas] child carrying its
-            // own Canvas + CanvasScaler + GraphicRaycaster, and editor-time RectTransform offsets that put
-            // the content off-screen under any other canvas. Nesting that under our outer ScreenSpaceOverlay
-            // canvas (sortingOrder 210) leaves the inner canvas at sortingOrder 0 (behind HudMessage) with
-            // its captured offMin = (-1455,-762) — the "blank screen" symptom. Reparent the [Canvas] child
-            // directly to our outer canvas, strip the redundant Canvas/Scaler/Raycaster, reset its
-            // RectTransform to fill, and dump the empty wrapper.
-            var tempRoot = Instantiate(prefab);
-            var inner = tempRoot.transform.Find("Canvas");
-            if (inner == null) { Debug.LogError("[TraderUIController] KG prefab missing inner [Canvas] child"); Destroy(tempRoot); return; }
-            inner.SetParent(canvasGo.transform, false);
-            var panel = inner.gameObject;
+            // Our FiresTraderPanel root is a RectTransform anchored fill — instantiate straight under the
+            // outer canvas, no reparent/strip/rect-reset shenanigans needed since the prefab is project-native.
+            var panel = Instantiate(prefab, canvasGo.transform, false);
             panel.name = "TraderUI_Panel";
-            Destroy(tempRoot);
-
-            if (panel.TryGetComponent<CanvasScaler>(out var innerScaler)) Destroy(innerScaler);
-            if (panel.TryGetComponent<GraphicRaycaster>(out var innerRaycaster)) Destroy(innerRaycaster);
-            if (panel.TryGetComponent<Canvas>(out var innerCanvas)) Destroy(innerCanvas);
-            var rt = (RectTransform)panel.transform;
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            rt.localScale = Vector3.one; rt.localPosition = Vector3.zero;
 
             var controller = panel.AddComponent<TraderUIController>();
             controller._panelRoot = panel;
