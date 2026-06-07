@@ -93,6 +93,10 @@ namespace FiresRPGmaker.UI
             {
                 _bankerTabButton.onClick.RemoveAllListeners();
                 _bankerTabButton.onClick.AddListener(() => OnTabClicked(NpcType.Banker));
+                // Drop the inherited trader-tab highlight + register a fresh one for the Banker tab.
+                var stale = clone.transform.Find(traderTabButton.name + "_Highlight");
+                if (stale != null) DestroyImmediate(stale.gameObject);
+                CreateTabHighlight(_bankerTabButton, 4f);
             }
             foreach (var tmp in clone.GetComponentsInChildren<TMPro.TMP_Text>(true)) tmp.text = "Banker Npc";
             foreach (var txt in clone.GetComponentsInChildren<UnityEngine.UI.Text>(true)) txt.text = "Banker Npc";
@@ -110,15 +114,17 @@ namespace FiresRPGmaker.UI
 
         // Single source of truth for the 6 v1-stub modules. Order = visual order in the 2nd tab row.
         // Adding a new module = add an entry here + a corresponding ScreenMode case in PanelElementManager.
+        // Row-2 tab labels intentionally drop the "Npc" suffix that row-1 carries — with 6 cells competing
+        // for the same panel width, every extra glyph clips ("Leaderboard Npc" wrapped/truncated in v1).
         private static readonly (NpcType Type, string FieldName, string Label,
                                  string ScreenName, string ApplyName, string TabLabel)[] EXTRA_MODULES =
         {
-            (NpcType.Gambler,     "gamblerProfile",     "Gambler",     "GamblerConfigScreen",     "GamblerApplyButton",     "Gambler Npc"),
-            (NpcType.Marketplace, "marketplaceProfile", "Marketplace", "MarketplaceConfigScreen", "MarketplaceApplyButton", "Marketplace Npc"),
-            (NpcType.Achievement, "achievementProfile", "Achievement", "AchievementConfigScreen", "AchievementApplyButton", "Achievement Npc"),
-            (NpcType.Leaderboard, "leaderboardProfile", "Leaderboard", "LeaderboardConfigScreen", "LeaderboardApplyButton", "Leaderboard Npc"),
-            (NpcType.Mail,        "mailProfile",        "Mail",        "MailConfigScreen",        "MailApplyButton",        "Mail Npc"),
-            (NpcType.Transmog,    "transmogProfile",    "Transmog",    "TransmogConfigScreen",    "TransmogApplyButton",    "Transmog Npc"),
+            (NpcType.Gambler,     "gamblerProfile",     "Gambler",     "GamblerConfigScreen",     "GamblerApplyButton",     "Gambler"),
+            (NpcType.Marketplace, "marketplaceProfile", "Marketplace", "MarketplaceConfigScreen", "MarketplaceApplyButton", "Market"),
+            (NpcType.Achievement, "achievementProfile", "Achievement", "AchievementConfigScreen", "AchievementApplyButton", "Achieve"),
+            (NpcType.Leaderboard, "leaderboardProfile", "Leaderboard", "LeaderboardConfigScreen", "LeaderboardApplyButton", "Leaders"),
+            (NpcType.Mail,        "mailProfile",        "Mail",        "MailConfigScreen",        "MailApplyButton",        "Mail"),
+            (NpcType.Transmog,    "transmogProfile",    "Transmog",    "TransmogConfigScreen",    "TransmogApplyButton",    "Transmog"),
         };
 
         /// <summary>Wires the 6 generic module screens + clones a tab button per module into a 2nd tab row.</summary>
@@ -152,28 +158,25 @@ namespace FiresRPGmaker.UI
             var tabsBar = traderTabButton.transform.parent;
             if (tabsBar == null) return transform;
 
+            // Row 2 is PARENTED UNDER TabsBar (not a sibling) so it inherits TabsBar's active state when
+            // PanelElementManager toggles tab visibility. Anchored at (0,0)-(1,0) with a downward offset
+            // equal to TabsBar's height + gap places it directly below TabsBar in screen space.
             var rowGo = new GameObject("TabsBarRow2", typeof(RectTransform));
-            rowGo.transform.SetParent(tabsBar.parent, false);
+            rowGo.transform.SetParent(tabsBar, false);
             var rrt = rowGo.GetComponent<RectTransform>();
             var tbrt = tabsBar.GetComponent<RectTransform>();
-            if (tbrt != null)
-            {
-                // Normalized-anchor placement — pixel-offset math broke when the row 1 rect hadn't been
-                // computed yet at construction time (rect.height returned 0 -> clamp to 28 -> overlap).
-                float bandH = tbrt.anchorMax.y - tbrt.anchorMin.y;
-                if (bandH <= 0.001f) bandH = 0.08f; // sane fallback for stretched anchors
-                const float gap = 0.01f; // ~1% panel height gap between rows
-                rrt.anchorMin = new Vector2(tbrt.anchorMin.x, tbrt.anchorMin.y - bandH - gap);
-                rrt.anchorMax = new Vector2(tbrt.anchorMax.x, tbrt.anchorMin.y - gap);
-                rrt.pivot = tbrt.pivot;
-                rrt.offsetMin = tbrt.offsetMin;
-                rrt.offsetMax = tbrt.offsetMax;
-            }
-            else
-            {
-                rrt.anchorMin = new Vector2(0f, 0.72f); rrt.anchorMax = new Vector2(1f, 0.80f);
-                rrt.offsetMin = Vector2.zero; rrt.offsetMax = Vector2.zero;
-            }
+            const float rowHpx = 36f;
+            const float gapPx = 8f;
+            rrt.anchorMin = new Vector2(0f, 0f);
+            rrt.anchorMax = new Vector2(1f, 0f);
+            rrt.pivot = new Vector2(0.5f, 1f);
+            rrt.offsetMin = new Vector2(0f, -(rowHpx + gapPx));
+            rrt.offsetMax = new Vector2(0f, -gapPx);
+
+            // Critical when TabsBar has a HorizontalLayoutGroup — without IgnoreLayout, row 2 becomes a
+            // layout child and gets squeezed into the tab strip alongside row-1 buttons.
+            var ignore = rowGo.AddComponent<UnityEngine.UI.LayoutElement>();
+            ignore.ignoreLayout = true;
 
             // Mirror the original tab row's HLG so child tabs auto-distribute the same way.
             var srcHlg = tabsBar.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
@@ -194,13 +197,22 @@ namespace FiresRPGmaker.UI
             return _tabsRow2;
         }
 
-        /// <summary>Clones traderTabButton into the 2nd tab row, renames + relabels it, wires the click.</summary>
+        /// <summary>Clones traderTabButton into the 2nd tab row, renames + relabels it, wires the click,
+        /// and registers a tab highlight so the orange active-border treatment matches the row-1 tabs.</summary>
         private Button CreateExtraTab(NpcType type, string tabLabel)
         {
             if (traderTabButton == null) return null;
             var row = EnsureTabsRow2();
             var clone = Instantiate(traderTabButton.gameObject, row);
             clone.name = tabLabel.Replace(" ", "") + "TabButton";
+
+            // The trader clone copies its inner highlight GameObject (created at runtime by
+            // CreateTabHighlights for the trader tab). Strip it so we can register a fresh one keyed
+            // to the clone — otherwise SetTabHighlightActive looks the new button up in _tabHighlights
+            // and finds nothing.
+            var inheritedHighlight = clone.transform.Find(traderTabButton.name + "_Highlight");
+            if (inheritedHighlight != null) DestroyImmediate(inheritedHighlight.gameObject);
+
             foreach (var tmp in clone.GetComponentsInChildren<TMPro.TMP_Text>(true)) tmp.text = tabLabel;
             foreach (var txt in clone.GetComponentsInChildren<UnityEngine.UI.Text>(true)) txt.text = tabLabel;
             var btn = clone.GetComponent<Button>();
@@ -208,6 +220,7 @@ namespace FiresRPGmaker.UI
             {
                 btn.onClick.RemoveAllListeners();
                 btn.onClick.AddListener(() => OnTabClicked(type));
+                CreateTabHighlight(btn, 4f);
             }
             // Reset the cloned RectTransform's anchored position — the parent HLG positions the tab now,
             // not the inherited anchoredPosition (which could otherwise push the tab off-row).
@@ -759,6 +772,11 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
             SetTabHighlightActive(infoNpcTabButton, !onMain && _selectedNpcType == NpcType.InfoNpc, 4f);
             SetTabHighlightActive(dialogueNpcTabButton, !onMain && _selectedNpcType == NpcType.DialogueNpc, 4f);
     SetTabHighlightActive(traderTabButton, !onMain && _selectedNpcType == NpcType.Trader, 4f);
+            if (_bankerTabButton != null)
+                SetTabHighlightActive(_bankerTabButton, !onMain && _selectedNpcType == NpcType.Banker, 4f);
+            // Row-2 extras share the same highlight pipeline as row-1.
+            foreach (var kv in _moduleTabs)
+                SetTabHighlightActive(kv.Value, !onMain && _selectedNpcType == kv.Key, 4f);
         }
 
    private void SetTabHighlightActive(Button tab, bool active, float baseLeftExpansion = 4f)
