@@ -96,21 +96,24 @@ namespace FiresRPGmaker.UI.Screens
         public static void ShowForNpc(NpcController npc)
         {
             if (npc == null) return;
+            Debug.Log($"[TraderUIController] ShowForNpc: npc='{npc.GetDisplayName()}', traderProfile='{npc.traderProfile}'");
             string profileName = npc.traderProfile;
             if (string.IsNullOrEmpty(profileName)) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{npc.GetDisplayName()} has nothing to trade."); return; }
 
             TraderProfileManager.Initialize();
             var profile = TraderProfileManager.GetProfile(profileName);
-            if (profile == null || profile.Trades.Count == 0) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{npc.GetDisplayName()} has no items to trade."); return; }
+            if (profile == null || profile.Trades.Count == 0) { Debug.LogWarning($"[TraderUIController] profile '{profileName}' missing or has no trades (profile null = {profile == null})"); MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{npc.GetDisplayName()} has no items to trade."); return; }
+            Debug.Log($"[TraderUIController] profile '{profileName}' loaded with {profile.Trades.Count} trade(s)");
 
             EnsureInstance();
-            if (Instance == null) return;
+            if (Instance == null) { Debug.LogError("[TraderUIController] EnsureInstance failed — Instance is null"); return; }
             Instance._currentNpc = npc;
             Instance._currentProfile = profile;
             Instance.PopulateUI(npc.GetDisplayName());
             Instance._panelRoot.SetActive(true);
             GUIManager.BlockInput(true);
             Cursor.visible = true; Cursor.lockState = CursorLockMode.None;
+            Debug.Log($"[TraderUIController] panel active — IsVisible={Instance.IsVisible}");
         }
 
         public static void ShowForCompanion(string displayName, string traderProfile)
@@ -176,8 +179,28 @@ namespace FiresRPGmaker.UI.Screens
             var cr = canvasGo.GetComponent<RectTransform>();
             cr.anchorMin = Vector2.zero; cr.anchorMax = Vector2.one; cr.offsetMin = Vector2.zero; cr.offsetMax = Vector2.zero;
 
-            var panel = Instantiate(prefab, canvasGo.transform, false);
+            // KG's prefab is self-canvased: a plain-Transform root with a single [Canvas] child carrying its
+            // own Canvas + CanvasScaler + GraphicRaycaster, and editor-time RectTransform offsets that put
+            // the content off-screen under any other canvas. Nesting that under our outer ScreenSpaceOverlay
+            // canvas (sortingOrder 210) leaves the inner canvas at sortingOrder 0 (behind HudMessage) with
+            // its captured offMin = (-1455,-762) — the "blank screen" symptom. Reparent the [Canvas] child
+            // directly to our outer canvas, strip the redundant Canvas/Scaler/Raycaster, reset its
+            // RectTransform to fill, and dump the empty wrapper.
+            var tempRoot = Instantiate(prefab);
+            var inner = tempRoot.transform.Find("Canvas");
+            if (inner == null) { Debug.LogError("[TraderUIController] KG prefab missing inner [Canvas] child"); Destroy(tempRoot); return; }
+            inner.SetParent(canvasGo.transform, false);
+            var panel = inner.gameObject;
             panel.name = "TraderUI_Panel";
+            Destroy(tempRoot);
+
+            if (panel.TryGetComponent<CanvasScaler>(out var innerScaler)) Destroy(innerScaler);
+            if (panel.TryGetComponent<GraphicRaycaster>(out var innerRaycaster)) Destroy(innerRaycaster);
+            if (panel.TryGetComponent<Canvas>(out var innerCanvas)) Destroy(innerCanvas);
+            var rt = (RectTransform)panel.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            rt.localScale = Vector3.one; rt.localPosition = Vector3.zero;
 
             var controller = panel.AddComponent<TraderUIController>();
             controller._panelRoot = panel;
@@ -185,6 +208,7 @@ namespace FiresRPGmaker.UI.Screens
             controller._rowTemplate = rowTemplate;
             controller.WireNodes();
             panel.SetActive(false);
+            Debug.Log($"[TraderUIController] EnsureInstance complete — panel under canvas (sortingOrder {canvas.sortingOrder})");
         }
 
         /// <summary>Case-insensitive lookup against the firesnpcsui bundle (KG's prefab names preserve original casing).</summary>
@@ -210,14 +234,16 @@ namespace FiresRPGmaker.UI.Screens
 
         private void WireNodes()
         {
-            // Navigation matches the hierarchy captured in Tools\kg-trader-extract.txt.
-            _headerText   = _panelRoot.transform.Find("Canvas/Header/Text")?.GetComponent<Text>();
-            _scrollContent = _panelRoot.transform.Find("Canvas/Scroll View/Viewport/Content");
-            _searchInput  = _panelRoot.transform.Find("Canvas/Background/InputField")?.GetComponent<InputField>();
+            // After EnsureInstance reparented KG's inner [Canvas] to be the panel root, navigation paths
+            // are now ROOT-relative (no "Canvas/" prefix). Matches Tools\kg-trader-extract.txt sans Canvas.
+            _headerText   = _panelRoot.transform.Find("Header/Text")?.GetComponent<Text>();
+            _scrollContent = _panelRoot.transform.Find("Scroll View/Viewport/Content");
+            _searchInput  = _panelRoot.transform.Find("Background/InputField")?.GetComponent<InputField>();
+            Debug.Log($"[TraderUIController] WireNodes: header={_headerText != null}, scroll={_scrollContent != null}, search={_searchInput != null}");
 
             // KG had a custom ScrollView_Optimization MonoBehaviour on the Scroll View that the extract stripped
             // (missing-script); add a vanilla Unity ScrollRect so scrolling/sizing work.
-            var scrollGo = _panelRoot.transform.Find("Canvas/Scroll View");
+            var scrollGo = _panelRoot.transform.Find("Scroll View");
             if (scrollGo != null)
             {
                 _scrollRect = scrollGo.GetComponent<ScrollRect>() ?? scrollGo.gameObject.AddComponent<ScrollRect>();
@@ -251,7 +277,7 @@ namespace FiresRPGmaker.UI.Screens
             string[] modNames = { "x1", "x5", "x10", "x100" };
             for (int i = 0; i < modNames.Length; i++)
             {
-                var t = _panelRoot.transform.Find("Canvas/Background/" + modNames[i]);
+                var t = _panelRoot.transform.Find("Background/" + modNames[i]);
                 if (t == null) continue;
                 int captured = i;
                 var btn = t.GetComponent<Button>(); if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => SetModifier(captured)); }
@@ -268,9 +294,9 @@ namespace FiresRPGmaker.UI.Screens
             }
 
             // ToBank/FromBank/ToFromText — hidden until a Banker module is wired (memory: deferred).
-            SetActive("Canvas/Background/ToBank", false);
-            SetActive("Canvas/Background/FromBank", false);
-            SetActive("Canvas/Background/ToFromText", false);
+            SetActive("Background/ToBank", false);
+            SetActive("Background/FromBank", false);
+            SetActive("Background/ToFromText", false);
 
             // Close button (top-right of KG's panel) — KG didn't bake one; let Esc / OnDestroy handle close.
         }
