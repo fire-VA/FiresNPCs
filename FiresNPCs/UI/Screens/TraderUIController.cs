@@ -55,6 +55,15 @@ namespace FiresRPGmaker.UI.Screens
         // Conversion arrow color encoding.
         private static readonly Color CONV_OK   = new Color(0.657f, 1f,    0.373f, 1f);       // KG's default green
         private static readonly Color CONV_NO   = new Color(1f,     0.30f, 0.20f,  1f);       // affordability fail / sold out
+        private static Font _legacyFont;
+        private static Font LegacyFont()
+        {
+            if (_legacyFont != null) return _legacyFont;
+            try { _legacyFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
+            if (_legacyFont == null) try { _legacyFont = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { }
+            return _legacyFont;
+        }
+
         private static readonly Color BADGE_OK  = new Color(1f,     1f,    1f,     1f);
         private static readonly Color BADGE_OUT = new Color(1f,     0.45f, 0.40f,  1f);
 
@@ -236,10 +245,36 @@ namespace FiresRPGmaker.UI.Screens
         {
             // After EnsureInstance reparented KG's inner [Canvas] to be the panel root, navigation paths
             // are now ROOT-relative (no "Canvas/" prefix). Matches Tools\kg-trader-extract.txt sans Canvas.
-            _headerText   = _panelRoot.transform.Find("Header/Text")?.GetComponent<Text>();
             _scrollContent = _panelRoot.transform.Find("Scroll View/Viewport/Content");
-            _searchInput  = _panelRoot.transform.Find("Background/InputField")?.GetComponent<InputField>();
-            Debug.Log($"[TraderUIController] WireNodes: header={_headerText != null}, scroll={_scrollContent != null}, search={_searchInput != null}");
+            // Header/Text and Background/InputField may have lost their Text/InputField components during
+            // KG's-prefab → our-project bake (the original Averia-Bold font + KG's MonoBehaviour refs don't
+            // resolve in our editor), so search ROBUSTLY: prefer the named child path, fall back to any
+            // descendant Text/InputField under [Header]/[Background] respectively. Logs diagnostics.
+            var headerGo = _panelRoot.transform.Find("Header");
+            var headerTextGo = headerGo != null ? headerGo.Find("Text") : null;
+            _headerText = headerTextGo?.GetComponent<Text>() ?? headerGo?.GetComponentInChildren<Text>(true);
+            if (_headerText == null && headerGo != null)
+            {
+                // Last-resort fallback: add a fresh Text on Header/Text (or on Header if Text node missing).
+                var host = headerTextGo != null ? headerTextGo.gameObject : headerGo.gameObject;
+                _headerText = host.AddComponent<Text>();
+                _headerText.font = LegacyFont();
+                _headerText.fontSize = 32; _headerText.color = Color.white; _headerText.alignment = TextAnchor.MiddleCenter;
+                _headerText.raycastTarget = false;
+            }
+
+            var bgGo = _panelRoot.transform.Find("Background");
+            var searchGo = bgGo != null ? bgGo.Find("InputField") : null;
+            _searchInput = searchGo?.GetComponent<InputField>() ?? bgGo?.GetComponentInChildren<InputField>(true);
+
+            Debug.Log($"[TraderUIController] WireNodes: header={_headerText != null} (path-find={headerTextGo != null}), scroll={_scrollContent != null}, search={_searchInput != null} (path-find={searchGo != null})");
+            if (headerGo == null || bgGo == null)
+            {
+                // The big structural elements should exist — log direct child names so we can see what's actually there.
+                var names = new System.Text.StringBuilder();
+                foreach (Transform t in _panelRoot.transform) names.Append('[').Append(t.name).Append("] ");
+                Debug.LogWarning($"[TraderUIController] missing structural child(ren): Header={headerGo!=null}, Background={bgGo!=null}. Direct children: {names}");
+            }
 
             // KG had a custom ScrollView_Optimization MonoBehaviour on the Scroll View that the extract stripped
             // (missing-script); add a vanilla Unity ScrollRect so scrolling/sizing work.

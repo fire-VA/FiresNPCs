@@ -131,6 +131,11 @@ namespace FiresRPGmaker.UI
             SetElementActive(panelRoot, "DialogueEditorScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
             SetElementActive(panelRoot, "InfoApplyButton", false);
+            // TraderConfigScreen + TraderApplyButton must hide in EVERY non-trader mode — otherwise switching
+            // away from the trader tab (or hitting back from it) leaves the trader form overlapping the
+            // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
    
       // Set header text with admin style
             SetHeaderText(panelRoot, $"Configure NPC: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
@@ -162,6 +167,11 @@ namespace FiresRPGmaker.UI
             SetElementActive(panelRoot, "DialogueEditorScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
             SetElementActive(panelRoot, "InfoApplyButton", false);
+            // TraderConfigScreen + TraderApplyButton must hide in EVERY non-trader mode — otherwise switching
+            // away from the trader tab (or hitting back from it) leaves the trader form overlapping the
+            // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
             SetElementActive(panelRoot, "QuestInteract", false);
     
             // Set header text with NPC name style (larger, for player-facing screens)
@@ -196,6 +206,8 @@ SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "DressingRoomScreen", false);
         SetElementActive(panelRoot, "DialogueEditorScreen", false);
             SetElementActive(panelRoot, "InfoApplyButton", false);
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
 
             // Set header text with admin style
    SetHeaderText(panelRoot, "Quest Config", UIFontConfig.AdminPanelHeader);
@@ -256,7 +268,9 @@ SetElementActive(panelRoot, "DetailPanel", false);
 SetElementActive(panelRoot, "DressingRoomScreen", false);
   SetElementActive(panelRoot, "DialogueEditorScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
-   
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
+
      // Set header text with admin style
      SetHeaderText(panelRoot, "Info NPC Config", UIFontConfig.AdminPanelHeader);
         }
@@ -287,7 +301,9 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
             SetElementActive(panelRoot, "DialogueEditorScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
      SetElementActive(panelRoot, "InfoApplyButton", false);
-      
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
+
             // Set header text with NPC name style (player-facing)
             SetHeaderText(panelRoot, npcName ?? "Info", UIFontConfig.NpcNameHeader);
         }
@@ -320,7 +336,9 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
        SetElementActive(panelRoot, "DialogueEditorScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
  SetElementActive(panelRoot, "InfoApplyButton", false);
-            
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
+
 // Set header text with admin style
             SetHeaderText(panelRoot, $"Dressing Room: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
         }
@@ -356,6 +374,11 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
             SetElementActive(panelRoot, "DressingRoomScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
             SetElementActive(panelRoot, "InfoApplyButton", false);
+            // TraderConfigScreen + TraderApplyButton must hide in EVERY non-trader mode — otherwise switching
+            // away from the trader tab (or hitting back from it) leaves the trader form overlapping the
+            // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
 
             // Set header text with admin style
             SetHeaderText(panelRoot, $"Setup Dialogue NPC: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
@@ -370,7 +393,8 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
            "Header", "SizeButton", "TabsBar", "DetailPanel", "SearchBar", "SearchInput",
           "PageControls", "TabContent", "QuestScreenContainer", "QuestInteract",
    "QuestConfigScreen", "InfoNpcScreen", "DressingRoomScreen",
-                "DialogueEditorScreen", "QuestApplyButton", "InfoApplyButton"
+                "DialogueEditorScreen", "QuestApplyButton", "InfoApplyButton",
+                "TraderConfigScreen", "TraderApplyButton"
    };
        
             foreach (var elementName in allElements)
