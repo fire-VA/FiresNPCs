@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using FiresRPGmaker.Managers;
 using TMPro;
 using UnityEngine;
@@ -9,33 +7,29 @@ using UnityEngine.UI;
 namespace FiresRPGmaker.UI.Screens
 {
     /// <summary>
-    /// Admin Trader-config screen (the NPC panel's Trader tab). Mirrors QuestConfigScreenController:
-    /// a programmatic CreateForm is the source layout (captured -> baked later), with a WireFromCodegen
-    /// path for when a baked "TraderConfigScreen" exists. Increment 1: pick a trader profile (from the
-    /// loaded set, incl. the Marketplace drop-in) + live trades preview; Apply assigns it to the NPC.
-    /// Increment 2 (later): inline trade-row editing + write-back to the trader .cfg.
+    /// Admin Trader-config screen (the NPC panel's Trader tab). Edits a trader profile: the profile name
+    /// + its trades (one .cfg line per trade); Apply writes FiresRPGmaker/Traders/&lt;name&gt;.cfg and assigns
+    /// the profile to the NPC. Programmatic CreateForm is the source layout (captured -> baked later, then
+    /// laid out around the trader PNG); WireFromCodegen is stubbed for the bake step.
+    ///
+    /// Trade-line format (same as the .cfg, round-trips via TraderProfileManager.SerializeTrades/ParseTradeLine):
+    ///   legacy:  cost, amount, reward, amount[, level]
+    ///   multi:   cost,amt[,lvl], ...  =  reward,amt[,lvl], ...
+    ///   + optional trailing  , Stock=X, Restock=Y
     /// </summary>
     public class TraderConfigScreenController : MonoBehaviour
     {
         private NpcController _currentNpc;
         private TMP_InputField _profileInput;
-        private TMP_Text _previewText;
+        private TMP_InputField _tradesInput;
+        private TMP_Text _statusText;
         private Button _applyButton;
         private bool _built;
 
         public bool IsVisible => gameObject.activeSelf;
 
-        /// <summary>Wire from a baked "TraderConfigScreen" codegen element (parity with the other screens).
-        /// Not used yet (no baked trader screen); kept so the bake step is a drop-in later.</summary>
-        public void WireFromCodegen(GameObject screenGo, Button applyBtn)
-        {
-            _applyButton = applyBtn;
-            if (_applyButton != null) { _applyButton.onClick.RemoveAllListeners(); _applyButton.onClick.AddListener(ApplyChanges); }
-            // Field lookups would go here once a baked layout exists; for now the programmatic CreateForm path is used.
-            BuildForm(applyBtn);
-        }
+        public void WireFromCodegen(GameObject screenGo, Button applyBtn) => BuildForm(applyBtn);
 
-        /// <summary>Programmatic form (source layout). Built once under this GO (the "TraderConfigScreen").</summary>
         public void BuildForm(Button applyButton)
         {
             if (_built) return;
@@ -45,13 +39,15 @@ namespace FiresRPGmaker.UI.Screens
             rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
             rt.offsetMin = new Vector2(20f, 60f); rt.offsetMax = new Vector2(-20f, -70f);
 
-            CreateLabel(rt, "Trader Setup", 0.92f, 0.99f, 22f, TextAlignmentOptions.Center);
-            CreateLabel(rt, "Trader Profile", 0.84f, 0.90f, 16f, TextAlignmentOptions.Left);
-            _profileInput = CreateInput(rt, 0.76f, 0.83f);
-            _profileInput.onValueChanged.AddListener(_ => UpdatePreview());
-            CreateLabel(rt, "Trades", 0.70f, 0.75f, 16f, TextAlignmentOptions.Left);
-            _previewText = CreateLabel(rt, "", 0.02f, 0.69f, 15f, TextAlignmentOptions.TopLeft);
-            _previewText.enableWordWrapping = true;
+            CreateLabel(rt, "Trader Setup", 0.93f, 0.99f, 22f, TextAlignmentOptions.Center);
+            CreateLabel(rt, "Trader Profile (type an existing name to load, or a new name to create)", 0.86f, 0.92f, 13f, TextAlignmentOptions.Left);
+            _profileInput = CreateInput(rt, 0.79f, 0.855f, false);
+            _profileInput.onEndEdit.AddListener(LoadProfileTrades);
+
+            CreateLabel(rt, "Trades - one per line:  cost, amount, reward, amount[, level]", 0.72f, 0.78f, 13f, TextAlignmentOptions.Left);
+            _tradesInput = CreateInput(rt, 0.10f, 0.71f, true);
+
+            _statusText = CreateLabel(rt, "", 0.02f, 0.085f, 13f, TextAlignmentOptions.Left);
 
             _applyButton = applyButton;
             if (_applyButton != null) { _applyButton.onClick.RemoveAllListeners(); _applyButton.onClick.AddListener(ApplyChanges); }
@@ -60,8 +56,9 @@ namespace FiresRPGmaker.UI.Screens
         public void Show(NpcController npc)
         {
             _currentNpc = npc;
-            if (_profileInput != null) _profileInput.SetTextWithoutNotify(npc?.traderProfile ?? "");
-            UpdatePreview();
+            string name = npc?.traderProfile ?? "";
+            if (_profileInput != null) _profileInput.SetTextWithoutNotify(name);
+            LoadProfileTrades(name);
             gameObject.SetActive(true);
             if (_applyButton != null) _applyButton.gameObject.SetActive(true);
         }
@@ -75,36 +72,35 @@ namespace FiresRPGmaker.UI.Screens
         public void ApplyChanges()
         {
             if (_currentNpc == null) return;
-            _currentNpc.traderProfile = (_profileInput != null ? _profileInput.text : _currentNpc.traderProfile)?.Trim();
+            string name = (_profileInput != null ? _profileInput.text : "").Trim();
+            if (string.IsNullOrEmpty(name)) { SetStatus("Enter a profile name first."); return; }
+            TraderProfileManager.SaveProfile(name, _tradesInput != null ? _tradesInput.text : "");
+            _currentNpc.traderProfile = name;
             _currentNpc.SaveToZDO();
-            UpdatePreview();
+            var profile = TraderProfileManager.GetProfile(name);
+            SetStatus($"Saved '{name}' ({profile?.Trades.Count ?? 0} trades) and assigned to this NPC.");
         }
 
-        private void UpdatePreview()
+        private void LoadProfileTrades(string name)
         {
-            if (_previewText == null) return;
+            name = (name ?? "").Trim();
             TraderProfileManager.Initialize();
-            string name = _profileInput != null ? _profileInput.text.Trim() : "";
             var profile = string.IsNullOrEmpty(name) ? null : TraderProfileManager.GetProfile(name);
-            if (profile == null)
+            if (profile != null)
+            {
+                if (_tradesInput != null) _tradesInput.SetTextWithoutNotify(TraderProfileManager.SerializeTrades(profile));
+                SetStatus($"Loaded '{profile.Name}' ({profile.Trades.Count} trades). Edit + Apply to save.");
+            }
+            else
             {
                 var all = TraderProfileManager.GetAllProfileNames().OrderBy(n => n).ToList();
-                _previewText.text = all.Count == 0
-                    ? "No trader profiles loaded.\nAdd .cfg to config/FiresRPGmaker/Traders, or drop in a Marketplace config tree."
-                    : "Type a profile name above. Available:\n" + string.Join("\n", all.Select(n => "  " + n));
-                return;
+                SetStatus(all.Count == 0
+                    ? "New profile - add trade lines above, then Apply."
+                    : "New/unknown profile. Existing: " + string.Join(", ", all.Take(12)) + (all.Count > 12 ? " ..." : ""));
             }
-            var sb = new StringBuilder();
-            sb.AppendLine($"<b>{profile.Name}</b>   ({profile.Trades.Count} trades)");
-            foreach (var t in profile.Trades.Take(40))
-            {
-                string cost = string.Join(" + ", t.CostItems.Select(c => $"{c.Amount}x {c.PrefabName}"));
-                string reward = string.Join(" + ", t.RewardItems.Select(r => $"{r.Amount}x {r.PrefabName}" + (r.Level > 0 ? $" (lv{r.Level})" : "")));
-                sb.AppendLine($"  {cost}  ->  {reward}");
-            }
-            if (profile.Trades.Count > 40) sb.AppendLine($"  ...and {profile.Trades.Count - 40} more");
-            _previewText.text = sb.ToString();
         }
+
+        private void SetStatus(string s) { if (_statusText != null) _statusText.text = s; }
 
         // --- minimal Unity-UI builders (anchors are fractional Y bands of the screen rect) ---
         private TMP_Text CreateLabel(RectTransform parent, string text, float yMin, float yMax, float size, TextAlignmentOptions align)
@@ -115,13 +111,15 @@ namespace FiresRPGmaker.UI.Screens
             rt.anchorMin = new Vector2(0.02f, yMin); rt.anchorMax = new Vector2(0.98f, yMax);
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             var tmp = go.AddComponent<TextMeshProUGUI>();
+            tmp.font = TMP_Settings.defaultFontAsset;
             tmp.text = text; tmp.fontSize = size; tmp.alignment = align; tmp.color = new Color(0.96f, 0.91f, 0.76f);
+            tmp.enableWordWrapping = true;
             return tmp;
         }
 
-        private TMP_InputField CreateInput(RectTransform parent, float yMin, float yMax)
+        private TMP_InputField CreateInput(RectTransform parent, float yMin, float yMax, bool multiline)
         {
-            var go = new GameObject("ProfileInput", typeof(RectTransform), typeof(Image));
+            var go = new GameObject(multiline ? "TradesInput" : "ProfileInput", typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0.02f, yMin); rt.anchorMax = new Vector2(0.98f, yMax);
@@ -133,18 +131,20 @@ namespace FiresRPGmaker.UI.Screens
             var viewport = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
             viewport.transform.SetParent(rt, false);
             var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one; vrt.offsetMin = new Vector2(8f, 2f); vrt.offsetMax = new Vector2(-8f, -2f);
+            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one; vrt.offsetMin = new Vector2(8f, 4f); vrt.offsetMax = new Vector2(-8f, -4f);
 
             var textGo = new GameObject("Text", typeof(RectTransform));
             textGo.transform.SetParent(vrt, false);
             var trt = textGo.GetComponent<RectTransform>();
             trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
             var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.fontSize = 16f; txt.color = new Color(0.96f, 0.91f, 0.76f); txt.alignment = TextAlignmentOptions.Left;
+            txt.font = TMP_Settings.defaultFontAsset;
+            txt.fontSize = 15f; txt.color = new Color(0.96f, 0.91f, 0.76f);
+            txt.alignment = multiline ? TextAlignmentOptions.TopLeft : TextAlignmentOptions.Left;
 
             input.textViewport = vrt;
             input.textComponent = txt;
-            input.lineType = TMP_InputField.LineType.SingleLine;
+            input.lineType = multiline ? TMP_InputField.LineType.MultiLineNewline : TMP_InputField.LineType.SingleLine;
             return input;
         }
     }

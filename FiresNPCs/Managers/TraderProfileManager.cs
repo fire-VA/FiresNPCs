@@ -226,6 +226,80 @@ namespace FiresRPGmaker.Managers
                 Debug.Log($"[TraderProfileManager] Marketplace drop-in: loaded {profileCount} trader profiles ({tradeCount} trades) from {folder}");
         }
 
+        // ── Editing (admin Trader config screen) ─────────────────────────────────
+
+        /// <summary>Serializes a profile's trades to .cfg text (one line per trade), round-trip-parseable by
+        /// ParseTradeLine: legacy "cost,amt,reward,amt[,lvl]" for a single cost+reward (cost level 0), else
+        /// the multi-item "cost,amt[,lvl],... = reward,amt[,lvl],..." form; trailing Stock=/Restock= for
+        /// entries with explicit overrides.</summary>
+        public static string SerializeTrades(TraderProfile profile)
+        {
+            if (profile == null) return "";
+            return string.Join("\n", profile.Trades.Select(SerializeTradeEntry));
+        }
+
+        private static string SerializeTradeEntry(TradeEntry t)
+        {
+            string body;
+            bool simple = t.CostItems.Count == 1 && t.RewardItems.Count == 1 && t.CostItems[0].Level == 0;
+            if (simple)
+            {
+                var c = t.CostItems[0]; var r = t.RewardItems[0];
+                body = r.Level > 0
+                    ? $"{c.PrefabName}, {c.Amount}, {r.PrefabName}, {r.Amount}, {r.Level}"
+                    : $"{c.PrefabName}, {c.Amount}, {r.PrefabName}, {r.Amount}";
+            }
+            else
+            {
+                string costs = string.Join(", ", t.CostItems.Select(SerializeItem));
+                string rewards = string.Join(", ", t.RewardItems.Select(SerializeItem));
+                body = $"{costs} = {rewards}";
+            }
+            if (t.HasExplicitStock) body += $", Stock={t.Stock}";
+            if (t.HasExplicitRestock) body += $", Restock={t.RestockSeconds}";
+            return body;
+        }
+
+        private static string SerializeItem(TradeItemStack s)
+            => s.Level > 0 ? $"{s.PrefabName}, {s.Amount}, {s.Level}" : $"{s.PrefabName}, {s.Amount}";
+
+        /// <summary>Admin save: writes a profile to FiresRPGmaker/Traders/&lt;name&gt;.cfg (header keeps the
+        /// profile's existing Stock/Restock defaults) with the given trade lines, then reloads all profiles.
+        /// Local write + reload — dedicated-server propagation rides on the existing config file watcher.</summary>
+        public static void SaveProfile(string name, string tradesText)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            try
+            {
+                EnsureFolderExists();
+                var existing = GetProfile(name);
+                string header = name.Trim();
+                if (existing != null)
+                {
+                    if (existing.DefaultStock != -1) header += $",Stock={existing.DefaultStock}";
+                    if (existing.DefaultRestockSeconds != 0) header += $",Restock={existing.DefaultRestockSeconds}";
+                }
+                string content = $"[{header}]\n{(tradesText ?? "").Trim()}\n";
+                string file = Path.Combine(TraderProfilesFolder, MakeSafeFileName(name) + ".cfg");
+                File.WriteAllText(file, content);
+                Reset();
+                Initialize();
+                Debug.Log($"[TraderProfileManager] Saved trader profile '{name}' -> {file}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[TraderProfileManager] SaveProfile '{name}' failed: {ex}");
+            }
+        }
+
+        private static string MakeSafeFileName(string name)
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            var sb = new System.Text.StringBuilder();
+            foreach (var c in name.Trim()) sb.Append(invalid.Contains(c) ? '_' : c);
+            return sb.Length > 0 ? sb.ToString() : "Trader";
+        }
+
         private static void ParseProfileLines(string[] lines, string sourceName)
         {
             TraderProfile currentProfile = null;
