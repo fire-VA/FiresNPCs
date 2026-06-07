@@ -222,7 +222,10 @@
       "Bash(grep -cE \"SDK\\\\\\\\\\\\\\\\Bundle\" FiresSteamyDumps/FiresSteamyDumps/*.csproj)",
       "Bash(grep -iE 'trader|quest|panel|button|icon|sprite|frame|slot|prefab|_UI|_bg|background|window|scroll|MP$|Marketplace|Banker|Gambler|Mail|Leaderboard|Transmog|Dialogue|ServerInfo')",
       "Bash(cat FiresPiece.shader.meta)",
-      "Bash(ls -la FiresHeightmap.shader.meta)"
+      "Bash(ls -la FiresHeightmap.shader.meta)",
+      "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"shader-check-heightmap\" -ExecuteMethod \"FiresShaderCheck.CheckShader\" -ExtraArgs @\\('-shaderPath','Assets/Shaders/Fires/FiresHeightmap.shader','-shaderBundle','tossinshade'\\) -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\firescheck-heightmap.log\")",
+      "Bash(grep -viE \"^\\\\s*$\")",
+      "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build.log\")"
     ]
   }
 }
