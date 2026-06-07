@@ -980,6 +980,8 @@ private void HandleDialogueNpcInteraction(Player player)
         {
             NpcHoverHudSuppressor.Clear();
             NpcHoverHudSuppressor.Suppress(GetComponent<Character>() ?? GetComponentInChildren<Character>());
+            // SuppressAll so nearby NPC / Companion / wild-monster nameplates don't bleed through the panel.
+            NpcHoverHudSuppressor.SuppressAll(true);
         }
 
         private void ApplyPendingFashion()

@@ -319,6 +319,9 @@ namespace FiresRPGmaker.Managers
                     // Split on comma to separate name from optional key=value pairs
                     var headerParts = inner.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                     string profileName = headerParts[0].Trim();
+                    // Strip MP-style `=flag` suffix from the name (e.g. `[botanistbuy_mp=True]` → "botanistbuy_mp").
+                    int nameEq = profileName.IndexOf('=');
+                    if (nameEq >= 0) profileName = profileName.Substring(0, nameEq).Trim();
 
                     int defaultStock = -1;
                     int defaultRestock = 0;

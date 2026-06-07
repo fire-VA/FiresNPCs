@@ -662,6 +662,8 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
             // Hide this NPC's world-space hover HUD (floating nameplate + health bar) while interacting.
             NpcHoverHudSuppressor.Clear();
             NpcHoverHudSuppressor.Suppress(npc.GetComponent<Character>() ?? npc.GetComponentInChildren<Character>());
+            // SuppressAll so nearby NPC / Companion / wild-monster nameplates don't bleed through the panel.
+            NpcHoverHudSuppressor.SuppressAll(true);
 
             Instance._selectedNpcType = null;
             Instance._currentPage = 0;

@@ -40,14 +40,16 @@ namespace FiresRPGmaker.UI.Screens
             // The panel Header already shows "Setup Trader: <npc>", so there is no in-screen title.
             var rt = GetComponent<RectTransform>() ?? gameObject.AddComponent<RectTransform>();
 
-            CreateLabel(rt, "Trader Profile  (type an existing name to load it, or a new name to create)", 0.91f, 0.99f, 14f, TextAlignmentOptions.Left);
-            _profileInput = CreateInput(rt, 0.82f, 0.895f, false);
+            // Bands give the Apply button (which sits outside this rect, anchored to the bottom of the
+            // panel) enough headroom — and push the labels down a hair so they don't crowd the tab bar.
+            CreateLabel(rt, "Trader Profile  (type an existing name to load it, or a new name to create)", 0.87f, 0.95f, 14f, TextAlignmentOptions.Left);
+            _profileInput = CreateInput(rt, 0.78f, 0.855f, false);
             _profileInput.onEndEdit.AddListener(LoadProfileTrades);
 
-            CreateLabel(rt, "Trades  -  one per line:   cost, amount, reward, amount[, level]", 0.73f, 0.81f, 14f, TextAlignmentOptions.Left);
-            _tradesInput = CreateInput(rt, 0.11f, 0.72f, true);
+            CreateLabel(rt, "Trades  -  one per line:   cost, amount, reward, amount[, level]", 0.69f, 0.77f, 14f, TextAlignmentOptions.Left);
+            _tradesInput = CreateInput(rt, 0.18f, 0.68f, true);
 
-            _statusText = CreateLabel(rt, "", 0.01f, 0.10f, 13f, TextAlignmentOptions.Left);
+            _statusText = CreateLabel(rt, "", 0.10f, 0.17f, 13f, TextAlignmentOptions.Left);
 
             _applyButton = applyButton;
             if (_applyButton != null) { _applyButton.onClick.RemoveAllListeners(); _applyButton.onClick.AddListener(ApplyChanges); }
@@ -71,14 +73,21 @@ namespace FiresRPGmaker.UI.Screens
 
         public void ApplyChanges()
         {
-            if (_currentNpc == null) return;
+            if (_currentNpc == null) { SetStatus("No NPC selected."); return; }
             string name = (_profileInput != null ? _profileInput.text : "").Trim();
             if (string.IsNullOrEmpty(name)) { SetStatus("Enter a profile name first."); return; }
+            // Strip any MP-style `=flag` suffix the user may have typed/auto-loaded so the profile name is canonical.
+            int nameEq = name.IndexOf('='); if (nameEq >= 0) name = name.Substring(0, nameEq).Trim();
+
             TraderProfileManager.SaveProfile(name, _tradesInput != null ? _tradesInput.text : "");
             _currentNpc.traderProfile = name;
+            // CRITICAL: also commit the NPC type to Trader — otherwise HandleNormalInteraction (Player E)
+            // falls through to the default branch and never opens the trader UI even though the profile is set.
+            _currentNpc.npcType = global::FiresCore.Npc.NpcType.Trader;
             _currentNpc.SaveToZDO();
             var profile = TraderProfileManager.GetProfile(name);
-            SetStatus($"Saved '{name}' ({profile?.Trades.Count ?? 0} trades) and assigned to this NPC.");
+            SetStatus($"Saved '{name}' ({profile?.Trades.Count ?? 0} trades) and assigned this NPC as Trader.");
+            Debug.Log($"[TraderConfig] Apply: npc={_currentNpc.GetDisplayName()} → traderProfile='{name}', npcType=Trader");
         }
 
         private void LoadProfileTrades(string name)
