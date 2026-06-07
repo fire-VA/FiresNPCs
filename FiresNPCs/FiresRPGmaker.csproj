@@ -267,6 +267,7 @@
     <Compile Include="UI\GroupHudController.cs" />
     <Compile Include="UI\GUIManager.cs" />
     <Compile Include="UI\NpcController.cs" />
+    <Compile Include="UI\NpcHoverHudSuppressor.cs" />
     <Compile Include="UI\NpcMainPanelController.cs" />
     <Compile Include="UI\OverwriteConfirmDialog.cs" />
     <Compile Include="UI\PanelElementManager.cs" />

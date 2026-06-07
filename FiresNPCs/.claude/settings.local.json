@@ -217,7 +217,9 @@
       "Bash('/c/Program Files/GitHub CLI/gh.exe' api repos/fire-VA/FiresGhettoNetworking --jq '{name,visibility,disabled,archived,size}')",
       "Bash(git ls-remote *)",
       "Bash('/c/Program Files/GitHub CLI/gh.exe' api user --jq '{login,plan:.plan.name,private_repos:.total_private_repos,owned_private:.owned_private_repos,disk_usage:.disk_usage}')",
-      "Bash(grep -nE 'Compile Include=\"UI\\\\\\\\Screens\\\\\\\\\\(QuestConfig|DressingRoom|TraderUIController\\)' FiresRPGmaker.csproj)"
+      "Bash(grep -nE 'Compile Include=\"UI\\\\\\\\Screens\\\\\\\\\\(QuestConfig|DressingRoom|TraderUIController\\)' FiresRPGmaker.csproj)",
+      "Bash(echo \"=== is the SDK/Bundle tree compiled at all? \\(any Compile Include under SDK\\\\\\\\Bundle\\) ===\")",
+      "Bash(grep -cE \"SDK\\\\\\\\\\\\\\\\Bundle\" FiresSteamyDumps/FiresSteamyDumps/*.csproj)"
     ]
   }
 }

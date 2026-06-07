@@ -658,6 +658,11 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
             QuestInteractionScreenController.HideQuestScreenIfExists();
 
             Instance._currentNpc = npc;
+
+            // Hide this NPC's world-space hover HUD (floating nameplate + health bar) while interacting.
+            NpcHoverHudSuppressor.Clear();
+            NpcHoverHudSuppressor.Suppress(npc.GetComponent<Character>() ?? npc.GetComponentInChildren<Character>());
+
             Instance._selectedNpcType = null;
             Instance._currentPage = 0;
             Instance._searchValue = "";
@@ -724,6 +729,7 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
       
  gameObject.SetActive(false);
             _currentNpc = null;
+            NpcHoverHudSuppressor.Clear(); // restore the NPC's world hover HUD
   _selectedNpcType = null;
       _selectedIndex = -1;
   _isDragging = false;

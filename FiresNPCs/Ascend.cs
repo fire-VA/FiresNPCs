@@ -135,6 +135,7 @@ namespace FiresRPGmaker
             "FiresRPGmaker.UI.CompanionRadialMenuPatches",
             "FiresRPGmaker.UI.CompanionRadialMenu",
             "FiresRPGmaker.UI.UIInitializer",
+            "FiresRPGmaker.UI.NpcHoverHudSuppressor+TestShowPatch",
             "FiresRPGmaker.UI.Patches.InventoryGuiPatches",
             "FiresRPGmaker.UI.Patches.UITooltip_StylePatches",
             "FiresRPGmaker.UI.Patches.InventoryGui_UpdateItemDrag_Patch",
