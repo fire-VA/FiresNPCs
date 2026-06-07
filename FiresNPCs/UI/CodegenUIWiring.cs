@@ -449,6 +449,82 @@ namespace FiresRPGmaker.UI
             return controller;
         }
 
+        public static BankerConfigScreenController WireBankerConfigScreen(Transform panelRoot)
+        {
+            // Banker screen + Apply button created programmatically (no baked banker screen yet). Rect mirrors
+            // the baked QuestConfigScreen so it lands in the same content area below the tabs.
+            var screenGo = new GameObject("BankerConfigScreen", typeof(RectTransform));
+            screenGo.transform.SetParent(panelRoot, false);
+            var srt = screenGo.GetComponent<RectTransform>();
+            var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
+            CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
+                     fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
+                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -130f));
+
+            var applyGo = new GameObject("BankerApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            applyGo.transform.SetParent(panelRoot, false);
+            var art = applyGo.GetComponent<RectTransform>();
+            var questApply = GeneratedUI_completecompanionsui.FindByTag("QuestApplyButton");
+            CopyRect(questApply != null ? questApply.GetComponent<RectTransform>() : null, art,
+                     fallbackMin: new Vector2(0.3f, 0.02f), fallbackMax: new Vector2(0.7f, 0.08f),
+                     fallbackOffMin: Vector2.zero, fallbackOffMax: Vector2.zero);
+            applyGo.GetComponent<Image>().color = new Color(0.22f, 0.42f, 0.22f, 0.95f);
+            var applyButton = applyGo.GetComponent<Button>();
+            var applyLabel = new GameObject("Text", typeof(RectTransform));
+            applyLabel.transform.SetParent(art, false);
+            var alrt = applyLabel.GetComponent<RectTransform>(); alrt.anchorMin = Vector2.zero; alrt.anchorMax = Vector2.one; alrt.offsetMin = Vector2.zero; alrt.offsetMax = Vector2.zero;
+            var alt = applyLabel.AddComponent<TextMeshProUGUI>(); alt.font = TMP_Settings.defaultFontAsset; alt.text = "Apply"; alt.fontSize = 18f; alt.alignment = TextAlignmentOptions.Center; alt.color = new Color(0.96f, 0.91f, 0.76f);
+
+            var controller = screenGo.AddComponent<BankerConfigScreenController>();
+            controller.BuildForm(applyButton);
+            screenGo.SetActive(false);
+            applyGo.SetActive(false);
+
+            Debug.Log("[CodegenUIWiring] BankerConfigScreen created programmatically");
+            return controller;
+        }
+
+        /// <summary>
+        /// Wires a v1-stub admin-config screen for any of the Marketplace modules (Gambler, Marketplace,
+        /// Achievement, Leaderboard, Mail, Transmog). Mirrors the Banker wiring but routes through
+        /// GenericModuleConfigScreenController so we don't need a controller-per-module.
+        /// </summary>
+        public static GenericModuleConfigScreenController WireGenericModuleConfigScreen(
+            Transform panelRoot, FiresCore.Npc.NpcType type, string fieldName, string label,
+            string screenName, string applyName)
+        {
+            var screenGo = new GameObject(screenName, typeof(RectTransform));
+            screenGo.transform.SetParent(panelRoot, false);
+            var srt = screenGo.GetComponent<RectTransform>();
+            var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
+            CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
+                     fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
+                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -130f));
+
+            var applyGo = new GameObject(applyName, typeof(RectTransform), typeof(Image), typeof(Button));
+            applyGo.transform.SetParent(panelRoot, false);
+            var art = applyGo.GetComponent<RectTransform>();
+            var questApply = GeneratedUI_completecompanionsui.FindByTag("QuestApplyButton");
+            CopyRect(questApply != null ? questApply.GetComponent<RectTransform>() : null, art,
+                     fallbackMin: new Vector2(0.3f, 0.02f), fallbackMax: new Vector2(0.7f, 0.08f),
+                     fallbackOffMin: Vector2.zero, fallbackOffMax: Vector2.zero);
+            applyGo.GetComponent<Image>().color = new Color(0.22f, 0.42f, 0.22f, 0.95f);
+            var applyButton = applyGo.GetComponent<Button>();
+            var applyLabel = new GameObject("Text", typeof(RectTransform));
+            applyLabel.transform.SetParent(art, false);
+            var alrt = applyLabel.GetComponent<RectTransform>(); alrt.anchorMin = Vector2.zero; alrt.anchorMax = Vector2.one; alrt.offsetMin = Vector2.zero; alrt.offsetMax = Vector2.zero;
+            var alt = applyLabel.AddComponent<TextMeshProUGUI>(); alt.font = TMP_Settings.defaultFontAsset; alt.text = "Apply"; alt.fontSize = 18f; alt.alignment = TextAlignmentOptions.Center; alt.color = new Color(0.96f, 0.91f, 0.76f);
+
+            var controller = screenGo.AddComponent<GenericModuleConfigScreenController>();
+            controller.Initialize(type, fieldName, label);
+            controller.BuildForm(applyButton);
+            screenGo.SetActive(false);
+            applyGo.SetActive(false);
+
+            Debug.Log("[CodegenUIWiring] " + screenName + " created programmatically (generic stub)");
+            return controller;
+        }
+
         /// <summary>Copies a source RectTransform's anchors/pivot/offsets onto dst; uses the fallbacks when src is null.</summary>
         private static void CopyRect(RectTransform src, RectTransform dst,
                                      Vector2 fallbackMin, Vector2 fallbackMax, Vector2 fallbackOffMin, Vector2 fallbackOffMax)

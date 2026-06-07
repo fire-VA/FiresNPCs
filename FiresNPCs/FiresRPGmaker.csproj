@@ -292,6 +292,9 @@
     <Compile Include="UI\Screens\DialogueEditorScreenController.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.Fashion.cs" />
+    <Compile Include="UI\Screens\BankerConfigScreenController.cs" />
+    <Compile Include="UI\Screens\GenericModuleConfigScreenController.cs" />
+    <Compile Include="UI\Screens\StubPlayerUIController.cs" />
     <Compile Include="UI\Screens\TraderConfigScreenController.cs" />
     <Compile Include="UI\Screens\InfoNpcPlayerPanel.cs" />
     <Compile Include="UI\Screens\InfoNpcScreenController.cs" />

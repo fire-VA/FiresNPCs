@@ -44,6 +44,17 @@ namespace FiresRPGmaker.UI
             /// <summary>Trader config screen (admin tab) - shows trader profile + trades editor.</summary>
             TraderConfig,
 
+            /// <summary>Banker config screen (admin tab) - shows banker profile config.</summary>
+            BankerConfig,
+
+            /// <summary>Generic Marketplace-module admin tabs (stub UI for now).</summary>
+            GamblerConfig,
+            MarketplaceConfig,
+            AchievementConfig,
+            LeaderboardConfig,
+            MailConfig,
+            TransmogConfig,
+
             /// <summary>Hidden - panel is closed.</summary>
             Hidden
         }
@@ -98,6 +109,17 @@ namespace FiresRPGmaker.UI
                 ConfigureTraderConfigMode(panelRoot, npcName);
                 break;
 
+            case ScreenMode.BankerConfig:
+                ConfigureBankerConfigMode(panelRoot, npcName);
+                break;
+
+            case ScreenMode.GamblerConfig: ConfigureModuleMode(panelRoot, "GamblerConfigScreen", "GamblerApplyButton", "Gambler Config"); break;
+            case ScreenMode.MarketplaceConfig: ConfigureModuleMode(panelRoot, "MarketplaceConfigScreen", "MarketplaceApplyButton", "Marketplace Config"); break;
+            case ScreenMode.AchievementConfig: ConfigureModuleMode(panelRoot, "AchievementConfigScreen", "AchievementApplyButton", "Achievement Config"); break;
+            case ScreenMode.LeaderboardConfig: ConfigureModuleMode(panelRoot, "LeaderboardConfigScreen", "LeaderboardApplyButton", "Leaderboard Config"); break;
+            case ScreenMode.MailConfig: ConfigureModuleMode(panelRoot, "MailConfigScreen", "MailApplyButton", "Mail Config"); break;
+            case ScreenMode.TransmogConfig: ConfigureModuleMode(panelRoot, "TransmogConfigScreen", "TransmogApplyButton", "Transmog Config"); break;
+
        case ScreenMode.Hidden:
                 HideAllElements(panelRoot);
      break;
@@ -136,6 +158,8 @@ namespace FiresRPGmaker.UI
             // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
             SetElementActive(panelRoot, "TraderConfigScreen", false);
             SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
    
       // Set header text with admin style
             SetHeaderText(panelRoot, $"Configure NPC: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
@@ -172,6 +196,8 @@ namespace FiresRPGmaker.UI
             // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
             SetElementActive(panelRoot, "TraderConfigScreen", false);
             SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
             SetElementActive(panelRoot, "QuestInteract", false);
     
             // Set header text with NPC name style (larger, for player-facing screens)
@@ -208,6 +234,8 @@ SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "InfoApplyButton", false);
             SetElementActive(panelRoot, "TraderConfigScreen", false);
             SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
 
             // Set header text with admin style
    SetHeaderText(panelRoot, "Quest Config", UIFontConfig.AdminPanelHeader);
@@ -241,6 +269,69 @@ SetElementActive(panelRoot, "DetailPanel", false);
         }
 
         /// <summary>
+        /// Banker config mode (admin Banker NPC tab).
+        /// </summary>
+        private static void ConfigureBankerConfigMode(Transform panelRoot, string npcName)
+        {
+            SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "SizeButton", true);
+            SetElementActive(panelRoot, "TabsBar", true);
+            SetElementActive(panelRoot, "PageControls", true);
+            SetElementActive(panelRoot, "BankerConfigScreen", true);
+            SetElementActive(panelRoot, "BankerApplyButton", true);
+            SetElementActive(panelRoot, "DetailPanel", false);
+            SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "SearchInput", false);
+            SetElementActive(panelRoot, "TabContent", false);
+            SetElementActive(panelRoot, "QuestScreenContainer", false);
+            SetElementActive(panelRoot, "QuestInteract", false);
+            SetElementActive(panelRoot, "QuestConfigScreen", false);
+            SetElementActive(panelRoot, "QuestApplyButton", false);
+            SetElementActive(panelRoot, "InfoNpcScreen", false);
+            SetElementActive(panelRoot, "InfoApplyButton", false);
+            SetElementActive(panelRoot, "DressingRoomScreen", false);
+            SetElementActive(panelRoot, "DialogueEditorScreen", false);
+            SetElementActive(panelRoot, "TraderConfigScreen", false);
+            SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
+            SetHeaderText(panelRoot, "Banker Config", UIFontConfig.AdminPanelHeader);
+        }
+
+        // Centralized list of every module screen + apply-button name so any new module is added in ONE
+        // place (here) — every Configure*Mode just toggles its own active pair and uses these for the rest.
+        private static readonly string[] ALL_MODULE_SCREENS = {
+            "QuestConfigScreen", "InfoNpcScreen", "DialogueEditorScreen", "DressingRoomScreen",
+            "TraderConfigScreen", "BankerConfigScreen",
+            "GamblerConfigScreen", "MarketplaceConfigScreen", "AchievementConfigScreen",
+            "LeaderboardConfigScreen", "MailConfigScreen", "TransmogConfigScreen",
+        };
+        private static readonly string[] ALL_MODULE_APPLIES = {
+            "QuestApplyButton", "InfoApplyButton", "TraderApplyButton", "BankerApplyButton",
+            "GamblerApplyButton", "MarketplaceApplyButton", "AchievementApplyButton",
+            "LeaderboardApplyButton", "MailApplyButton", "TransmogApplyButton",
+        };
+
+        /// <summary>Generic admin tab mode: shows header/tabs/page-controls + the one active screen + its
+        /// apply button; hides every other module screen/apply. Used by every v1-stub module tab.</summary>
+        private static void ConfigureModuleMode(Transform panelRoot, string activeScreen, string activeApply, string headerText)
+        {
+            SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "SizeButton", true);
+            SetElementActive(panelRoot, "TabsBar", true);
+            SetElementActive(panelRoot, "PageControls", true);
+            SetElementActive(panelRoot, "DetailPanel", false);
+            SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "SearchInput", false);
+            SetElementActive(panelRoot, "TabContent", false);
+            SetElementActive(panelRoot, "QuestScreenContainer", false);
+            SetElementActive(panelRoot, "QuestInteract", false);
+            foreach (var s in ALL_MODULE_SCREENS) SetElementActive(panelRoot, s, s == activeScreen);
+            foreach (var a in ALL_MODULE_APPLIES) SetElementActive(panelRoot, a, a == activeApply);
+            SetHeaderText(panelRoot, headerText, UIFontConfig.AdminPanelHeader);
+        }
+
+        /// <summary>
       /// Info config mode (admin Info NPC tab).
    /// </summary>
         private static void ConfigureInfoConfigMode(Transform panelRoot, string npcName)
@@ -270,6 +361,8 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
             SetElementActive(panelRoot, "TraderConfigScreen", false);
             SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
 
      // Set header text with admin style
      SetHeaderText(panelRoot, "Info NPC Config", UIFontConfig.AdminPanelHeader);
@@ -303,6 +396,8 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
      SetElementActive(panelRoot, "InfoApplyButton", false);
             SetElementActive(panelRoot, "TraderConfigScreen", false);
             SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
 
             // Set header text with NPC name style (player-facing)
             SetHeaderText(panelRoot, npcName ?? "Info", UIFontConfig.NpcNameHeader);
@@ -338,6 +433,8 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
  SetElementActive(panelRoot, "InfoApplyButton", false);
             SetElementActive(panelRoot, "TraderConfigScreen", false);
             SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
 
 // Set header text with admin style
             SetHeaderText(panelRoot, $"Dressing Room: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
@@ -379,6 +476,8 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
             // next screen (was: AdminConfig's DetailPanel showed THROUGH the lingering trader form).
             SetElementActive(panelRoot, "TraderConfigScreen", false);
             SetElementActive(panelRoot, "TraderApplyButton", false);
+            SetElementActive(panelRoot, "BankerConfigScreen", false);
+            SetElementActive(panelRoot, "BankerApplyButton", false);
 
             // Set header text with admin style
             SetHeaderText(panelRoot, $"Setup Dialogue NPC: {npcName ?? "NPC"}", UIFontConfig.AdminPanelHeader);
@@ -394,7 +493,8 @@ SetElementActive(panelRoot, "DressingRoomScreen", false);
           "PageControls", "TabContent", "QuestScreenContainer", "QuestInteract",
    "QuestConfigScreen", "InfoNpcScreen", "DressingRoomScreen",
                 "DialogueEditorScreen", "QuestApplyButton", "InfoApplyButton",
-                "TraderConfigScreen", "TraderApplyButton"
+                "TraderConfigScreen", "TraderApplyButton",
+                "BankerConfigScreen", "BankerApplyButton"
    };
        
             foreach (var elementName in allElements)

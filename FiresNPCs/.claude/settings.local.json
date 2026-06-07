@@ -245,7 +245,13 @@
       "WebSearch",
       "Bash([ -f \"$EL\" ])",
       "Bash(powershell.exe -Command 'Get-Process | Where-Object {$_.Name -match '\\\\''Unity'\\\\''} | Select-Object Name,Id | Format-Table -AutoSize')",
-      "Bash(EL=/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Temp/UnityLockfile *)"
+      "Bash(EL=/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Temp/UnityLockfile *)",
+      "Bash(awk '{print \"bundle:\", $5, $6, $7, $8}')",
+      "Bash(python -c \"from PIL import Image; im=Image.open\\('terrain_d_array.png'\\); print\\(im.size, im.mode\\)\")",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore && dotnet build FiresUnifiedCore\\\\FiresUnifiedCore.csproj -c Release /p:UseSharedCompilation=false /nodeReuse:false /m:1\")",
+      "Bash(python -)",
+      "Bash(rm -f terrain_layers_montage.png terrain_layers_montage.png.meta terrain_layers_focus.png terrain_layers_focus.png.meta)",
+      "Bash(ls terrain_*array*)"
     ]
   }
 }

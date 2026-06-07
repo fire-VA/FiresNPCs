@@ -28,6 +28,13 @@ namespace FiresRPGmaker.UI
         public string questProfile;
         public string infoProfile;
         public string traderProfile;
+        public string bankerProfile;
+        public string gamblerProfile;
+        public string marketplaceProfile;
+        public string achievementProfile;
+        public string leaderboardProfile;
+        public string mailProfile;
+        public string transmogProfile;
 
         [Header("Overrides")]
         public string modelOverride;
@@ -575,6 +582,13 @@ if (_isFollowing && _followTarget == player)
      questProfile = zdo.GetString("npc_quest_profile", questProfile ?? "");
     infoProfile = zdo.GetString("npc_info_profile", infoProfile ?? "");
    traderProfile = zdo.GetString("npc_trader_profile", traderProfile ?? "");
+            bankerProfile = zdo.GetString("npc_banker_profile", bankerProfile ?? "");
+            gamblerProfile = zdo.GetString("npc_gambler_profile", gamblerProfile ?? "");
+            marketplaceProfile = zdo.GetString("npc_marketplace_profile", marketplaceProfile ?? "");
+            achievementProfile = zdo.GetString("npc_achievement_profile", achievementProfile ?? "");
+            leaderboardProfile = zdo.GetString("npc_leaderboard_profile", leaderboardProfile ?? "");
+            mailProfile = zdo.GetString("npc_mail_profile", mailProfile ?? "");
+            transmogProfile = zdo.GetString("npc_transmog_profile", transmogProfile ?? "");
    modelOverride = zdo.GetString("npc_model_override", modelOverride ?? "");
      npcType = (NpcType)zdo.GetInt("npc_type", (int)npcType);
 
@@ -613,6 +627,13 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             zdo.Set("npc_quest_profile", questProfile ?? "");
             zdo.Set("npc_info_profile", infoProfile ?? "");
     zdo.Set("npc_trader_profile", traderProfile ?? "");
+            zdo.Set("npc_banker_profile", bankerProfile ?? "");
+            zdo.Set("npc_gambler_profile", gamblerProfile ?? "");
+            zdo.Set("npc_marketplace_profile", marketplaceProfile ?? "");
+            zdo.Set("npc_achievement_profile", achievementProfile ?? "");
+            zdo.Set("npc_leaderboard_profile", leaderboardProfile ?? "");
+            zdo.Set("npc_mail_profile", mailProfile ?? "");
+            zdo.Set("npc_transmog_profile", transmogProfile ?? "");
     zdo.Set("npc_model_override", modelOverride ?? "");
    zdo.Set("npc_type", (int)npcType);
 
@@ -881,6 +902,13 @@ visualGO.transform.SetParent(transform, false);
            NpcType.InfoNpc => infoProfile,
         NpcType.DialogueNpc => dialogueProfile,
       NpcType.Trader => traderProfile,
+      NpcType.Banker => bankerProfile,
+      NpcType.Gambler => gamblerProfile,
+      NpcType.Marketplace => marketplaceProfile,
+      NpcType.Achievement => achievementProfile,
+      NpcType.Leaderboard => leaderboardProfile,
+      NpcType.Mail => mailProfile,
+      NpcType.Transmog => transmogProfile,
    _ => questProfile
       };
      }
@@ -901,6 +929,15 @@ HandleInfoNpcInteraction(player);
       case NpcType.Trader:
           HandleTraderInteraction(player);
       break;
+      case NpcType.Banker:
+          HandleBankerInteraction(player);
+      break;
+      case NpcType.Gambler:      HandleGenericModuleStub(player, "Gambler",     gamblerProfile);     break;
+      case NpcType.Marketplace:  HandleGenericModuleStub(player, "Marketplace", marketplaceProfile); break;
+      case NpcType.Achievement:  HandleGenericModuleStub(player, "Achievement", achievementProfile); break;
+      case NpcType.Leaderboard:  HandleGenericModuleStub(player, "Leaderboard", leaderboardProfile); break;
+      case NpcType.Mail:         HandleGenericModuleStub(player, "Mail",        mailProfile);        break;
+      case NpcType.Transmog:     HandleGenericModuleStub(player, "Transmog",    transmogProfile);    break;
           default:
                  NpcMainPanelController.ShowForNpc(this);
    break;
@@ -974,6 +1011,26 @@ private void HandleDialogueNpcInteraction(Player player)
         private void HandleTraderInteraction(Player player)
         {
             SuppressHoverHud(); TraderUIController.ShowForNpc(this);
+        }
+
+        private void HandleGenericModuleStub(Player player, string label, string profile)
+        {
+            // Stub-routed for modules whose REAL player UI hasn't shipped (Gambler, Marketplace,
+            // Achievement, Leaderboard, Mail, Transmog). Opens the shared StubPlayerUIController so
+            // the NPC interaction at least pops a panel — full per-module UIs replace each dispatch
+            // as their prefabs + controllers land.
+            Screens.StubPlayerUIController.Show(label, profile);
+        }
+
+        private void HandleBankerInteraction(Player player)
+        {
+            // Banker player UI is the next module — for now, confirm the NPC is set up as a Banker so admins
+            // can see their config took. The full deposit/withdraw UI lands in a follow-up alongside the
+            // dormant FiresCore.Storage.BankRepository wiring.
+            MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
+                string.IsNullOrEmpty(bankerProfile)
+                    ? $"{GetDisplayName()}: banker profile not configured."
+                    : $"{GetDisplayName()}: banker '{bankerProfile}' (UI coming soon)");
         }
 
         private void SuppressHoverHud()

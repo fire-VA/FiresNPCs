@@ -201,11 +201,29 @@ var playerStatus = GetPlayerQuestStatus(quest.QuestId);
                       _descriptionScrollRect = descScrollT.GetComponent<ScrollRect>();
                       if (_descriptionScrollRect != null)
                       {
+                          // CRITICAL: the codegen prefab may not have ScrollRect.viewport / ScrollRect.content
+                          // explicitly wired — without those refs ScrollRect won't scroll regardless of
+                          // content height. Resolve them explicitly from the hierarchy.
+                          var viewportT = descScrollT.Find("Viewport") ?? descScrollT.GetComponentInChildren<UnityEngine.UI.Mask>(true)?.transform;
+                          var contentT = viewportT?.Find("Content") ?? descScrollT.Find("Content");
+                          if (viewportT is RectTransform vRt) _descriptionScrollRect.viewport = vRt;
+                          if (contentT is RectTransform cRt) _descriptionScrollRect.content = cRt;
                           _descriptionContent = _descriptionScrollRect.content;
-                          _descriptionScrollRect.scrollSensitivity = 240f;
+                          _descriptionScrollRect.scrollSensitivity = 600f; // 20× the Unity default so wheel scrolling works at the same speed as the trader
+                          _descriptionScrollRect.horizontal = false; _descriptionScrollRect.vertical = true;
+                          _descriptionScrollRect.movementType = ScrollRect.MovementType.Clamped;
                       }
 
                       _questDescriptionText = CodegenUIWiring.FindTMP(descScrollT, "DescriptionText");
+                      // If the DescriptionText sits OUTSIDE Content (e.g. as a sibling of Viewport in the codegen
+                      // baked layout), reparent it under Content so it's actually inside the scroll mask and the
+                      // ContentSizeFitter on Content can size against its preferredHeight.
+                      if (_questDescriptionText != null && _descriptionContent != null && _questDescriptionText.transform.parent != _descriptionContent)
+                      {
+                          _questDescriptionText.transform.SetParent(_descriptionContent, false);
+                          var trt = _questDescriptionText.GetComponent<RectTransform>();
+                          if (trt != null) { trt.anchorMin = new Vector2(0, 1); trt.anchorMax = new Vector2(1, 1); trt.pivot = new Vector2(0, 1); trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero; }
+                      }
 
                       // Add layout components to content if missing (programmatic adds these)
                       if (_descriptionContent != null)

@@ -70,6 +70,157 @@ namespace FiresRPGmaker.UI
         private InfoNpcScreenController _infoScreenController;
         private QuestConfigScreenController _questConfigScreenController;
         private TraderConfigScreenController _traderConfigScreenController;
+        private BankerConfigScreenController _bankerConfigScreenController;
+        private Button _bankerTabButton;
+
+        // Extra Marketplace-module tabs (Gambler, Marketplace, Achievement, Leaderboard, Mail, Transmog).
+        // All v1-stubs that share GenericModuleConfigScreenController; tabs are stacked in a 2nd row to
+        // keep the existing 5-tab row from blowing out horizontally. Dictionary keyed by NpcType so the
+        // RefreshUI / Hide / display-name code dispatches uniformly.
+        private readonly Dictionary<NpcType, Screens.GenericModuleConfigScreenController> _moduleScreens = new();
+        private readonly Dictionary<NpcType, Button> _moduleTabs = new();
+        private Transform _tabsRow2; // sibling of TabsBar, holds the new tab clones
+
+        /// <summary>Creates a 5th tab button "Banker Npc" by cloning the Trader tab so its style/anchoring
+        /// matches the baked tabs (the codegen prefab pre-bakes only Quest/Info/Dialogue/Trader). Idempotent.</summary>
+        private void EnsureBankerTabButton()
+        {
+            if (_bankerTabButton != null || traderTabButton == null) return;
+            var clone = Instantiate(traderTabButton.gameObject, traderTabButton.transform.parent);
+            clone.name = "BankerNpcTabButton";
+            _bankerTabButton = clone.GetComponent<Button>();
+            if (_bankerTabButton != null)
+            {
+                _bankerTabButton.onClick.RemoveAllListeners();
+                _bankerTabButton.onClick.AddListener(() => OnTabClicked(NpcType.Banker));
+            }
+            foreach (var tmp in clone.GetComponentsInChildren<TMPro.TMP_Text>(true)) tmp.text = "Banker Npc";
+            foreach (var txt in clone.GetComponentsInChildren<UnityEngine.UI.Text>(true)) txt.text = "Banker Npc";
+            // If the tab bar uses a HorizontalLayoutGroup, the clone auto-positions. If not, nudge it right
+            // of the trader tab by its own width so it lands as the 5th column visually.
+            var parent = clone.transform.parent;
+            if (parent != null && parent.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>() == null)
+            {
+                var srcRt = traderTabButton.GetComponent<RectTransform>();
+                var dstRt = clone.GetComponent<RectTransform>();
+                if (srcRt != null && dstRt != null) dstRt.anchoredPosition = srcRt.anchoredPosition + new Vector2(srcRt.sizeDelta.x + 4f, 0f);
+            }
+            Debug.Log("[NpcMainPanelController] Banker tab button created programmatically");
+        }
+
+        // Single source of truth for the 6 v1-stub modules. Order = visual order in the 2nd tab row.
+        // Adding a new module = add an entry here + a corresponding ScreenMode case in PanelElementManager.
+        private static readonly (NpcType Type, string FieldName, string Label,
+                                 string ScreenName, string ApplyName, string TabLabel)[] EXTRA_MODULES =
+        {
+            (NpcType.Gambler,     "gamblerProfile",     "Gambler",     "GamblerConfigScreen",     "GamblerApplyButton",     "Gambler Npc"),
+            (NpcType.Marketplace, "marketplaceProfile", "Marketplace", "MarketplaceConfigScreen", "MarketplaceApplyButton", "Marketplace Npc"),
+            (NpcType.Achievement, "achievementProfile", "Achievement", "AchievementConfigScreen", "AchievementApplyButton", "Achievement Npc"),
+            (NpcType.Leaderboard, "leaderboardProfile", "Leaderboard", "LeaderboardConfigScreen", "LeaderboardApplyButton", "Leaderboard Npc"),
+            (NpcType.Mail,        "mailProfile",        "Mail",        "MailConfigScreen",        "MailApplyButton",        "Mail Npc"),
+            (NpcType.Transmog,    "transmogProfile",    "Transmog",    "TransmogConfigScreen",    "TransmogApplyButton",    "Transmog Npc"),
+        };
+
+        /// <summary>Wires the 6 generic module screens + clones a tab button per module into a 2nd tab row.</summary>
+        private void EnsureExtraTabsAndScreens()
+        {
+            foreach (var m in EXTRA_MODULES)
+            {
+                if (!_moduleScreens.ContainsKey(m.Type))
+                {
+                    _moduleScreens[m.Type] = CodegenUIWiring.WireGenericModuleConfigScreen(
+                        transform, m.Type, m.FieldName, m.Label, m.ScreenName, m.ApplyName);
+                }
+
+                if (!_moduleTabs.ContainsKey(m.Type))
+                {
+                    var btn = CreateExtraTab(m.Type, m.TabLabel);
+                    if (btn != null) _moduleTabs[m.Type] = btn;
+                }
+            }
+            Debug.Log("[NpcMainPanelController] Wired " + _moduleScreens.Count + " extra module screens + " + _moduleTabs.Count + " extra tabs");
+        }
+
+        /// <summary>Returns the (lazily-created) 2nd tab-row Transform — a sibling of TabsBar placed directly below it.</summary>
+        private Transform EnsureTabsRow2()
+        {
+            if (_tabsRow2 != null) return _tabsRow2;
+            if (traderTabButton == null) return transform;
+            var tabsBar = traderTabButton.transform.parent;
+            if (tabsBar == null) return transform;
+
+            var rowGo = new GameObject("TabsBarRow2", typeof(RectTransform));
+            rowGo.transform.SetParent(tabsBar.parent, false);
+            var rrt = rowGo.GetComponent<RectTransform>();
+            var tbrt = tabsBar.GetComponent<RectTransform>();
+            if (tbrt != null)
+            {
+                rrt.anchorMin = tbrt.anchorMin;
+                rrt.anchorMax = tbrt.anchorMax;
+                rrt.pivot = tbrt.pivot;
+                // Match width, shift down by row height + a small gap so the rows visually stack
+                float rowH = Mathf.Max(28f, tbrt.rect.height);
+                rrt.offsetMin = new Vector2(tbrt.offsetMin.x, tbrt.offsetMin.y - rowH - 4f);
+                rrt.offsetMax = new Vector2(tbrt.offsetMax.x, tbrt.offsetMax.y - rowH - 4f);
+            }
+            else
+            {
+                rrt.anchorMin = new Vector2(0f, 0.78f); rrt.anchorMax = new Vector2(1f, 0.86f);
+                rrt.offsetMin = Vector2.zero; rrt.offsetMax = Vector2.zero;
+            }
+
+            // Mirror the original tab row's HLG so child tabs auto-distribute the same way.
+            var srcHlg = tabsBar.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            var hlg = rowGo.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            if (srcHlg != null)
+            {
+                hlg.spacing = srcHlg.spacing; hlg.padding = srcHlg.padding;
+                hlg.childControlWidth = srcHlg.childControlWidth; hlg.childControlHeight = srcHlg.childControlHeight;
+                hlg.childForceExpandWidth = srcHlg.childForceExpandWidth; hlg.childForceExpandHeight = srcHlg.childForceExpandHeight;
+                hlg.childAlignment = srcHlg.childAlignment;
+            }
+            else
+            {
+                hlg.spacing = 4f; hlg.childControlWidth = true; hlg.childControlHeight = true;
+                hlg.childForceExpandWidth = true; hlg.childAlignment = TextAnchor.MiddleCenter;
+            }
+            _tabsRow2 = rowGo.transform;
+            return _tabsRow2;
+        }
+
+        /// <summary>Clones traderTabButton into the 2nd tab row, renames + relabels it, wires the click.</summary>
+        private Button CreateExtraTab(NpcType type, string tabLabel)
+        {
+            if (traderTabButton == null) return null;
+            var row = EnsureTabsRow2();
+            var clone = Instantiate(traderTabButton.gameObject, row);
+            clone.name = tabLabel.Replace(" ", "") + "TabButton";
+            foreach (var tmp in clone.GetComponentsInChildren<TMPro.TMP_Text>(true)) tmp.text = tabLabel;
+            foreach (var txt in clone.GetComponentsInChildren<UnityEngine.UI.Text>(true)) txt.text = tabLabel;
+            var btn = clone.GetComponent<Button>();
+            if (btn != null)
+            {
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(() => OnTabClicked(type));
+            }
+            // Reset the cloned RectTransform's anchored position — the parent HLG positions the tab now,
+            // not the inherited anchoredPosition (which could otherwise push the tab off-row).
+            var rt = clone.GetComponent<RectTransform>();
+            if (rt != null) rt.anchoredPosition = Vector2.zero;
+            return btn;
+        }
+
+        /// <summary>Maps an extra-module NpcType to its PanelElementManager screen mode.</summary>
+        private static PanelElementManager.ScreenMode MapNpcTypeToScreenMode(NpcType type) => type switch
+        {
+            NpcType.Gambler     => PanelElementManager.ScreenMode.GamblerConfig,
+            NpcType.Marketplace => PanelElementManager.ScreenMode.MarketplaceConfig,
+            NpcType.Achievement => PanelElementManager.ScreenMode.AchievementConfig,
+            NpcType.Leaderboard => PanelElementManager.ScreenMode.LeaderboardConfig,
+            NpcType.Mail        => PanelElementManager.ScreenMode.MailConfig,
+            NpcType.Transmog    => PanelElementManager.ScreenMode.TransmogConfig,
+            _                   => PanelElementManager.ScreenMode.AdminConfig,
+        };
         private DressingRoomScreenController _dressingRoomScreenController;
         private DialogueEditorScreenController _dialogueEditorScreenController;
 
@@ -290,6 +441,12 @@ namespace FiresRPGmaker.UI
 
    // Wire Trader Config screen (created programmatically; no baked trader screen yet)
    _traderConfigScreenController = CodegenUIWiring.WireTraderConfigScreen(transform);
+   _bankerConfigScreenController = CodegenUIWiring.WireBankerConfigScreen(transform);
+   EnsureBankerTabButton();
+
+   // Wire the 6 v1-stub Marketplace-module screens + their tab buttons (Gambler, Marketplace,
+   // Achievement, Leaderboard, Mail, Transmog). Tabs go in a 2nd row so the existing one isn't crammed.
+   EnsureExtraTabsAndScreens();
 
    // Pre-create Quest Interaction screen via codegen wiring
    CodegenUIWiring.WireQuestInteractionScreen(transform);
@@ -746,6 +903,8 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
    _dressingRoomScreenController?.Hide();
    _dialogueEditorScreenController?.Hide();
    _traderConfigScreenController?.Hide();
+   _bankerConfigScreenController?.Hide();
+   foreach (var screen in _moduleScreens.Values) screen?.Hide();
 
             // Also clean up quest interaction screen elements
             QuestInteractionScreenController.HideQuestScreenIfExists();
@@ -1052,11 +1211,25 @@ PageIncrementor(-1);
                    _traderConfigScreenController?.Show(_currentNpc);
                    break;
 
+       case NpcType.Banker:
+                   PanelElementManager.ConfigureForMode(transform, PanelElementManager.ScreenMode.BankerConfig, npcName);
+                   _bankerConfigScreenController?.Show(_currentNpc);
+                   break;
+
            default:
-// For other types, show standard admin panel for now
-         PanelElementManager.ConfigureForMode(transform, PanelElementManager.ScreenMode.AdminConfig, npcName);
-      LoadTypeScreenSettings();
- break;
+                   // Generic Marketplace-module stubs (Gambler/Marketplace/Achievement/Leaderboard/Mail/Transmog)
+                   if (_moduleScreens.TryGetValue(_selectedNpcType.Value, out var moduleScreen))
+                   {
+                       PanelElementManager.ConfigureForMode(transform, MapNpcTypeToScreenMode(_selectedNpcType.Value), npcName);
+                       moduleScreen?.Show(_currentNpc);
+                   }
+                   else
+                   {
+                       // Truly unhandled type — show standard admin panel
+                       PanelElementManager.ConfigureForMode(transform, PanelElementManager.ScreenMode.AdminConfig, npcName);
+                       LoadTypeScreenSettings();
+                   }
+                   break;
    }
             }
 
@@ -1284,6 +1457,13 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
        NpcType.InfoNpc => "Info NPC",
     NpcType.DialogueNpc => "Dialogue NPC",
          NpcType.Trader => "Trader",
+         NpcType.Banker => "Banker",
+         NpcType.Gambler => "Gambler",
+         NpcType.Marketplace => "Marketplace",
+         NpcType.Achievement => "Achievement",
+         NpcType.Leaderboard => "Leaderboard",
+         NpcType.Mail => "Mail",
+         NpcType.Transmog => "Transmog",
          _ => "NPC"
             };
      }
@@ -1321,6 +1501,13 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
         NpcType.InfoNpc => _currentNpc.infoProfile ?? "",
              NpcType.DialogueNpc => _currentNpc.dialogueProfile ?? "",
  NpcType.Trader => _currentNpc.traderProfile ?? "",
+             NpcType.Banker => _currentNpc.bankerProfile ?? "",
+             NpcType.Gambler => _currentNpc.gamblerProfile ?? "",
+             NpcType.Marketplace => _currentNpc.marketplaceProfile ?? "",
+             NpcType.Achievement => _currentNpc.achievementProfile ?? "",
+             NpcType.Leaderboard => _currentNpc.leaderboardProfile ?? "",
+             NpcType.Mail => _currentNpc.mailProfile ?? "",
+             NpcType.Transmog => _currentNpc.transmogProfile ?? "",
              _ => ""
       };
 }
@@ -1563,6 +1750,15 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
        case NpcType.Trader:
        _currentNpc.traderProfile = profile;
     break;
+       case NpcType.Banker:
+       _currentNpc.bankerProfile = profile;
+    break;
+       case NpcType.Gambler:      _currentNpc.gamblerProfile = profile;     break;
+       case NpcType.Marketplace:  _currentNpc.marketplaceProfile = profile; break;
+       case NpcType.Achievement:  _currentNpc.achievementProfile = profile; break;
+       case NpcType.Leaderboard:  _currentNpc.leaderboardProfile = profile; break;
+       case NpcType.Mail:         _currentNpc.mailProfile = profile;        break;
+       case NpcType.Transmog:     _currentNpc.transmogProfile = profile;    break;
             }
         }
 

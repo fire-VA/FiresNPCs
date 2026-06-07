@@ -311,7 +311,7 @@ namespace FiresRPGmaker.UI.Screens
                 _scrollRect.horizontal = false;
                 _scrollRect.vertical = true;
                 _scrollRect.movementType = ScrollRect.MovementType.Clamped;
-                _scrollRect.scrollSensitivity = 30f;
+                _scrollRect.scrollSensitivity = 600f; // 20× faster than Unity default for fast scrolling through trades
                 var vp = scrollGo.Find("Viewport") as RectTransform;
                 if (vp != null) _scrollRect.viewport = vp;
                 if (_scrollContent is RectTransform contentRT) _scrollRect.content = contentRT;
