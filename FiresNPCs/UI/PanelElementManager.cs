@@ -40,7 +40,10 @@ namespace FiresRPGmaker.UI
 
             /// <summary>Dialogue editor screen (admin tab) - shows dialogue authoring UI.</summary>
             DialogueEditor,
-            
+
+            /// <summary>Trader config screen (admin tab) - shows trader profile + trades editor.</summary>
+            TraderConfig,
+
             /// <summary>Hidden - panel is closed.</summary>
             Hidden
         }
@@ -90,7 +93,11 @@ namespace FiresRPGmaker.UI
             case ScreenMode.DialogueEditor:
                 ConfigureDialogueEditorMode(panelRoot, npcName);
                 break;
-      
+
+            case ScreenMode.TraderConfig:
+                ConfigureTraderConfigMode(panelRoot, npcName);
+                break;
+
        case ScreenMode.Hidden:
                 HideAllElements(panelRoot);
      break;
@@ -192,6 +199,30 @@ SetElementActive(panelRoot, "DetailPanel", false);
 
             // Set header text with admin style
    SetHeaderText(panelRoot, "Quest Config", UIFontConfig.AdminPanelHeader);
+        }
+
+        /// <summary>
+        /// Trader config mode (admin Trader NPC tab).
+        /// </summary>
+        private static void ConfigureTraderConfigMode(Transform panelRoot, string npcName)
+        {
+            SetElementActive(panelRoot, "Header", true);
+            SetElementActive(panelRoot, "SizeButton", true);
+            SetElementActive(panelRoot, "TabsBar", true);
+            SetElementActive(panelRoot, "PageControls", true);
+            SetElementActive(panelRoot, "TraderConfigScreen", true);
+            SetElementActive(panelRoot, "TraderApplyButton", true);
+            // HIDE other elements
+            SetElementActive(panelRoot, "DetailPanel", false);
+            SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "TabContent", false);
+            SetElementActive(panelRoot, "QuestConfigScreen", false);
+            SetElementActive(panelRoot, "QuestApplyButton", false);
+            SetElementActive(panelRoot, "InfoNpcScreen", false);
+            SetElementActive(panelRoot, "InfoApplyButton", false);
+            SetElementActive(panelRoot, "DressingRoomScreen", false);
+            SetElementActive(panelRoot, "DialogueEditorScreen", false);
+            SetHeaderText(panelRoot, "Trader Config", UIFontConfig.AdminPanelHeader);
         }
 
         /// <summary>

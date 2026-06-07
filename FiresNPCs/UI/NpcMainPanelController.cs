@@ -69,6 +69,7 @@ namespace FiresRPGmaker.UI
         // Type-specific screen controllers
         private InfoNpcScreenController _infoScreenController;
         private QuestConfigScreenController _questConfigScreenController;
+        private TraderConfigScreenController _traderConfigScreenController;
         private DressingRoomScreenController _dressingRoomScreenController;
         private DialogueEditorScreenController _dialogueEditorScreenController;
 
@@ -286,6 +287,9 @@ namespace FiresRPGmaker.UI
 
    // Wire Dialogue Editor screen from codegen hierarchy
    _dialogueEditorScreenController = CodegenUIWiring.WireDialogueEditorScreen(transform);
+
+   // Wire Trader Config screen (created programmatically; no baked trader screen yet)
+   _traderConfigScreenController = CodegenUIWiring.WireTraderConfigScreen(transform);
 
    // Pre-create Quest Interaction screen via codegen wiring
    CodegenUIWiring.WireQuestInteractionScreen(transform);
@@ -733,6 +737,7 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
        _questConfigScreenController?.Hide();
    _dressingRoomScreenController?.Hide();
    _dialogueEditorScreenController?.Hide();
+   _traderConfigScreenController?.Hide();
 
             // Also clean up quest interaction screen elements
             QuestInteractionScreenController.HideQuestScreenIfExists();
@@ -1035,6 +1040,10 @@ PageIncrementor(-1);
        break;
 
        case NpcType.Trader:
+                   PanelElementManager.ConfigureForMode(transform, PanelElementManager.ScreenMode.TraderConfig, npcName);
+                   _traderConfigScreenController?.Show(_currentNpc);
+                   break;
+
            default:
 // For other types, show standard admin panel for now
          PanelElementManager.ConfigureForMode(transform, PanelElementManager.ScreenMode.AdminConfig, npcName);

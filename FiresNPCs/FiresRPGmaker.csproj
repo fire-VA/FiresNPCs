@@ -291,6 +291,7 @@
     <Compile Include="UI\Screens\DialogueEditorScreenController.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.Fashion.cs" />
+    <Compile Include="UI\Screens\TraderConfigScreenController.cs" />
     <Compile Include="UI\Screens\InfoNpcPlayerPanel.cs" />
     <Compile Include="UI\Screens\InfoNpcScreenController.cs" />
     <Compile Include="UI\Screens\QuestConfigScreenController.cs" />

@@ -411,6 +411,36 @@ namespace FiresRPGmaker.UI
             return controller;
         }
 
+        public static TraderConfigScreenController WireTraderConfigScreen(Transform panelRoot)
+        {
+            // No baked "TraderConfigScreen" exists yet — create the screen container + apply button
+            // programmatically (named so PanelElementManager.SetElementActive can toggle them). When a
+            // baked trader screen is added to the prefab, switch this to FindByTag like the others.
+            var screenGo = new GameObject("TraderConfigScreen", typeof(RectTransform));
+            screenGo.transform.SetParent(panelRoot, false);
+            var srt = screenGo.GetComponent<RectTransform>();
+            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+
+            var applyGo = new GameObject("TraderApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            applyGo.transform.SetParent(panelRoot, false);
+            var art = applyGo.GetComponent<RectTransform>();
+            art.anchorMin = new Vector2(0.3f, 0.02f); art.anchorMax = new Vector2(0.7f, 0.08f); art.offsetMin = Vector2.zero; art.offsetMax = Vector2.zero;
+            applyGo.GetComponent<Image>().color = new Color(0.22f, 0.42f, 0.22f, 0.95f);
+            var applyButton = applyGo.GetComponent<Button>();
+            var applyLabel = new GameObject("Text", typeof(RectTransform));
+            applyLabel.transform.SetParent(art, false);
+            var alrt = applyLabel.GetComponent<RectTransform>(); alrt.anchorMin = Vector2.zero; alrt.anchorMax = Vector2.one; alrt.offsetMin = Vector2.zero; alrt.offsetMax = Vector2.zero;
+            var alt = applyLabel.AddComponent<TextMeshProUGUI>(); alt.text = "Apply"; alt.fontSize = 18f; alt.alignment = TextAlignmentOptions.Center; alt.color = new Color(0.96f, 0.91f, 0.76f);
+
+            var controller = screenGo.AddComponent<TraderConfigScreenController>();
+            controller.BuildForm(applyButton);
+            screenGo.SetActive(false);
+            applyGo.SetActive(false);
+
+            Debug.Log("[CodegenUIWiring] TraderConfigScreen created programmatically + wired");
+            return controller;
+        }
+
         #endregion
 
         #region Helpers
