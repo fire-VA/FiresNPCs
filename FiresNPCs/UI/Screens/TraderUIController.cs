@@ -70,6 +70,42 @@ namespace FiresRPGmaker.UI.Screens
         private const string PREFAB_PANEL = "MarketplaceTraderNewUI";
         private const string PREFAB_ROW   = "TraderInstantiateV3";
 
+        // KG's prefab references sprite assets that live in his bundle (NOT ours) — when the prefab was
+        // baked into firesnpcsui those refs became null because the sprite assets weren't packaged with it.
+        // So at runtime we re-resolve sprites BY NAME using `CodegenUIWiring.ResolveSpriteByNamePublic`
+        // (scans live game sprites). Names captured from Tools\kg-trader-extract.txt.
+        private static readonly Dictionary<string, string> PanelSpriteByPath = new Dictionary<string, string>
+        {
+            { "Background",                                      "little_background_frame" },
+            { "Background/Border",                               "icon_frame_Cms" },
+            { "Background/Pergament",                            "Paper_01" },
+            { "Background/InputField",                           "InputField_Glow" },
+            { "Background/InputField/Image",                     "midbutton_frame" },
+            { "Background/x1",                                   "InputField_Glow" },
+            { "Background/x1/Image",                             "midbutton_frame" },
+            { "Background/x5",                                   "InputField_Glow" },
+            { "Background/x5/Image",                             "midbutton_frame" },
+            { "Background/x10",                                  "InputField_Glow" },
+            { "Background/x10/Image",                            "midbutton_frame" },
+            { "Background/x100",                                 "InputField_Glow" },
+            { "Background/x100/Image",                           "midbutton_frame" },
+            { "Header/Background",                               "Background_grey_1" },
+            { "Header/Background/_bg",                           "icon_frame_Cms" },
+            { "Scroll View/Viewport",                            "UIMask" },
+            { "Scroll View/Scrollbar Vertical",                  "scroll_frame" },
+            { "Scroll View/Scrollbar Vertical/Sliding Area/Handle", "mid_button_vert" },
+        };
+
+        // Row template (TraderInstantiateV3) sprite map — applied per-clone.
+        private static readonly Dictionary<string, string> RowSpriteByPath = new Dictionary<string, string>
+        {
+            { "Background",                                "basic_bar" },
+            { "Background/Conversion/Background",          "Button_Island" },
+            { "Background/Conversion/Conversion",          "CS3D_Arrow_Foreground" },
+            { "Background/NeededItems/NeededItem",         "Paper_02" },
+            { "Background/ResultItems/ResultItem",         "Paper_02" },
+        };
+
         private struct RowRefs
         {
             public TradeEntry Trade;
@@ -333,6 +369,27 @@ namespace FiresRPGmaker.UI.Screens
             SetActive("Background/FromBank", false);
             SetActive("Background/ToFromText", false);
 
+            // Re-resolve KG's sprite references against live Valheim sprites (bundle bake lost them).
+            ApplySpriteMap(_panelRoot.transform, PanelSpriteByPath);
+        }
+
+        private static int ApplySpriteMap(Transform root, Dictionary<string, string> map)
+        {
+            int applied = 0, missing = 0;
+            foreach (var kv in map)
+            {
+                var t = root.Find(kv.Key);
+                if (t == null) continue;
+                var img = t.GetComponent<Image>();
+                if (img == null) continue;
+                if (img.sprite != null) { continue; } // already linked (vanilla bundle preserved it)
+                var sprite = CodegenUIWiring.ResolveSpriteByNamePublic(kv.Value);
+                if (sprite != null) { img.sprite = sprite; applied++; }
+                else missing++;
+            }
+            if (missing > 0) Debug.Log($"[TraderUIController] sprite map: {applied} applied, {missing} unresolved (acceptable for KG's custom icons)");
+            return applied;
+
             // Close button (top-right of KG's panel) — KG didn't bake one; let Esc / OnDestroy handle close.
         }
 
@@ -364,6 +421,7 @@ namespace FiresRPGmaker.UI.Screens
             var row = Instantiate(_rowTemplate, _scrollContent, false);
             row.name = $"Row_{trade.GetHashCode()}";
             row.SetActive(true);
+            ApplySpriteMap(row.transform, RowSpriteByPath);
 
             var bg = row.transform.Find("Background");
             if (bg == null) { Destroy(row); return; }
