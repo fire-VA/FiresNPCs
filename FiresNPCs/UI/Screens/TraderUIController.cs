@@ -380,20 +380,21 @@ namespace FiresRPGmaker.UI.Screens
 
         private static int ApplySpriteMap(Transform root, Dictionary<string, string> map)
         {
-            int applied = 0, missing = 0, noPath = 0, noImage = 0;
+            // Runtime FALLBACK — only fires for Images that lost their sprite during bake (shouldn't happen
+            // now that KgUiExtractFull packages KG's sprites into firesnpcsui, but kept as safety net).
+            int applied = 0, missing = 0, noPath = 0, noImage = 0, hadSprite = 0;
             foreach (var kv in map)
             {
                 var t = root.Find(kv.Key);
                 if (t == null) { noPath++; continue; }
                 var img = t.GetComponent<Image>();
                 if (img == null) { noImage++; continue; }
-                // ALWAYS overwrite — even if img.sprite appears non-null it may be a broken bundle ref that
-                // renders empty. The vanilla-by-name lookup is authoritative for KG's UIs (per memory).
+                if (img.sprite != null) { hadSprite++; continue; }
                 var sprite = CodegenUIWiring.ResolveSpriteByNamePublic(kv.Value);
-                if (sprite != null) { img.sprite = sprite; img.color = new Color(img.color.r, img.color.g, img.color.b, Mathf.Max(img.color.a, 1f)); applied++; }
+                if (sprite != null) { img.sprite = sprite; applied++; }
                 else missing++;
             }
-            Debug.Log($"[TraderUIController] sprite map: applied={applied}, missing-sprite-by-name={missing}, no-path={noPath}, no-image={noImage} (of {map.Count} entries)");
+            Debug.Log($"[TraderUIController] sprite map: had-valid={hadSprite}, applied-fallback={applied}, missing={missing}, no-path={noPath}, no-image={noImage} (of {map.Count})");
             return applied;
 
             // Close button (top-right of KG's panel) — KG didn't bake one; let Esc / OnDestroy handle close.
