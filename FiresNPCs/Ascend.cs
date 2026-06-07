@@ -384,12 +384,14 @@ namespace FiresRPGmaker
 
             try
             {
-                // Dedicated baked-UI bundle (unique name → no cross-mod collision), loaded first so it's
-                // available for the baked UI even if the firesnpcs asset bundle fails to load.
-                uiBundle = GetAssetBundleFromResources("firesnpcsui");
-
+                // ORDER MATTERS: firesnpcsui declares a Dependency on firesnpcs (per its manifest), so
+                // firesnpcs MUST load FIRST or firesnpcsui's cross-bundle refs (Image sprites etc.) don't
+                // resolve at deserialize-time → Image components get stripped from prefabs at runtime
+                // (was: panel.GetComponentsInChildren<Image>() returned 0 even though .prefab YAML had 24).
                 assetBundle = GetAssetBundleFromResources("firesnpcs");
                 if (assetBundle == null) throw new Exception("Bundle not found");
+
+                uiBundle = GetAssetBundleFromResources("firesnpcsui");
 
                 global::FiresRPGmaker.UI.FiresNpcsUIBuilderHost.Install();
 
