@@ -35,19 +35,19 @@ namespace FiresRPGmaker.UI.Screens
             if (_built) return;
             _built = true;
 
+            // The container rect is set by the wiring (mirrors the baked QuestConfigScreen so this lands
+            // in the content area below the tabs). Do NOT override it here — just lay out children inside it.
+            // The panel Header already shows "Setup Trader: <npc>", so there is no in-screen title.
             var rt = GetComponent<RectTransform>() ?? gameObject.AddComponent<RectTransform>();
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
-            rt.offsetMin = new Vector2(20f, 60f); rt.offsetMax = new Vector2(-20f, -70f);
 
-            CreateLabel(rt, "Trader Setup", 0.93f, 0.99f, 22f, TextAlignmentOptions.Center);
-            CreateLabel(rt, "Trader Profile (type an existing name to load, or a new name to create)", 0.86f, 0.92f, 13f, TextAlignmentOptions.Left);
-            _profileInput = CreateInput(rt, 0.79f, 0.855f, false);
+            CreateLabel(rt, "Trader Profile  (type an existing name to load it, or a new name to create)", 0.91f, 0.99f, 14f, TextAlignmentOptions.Left);
+            _profileInput = CreateInput(rt, 0.82f, 0.895f, false);
             _profileInput.onEndEdit.AddListener(LoadProfileTrades);
 
-            CreateLabel(rt, "Trades - one per line:  cost, amount, reward, amount[, level]", 0.72f, 0.78f, 13f, TextAlignmentOptions.Left);
-            _tradesInput = CreateInput(rt, 0.10f, 0.71f, true);
+            CreateLabel(rt, "Trades  -  one per line:   cost, amount, reward, amount[, level]", 0.73f, 0.81f, 14f, TextAlignmentOptions.Left);
+            _tradesInput = CreateInput(rt, 0.11f, 0.72f, true);
 
-            _statusText = CreateLabel(rt, "", 0.02f, 0.085f, 13f, TextAlignmentOptions.Left);
+            _statusText = CreateLabel(rt, "", 0.01f, 0.10f, 13f, TextAlignmentOptions.Left);
 
             _applyButton = applyButton;
             if (_applyButton != null) { _applyButton.onClick.RemoveAllListeners(); _applyButton.onClick.AddListener(ApplyChanges); }

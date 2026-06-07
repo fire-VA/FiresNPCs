@@ -414,31 +414,55 @@ namespace FiresRPGmaker.UI
         public static TraderConfigScreenController WireTraderConfigScreen(Transform panelRoot)
         {
             // No baked "TraderConfigScreen" exists yet — create the screen container + apply button
-            // programmatically (named so PanelElementManager.SetElementActive can toggle them). When a
-            // baked trader screen is added to the prefab, switch this to FindByTag like the others.
+            // programmatically (named so PanelElementManager.SetElementActive can toggle them). The
+            // rects mirror the baked QuestConfigScreen / QuestApplyButton so the trader editor lands in
+            // the same content area (below the tabs). When a baked trader screen is added to the prefab,
+            // switch this to FindByTag like the others.
             var screenGo = new GameObject("TraderConfigScreen", typeof(RectTransform));
             screenGo.transform.SetParent(panelRoot, false);
             var srt = screenGo.GetComponent<RectTransform>();
-            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+            var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
+            CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
+                     fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
+                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -130f));
 
             var applyGo = new GameObject("TraderApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);
             var art = applyGo.GetComponent<RectTransform>();
-            art.anchorMin = new Vector2(0.3f, 0.02f); art.anchorMax = new Vector2(0.7f, 0.08f); art.offsetMin = Vector2.zero; art.offsetMax = Vector2.zero;
+            var questApply = GeneratedUI_completecompanionsui.FindByTag("QuestApplyButton");
+            CopyRect(questApply != null ? questApply.GetComponent<RectTransform>() : null, art,
+                     fallbackMin: new Vector2(0.3f, 0.02f), fallbackMax: new Vector2(0.7f, 0.08f),
+                     fallbackOffMin: Vector2.zero, fallbackOffMax: Vector2.zero);
             applyGo.GetComponent<Image>().color = new Color(0.22f, 0.42f, 0.22f, 0.95f);
             var applyButton = applyGo.GetComponent<Button>();
             var applyLabel = new GameObject("Text", typeof(RectTransform));
             applyLabel.transform.SetParent(art, false);
             var alrt = applyLabel.GetComponent<RectTransform>(); alrt.anchorMin = Vector2.zero; alrt.anchorMax = Vector2.one; alrt.offsetMin = Vector2.zero; alrt.offsetMax = Vector2.zero;
-            var alt = applyLabel.AddComponent<TextMeshProUGUI>(); alt.text = "Apply"; alt.fontSize = 18f; alt.alignment = TextAlignmentOptions.Center; alt.color = new Color(0.96f, 0.91f, 0.76f);
+            var alt = applyLabel.AddComponent<TextMeshProUGUI>(); alt.font = TMP_Settings.defaultFontAsset; alt.text = "Apply"; alt.fontSize = 18f; alt.alignment = TextAlignmentOptions.Center; alt.color = new Color(0.96f, 0.91f, 0.76f);
 
             var controller = screenGo.AddComponent<TraderConfigScreenController>();
             controller.BuildForm(applyButton);
             screenGo.SetActive(false);
             applyGo.SetActive(false);
 
-            Debug.Log("[CodegenUIWiring] TraderConfigScreen created programmatically + wired");
+            Debug.Log("[CodegenUIWiring] TraderConfigScreen created programmatically (mirrors QuestConfigScreen rect)");
             return controller;
+        }
+
+        /// <summary>Copies a source RectTransform's anchors/pivot/offsets onto dst; uses the fallbacks when src is null.</summary>
+        private static void CopyRect(RectTransform src, RectTransform dst,
+                                     Vector2 fallbackMin, Vector2 fallbackMax, Vector2 fallbackOffMin, Vector2 fallbackOffMax)
+        {
+            if (src != null)
+            {
+                dst.anchorMin = src.anchorMin; dst.anchorMax = src.anchorMax; dst.pivot = src.pivot;
+                dst.offsetMin = src.offsetMin; dst.offsetMax = src.offsetMax;
+            }
+            else
+            {
+                dst.anchorMin = fallbackMin; dst.anchorMax = fallbackMax;
+                dst.offsetMin = fallbackOffMin; dst.offsetMax = fallbackOffMax;
+            }
         }
 
         #endregion

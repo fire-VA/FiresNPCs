@@ -215,7 +215,10 @@ SetElementActive(panelRoot, "DetailPanel", false);
             // HIDE other elements
             SetElementActive(panelRoot, "DetailPanel", false);
             SetElementActive(panelRoot, "SearchBar", false);
+            SetElementActive(panelRoot, "SearchInput", false);
             SetElementActive(panelRoot, "TabContent", false);
+            SetElementActive(panelRoot, "QuestScreenContainer", false);
+            SetElementActive(panelRoot, "QuestInteract", false);
             SetElementActive(panelRoot, "QuestConfigScreen", false);
             SetElementActive(panelRoot, "QuestApplyButton", false);
             SetElementActive(panelRoot, "InfoNpcScreen", false);
