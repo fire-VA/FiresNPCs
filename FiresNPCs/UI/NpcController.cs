@@ -920,7 +920,7 @@ HandleInfoNpcInteraction(player);
 
          if (!string.IsNullOrEmpty(questProfile))
      {
-             QuestInteractionScreenController.ShowForNpc(this);
+             SuppressHoverHud(); QuestInteractionScreenController.ShowForNpc(this);
             }
  else
             {
@@ -934,7 +934,7 @@ HandleInfoNpcInteraction(player);
        if (!string.IsNullOrEmpty(infoProfile))
      {
        var profile = Screens.InfoNpcScreenController.GetProfileForName(infoProfile);
-         Screens.InfoNpcPlayerPanel.Show(GetDisplayName(), profile);
+         SuppressHoverHud(); Screens.InfoNpcPlayerPanel.Show(GetDisplayName(), profile);
             }
   else
      {
@@ -952,7 +952,7 @@ private void HandleDialogueNpcInteraction(Player player)
                var codexDialogue = DialogueCodex.Get(uid);
                if (codexDialogue != null)
                {
-                   DialogueUI.Show(GetDisplayName(), uid, _nview);
+                   SuppressHoverHud(); DialogueUI.Show(GetDisplayName(), uid, _nview);
                    return;
                }
 
@@ -973,7 +973,13 @@ private void HandleDialogueNpcInteraction(Player player)
 
         private void HandleTraderInteraction(Player player)
         {
-            TraderUIController.ShowForNpc(this);
+            SuppressHoverHud(); TraderUIController.ShowForNpc(this);
+        }
+
+        private void SuppressHoverHud()
+        {
+            NpcHoverHudSuppressor.Clear();
+            NpcHoverHudSuppressor.Suppress(GetComponent<Character>() ?? GetComponentInChildren<Character>());
         }
 
         private void ApplyPendingFashion()

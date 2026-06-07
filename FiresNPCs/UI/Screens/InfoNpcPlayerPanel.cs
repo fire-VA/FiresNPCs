@@ -140,6 +140,7 @@ namespace FiresRPGmaker.UI.Screens
             {
                 _panelInstance.SetActive(false);
             }
+            NpcHoverHudSuppressor.Clear();
             GUIManager.BlockInput(false);
         }
 

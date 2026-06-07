@@ -203,6 +203,7 @@ namespace FiresRPGmaker.UI.Screens
         public void Hide()
         {
             if (_panelRoot != null) _panelRoot.SetActive(false);
+            NpcHoverHudSuppressor.Clear();
             _currentNpc = null;
             _currentProfile = null;
             GUIManager.BlockInput(false);

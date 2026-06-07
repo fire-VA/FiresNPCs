@@ -950,6 +950,7 @@ public static void ShowForNpc(NpcController npc)
         private void Hide()
         {
             HideQuestPanels();
+            NpcHoverHudSuppressor.Clear();
             _currentNpc = null;
             _selectedQuest = null;
             ClearQuestList();

@@ -174,6 +174,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             _currentNpcView = null;
             _navigationStack.Clear();
 
+            NpcHoverHudSuppressor.Clear();
             GUIManager.BlockInput(false);
 
             if (_root != null)
