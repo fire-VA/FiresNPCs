@@ -2,7 +2,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace FiresRPGmaker.UI.Screens.Player
+namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
     /// <summary>
     /// Base class for every Marketplace-module player UI (Gambler, Marketplace, Achievement, Leaderboard,
@@ -45,7 +45,7 @@ namespace FiresRPGmaker.UI.Screens.Player
 
         public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
 
-        private void Update()
+        protected virtual void Update()
         {
             if (IsOpen && Input.GetKeyDown(KeyCode.Escape)) Close();
         }

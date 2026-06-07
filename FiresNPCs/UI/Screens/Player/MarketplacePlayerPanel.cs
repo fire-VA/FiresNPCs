@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace FiresRPGmaker.UI.Screens.Player
+namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
     /// <summary>
     /// Player-facing Marketplace UI (auction house). Three tabs — Buy / Sell / My Listings — over a single
@@ -171,7 +171,60 @@ namespace FiresRPGmaker.UI.Screens.Player
                                                 : new Color(0.22f, 0.42f, 0.22f, 0.95f),
                                        fontSize: 12f);
             actionBtn.onClick.AddListener(() =>
-                _statusText.text = (_currentTab == Tab.MyListings ? "Cancel " : "Buy ") + l.ItemPrefab + " (server flow not wired yet)");
+            {
+                if (_currentTab == Tab.MyListings)
+                {
+                    MarketplaceListingManager.RemoveListing(_profileName, l);
+                    _statusText.text = "Cancelled listing for " + l.ItemPrefab + ".";
+                    Refresh();
+                    return;
+                }
+                var player = Player.m_localPlayer; if (player == null) { _statusText.text = "No active player."; return; }
+                var inv = player.GetInventory();
+                int held = CountInInventory(inv, l.Currency);
+                if (held < l.Price) { _statusText.text = "Need " + l.Price + " " + l.Currency + " (have " + held + ")."; return; }
+                if (!ConsumeFromInventory(inv, l.Currency, l.Price)) { _statusText.text = "Failed to consume currency."; return; }
+                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(l.ItemPrefab) : null;
+                if (prefab == null) { _statusText.text = "Unknown prefab '" + l.ItemPrefab + "'."; return; }
+                var drop = prefab.GetComponent<ItemDrop>();
+                if (drop != null && inv.CanAddItem(drop.m_itemData, l.Count))
+                {
+                    inv.AddItem(l.ItemPrefab, l.Count, 1, 0, 0L, "");
+                }
+                else
+                {
+                    var go = Object.Instantiate(prefab, player.transform.position + Vector3.up, Quaternion.identity);
+                    var dr = go.GetComponent<ItemDrop>(); if (dr != null) dr.m_itemData.m_stack = l.Count;
+                }
+                MarketplaceListingManager.RemoveListing(_profileName, l);
+                _statusText.text = "Bought " + l.Count + "x " + l.ItemPrefab + " for " + l.Price + " " + l.Currency + ".";
+                Refresh();
+            });
+        }
+
+        private static int CountInInventory(Inventory inv, string prefab)
+        {
+            int total = 0;
+            foreach (var it in inv.GetAllItems())
+            {
+                if (it?.m_dropPrefab != null && it.m_dropPrefab.name == prefab) total += it.m_stack;
+            }
+            return total;
+        }
+
+        private static bool ConsumeFromInventory(Inventory inv, string prefab, int amount)
+        {
+            int remaining = amount;
+            var copy = new System.Collections.Generic.List<ItemDrop.ItemData>(inv.GetAllItems());
+            foreach (var it in copy)
+            {
+                if (remaining <= 0) break;
+                if (it?.m_dropPrefab == null || it.m_dropPrefab.name != prefab) continue;
+                int take = Mathf.Min(it.m_stack, remaining);
+                inv.RemoveItem(it, take);
+                remaining -= take;
+            }
+            return remaining == 0;
         }
     }
 }

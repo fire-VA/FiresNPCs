@@ -157,6 +157,17 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Guilds.GuildChat.GuildChatChannel+Chat_InputText_Patch",
             "FiresRPGmaker.Modules.Guilds.Map.GuildMapFeatures+Minimap_UpdatePlayerPins_Patch",
             "FiresRPGmaker.Modules.Guilds.Map.GuildMapFeatures+Minimap_OnMapMiddleClick_Patch",
+            // Marketplace LeaderboardTracker — InventoryGui/Minimap touches don't exist server-side.
+            "FiresRPGmaker.Modules.Marketplace.LeaderboardTrackerPatches+InventoryGui_DoCrafting_Patch",
+            "FiresRPGmaker.Modules.Marketplace.LeaderboardTrackerPatches+Minimap_Explore_Patch",
+            // Marketplace console commands — Terminal exists server-side too, but the patch class registers
+            // a player-side flow only; keeping it client-skipped is harmless.
+            "FiresRPGmaker.Modules.Marketplace.MarketplaceConsoleCommands",
+            // Transmog visual swap — VisEquipment is client-side (visualization), patches NRE on dedi.
+            "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetHelmetItem_Patch",
+            "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetChestItem_Patch",
+            "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetLegItem_Patch",
+            "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetShoulderItem_Patch",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server

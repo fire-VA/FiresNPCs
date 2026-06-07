@@ -59,10 +59,46 @@ namespace FiresRPGmaker.UI.Screens
             _currentNpc = npc;
             string current = (_profileField?.GetValue(npc) as string) ?? "";
             if (_profileInput != null) _profileInput.SetTextWithoutNotify(current);
-            SetStatus(string.IsNullOrEmpty(current) ? "No " + _moduleLabel.ToLowerInvariant() + " profile set." : "Loaded '" + current + "'.");
+            string loaded = GetLoadedProfileNames();
+            string head = string.IsNullOrEmpty(current) ? "No " + _moduleLabel.ToLowerInvariant() + " profile set." : "Loaded '" + current + "'.";
+            SetStatus(head + (string.IsNullOrEmpty(loaded) ? "" : "  -  Loaded profiles: " + loaded));
             gameObject.SetActive(true);
             if (_applyButton != null) _applyButton.gameObject.SetActive(true);
         }
+
+        /// <summary>Comma-joined list of profile names currently loaded by the relevant manager (admin hint).</summary>
+        private string GetLoadedProfileNames()
+        {
+            try
+            {
+                System.Collections.Generic.IEnumerable<string> names = _moduleType switch
+                {
+                    NpcType.Banker      => Modules.Marketplace.BankerProfileManager.AllProfileNames,
+                    NpcType.Gambler     => Modules.Marketplace.GamblerProfileManager.AllProfileNames,
+                    NpcType.Marketplace => GetMarketplaceProfileNames(),
+                    NpcType.Achievement => GetAchievementProfileNames(),
+                    NpcType.Leaderboard => GetLeaderboardProfileNames(),
+                    NpcType.Mail        => GetMailProfileNames(),
+                    NpcType.Transmog    => GetTransmogProfileNames(),
+                    _ => null,
+                };
+                return names == null ? "" : string.Join(", ", names);
+            }
+            catch { return ""; }
+        }
+
+        // The remaining managers expose data via per-profile getters rather than a public AllProfileNames
+        // collection — call into their internal stores by piggybacking on ReloadAll's bookkeeping.
+        private static System.Collections.Generic.IEnumerable<string> GetMarketplaceProfileNames()
+        { Modules.Marketplace.MarketplaceListingManager.EnsureLoaded(); return Modules.Marketplace.MarketplaceListingManager.GetLoadedProfileNames(); }
+        private static System.Collections.Generic.IEnumerable<string> GetAchievementProfileNames()
+        { Modules.Marketplace.AchievementProfileManager.EnsureLoaded(); return Modules.Marketplace.AchievementProfileManager.GetLoadedProfileNames(); }
+        private static System.Collections.Generic.IEnumerable<string> GetLeaderboardProfileNames()
+        { Modules.Marketplace.LeaderboardProfileManager.EnsureLoaded(); return Modules.Marketplace.LeaderboardProfileManager.GetLoadedProfileNames(); }
+        private static System.Collections.Generic.IEnumerable<string> GetMailProfileNames()
+        { Modules.Marketplace.MailProfileManager.EnsureLoaded(); return Modules.Marketplace.MailProfileManager.GetLoadedProfileNames(); }
+        private static System.Collections.Generic.IEnumerable<string> GetTransmogProfileNames()
+        { Modules.Marketplace.TransmogProfileManager.EnsureLoaded(); return Modules.Marketplace.TransmogProfileManager.GetLoadedProfileNames(); }
 
         public void Hide()
         {

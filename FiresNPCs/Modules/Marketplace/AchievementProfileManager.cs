@@ -39,6 +39,8 @@ namespace FiresRPGmaker.Modules.Marketplace
             return _byProfile.TryGetValue(profile.ToLowerInvariant(), out var list) ? list : new List<AchievementDef>();
         }
 
+        public static IEnumerable<string> GetLoadedProfileNames() { EnsureLoaded(); return _byProfile.Keys; }
+
         public static void EnsureLoaded()
         {
             if (_initialized) return;

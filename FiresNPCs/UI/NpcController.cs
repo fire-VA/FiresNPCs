@@ -930,14 +930,14 @@ HandleInfoNpcInteraction(player);
           HandleTraderInteraction(player);
       break;
       case NpcType.Banker:
-          HandleBankerInteraction(player);
+          Screens.PlayerPanels.BankerPlayerPanel.Show(bankerProfile, GetDisplayName());
       break;
-      case NpcType.Gambler:      HandleGenericModuleStub(player, "Gambler",     gamblerProfile);     break;
-      case NpcType.Marketplace:  HandleGenericModuleStub(player, "Marketplace", marketplaceProfile); break;
-      case NpcType.Achievement:  HandleGenericModuleStub(player, "Achievement", achievementProfile); break;
-      case NpcType.Leaderboard:  HandleGenericModuleStub(player, "Leaderboard", leaderboardProfile); break;
-      case NpcType.Mail:         HandleGenericModuleStub(player, "Mail",        mailProfile);        break;
-      case NpcType.Transmog:     HandleGenericModuleStub(player, "Transmog",    transmogProfile);    break;
+      case NpcType.Gambler:      Screens.PlayerPanels.GamblerPlayerPanel.Show(gamblerProfile, GetDisplayName());           break;
+      case NpcType.Marketplace:  Screens.PlayerPanels.MarketplacePlayerPanel.Show(marketplaceProfile, GetDisplayName());   break;
+      case NpcType.Achievement:  Screens.PlayerPanels.AchievementPlayerPanel.Show(achievementProfile, GetDisplayName());   break;
+      case NpcType.Leaderboard:  Screens.PlayerPanels.LeaderboardPlayerPanel.Show(leaderboardProfile, GetDisplayName());   break;
+      case NpcType.Mail:         Screens.PlayerPanels.MailPlayerPanel.Show(mailProfile, GetDisplayName());                 break;
+      case NpcType.Transmog:     Screens.PlayerPanels.TransmogPlayerPanel.Show(transmogProfile, GetDisplayName());         break;
           default:
                  NpcMainPanelController.ShowForNpc(this);
    break;

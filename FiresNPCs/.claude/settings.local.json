@@ -269,7 +269,13 @@
       "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/rename_rig_to_valheim.py -- /c/Users/travi/Downloads/arianna_iglesias.glb /c/Users/travi/Downloads/_model_triage2/arianna-named.fbx)",
       "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/dump_bones.py -- /c/Users/travi/Downloads/_model_triage3/womenfemale-base/source/MujerBaseRigged.fbx)",
       "Bash(mkdir -p /c/Users/travi/Downloads/_model_triage3/mujerbase-final)",
-      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/retarget_to_player.py -- /c/Users/travi/Downloads/_model_triage/_preview/player_rig/player_rig.fbx /c/Users/travi/Downloads/_model_triage3/womenfemale-base/source/MujerBaseRigged.fbx /c/Users/travi/Downloads/_model_triage3/mujerbase-final)"
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/retarget_to_player.py -- /c/Users/travi/Downloads/_model_triage/_preview/player_rig/player_rig.fbx /c/Users/travi/Downloads/_model_triage3/womenfemale-base/source/MujerBaseRigged.fbx /c/Users/travi/Downloads/_model_triage3/mujerbase-final)",
+      "Bash(mkdir -p /c/Users/travi/Downloads/_model_triage2/sexygirl-apose)",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/retarget_to_player.py -- /c/Users/travi/Downloads/_model_triage/_preview/player_rig/player_rig.fbx /c/Users/travi/Downloads/_model_triage2/sexygirl-st-named.fbx /c/Users/travi/Downloads/_model_triage2/sexygirl-apose)",
+      "Bash(mkdir -p /c/Users/travi/Downloads/_model_triage3/megumi-final2)",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/retarget_to_player.py -- /c/Users/travi/Downloads/_model_triage/_preview/player_rig/player_rig.fbx '/c/Users/travi/Downloads/_model_triage3/t-pose-01-megumi-oka-voltes-v/source/\\(T-Pose\\) 01 Megumi Oka @ Action Formal Clothes.fbx' /c/Users/travi/Downloads/_model_triage3/megumi-final2)",
+      "Bash(mkdir -p /c/Users/travi/Downloads/_model_triage3/megumi-final3)",
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/retarget_to_player.py -- /c/Users/travi/Downloads/_model_triage/_preview/player_rig/player_rig.fbx '/c/Users/travi/Downloads/_model_triage3/t-pose-01-megumi-oka-voltes-v/source/\\(T-Pose\\) 01 Megumi Oka @ Action Formal Clothes.fbx' /c/Users/travi/Downloads/_model_triage3/megumi-final3)"
     ]
   }
 }

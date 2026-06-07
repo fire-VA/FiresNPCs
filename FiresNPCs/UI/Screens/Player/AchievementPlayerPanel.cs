@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace FiresRPGmaker.UI.Screens.Player
+namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
     /// <summary>
     /// Player-facing Achievement UI: scrollable list of achievement entries with progress bar + Claim button.
@@ -72,18 +72,20 @@ namespace FiresRPGmaker.UI.Screens.Player
             }
 
             int unlocked = 0; int totalScore = 0; int earnedScore = 0;
+            string playerName = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : "Local";
             foreach (var def in defs)
             {
-                bool done = (def.MockProgress >= def.MinAmount);
+                int progress = LeaderboardTracker.GetProgress(playerName, def.TriggerType, def.Prefab);
+                bool done = (progress >= def.MinAmount);
                 if (done) unlocked++;
                 totalScore += def.Score;
                 if (done) earnedScore += def.Score;
-                BuildRow(def, done);
+                BuildRow(def, progress, done);
             }
             _summaryText.text = "Unlocked: " + unlocked + "/" + defs.Count + "  -  Score: " + earnedScore + "/" + totalScore;
         }
 
-        private void BuildRow(AchievementDef def, bool done)
+        private void BuildRow(AchievementDef def, int progress, bool done)
         {
             var rowGo = new GameObject("Ach_" + def.Id, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             rowGo.transform.SetParent(_listContent, false);
@@ -101,14 +103,14 @@ namespace FiresRPGmaker.UI.Screens.Player
                       size: 11f, color: new Color(0.78f, 0.72f, 0.60f));
 
             // Progress bar
-            float pct = def.MinAmount <= 0 ? 0f : Mathf.Clamp01((float)def.MockProgress / def.MinAmount);
+            float pct = def.MinAmount <= 0 ? 0f : Mathf.Clamp01((float)progress / def.MinAmount);
             MakePanel(rowGo.transform, "BarBg", new Color(0.04f, 0.03f, 0.02f, 0.95f),
                       new Vector2(0.52f, 0.30f), new Vector2(0.78f, 0.70f), Vector2.zero, Vector2.zero);
             MakePanel(rowGo.transform, "BarFill",
                       done ? new Color(0.35f, 0.75f, 0.30f, 0.95f) : new Color(0.55f, 0.40f, 0.20f, 0.95f),
                       new Vector2(0.52f, 0.30f), new Vector2(0.52f + (0.78f - 0.52f) * pct, 0.70f),
                       Vector2.zero, Vector2.zero);
-            MakeLabel(rowGo.transform, def.MockProgress + "/" + def.MinAmount,
+            MakeLabel(rowGo.transform, progress + "/" + def.MinAmount,
                       new Vector2(0.52f, 0.30f), new Vector2(0.78f, 0.70f), Vector2.zero, Vector2.zero,
                       size: 12f, align: TextAlignmentOptions.Center);
 
