@@ -159,6 +159,11 @@ namespace FiresRPGmaker.UI.Screens
             GUIManager.BlockInput(true);
             Cursor.visible = true; Cursor.lockState = CursorLockMode.None;
             Debug.Log($"[TraderUIController] panel active — IsVisible={Instance.IsVisible}");
+            // Diagnostic: panel root rect + image counts so we can see if it's positioned / has visuals
+            var prt = Instance._panelRoot.transform as RectTransform;
+            var allImages = Instance._panelRoot.GetComponentsInChildren<Image>(true);
+            int withSprite = 0; foreach (var i in allImages) if (i.sprite != null) withSprite++;
+            Debug.Log($"[TraderUIController] panel rect: aMin={prt?.anchorMin} aMax={prt?.anchorMax} offMin={prt?.offsetMin} offMax={prt?.offsetMax} sizeDelta={prt?.sizeDelta} | total images={allImages.Length}, with-sprite={withSprite}");
         }
 
         public static void ShowForCompanion(string displayName, string traderProfile)
@@ -375,19 +380,20 @@ namespace FiresRPGmaker.UI.Screens
 
         private static int ApplySpriteMap(Transform root, Dictionary<string, string> map)
         {
-            int applied = 0, missing = 0;
+            int applied = 0, missing = 0, noPath = 0, noImage = 0;
             foreach (var kv in map)
             {
                 var t = root.Find(kv.Key);
-                if (t == null) continue;
+                if (t == null) { noPath++; continue; }
                 var img = t.GetComponent<Image>();
-                if (img == null) continue;
-                if (img.sprite != null) { continue; } // already linked (vanilla bundle preserved it)
+                if (img == null) { noImage++; continue; }
+                // ALWAYS overwrite — even if img.sprite appears non-null it may be a broken bundle ref that
+                // renders empty. The vanilla-by-name lookup is authoritative for KG's UIs (per memory).
                 var sprite = CodegenUIWiring.ResolveSpriteByNamePublic(kv.Value);
-                if (sprite != null) { img.sprite = sprite; applied++; }
+                if (sprite != null) { img.sprite = sprite; img.color = new Color(img.color.r, img.color.g, img.color.b, Mathf.Max(img.color.a, 1f)); applied++; }
                 else missing++;
             }
-            if (missing > 0) Debug.Log($"[TraderUIController] sprite map: {applied} applied, {missing} unresolved (acceptable for KG's custom icons)");
+            Debug.Log($"[TraderUIController] sprite map: applied={applied}, missing-sprite-by-name={missing}, no-path={noPath}, no-image={noImage} (of {map.Count} entries)");
             return applied;
 
             // Close button (top-right of KG's panel) — KG didn't bake one; let Esc / OnDestroy handle close.

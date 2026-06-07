@@ -89,43 +89,21 @@ namespace FiresRPGmaker.UI
             Debug.Log("[UIInitializer] Resetting initialization state (logout detected)");
             _initialized = false;
 
-            // The NPC panel canvas is a top-level GameObject (not parented under Hud),
-            // so it isn't auto-destroyed when Hud is destroyed. Destroy it explicitly
-            // to avoid leaking a stale canvas across login sessions.
-            if (_panelInstance != null)
-            {
-                Object.Destroy(_panelInstance);
-                _panelInstance = null;
-            }
+            // Each step wrapped in try/catch with a tagged label so we can see which cleanup the 6×
+            // "GameObjects can not be made active when they are being destroyed" errors actually come from,
+            // and so one bad cleanup doesn't abort the rest.
+            void Step(string tag, System.Action a) { try { a(); } catch (System.Exception e) { Debug.LogError($"[UIInitializer] cleanup '{tag}' threw: {e.GetType().Name} — {e.Message}"); } }
 
-            // Cleanup GUIManager subscriptions
-            GUIManager.Cleanup();
-
-            // Cleanup Group HUD
-            GroupHudController.Cleanup();
-
-            // Cleanup Globe HUD overlay
-            GlobeHudController.Cleanup();
-
-            // Cleanup Help Panel
-            FiresCore.Help.HelpPanel.Cleanup();
-
-            // Cleanup standalone-canvas NPC interaction UIs (they live outside Hud,
-            // so they don't auto-destroy when Hud is destroyed).
-            TraderUIController.Cleanup();
-            InfoNpcPlayerPanel.Cleanup();
-
-            // Cleanup Quest Preview Renderer
-            QuestPreviewRenderer.Cleanup();
-
-            // Clear cached sprites so they're re-resolved on next login
-            CodegenUIWiring.ClearSpriteCache();
-
-            // Clear PanelElementManager's element lookup cache
-            PanelElementManager.ClearCache();
-
-            // Also clear screen controller instances since they're destroyed with the scene
-            // QuestInteractionScreenController.Instance is handled by its OnDestroy
+            Step("destroy panel", () => { if (_panelInstance != null) { Object.Destroy(_panelInstance); _panelInstance = null; } });
+            Step("GUIManager", () => GUIManager.Cleanup());
+            Step("GroupHud",   () => GroupHudController.Cleanup());
+            Step("GlobeHud",   () => GlobeHudController.Cleanup());
+            Step("HelpPanel",  () => FiresCore.Help.HelpPanel.Cleanup());
+            Step("TraderUI",   () => TraderUIController.Cleanup());
+            Step("InfoPanel",  () => InfoNpcPlayerPanel.Cleanup());
+            Step("QuestPreview", () => QuestPreviewRenderer.Cleanup());
+            Step("SpriteCache",  () => CodegenUIWiring.ClearSpriteCache());
+            Step("PanelElemCache", () => PanelElementManager.ClearCache());
         }
 
         /// <summary>
