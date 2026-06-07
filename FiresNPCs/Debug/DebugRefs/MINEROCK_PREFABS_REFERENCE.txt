@@ -1,0 +1,99 @@
+=============================================================
+VALHEIM MINEROCK PREFAB REFERENCE
+For Companion Resource Gathering Implementation
+Generated: 2025-02-28
+=============================================================
+
+=== ORE DEPOSITS (What companions should mine for ore) ===
+
+These are the actual ORE-producing rocks that companions should target:
+
+| Prefab Name              | Tool Tier | Type      | Notes                    |
+|--------------------------|-----------|-----------|--------------------------|
+| MineRock_Copper          |         0 | MineRock  | Copper ore deposits      |
+| MineRock_Stone           |         0 | MineRock  | Stone (not ore)          |
+| MineRock_Iron            |         1 | MineRock  | Iron ore (buried)        |
+| mudpile_frac             |         3 | MineRock5 | Swamp iron (mudpile!)    |
+| mudpile2_frac            |         3 | MineRock5 | Swamp iron variant       |
+| rock4_copper_frac        |         2 | MineRock5 | Copper deposit variant   |
+| silvervein_frac          |         4 | MineRock5 | Silver vein              |
+| rock3_silver_frac        |         4 | MineRock5 | Silver rock              |
+| rock_silver_small_frac_bal|        4 | MineRock5 | Small silver             |
+| MineRock_Meteorite       |         3 | MineRock  | Flametal meteors         |
+| FlametalRockstand_frac   |         0 | MineRock5 | Flametal stand           |
+
+=== CATEGORIZED BY TOOL TIER ===
+
+  [Tier 0] - Stone Pickaxe
+    - MineRock_Copper (copper ore)
+    - MineRock_Stone (stone)
+
+  [Tier 1] - Bronze Pickaxe  
+    - MineRock_Iron (iron ore from crypts)
+
+  [Tier 2] - Iron Pickaxe
+    - rock4_copper_frac (copper)
+
+  [Tier 3] - Silver/Blackmetal Pickaxe
+    - mudpile_frac (SWAMP IRON - important!)
+    - mudpile2_frac (SWAMP IRON variant)
+    - MineRock_Meteorite (flametal)
+
+  [Tier 4] - Black Metal Pickaxe
+    - silvervein_frac (silver)
+    - rock3_silver_frac (silver)
+    - rock_silver_small_frac_bal (silver)
+
+=== CODE: ORE DETECTION DICTIONARY ===
+
+// Ore deposits that companions should mine (produces metal ore)
+private static readonly Dictionary<string, int> OreDepositPrefabs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+{
+    // Tier 0 - Stone pickaxe
+    { "MineRock_Copper", 0 },
+    
+    // Tier 1 - Bronze pickaxe
+    { "MineRock_Iron", 1 },
+    
+    // Tier 2 - Iron pickaxe
+    { "rock4_copper_frac", 2 },
+    
+    // Tier 3 - Requires better pickaxe (swamp iron!)
+    { "mudpile_frac", 3 },
+    { "mudpile2_frac", 3 },
+    { "MineRock_Meteorite", 3 },
+    
+    // Tier 4 - Black metal pickaxe
+    { "silvervein_frac", 4 },
+    { "rock3_silver_frac", 4 },
+    { "rock_silver_small_frac_bal", 4 },
+};
+
+=== STONE/ROCK DEPOSITS (Not ore, but still mineable) ===
+
+// Stone rocks that companions can mine for stone
+private static readonly HashSet<string> StoneDepositPrefabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "MineRock_Stone",
+    "Rock_3_frac",
+    "rock1_mountain_frac",
+    "rock2_mountain_frac",
+    "rock3_mountain_frac",
+    "rock4_forest_frac",
+    "rock4_coast_frac",
+    "rock4_heath_frac",
+    "rock2_heath_frac",
+    "highstone_frac",
+    "widestone_frac",
+};
+
+=== NOTES ===
+
+1. IMPORTANT: "mudpile" prefabs are SWAMP IRON deposits!
+   The current detection was missing these because it only checked for "iron" in the name.
+
+2. Silver veins spawn underground in Mountains biome.
+
+3. Copper deposits are the large boulder-shaped rocks in Black Forest.
+
+4. Flametal comes from meteors in Ashlands.

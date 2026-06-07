@@ -1,0 +1,187 @@
+// =============================================================================
+// EXPAND WORLD RIVERS — WATER VOLUME & WAVE SYSTEM REFERENCE
+// Source: ExpandWorldRivers.dll (decompiled)
+// Purpose: Reference for water level management and wave modifications
+// =============================================================================
+
+
+// =============================================================================
+// WaterHelper.cs — Central water level & wave management
+// =============================================================================
+
+public class WaterHelper
+{
+    public static Vector3 OriginalScale = Vector3.zero;
+
+    // Find all active WaterVolume objects in scene
+    public static WaterVolume[] Get() => Object.FindObjectsOfType<WaterVolume>();
+
+    // Set water level on a WaterVolume (only global wind volumes = ocean/lakes)
+    public static void SetLevel(WaterVolume obj)
+    {
+        if (!obj.m_useGlobalWind) return;
+
+        // Move the WaterVolume transform to configured water level
+        Vector3 position1 = obj.transform.position;
+        position1.y = Configuration.WaterLevel;
+        obj.transform.position = position1;
+
+        // Also move the water surface child object
+        Vector3 position2 = obj.m_waterSurface.transform.position;
+        position2.y = Configuration.WaterLevel;
+        obj.m_waterSurface.transform.position = position2;
+    }
+
+    // Set water level on ZoneSystem (affects zone loading water check)
+    public static void SetLevel(ZoneSystem obj)
+    {
+        if (obj == null) return;
+        obj.m_waterLevel = Configuration.WaterLevel;
+    }
+
+    // Set water level on ClutterSystem (affects grass near water)
+    public static void SetLevel(ClutterSystem obj)
+    {
+        if (obj == null) return;
+        obj.m_waterLevel = Configuration.WaterLevel;
+    }
+
+    // Modify wave size on WaterVolume
+    public static void SetWaveSize(WaterVolume obj)
+    {
+        if (!obj.m_useGlobalWind) return;
+
+        // Capture original scale on first call
+        if (OriginalScale == Vector3.zero)
+            OriginalScale = obj.m_waterSurface.transform.localScale;
+
+        Vector3 scale = OriginalScale;
+        if (Configuration.WaveOnlyHeight)
+            scale.y *= Configuration.WaveMultiplier;  // Only scale Y (height)
+        else
+            scale *= Configuration.WaveMultiplier;    // Scale all axes
+
+        obj.m_waterSurface.transform.localScale = scale;
+    }
+}
+
+
+// =============================================================================
+// CalcWave.cs — Patches WaterVolume.CalcWave()
+// =============================================================================
+// HarmonyPatch: WaterVolume.CalcWave(Vector3, float, float, float)
+
+// Simple postfix: multiply the calculated wave height by the wave multiplier
+private static float Postfix(float result)
+{
+    return result * Configuration.WaveMultiplier;
+}
+
+
+// =============================================================================
+// SetWaterVolumeWaterLevel.cs — Patches WaterVolume.Awake()
+// =============================================================================
+// HarmonyPatch: WaterVolume.Awake
+
+// When any WaterVolume initializes, set its level and wave size
+private static void Postfix(WaterVolume __instance)
+{
+    WaterHelper.SetLevel(__instance);
+    WaterHelper.SetWaveSize(__instance);
+}
+
+
+// =============================================================================
+// SetZoneSystemWaterLevel.cs — Patches ZoneSystem.Awake()
+// =============================================================================
+// HarmonyPatch: ZoneSystem.Awake
+
+private static void Postfix(ZoneSystem __instance)
+{
+    WaterHelper.SetLevel(__instance);
+}
+
+
+// =============================================================================
+// SetClutterSystemWaterLevel.cs — Patches ClutterSystem.Awake()
+// =============================================================================
+// HarmonyPatch: ClutterSystem.Awake
+
+private static void Postfix(ClutterSystem __instance)
+{
+    WaterHelper.SetLevel(__instance);
+}
+
+
+// =============================================================================
+// Reset.cs — Patches ZoneSystem.Awake() to reset state
+// =============================================================================
+// HarmonyPatch: ZoneSystem.Awake
+
+private static void Postfix()
+{
+    WaterHelper.OriginalScale = Vector3.zero;
+}
+
+
+// =============================================================================
+// KEY VALHEIM WATER TYPES & THEIR PROPERTIES
+// =============================================================================
+
+// WaterVolume — Vanilla water rendering component
+// KEY FIELDS:
+//   m_useGlobalWind: bool          — true for ocean/lake, false for local water
+//   m_waterSurface: GameObject     — the visible water mesh/plane
+//   m_forceDepth: float            — forced depth override (-1 = use terrain)
+//   transform.position.y           — water surface level
+//
+// WaterVolume.CalcWave(Vector3 worldPos, float depth, float speed, float time)
+//   Returns: float — wave height offset at position
+//   Used by: Swimming, boat physics, visual mesh displacement
+//
+// WATER LEVEL HIERARCHY:
+//   1. ZoneSystem.m_waterLevel        — global water level (default 30)
+//   2. WaterVolume.transform.position.y — per-volume override
+//   3. WaterVolume.CalcWave()         — per-frame wave animation
+
+// RIVER RENDERING IN VANILLA:
+// Rivers/streams don't use WaterVolume directly.
+// Instead, WorldGenerator stores river data and:
+// 1. Heightmap.Generate() checks WorldGenerator.GetRiverWeight() for each vertex
+// 2. If weight > 0, terrain is LOWERED to create the river bed
+// 3. The lowered terrain sits below m_waterLevel, so ocean water fills the gap
+// 4. River "width" controls how wide the terrain depression is
+// 5. The "curveWidth" and "curveWavelength" create the meandering path
+//
+// KEY METHODS IN VANILLA WorldGenerator:
+//   GetRiverWeight(float x, float z) -> returns 0-1 river influence
+//   Uses m_riverPoints spatial cache for fast lookup
+//   RiverPoint has position + width — terrain is lowered proportional to width
+
+// SO RIVERS IN VANILLA ARE:
+// - NOT separate water objects
+// - Just terrain depressions that sit below the global water level
+// - The ocean water mesh naturally fills them
+// - River "rendering" = the ocean mesh + terrain depression
+// - River "physics" = terrain shape + ocean WaterVolume
+
+// THIS IS IMPORTANT FOR OUR IMPLEMENTATION:
+// Our custom water system creates ACTUAL water meshes (WaterMeshCombiner).
+// We can either:
+// A) Modify terrain heightmap + use vanilla water (like EWR does)
+// B) Create terrain depressions + place our WaterDisk objects along the path
+// C) Only place WaterDisk objects (no terrain mod — water floats above terrain)
+//
+// Option B is most natural for our system:
+// - Use the river path data to calculate positions
+// - Place WaterDisks along the path at appropriate heights
+// - Let our WaterMeshCombiner handle the mesh generation
+// - Optionally modify terrain to create the river bed
+
+
+// =============================================================================
+// EWS.cs / EWD.cs — Compatibility with other Expand World mods
+// =============================================================================
+// These are NOT relevant to our implementation.
+// They just call SetWaterLevel on sister mods (Expand World Size, Expand World Data).
+// We don't need this — we control our own water level.

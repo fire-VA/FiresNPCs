@@ -1,0 +1,367 @@
+=============================================================
+VALHEIM SPRITE REFERENCE
+For UI Implementation (Radial Menu Icons, etc.)
+Generated: 2025-03-02
+Updated: 2025-03-03 - Applied to CompanionRadialMenu
+=============================================================
+
+=== SPRITE SUMMARY ===
+
+  Creatures: 1 sprites
+  Effects: 1 sprites
+  Icons/Items: 421 sprites
+  Icons/Skills: 16 sprites
+  Other: 3203 sprites
+  UI/Backgrounds: 62 sprites
+  UI/Buttons: 66 sprites
+  UI/Cursors: 3 sprites
+  UI/Map: 9 sprites
+  UI/Navigation: 22 sprites
+  UI/StatusBars: 81 sprites
+  TOTAL: 3885 sprites
+
+=============================================================
+RECOMMENDED ICONS FOR COMPANION RADIAL MENU
+=============================================================
+
+--- FOLLOW/MOVEMENT COMMANDS ---
+  mapicon_player_32 (64x64) - Player marker, good for "follow me"
+  skill_run (32x32) - Running, good for follow/move fast
+  skill_sneak (32x32) - Sneaking, good for stealth mode
+  windicon (64x64) - Wind/movement indicator
+
+--- STAY/WAIT COMMANDS ---
+  mapicon_pin (64x64) - Pin marker, good for "stay here"
+  mapicon_house (64x64) - House marker, good for "set home"
+  mapicon_bed (64x64) - Bed marker, good for rest/wait
+
+--- INVENTORY/STORAGE ---
+  chest_wood (64x64) - Wooden chest
+  chest_iron (64x64) - Iron chest
+  chest_blackmetal (64x64) - Blackmetal chest
+  chest_private (64x64) - Personal chest
+  item_background (64x64) - Item slot background
+
+--- COMBAT COMMANDS ---
+  skill_block (32x32) - Blocking, good for defend
+  skill_dodge (32x32) - Dodging, good for evade
+  SwordIron (64x64) - Attack/combat mode
+  shield_wood0 (64x64) - Defensive stance
+
+--- GATHERING/WORK ---
+  axe_iron (64x64) - Wood gathering
+  pickaxe_iron (64x64) - Mining
+  cultivator_bronze (64x64) - Farming
+  hammer (64x64) - Building/crafting
+  fishing_rack_ico (64x64) - Fishing
+
+--- CRAFTING/STATIONS ---
+  workbench (64x64) - Workbench
+  forge (64x64) - Forge
+  stonecutter (64x64) - Stonecutter
+  cauldron (64x64) - Cauldron/cooking
+  smelter (64x64) - Smelter
+  blastfurnace (64x64) - Blast furnace
+
+--- FIRE/LIGHT ---
+  Campfire (64x64) - Campfire
+  torch (64x64) - Torch
+  brazierfloor01 (64x64) - Standing brazier
+
+--- STATUS/INFO ---
+  health (32x32) - Health indicator
+  trophies (64x64) - Achievements/stats
+  skills (32x32) - Skills indicator
+  texts_icon (64x64) - Information/notes
+
+--- NAVIGATION ---
+  mapicon_portal (64x64) - Teleport/portal
+  mapicon_trader (64x64) - Trade/merchant
+  mapicon_boss (64x64) - Boss/target
+
+--- DISMISS/CANCEL ---
+  trash_icon (45x45) - Delete/dismiss
+  checkbox_marker (28x28) - Confirm/check
+
+=============================================================
+RADIAL MENU SPECIFIC ICONS
+=============================================================
+
+These are purpose-built radial menu icons (256x256):
+
+  Icon_Radial_All (256x256) - All items
+  Icon_Radial_ArmorUtilities (256x256) - Armor/utilities
+  Icon_Radial_Back (256x256) - Back/return
+  Icon_Radial_Consumables (256x256) - Consumables
+  Icon_Radial_Emote (256x256) - Emotes
+  Icon_Radial_Hammer (256x256) - Building
+  Icon_Radial_Hotbar2 (256x256) - Hotbar
+  Icon_Radial_WeaponsTools (256x256) - Weapons/tools
+
+=============================================================
+EMOTE ICONS (128x128) - For Companion Expressions
+=============================================================
+
+  T_emote_blowkiss - Blow kiss
+  T_emote_bow - Bow
+  T_emote_challenge - Challenge
+  T_emote_cheer - Cheer
+  T_emote_comehere - Come here (USEFUL: recall command)
+  T_emote_cower - Cower
+  T_emote_cry - Cry
+  T_emote_dance - Dance
+  T_emote_despair - Despair
+  T_emote_flex - Flex
+  T_emote_headbang - Headbang
+  T_emote_kneel - Kneel
+  T_emote_laugh - Laugh
+  T_emote_loveyou - Love you
+  T_emote_nonono - No no no
+  T_emote_point - Point (USEFUL: target command)
+  T_emote_relax - Relax
+  T_emote_rest - Rest
+  T_emote_roar - Roar (USEFUL: aggressive mode)
+  T_emote_shrug - Shrug
+  T_emote_sit - Sit (USEFUL: wait/stay)
+  T_emote_thumbsup - Thumbs up (USEFUL: confirm)
+  T_emote_toast - Toast
+  T_emote_vibe - Vibe
+  T_emote_wave - Wave (USEFUL: follow/greet)
+
+=============================================================
+MAP ICONS (64x64) - For Location/Command Markers
+=============================================================
+
+  mapicon_bed - Bed/rest point
+  mapicon_bogwitch_camp - Camp
+  mapicon_boss - Boss/enemy target
+  mapicon_boss_colored - Colored boss marker
+  mapicon_checked - Completed/checked
+  mapicon_death - Death location
+  mapicon_eventarea - Event area
+  mapicon_fire - Fire/campfire
+  mapicon_hammer - Building/construction
+  mapicon_house - Home/house
+  mapicon_pin - Generic pin
+  mapicon_ping - Ping/alert
+  mapicon_player_16 - Small player (16x16)
+  mapicon_player_32 - Player marker (64x64)
+  mapicon_portal - Portal/teleport
+  mapicon_shout - Shout/alert
+  mapicon_start - Starting point
+  mapicon_trader - Trader/merchant
+
+=============================================================
+SKILL ICONS (32x32) - For Ability Indicators
+=============================================================
+
+  skill_block - Blocking skill
+  skill_dodge - Dodging skill
+  skill_jump - Jumping skill
+  skill_run - Running skill
+  skill_sneak - Sneaking skill
+  skill_swim - Swimming skill
+  skill_woodcutting - Woodcutting skill
+  skills - Generic skills icon
+
+=============================================================
+STATUS EFFECT ICONS - For Companion States
+=============================================================
+
+  rested (64x64) - Rested status
+  resting (64x64) - Resting
+  Cold (64x64) - Cold debuff
+  Cold_lvl2 (64x64) - Severe cold
+  ColdProtection (64x64) - Cold protection
+  Warm (64x64) - Warm buff
+  Wet (64x64) - Wet debuff
+  Burning (64x64) - Burning
+  Poison (64x64) - Poisoned
+  Frost (64x64) - Frost effect
+  Lightning (64x64) - Lightning effect
+  Encumbered (64x64) - Overweight
+  Exhausted (64x64) - Exhausted
+  Full (64x64) - Well fed
+  Hungry (64x64) - Hungry
+  Healthy (64x64) - Healthy status
+  cozy (64x64) - Comfortable/cozy
+  Shelter (64x59) - Sheltered
+
+=============================================================
+WEAPON/TOOL ICONS - For Equipment Display
+=============================================================
+
+--- AXES ---
+  axe_stone (64x64)
+  axe_flint (64x64)
+  axe_bronze (64x64)
+  axe_iron (64x64)
+  axe_blackmetal (64x64)
+
+--- PICKAXES ---
+  pickaxe_antler (64x64)
+  pickaxe_stone (64x64)
+  pickaxe_bronze (64x64)
+  pickaxe_iron (64x64)
+  pickaxe_blackmetal (64x64)
+
+--- SWORDS ---
+  SwordWood (64x64)
+  SwordBronze (64x64)
+  SwordIron (64x64)
+  SwordSilver (64x64)
+  SwordBlackmetal (64x64)
+
+--- BOWS ---
+  bow (64x64)
+  bow_finewood (64x64)
+  bow_huntsman (64x64)
+  bow_draugrfang (64x64)
+
+--- SHIELDS ---
+  shield_wood0-3 (64x64)
+  shield_bronzebuckler (64x64)
+  shield_ironbuckler (64x64)
+  shield_banded0-3 (64x64)
+  shield_serpentscale (64x64)
+
+=============================================================
+UI PANEL BACKGROUNDS - For Custom UI
+=============================================================
+
+  panel_bkg (64x64) - Basic panel
+  panel_bkg_128 (128x128) - Medium panel
+  panel_bkg_256 (256x256) - Large panel
+  panel_border_128 (128x128) - Panel border
+  panel_interior_bkg_128 (128x128) - Interior background
+  woodpanel_320x320 (160x160) - Wood panel small
+  woodpanel_512x512 (256x256) - Wood panel medium
+  woodpanel_large (512x512) - Wood panel large
+  crafting_panel_bkg (128x128) - Crafting panel
+  chest_bkg (128x128) - Chest background
+  selection_frame (64x64) - Selection highlight
+
+=============================================================
+BUTTON SPRITES - For Interactive Elements
+=============================================================
+
+  button (140x38) - Standard button
+  button_disabled (140x38) - Disabled button
+  button_glow (140x38) - Glowing button
+  button_highlight (140x38) - Highlighted button
+  button_pressed (140x38) - Pressed button
+  button_small (14x14) - Small button
+  button_tab (140x38) - Tab button
+  checkbox (28x28) - Checkbox
+  checkbox_marker (28x28) - Checkbox checked
+
+=============================================================
+CODE: LOADING SPRITES IN UNITY/VALHEIM
+=============================================================
+
+// Method 1: Find sprite by name from loaded resources
+public static Sprite FindSpriteByName(string spriteName)
+{
+    var sprites = Resources.FindObjectsOfTypeAll<Sprite>();
+    foreach (var sprite in sprites)
+    {
+        if (sprite != null && sprite.name == spriteName)
+            return sprite;
+    }
+    return null;
+}
+
+// Method 2: Get item icon from ObjectDB
+public static Sprite GetItemIcon(string prefabName)
+{
+    var prefab = ObjectDB.instance?.GetItemPrefab(prefabName);
+    if (prefab != null)
+    {
+        var itemDrop = prefab.GetComponent<ItemDrop>();
+        return itemDrop?.m_itemData?.GetIcon();
+    }
+    return null;
+}
+
+// Method 3: Get skill icon
+public static Sprite GetSkillIcon(Skills.SkillType skillType)
+{
+    var skillDef = Player.m_localPlayer?.GetSkills()?.GetSkillDef(skillType);
+    return skillDef?.m_icon;
+}
+
+// Method 4: From Hud elements
+public static Sprite GetHudSprite(string elementName)
+{
+    if (Hud.instance == null) return null;
+    var images = Hud.instance.GetComponentsInChildren<UnityEngine.UI.Image>(true);
+    foreach (var img in images)
+    {
+        if (img.name == elementName && img.sprite != null)
+            return img.sprite;
+    }
+    return null;
+}
+
+// Method 5: Cache sprites at startup for performance
+private static Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
+
+public static void CacheSprites()
+{
+    var sprites = Resources.FindObjectsOfTypeAll<Sprite>();
+    foreach (var sprite in sprites)
+    {
+        if (sprite != null && !string.IsNullOrEmpty(sprite.name))
+        {
+            _spriteCache[sprite.name] = sprite;
+        }
+    }
+}
+
+public static Sprite GetCachedSprite(string name)
+{
+    return _spriteCache.TryGetValue(name, out var sprite) ? sprite : null;
+}
+
+=============================================================
+COMPANION RADIAL MENU SUGGESTED MAPPINGS
+=============================================================
+
+*** IMPLEMENTED IN CompanionRadialMenu.cs ***
+
+The following sprite mappings are now active with fallback to
+procedural icons if Valheim sprites are not found.
+
+OUTER RING (10 Actions):
+  [0] Follow/Stay  -> T_emote_wave, mapicon_player_32, skill_run
+  [1] Inventory    -> item_background, Icon_Radial_ArmorUtilities, trophies
+  [2] Stats        -> skills, texts_icon, trophies
+  [3] Gather       -> axe_iron, axe_bronze, axe_stone, pickaxe_iron
+  [4] Fires        -> Campfire, torch, brazierfloor01
+  [5] Smelters     -> smelter, blastfurnace, charcoal_kiln, forge
+  [6] Deposit      -> chest_wood, chest_iron, chest_blackmetal
+  [7] Wander       -> T_emote_wave, T_emote_relax, skill_run
+  [8] Set Home     -> mapicon_house, mapicon_bed, mapicon_fire
+  [9] Dismiss      -> trash_icon, mapicon_death
+
+INNER RING (Dynamic - Level-dependent):
+  
+  For companions BELOW level 30 (base archetype selection):
+    Tank     -> shield_serpentscale, shield_banded3, skill_block
+    Paladin  -> SwordSilver, shield_banded2, DivineProtection
+    Berserker-> AtgeirBlackmetal, BattleaxeCrystal, axe_blackmetal
+    Rogue    -> KnifeBlackMetal, KnifeSilver, skill_sneak
+    Ranger   -> bow_draugrfang, bow_huntsman, bow
+    Mage     -> StaffFireball, StaffIceShards, eitr
+    Healer   -> StaffShield, StaffGreenRoots, health
+    Monk     -> FistsFenrirClaw, Fists, T_emote_flex
+
+  For companions AT OR ABOVE level 30 (hybrid archetype selection):
+    Shows hybrid classes based on main archetype + available equipment
+    Examples for Tank main:
+      Crusader (Tank+Paladin) -> Gold-steel color
+      Juggernaut (Tank+Berserker) -> Dark red-steel color
+      Shadow Guardian (Tank+Rogue) -> Dark blue-grey color
+      etc.
+
+=============================================================

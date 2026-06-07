@@ -1,0 +1,380 @@
+# ?????????????????????????????????????????????????????????????
+# ?                                                           ?
+# ? BIOME OVERLAY & CLUTTER PAINTING TOOLS                    ?
+# ?                                                           ?
+# ? Biome tools paint terrain textures (snow, lava, etc)      ?
+# ? Clutter tools paint grass and vegetation                  ?
+# ? Works ANYWHERE regardless of actual world biome           ?
+# ?                                                           ?
+# ?????????????????????????????????????????????????????????????
+#
+# Add these entries to your infinity_hammer.yaml hoe section
+# These use console commands from FiresRPGmaker
+
+hoe:
+# ==========================================
+# SNOW OVERLAY TOOLS
+# ==========================================
+
+- name: Paint Snow
+  description: |-
+    Paint <#AADDFF>snow overlay</color> on terrain.
+    Works in ANY biome - ignores world biome!
+    Hold <mod1> for single use.
+    Hold <mod2> for free mode.
+  icon: Crystal
+  command: paint_biome snow <area>
+  continuous: -<mod1>
+  terrainGrid: -<mod2>
+  snapGround: true
+
+- name: Paint Snow Large
+  description: |-
+    Paint <#AADDFF>large snow overlay</color> on terrain.
+    Works in ANY biome - ignores world biome!
+  icon: Crystal
+  command: paint_biome snow 15
+  terrainGrid: false
+  snapGround: true
+
+# ==========================================
+# LAVA/ASHLANDS OVERLAY TOOLS
+# ==========================================
+
+- name: Paint Lava
+  description: |-
+    Paint <#FF6600>lava/ash overlay</color> on terrain.
+    Creates Ashlands charred ground texture.
+    Works in ANY biome!
+    Hold <mod1> for single use.
+    Hold <mod2> for free mode.
+  icon: FlametalOre
+  command: paint_biome lava <area>
+  continuous: -<mod1>
+  terrainGrid: -<mod2>
+  snapGround: true
+
+- name: Paint Lava Large
+  description: |-
+    Paint <#FF6600>large lava/ash overlay</color> on terrain.
+    Creates Ashlands charred ground texture.
+    Works in ANY biome!
+  icon: FlametalOreNew
+  command: paint_biome lava 15
+  terrainGrid: false
+  snapGround: true
+
+# ==========================================
+# OTHER BIOME OVERLAY TOOLS
+# ==========================================
+
+- name: Paint Swamp
+  description: |-
+    Paint <#556B2F>swamp overlay</color> on terrain.
+    Creates dark swampy ground texture.
+    Works in ANY biome!
+    Hold <mod1> for single use.
+  icon: Guck
+  command: paint_biome swamp <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Paint BlackForest
+  description: |-
+    Paint <#228B22>black forest overlay</color> on terrain.
+    Creates forest floor texture.
+    Works in ANY biome!
+    Hold <mod1> for single use.
+  icon: FineWood
+  command: paint_biome forest <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Paint Plains
+  description: |-
+    Paint <#DAA520>plains overlay</color> on terrain.
+    Creates golden grass texture.
+    Works in ANY biome!
+    Hold <mod1> for single use.
+  icon: Barley
+  command: paint_biome plains <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Paint Mistlands
+  description: |-
+    Paint <#4B0082>mistlands overlay</color> on terrain.
+    Creates dark mistlands texture.
+    Works in ANY biome!
+    Hold <mod1> for single use.
+  icon: BlackCore
+  command: paint_biome mistlands <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Paint Meadows
+  description: |-
+    Paint <#90EE90>meadows overlay</color> on terrain.
+    Creates bright green grass texture.
+    Works in ANY biome!
+    Hold <mod1> for single use.
+  icon: Dandelion
+  command: paint_biome meadows <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# RESET/CLEAR BIOME TOOLS
+# ==========================================
+
+- name: Reset Biome Overlay
+  description: |-
+    <#FFFFFF>Reset</color> biome overlay to original.
+    Restores terrain to world's natural biome.
+    Hold <mod1> for single use.
+  icon: Hoe
+  command: paint_biome reset <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Reset All Biome Overlays
+  description: |-
+    <#FFFFFF>Reset ALL</color> biome overlays in the world.
+    Restores all painted terrain to original biomes.
+  icon: Hammer
+  command: reset_biome_overlay all
+  instant: true
+
+# ?????????????????????????????????????????????????????????????
+# ?                                                           ?
+# ? CLUTTER/GRASS PAINTING TOOLS                              ?
+# ?                                                           ?
+# ? Use Alt+Scroll to cycle through clutter types!            ?
+# ?                                                           ?
+# ?????????????????????????????????????????????????????????????
+
+# ==========================================
+# MAIN CLUTTER TOOL (with Alt+Scroll cycling)
+# ==========================================
+
+- name: Paint Clutter
+  description: |-
+    Paint <#90EE90>grass/vegetation</color> at cursor.
+    <#FFF000>Alt+Scroll</color> to cycle clutter types!
+    Hold <mod1> for single use.
+    Hold <mod2> for free mode.
+  icon: Dandelion
+  commands:
+    - command: clutter_cycle_mode on
+    - command: paint_clutter <area>
+  continuous: -<mod1>
+  terrainGrid: -<mod2>
+  snapGround: true
+
+- name: Clear Clutter
+  description: |-
+    <#FF6666>Remove</color> painted clutter in area.
+    Hold <mod1> for single use.
+  icon: Hoe
+  command: clear_clutter <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Clear All Clutter
+  description: |-
+    <#FF6666>Remove ALL</color> painted clutter in the world.
+  icon: Hammer
+  command: clear_clutter all
+  instant: true
+
+# ==========================================
+# MEADOWS GRASS PRESETS
+# ==========================================
+
+- name: Meadows Grass
+  description: |-
+    Paint <#90EE90>meadows grass</color>.
+    Hold <mod1> for single use.
+    Hold <mod2> for free mode.
+  icon: Dandelion
+  command: paint_clutter instanced_meadows_grass <area>
+  continuous: -<mod1>
+  terrainGrid: -<mod2>
+  snapGround: true
+
+- name: Meadows Grass Short
+  description: |-
+    Paint <#7CCD7C>short meadows grass</color>.
+    Good for paths and clearings.
+    Hold <mod1> for single use.
+  icon: Thistle
+  command: paint_clutter instanced_meadows_grass_short <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Meadows Flowers
+  description: |-
+    Paint <#FFB6C1>meadows flowers</color>.
+    Hold <mod1> for single use.
+  icon: Dandelion
+  command: paint_clutter instanced_meadows_flowers <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# FOREST GRASS PRESETS
+# ==========================================
+
+- name: Forest Groundcover
+  description: |-
+    Paint <#228B22>forest groundcover</color>.
+    Green forest floor vegetation.
+    Hold <mod1> for single use.
+  icon: FineWood
+  command: paint_clutter instanced_forest_groundcover <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Forest Groundcover Brown
+  description: |-
+    Paint <#8B4513>brown forest groundcover</color>.
+    Autumn-colored forest floor.
+    Hold <mod1> for single use.
+  icon: Wood
+  command: paint_clutter instanced_forest_groundcover_brown <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Forest Ferns
+  description: |-
+    Paint <#006400>ferns (ormbunke)</color>.
+    Large decorative ferns.
+    Hold <mod1> for single use.
+  icon: AncientSeed
+  command: paint_clutter instanced_ormbunke <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# SWAMP GRASS PRESETS
+# ==========================================
+
+- name: Swamp Grass
+  description: |-
+    Paint <#556B2F>swamp grass</color>.
+    Dark murky vegetation.
+    Hold <mod1> for single use.
+  icon: Guck
+  command: paint_clutter instanced_swamp_grass <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Swamp Grass Bloom
+  description: |-
+    Paint <#6B8E23>swamp grass with blooms</color>.
+    Flowering swamp plants.
+    Hold <mod1> for single use.
+  icon: Ooze
+  command: paint_clutter instanced_swamp_grass_bloom <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# PLAINS GRASS PRESETS
+# ==========================================
+
+- name: Heath Grass
+  description: |-
+    Paint <#DAA520>plains heath grass</color>.
+    Golden grass of the plains.
+    Hold <mod1> for single use.
+  icon: Barley
+  command: paint_clutter instanced_heathgrass <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Heath Flowers
+  description: |-
+    Paint <#FFD700>plains heath flowers</color>.
+    Yellow wildflowers.
+    Hold <mod1> for single use.
+  icon: Cloudberry
+  command: paint_clutter instanced_heathflowers <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# MISTLANDS GRASS PRESETS
+# ==========================================
+
+- name: Mistlands Grass
+  description: |-
+    Paint <#4B0082>mistlands grass</color>.
+    Dark purple-tinted vegetation.
+    Hold <mod1> for single use.
+  icon: BlackCore
+  command: paint_clutter instanced_mistlands_grass_short <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# ASHLANDS GRASS PRESETS
+# ==========================================
+
+- name: Ashlands Grass Short
+  description: |-
+    Paint <#8B0000>ashlands grass (short)</color>.
+    Charred volcanic vegetation.
+    Hold <mod1> for single use.
+  icon: FlametalOre
+  command: paint_clutter instanced_ashlands_grass_short <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Ashlands Grass Long
+  description: |-
+    Paint <#A52A2A>ashlands grass (long)</color>.
+    Tall charred volcanic grass.
+    Hold <mod1> for single use.
+  icon: FlametalOreNew
+  command: paint_clutter instanced_ashlands_grass_long <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# WATER PLANTS
+# ==========================================
+
+- name: Water Reeds
+  description: |-
+    Paint <#2F4F4F>water reeds (vass)</color>.
+    Tall reeds for water edges.
+    Hold <mod1> for single use.
+  icon: FishRaw
+  command: paint_clutter instanced_vass <area>
+  continuous: -<mod1>
+  snapGround: true
+
+- name: Water Lilies
+  description: |-
+    Paint <#FFB6C1>water lilies</color>.
+    Floating lily pads.
+    Hold <mod1> for single use.
+  icon: FishRaw
+  command: paint_clutter instanced_waterlilies <area>
+  continuous: -<mod1>
+  snapGround: true
+
+# ==========================================
+# SHRUBS AND MISC
+# ==========================================
+
+- name: Shrubs
+  description: |-
+    Paint <#556B2F>shrubs</color>.
+    Small decorative bushes.
+    Hold <mod1> for single use.
+  icon: BeechSeeds
+  command: paint_clutter instanced_shrub <area>
+  continuous: -<mod1>
+  snapGround: true

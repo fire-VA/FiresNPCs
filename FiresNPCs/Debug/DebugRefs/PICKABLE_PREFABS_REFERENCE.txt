@@ -1,0 +1,207 @@
+=============================================================
+VALHEIM PICKABLE PREFAB REFERENCE
+For Companion Resource Gathering Implementation
+Generated: 2025-02-28
+=============================================================
+
+=== FORAGE ITEMS (Berries, Mushrooms, Herbs) ===
+
+Companions can pick these without tools:
+
+| Category      | Prefabs                                           |
+|---------------|---------------------------------------------------|
+| Berries       | RaspberryBush, BlueberryBush, CloudberryBush      |
+|               | BlackberryBush_bal, IceberryBush_bal              |
+| Mushrooms     | Pickable_Mushroom, Pickable_Mushroom_blue         |
+|               | Pickable_Mushroom_yellow, Pickable_SmokePuff      |
+|               | Pickable_Mushroom_JotunPuffs, Pickable_Mushroom_Magecap |
+| Herbs         | Pickable_Thistle, Pickable_Dandelion              |
+|               | Pickable_Lavender_bal, Pickable_Sage_bal          |
+| Ground Items  | Pickable_Flint, Pickable_Stone, Pickable_Branch   |
+
+=== CATEGORIZED BY TYPE ===
+
+[BERRIES - Food/Potions]
+- RaspberryBush -> Raspberry
+- RaspberryBush_bal -> Raspberry (x3)
+- BlueberryBush -> Blueberries
+- BlueberryBush_bal -> Blueberries (x3)
+- CloudberryBush -> Cloudberry
+- BlackberryBush_bal -> Blackberries_bal
+- BlackberryBush2_bal -> Blackberries_bal (x3)
+- IceberryBush_bal -> Iceberry_bal
+- Lingonberry_shrub_bal -> Lingonberry_bal
+
+[MUSHROOMS - Food/Potions]
+- Pickable_Mushroom -> Mushroom
+- Pickable_Mushroom_blue -> MushroomBlue
+- Pickable_Mushroom_yellow -> MushroomYellow
+- Pickable_SmokePuff -> MushroomSmokePuff
+- Pickable_Mushroom_JotunPuffs -> MushroomJotunPuffs
+- Pickable_Mushroom_Magecap -> MushroomMagecap
+- Pickable_Mushroom_Icecap_bal -> MushroomIcecap_bal
+- Pickable_Mushroom_Inkcap_bal -> MushroomInkcap_bal
+- Pickable_Mushroom_Darkbul_bal -> Darkbul_bal
+- Pickable_Ignicap_bal -> Ignicap_bal
+
+[HERBS - Potions/Crafting]
+- Pickable_Thistle -> Thistle
+- Pickable_Dandelion -> Dandelion
+- Pickable_Lavender_bal -> Lavender_bal
+- Pickable_Sage_bal -> Sage_bal
+- Pickable_Mint_bal -> Mint_bal
+- Pickable_Yarrow_bal -> Yarrow_bal
+- Pickable_Mugwort_bal -> Mugwort_bal
+- Pickable_Nettle_bal -> Nettle_bal
+- Pickable_Plantain_bal -> Plantain_bal
+- Pickable_Snowleaf_bal -> Snowleaf_bal
+- Pickable_Fiddlehead -> Fiddleheadfern
+
+[GROUND RESOURCES - Basic Materials]
+- Pickable_Flint -> Flint
+- Pickable_Stone -> Stone
+- Pickable_Branch -> Wood
+- Pickable_Straw_bal -> Straw_bal
+
+[ORE PICKABLES - Requires area access, not tools]
+- Pickable_Tin -> TinOre
+- Pickable_TinNew_bal -> TinOre
+- Pickable_BogIronOre -> IronOre
+- Pickable_Meteorite -> IronOre (x6)
+- Pickable_MeteoriteNew_bal -> FlametalOre
+- Pickable_Obsidian -> Obsidian
+- Pickable_SulfurRock -> SulfurStone
+
+[FARM CROPS - Player planted]
+- Pickable_Carrot -> Carrot
+- Pickable_Turnip -> Turnip
+- Pickable_Onion -> Onion
+- Pickable_Barley -> Barley
+- Pickable_Flax -> Flax
+- Pickable_Cabbage_bal -> Cabbage_bal
+- Pickable_Garlic_bal -> Garlic_bal
+
+[SEEDS]
+- Pickable_SeedCarrot -> CarrotSeeds
+- Pickable_SeedTurnip -> TurnipSeeds
+- Pickable_SeedOnion -> OnionSeeds
+- Pickable_SeedCabbage_bal -> CabbageSeeds_bal
+- Pickable_SeedGarlic_bal -> GarlicSeeds_bal
+
+[SPECIAL/DUNGEON]
+- Pickable_SurtlingCoreStand -> SurtlingCore
+- Pickable_BlackCoreStand -> BlackCore
+- Pickable_MoltenCoreStand -> MoltenCore
+- Pickable_DragonEgg -> DragonEgg
+- Pickable_RoyalJelly -> RoyalJelly
+
+=== CODE: PICKABLE DETECTION SETS ===
+
+// Berries that companions can forage
+private static readonly HashSet<string> BerryPrefabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "RaspberryBush",
+    "RaspberryBush_bal",
+    "BlueberryBush",
+    "BlueberryBush_bal",
+    "CloudberryBush",
+    "BlackberryBush_bal",
+    "BlackberryBush2_bal",
+    "IceberryBush_bal",
+    "Lingonberry_shrub_bal",
+};
+
+// Mushrooms that companions can forage
+private static readonly HashSet<string> MushroomPrefabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "Pickable_Mushroom",
+    "Pickable_Mushroom_blue",
+    "Pickable_Mushroom_yellow",
+    "Pickable_SmokePuff",
+    "Pickable_Mushroom_JotunPuffs",
+    "Pickable_Mushroom_Magecap",
+    "Pickable_Mushroom_Icecap_bal",
+    "Pickable_Mushroom_Inkcap_bal",
+    "Pickable_Mushroom_Darkbul_bal",
+    "Pickable_Ignicap_bal",
+    "Pickable_MushroomFarm_bal",
+    "Pickable_Mushroom_blueFarm_bal",
+    "Pickable_Mushroom_yellowFarm_bal",
+    "Pickable_Mushroom_grayFarm_bal",
+    "Pickable_Mushroom_grayNew_bal",
+    "Pickable_Mushroom_blueNew_bal",
+};
+
+// Herbs that companions can forage
+private static readonly HashSet<string> HerbPrefabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "Pickable_Thistle",
+    "Pickable_ThistleFarm_bal",
+    "Pickable_Dandelion",
+    "Pickable_DandelionFarm_bal",
+    "Pickable_Lavender_bal",
+    "Pickable_Sage_bal",
+    "Pickable_Mint_bal",
+    "Pickable_Yarrow_bal",
+    "Pickable_Mugwort_bal",
+    "Pickable_Nettle_bal",
+    "Pickable_Plantain_bal",
+    "Pickable_Snowleaf_bal",
+    "Pickable_Fiddlehead",
+    "Pickable_Mycelium_bal",
+};
+
+// Ground resources (flint, stone, branches)
+private static readonly HashSet<string> GroundResourcePrefabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "Pickable_Flint",
+    "Pickable_Stone",
+    "Pickable_Branch",
+    "Pickable_Straw_bal",
+    "Pickable_Straw_DeepNorth_bal",
+};
+
+// Ore pickables (tin, iron scrap, etc - not rocks that need mining)
+private static readonly HashSet<string> OrePickablePrefabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "Pickable_Tin",
+    "Pickable_TinNew_bal",
+    "Pickable_BogIronOre",
+    "Pickable_Meteorite",
+    "Pickable_MeteoriteNew_bal",
+    "Pickable_Obsidian",
+    "Pickable_MountainCaveObsidian",
+    "Pickable_SulfurRock",
+    "Pickable_Ashstone",
+    "Pickable_MagmaStone_bal",
+    "Pickable_Clay_bal",
+    "Pickable_Tar",
+    "Pickable_TarBig",
+};
+
+// Crops (player-planted, maybe companions shouldn't auto-harvest these?)
+private static readonly HashSet<string> CropPrefabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "Pickable_Carrot",
+    "Pickable_Turnip",
+    "Pickable_Onion",
+    "Pickable_Barley",
+    "Pickable_Barley_Wild",
+    "Pickable_Flax",
+    "Pickable_Flax_Wild",
+    "Pickable_Cabbage_bal",
+    "Pickable_Garlic_bal",
+};
+
+=== NOTES ===
+
+1. Berries respawn after 300-450 minutes (5-7.5 hours)
+2. Mushrooms/herbs respawn after 240 minutes (4 hours)
+3. Crops and ore pickables do NOT respawn (respawnTime = 0)
+4. Wild crops (Barley_Wild, Flax_Wild) also don't respawn
+
+5. Companions should probably:
+   - Always forage berries, mushrooms, herbs
+   - Pick up ground resources (flint, stone, branches)
+   - Maybe NOT auto-harvest player crops (configurable?)
+   - Pick ore when near water/swamp for tin/iron

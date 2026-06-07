@@ -1,0 +1,39 @@
+using HarmonyLib;
+
+namespace FiresRPGmaker.UI.Patches
+{
+    /// <summary>
+    /// Harmony patches to block player input (movement, camera look, attacks)
+    /// when custom UI panels are open. Valheim's Player.TakeInput() is the
+    /// central gate for all player actions - returning false here stops
+    /// movement and combat while our panels are visible.
+    /// GameCamera.UpdateCamera is patched separately because camera look
+    /// runs independent of Player.TakeInput and must be suppressed directly.
+    /// </summary>
+    [HarmonyPatch]
+    public static class PlayerInputPatches
+    {
+        [HarmonyPatch(typeof(Player), nameof(Player.TakeInput))]
+        [HarmonyPrefix]
+        private static bool Player_TakeInput_Prefix(ref bool __result)
+        {
+            if (GUIManager.ShouldBlockGameInput())
+            {
+                __result = false;
+                return false;
+            }
+            return true;
+        }
+
+        // Blocks camera rotation while any custom UI panel has input focus.
+        // GameCamera reads raw mouse delta independently of Player.TakeInput,
+        // so without this patch the camera drifts whenever the cursor moves
+        // over a guild/companion/quest UI element.
+        [HarmonyPatch(typeof(GameCamera), "UpdateCamera")]
+        [HarmonyPrefix]
+        private static bool GameCamera_UpdateCamera_Prefix()
+        {
+            return !GUIManager.ShouldBlockGameInput();
+        }
+    }
+}

@@ -1,0 +1,216 @@
+// =============================================================================
+// BETTER CONTINENTS — RIVER COMPATIBILITY REFERENCE
+// Source: BetterContinents.dll v0.7.30 (decompiled)
+// Purpose: Understanding how BC affects our AutoWaterGenerator river detection
+// =============================================================================
+
+// =============================================================================
+// OVERVIEW: What BC patches and how it affects rivers
+// =============================================================================
+
+// BC dynamically patches WorldGenerator methods based on its settings.
+// The key insight: BC modifies WHERE rivers get placed (by changing terrain),
+// but NOT how GetRiverWeight() works. However, BC CAN disable river terrain
+// carving entirely, which creates a mismatch between river data and terrain.
+
+// PATCH CHAIN (in order of relevance to our river code):
+//
+// 1. GetBaseHeight() — PATCHED by BC when heightmap is present
+//    - Replaces vanilla terrain generation with heightmap-blended terrain
+//    - This changes where FindLakes() finds lakes (different terrain ? different depressions)
+//    - This changes where IsRiverAllowed() permits rivers (different terrain heights)
+//    - Result: m_rivers/m_streams/m_lakes contain DIFFERENT paths than vanilla
+//    - Our code: ? Compatible — we read m_rivers AFTER BC has influenced them
+//
+// 2. GetBiome() — PATCHED by BC when biome map is present
+//    - Replaces vanilla biome assignment with image-based biomes
+//    - Affects which GetBiomeHeight() variant is called for each point
+//    - Our code: ? Compatible — we use GetHeight() which calls the patched path
+//
+// 3. AddRivers() — PATCHED by BC when rivers are DISABLED
+//    - Prefix returns h unchanged (no river carving in terrain)
+//    - When rivers ENABLED: AddRivers() runs normally, calls GetRiverWeight()
+//    - CRITICAL: When disabled, m_rivers is EMPTY (PlaceRivers prefix returns empty list)
+//    - Our code: ? Compatible — empty m_rivers means we generate nothing
+//
+// 4. GetRiverWeight() — NEVER PATCHED by BC
+//    - Always uses vanilla logic: reads m_riverPoints dictionary
+//    - m_riverPoints is populated by RenderRivers() during Pregenerate()
+//    - Where weight > 0, terrain SHOULD be carved (but see HeightmapOverrideAll)
+//    - Our code: ? Compatible — GetRiverWeight() works the same regardless of BC
+//
+// 5. GetBiomeHeight() — PATCHED by BC for roughmap/heightmap/paint overlays
+//    - Various postfix patches modify the final height returned
+//    - When HeightmapOverrideAll: returns GetBaseHeight() * 200 (NO biome detail, NO AddRivers())
+//    - Our code: ?? POTENTIAL ISSUE — see HeightmapOverrideAll section below
+
+
+// =============================================================================
+// CRITICAL SCENARIO: HeightmapOverrideAll = true
+// =============================================================================
+
+// When BC has "Heightmap Override All" enabled:
+//
+// GetBiomeHeight() postfix: GetBiomeHeightWithHeight()
+//   return __instance.GetBaseHeight(wx, wy, false) * 200f;
+//
+// This BYPASSES all biome-specific height functions, including AddRivers().
+// The terrain is generated purely from the heightmap — NO river channels are carved.
+//
+// BUT: m_rivers/m_streams still exist (Pregenerate still runs PlaceRivers/PlaceStreams).
+// AND: GetRiverWeight() still returns positive values for those river paths.
+// AND: m_riverPoints still has all the river point data.
+//
+// RESULT: GetRiverWeight() says "there's a river here" but the terrain has NO channel.
+//
+// OUR IMPACT:
+// - Phase 2 GetRiverWeight scan finds the channel center and width ? CORRECT positions
+// - SampleTerrainHeight() returns the heightmap terrain (no depression) ? HIGH terrain
+// - Water surface = terrainY + RiverSurfaceOffset ? water sits ON TOP of flat terrain
+// - This looks WRONG: a thin water layer on uncarved terrain instead of filling a channel
+//
+// MITIGATION OPTIONS:
+// A. Detect HeightmapOverrideAll and skip river generation (let heightmap define water)
+// B. Detect HeightmapOverrideAll and generate water at the height AddRivers WOULD have carved
+//    - Use AddRivers() math ourselves: target height = lerp(0.14, 0.12, width) * 200
+//    - This is the "baseHeight" that vanilla would carve to
+// C. Accept the thin layer — at least the water is positioned correctly on XZ
+//
+// RECOMMENDED: Option A — Skip auto-generation when HeightmapOverrideAll is true.
+// The heightmap creator likely designed their own water features.
+// If they want our water system, they can place it manually.
+
+
+// =============================================================================
+// WORLD SIZE CHANGES
+// =============================================================================
+
+// BC can change world size via ConfigWorldSize and ConfigEdgeSize:
+//   BetterContinents.WorldRadius = size;         // default 10000
+//   BetterContinents.TotalRadius = size + edge;   // default 10500
+//
+// Vanilla FindLakes() scans from -10000 to 10000.
+// With BC, the scan range changes to match the new world size.
+//
+// OUR IMPACT:
+// - Lake/river positions can be anywhere within the (possibly larger) world
+// - Our scan radii and position bounds should NOT assume vanilla 10000m world
+// - m_rivers/m_streams positions are already in the correct coordinate space
+// - No code changes needed — we read positions from m_rivers, not calculate them
+//
+// EXCEPTION: Our DuplicateCheckRadius and lake scan radii should be proportional
+// to the world, but since they're local (per-river), they're fine as-is.
+
+
+// =============================================================================
+// SEA LEVEL & WATER LEVEL
+// =============================================================================
+
+// BC does NOT directly change ZoneSystem.m_waterLevel (vanilla = 30).
+// However, BC's SeaLevelAdjustment modifies GetBaseHeight() results:
+//   baseHeight = ... - 0.07f + Settings.SeaLevelAdjustment;
+//
+// This effectively raises/lowers terrain relative to the fixed water level,
+// changing the land:sea ratio. The actual m_waterLevel stays at 30.
+//
+// OUR IMPACT:
+// - GetWaterLevel() returns 30 ? CORRECT (BC doesn't change it)
+// - SeaLevelAdjustment changes WHERE terrain is below waterLevel, but the water
+//   level itself is still 30 — our code handles this correctly
+// - Rivers carved by AddRivers() still target baseHeight values around 0.12-0.14
+//   (which is ~24-28m absolute), still below the 30m water level
+// - Our "terrainY < waterLevel" check still works
+
+
+// =============================================================================
+// RIVER CURVE DIFFERENCES
+// =============================================================================
+
+// Vanilla RenderRivers() curve formula:
+//   float a = num3 / river.curveWavelength;
+//   float offset = sin(a) * sin(a * 0.634) * sin(a * 0.3341) * river.curveWidth;
+//
+// Our AutoWaterGenerator Phase 1 curve formula:
+//   float offset = curveWidth * sin(distAlongPath / curveWavelength);
+//
+// DIFFERENCE: Vanilla uses a TRIPLE-SIN product for more organic curves.
+// Our single-sin approximation gives a rough guide path, which is fine because
+// Phase 2 uses GetRiverWeight() to find the REAL channel center.
+//
+// The GetRiverWeight() scan in Phase 2 corrects for this mismatch:
+// - Guide path puts us within ±(curveWidth + scanWidth) of the real channel
+// - Perpendicular scan finds where weight > 0 ? actual channel center
+// - Width from GetRiverWeight() overrides our width interpolation
+//
+// NO CHANGES NEEDED — our two-phase approach handles this.
+
+
+// =============================================================================
+// BC RIVERS DISABLED SCENARIO
+// =============================================================================
+
+// When BC has RiversEnabled = false:
+//
+// PatchAddRivers() installs prefix:
+//   public static bool AddRiversPrefix(ref float __result, float h)
+//   {
+//       __result = h;
+//       return false;  // Skip AddRivers() entirely
+//   }
+//
+// PlaceRivers() prefix returns empty list:
+//   public static bool Prefix(ref List<WorldGenerator.River> __result)
+//   {
+//       __result = new List<WorldGenerator.River>();
+//       return false;
+//   }
+//
+// RESULT: m_rivers is empty, m_riverPoints has no river data, terrain is not carved.
+// OUR CODE: GenerateFromWorldData receives empty rivers list ? skips river generation.
+// This is the correct behavior — BC user explicitly disabled rivers.
+
+
+// =============================================================================
+// DETECTION: How to check if BC is active
+// =============================================================================
+
+// Method 1: Check if BetterContinents assembly is loaded
+//   var bcType = Type.GetType("BetterContinents.BetterContinents, BetterContinents");
+//   bool bcLoaded = bcType != null;
+//
+// Method 2: Check BC settings (if we want to know specific BC config)
+//   var settingsField = AccessTools.Field(bcType, "Settings");
+//   var settings = settingsField?.GetValue(null);
+//   var enabledField = AccessTools.Field(settings.GetType(), "EnabledForThisWorld");
+//   bool bcEnabled = (bool)enabledField.GetValue(settings);
+//
+// Method 3: Check if HeightmapOverrideAll is active
+//   var overrideField = AccessTools.Field(settings.GetType(), "HeightmapOverrideAll");
+//   bool overrideAll = (bool)overrideField.GetValue(settings);
+//   var hasHeightMap = AccessTools.Property(settings.GetType(), "HasHeightMap");
+//   bool shouldOverride = overrideAll && (bool)hasHeightMap.GetValue(settings);
+//
+// Method 4: Check if rivers are enabled in BC
+//   var riversField = AccessTools.Field(settings.GetType(), "RiversEnabled");
+//   bool riversEnabled = (bool)riversField.GetValue(settings);
+
+
+// =============================================================================
+// SUMMARY: What our AutoWaterGenerator needs to handle
+// =============================================================================
+
+// ALREADY HANDLED (no changes needed):
+// ? BC changes terrain heights ? we read m_rivers after BC influences placement
+// ? BC changes biomes ? we use GetHeight() which respects BC patches
+// ? BC disables rivers ? empty m_rivers ? we generate nothing
+// ? GetRiverWeight() is never patched by BC ? our channel detection works
+// ? BC changes world size ? we read positions from m_rivers, not calculate them
+// ? BC adjusts sea level ? m_waterLevel stays at 30, our code uses that
+// ? BC's triple-sin curve vs our single-sin ? Phase 2 GetRiverWeight corrects this
+
+// NEEDS ATTENTION:
+// ?? HeightmapOverrideAll: Rivers exist in data but terrain has no channels
+//    ? Detect and skip auto-generation, or generate at AddRivers target height
+// ?? Logging: Add BC detection info to generation summary for debugging
+//    ? "BC detected: enabled=true, heightmapOverrideAll=false, rivers=true"
+

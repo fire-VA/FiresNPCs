@@ -1,0 +1,68 @@
+=== VALHEIM CLUTTER/GRASS REFERENCE ===
+Generated for FiresRPGmaker mod
+Use with: listclutter, setgrassmat console commands
+
+=== VALID INSTANCED GRASS TYPES ===
+Only instanced_ prefabs work properly with our billboard grass system.
+
+CYCLE ORDER (Shift+E):
+  1. instanced_meadows_grass - Meadows tall grass
+  2. instanced_meadows_grass_short - Meadows short grass
+  3. instanced_heathgrass - Plains/heath grass
+  4. instanced_swamp_grass - Swamp grass
+  5. instanced_swamp_grass_bloom - Swamp blooming grass
+  6. instanced_forest_groundcover - Black Forest ground cover
+  7. instanced_forest_groundcover_brown - Black Forest brown variant
+  8. instanced_mistlands_grass_short - Mistlands moss
+  9. instanced_ashlands_grass_short - Ashlands short
+  10. instanced_ashlands_grass_long - Ashlands long
+  11. instanced_meadows_flowers - Meadows flowers
+  12. instanced_heathflowers - Plains flowers
+  13. instanced_ormbunke - Ferns
+  14. instanced_shrub - Small shrubs
+  15. instanced_vass - Reeds/cattails
+  16. instanced_waterlilies - Water lilies
+
+=== DEFAULT BY BIOME (Auto-Select on Placement) ===
+
+| Biome        | Default Grass               |
+|--------------|----------------------------|
+| Meadows      | instanced_meadows_grass    |
+| Plains       | instanced_heathgrass       |
+| Swamp        | instanced_swamp_grass      |
+| Black Forest | instanced_forest_groundcover |
+| Mistlands    | instanced_mistlands_grass_short |
+| Ashlands     | instanced_ashlands_grass_short |
+| Mountain     | instanced_meadows_grass_short |
+| Deep North   | instanced_meadows_grass_short |
+| Ocean        | instanced_meadows_grass    |
+
+=== IN-GAME CONTROLS ===
+
+E on Dirt Floor piece:
+  - Toggles between grass/cultivated state
+
+Shift + E on Dirt Floor piece:
+  - Cycles through ALL available grass types
+  - Works in any biome
+  - Selection is saved and persists
+
+=== CONSOLE COMMANDS ===
+
+listclutter [grass|all]
+  - Lists all clutter entries to BepInEx/config/FiresRPGmaker/clutter_dump.txt
+  - Use 'grass' filter to only show grass entries
+
+setgrassmat <clutter_name>
+  - Sets the default grass material for new pieces
+  - Example: setgrassmat instanced_heathgrass
+
+=== WHY ONLY INSTANCED_ PREFABS? ===
+
+Only instanced_ prefabs from ClutterSystem have properly configured:
+- Materials with correct shaders (Custom/Grass)
+- Textures that render correctly on billboards
+- Alpha cutout for transparency
+
+Non-instanced clutter (magicGrass, DeepNorthGrass, etc.) use different
+shaders that don't display correctly on our billboard quads.

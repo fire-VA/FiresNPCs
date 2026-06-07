@@ -1,0 +1,147 @@
+=============================================================
+VALHEIM TREE PREFAB REFERENCE
+For Companion Resource Gathering Implementation
+Generated: 2025-02-28
+=============================================================
+
+=== TREEBASE PREFABS (Standing Trees) ===
+
+| Prefab Name              | Tool Tier | Health | Log Prefab           |
+|--------------------------|-----------|--------|----------------------|
+| Beech1                   |         0 |     80 | beech_log            |
+| FirTree                  |         0 |     80 | FirTree_log          |
+| PineTree                 |         0 |    120 | PineTree_logOLD      |
+| Pinetree_01              |         0 |    120 | PineTree_log         |
+| Birch1                   |         2 |     80 | Birch_log            |
+| Birch2                   |         2 |     80 | Birch_log            |
+| SwampTree1               |         2 |     80 | SwampTree1_log       |
+| Oak1                     |         3 |    350 | Oak_log              |
+
+=== CATEGORIZED BY TOOL TIER ===
+
+  [Tier 0] - Stone Axe (Meadows/Black Forest basic trees)
+    - Beech1 (HP:80)
+    - FirTree (HP:80)
+    - PineTree (HP:120)
+    - Pinetree_01 (HP:120)
+    - AshlandsTree1 (HP:200)
+    - AshlandsTree6 (HP:200)
+
+  [Tier 2] - Bronze Axe (Birch, Swamp)
+    - Birch1, Birch1_aut, Birch2, Birch2_aut (HP:80)
+    - SwampTree1 (HP:80)
+    - Cypress_bal, Maple_bal, Poplar_bal, Willow_bal (HP:200)
+    - AcaiTree_New_bal, Acai_Dead_bal (HP:200)
+
+  [Tier 3] - Iron Axe (Oak, Plains)
+    - Oak1, Oak2_bal, Oak3_bal, Oak_Swamp_bal (HP:350)
+    - ElderTree_bal (HP:500)
+    - YewTree_bal (HP:350)
+    - WetTree1_bal, WetTree2_bal, WetTree3_bal (HP:250)
+    - ElderMushroom_bal (HP:200)
+
+  [Tier 4] - Black Metal Axe (Mistlands, Deep North)
+    - YggaShoot1, YggaShoot2, YggaShoot3 (HP:100)
+    - YggaBigShoot_bal (HP:400)
+    - IcedTree_bal (HP:200)
+    - AshlandsTree3, AshlandsTree4, AshlandsTree5, AshlandsTree6_big (HP:200)
+
+=== TREELOG PREFABS (Fallen Logs to chop) ===
+
+| Prefab Name              | Tool Tier | Health |
+|--------------------------|-----------|--------|
+| beech_log                |         0 |     60 |
+| FirTree_log              |         0 |     60 |
+| PineTree_log             |         0 |     60 |
+| Birch_log                |         2 |     60 |
+| Oak_log                  |         3 |    160 |
+| yggashoot_log            |         4 |    100 |
+
+=== CODE: TREE DETECTION DICTIONARY ===
+
+// Trees that companions can chop (standing trees)
+private static readonly Dictionary<string, int> TreePrefabTiers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+{
+    // Tier 0 - Stone axe
+    { "Beech1", 0 },
+    { "FirTree", 0 },
+    { "PineTree", 0 },
+    { "Pinetree_01", 0 },
+    { "AshlandsTree1", 0 },
+    { "AshlandsTree6", 0 },
+    
+    // Tier 2 - Bronze axe
+    { "Birch1", 2 },
+    { "Birch1_aut", 2 },
+    { "Birch2", 2 },
+    { "Birch2_aut", 2 },
+    { "SwampTree1", 2 },
+    { "Cypress_bal", 2 },
+    { "Maple_bal", 2 },
+    { "Poplar_bal", 2 },
+    { "Willow_bal", 2 },
+    { "AcaiTree_New_bal", 2 },
+    { "Acai_Dead_bal", 2 },
+    
+    // Tier 3 - Iron axe
+    { "Oak1", 3 },
+    { "Oak2_bal", 3 },
+    { "Oak3_bal", 3 },
+    { "Oak_Swamp_bal", 3 },
+    { "ElderTree_bal", 3 },
+    { "YewTree_bal", 3 },
+    { "WetTree1_bal", 3 },
+    { "WetTree2_bal", 3 },
+    { "WetTree3_bal", 3 },
+    { "ElderMushroom_bal", 3 },
+    
+    // Tier 4 - Black metal axe
+    { "YggaShoot1", 4 },
+    { "YggaShoot2", 4 },
+    { "YggaShoot3", 4 },
+    { "YggaBigShoot_bal", 4 },
+    { "IcedTree_bal", 4 },
+    { "AshlandsTree3", 4 },
+    { "AshlandsTree4", 4 },
+    { "AshlandsTree5", 4 },
+    { "AshlandsTree6_big", 4 },
+};
+
+// Fallen logs that companions can chop
+private static readonly Dictionary<string, int> TreeLogPrefabTiers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+{
+    // Tier 0
+    { "beech_log", 0 },
+    { "beech_log_half", 0 },
+    { "FirTree_log", 0 },
+    { "FirTree_log_half", 0 },
+    { "PineTree_log", 0 },
+    { "PineTree_log_half", 0 },
+    { "SwampTree1_log", 0 },
+    
+    // Tier 2
+    { "Birch_log", 2 },
+    { "Birch_log_half", 2 },
+    { "Acai_log_bal", 2 },
+    { "Cypress_log_bal", 2 },
+    { "Maple_log_bal", 2 },
+    { "Poplar_log_bal", 2 },
+    { "Willow_log_bal", 2 },
+    
+    // Tier 3
+    { "Oak_log", 3 },
+    { "Oak_log_half", 3 },
+    { "Oak2_log_bal", 3 },
+    { "ElderTreeLog_bal", 3 },
+    { "YewTreeLog_bal", 3 },
+    { "Wet_log_bal", 3 },
+    { "AshlandsTreeLog1", 3 },
+    { "AshlandsTreeLog2", 3 },
+    
+    // Tier 4
+    { "yggashoot_log", 4 },
+    { "yggashoot_log_half", 4 },
+    { "bigyggashoot_log_bal", 4 },
+    { "IcedTree_log_bal", 4 },
+    { "ElderMushroomLog_bal", 4 },
+};

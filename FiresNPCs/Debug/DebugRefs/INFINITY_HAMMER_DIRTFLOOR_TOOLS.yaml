@@ -1,0 +1,1994 @@
+﻿# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                             ║
+# ║  VERDANT'S ASCENT - COMPLETE INFINITY HAMMER CONFIGURATION                  ║
+# ║                                                                             ║
+# ║  Includes:                                                                  ║
+# ║    - Custom DirtFloor terrain tools with WEC undo support                   ║
+# ║    - Custom Water painting tools (ponds, rivers, tar)                       ║
+# ║    - Standard hammer/hoe tools                                              ║
+# ║    - Admin building tools                                                   ║
+# ║    - Biome overlay painting                                                 ║
+# ║    - Clutter/grass painting with Alt+Scroll cycling                         ║
+# ║                                                                             ║
+# ║  INSTALLATION:                                                              ║
+# ║    Copy this file to: BepInEx/config/infinity_hammer.yaml                   ║
+# ║                                                                             ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                             ║
+# ║  HAMMER TOOLS                                                               ║
+# ║                                                                             ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+hammer:
+  - name: Pipette
+    description: |-
+      Press <mod1> to pick up.
+      Press <mod2> to freeze.
+    icon: hammer
+    command: hammer pick=<mod1> freeze=<mod2>
+    index: 1
+
+  - name: Building pipette
+    description: |-
+      Select entire buildings.
+      Press <mod1> to pick up.
+      Press <mod2> to freeze.
+    icon: hammer
+    command: hammer connect pick=<mod1> freeze=<mod2>
+
+  - name: Area pipette
+    description: |-
+      Select multiple objects.
+      Press <mod1> to pick up.
+      Press <mod2> to freeze.
+    icon: hammer
+    command: hammer pick=<mod1> freeze=<mod2> height=<h> <area>
+    initialHeight: 0
+    highlight: true
+
+  - name: Admin Buildings
+    description: |-
+      Set objects in area applies <#00ffff>all admin effects</color>.<size=10>
+      - <#fff000>Infinite Health</color> for build pieces, destructible objects.
+      - <#fff000>Infinite Fuel</color> for fireplaces, bathtubs.
+      - <#fff000>Irremovable</color> build pieces, itemstands.
+      - <#fff000>Unpickable</color> pickable objects.
+      </size>
+    icon: HelmetMage
+    commands:
+      - command: tool_object health=-1 f=WearNTear,health,-1
+      - command: tool_object f=Destructible,minToolTier,999 f=TreeBase,minToolTier,999 f=MineRock5,minToolTier,999
+      - command: tool_object type=Piece f=Piece,canBeRemoved,false <area>
+      - command: tool_object type=ItemStand f=ItemStand,canBeRemoved,false <area>
+      - command: tool_object type=Fireplace f=Fireplace,infiniteFuel,true
+      - command: tool_object id=piece_bathtub f=Smelter,fuel,10 f=Smelter,fuelPerProduct,0
+      - command: tool_object type=Pickable f=Pickable,picked,1 f=Pickable,hideWhenPicked,vfx_odin_despawn <area>
+    highlight: true
+    instant: false
+
+  - name: Scale Objects Small AREA
+    description: Scales objects in the area to half size (0.5).
+    icon: piece_workbench
+    command: object scale=.5 <area> height=<h>
+    initialHeight: 0
+    highlight: true
+    index: 20
+
+  - name: Reset Object Scale AREA
+    description: Resets object scales in the area to normal (1).
+    icon: piece_workbench
+    command: object scale=1 <area> height=<h>
+    initialHeight: 0
+    highlight: true
+    index: 21
+
+  - name: Slight Tilt Objects AREA
+    description: Slightly tilts objects in the area (0.5 degrees on all axes, 50% chance).
+    icon: wood_wall_2x2
+    command: object rotate=0.5,0.5,0.5 <area> height=<h> chance=0.5
+    initialHeight: 0
+    highlight: true
+    index: 24
+
+  - name: rundown twists
+    description: Randomly tilts objects in the area (-5 to 5 degrees on all axes, 50% chance).
+    icon: wood_wall_2x2
+    command: object rotate=-2-2,-2-2,-2-2 <area> height=<h> origin=object
+    initialHeight: 0
+    highlight: true
+    index: 26
+
+  - name: Invisible Piece
+    description: |-
+      Make build pieces invisible.
+      Hold <#FFF000><mod1></color> to undo.
+      Hold <#FFF000><mod2></color> to affect connected pieces.
+    icon: TrophyWolf
+    commands:
+      - command: object health=-1 f=WearNTear,health,-4 f=WearNTear,broken,vfx_odin_despawn
+      - command: data remove=WearNTear.m_broken,health,WearNTear.m_health
+        keys: <mod1>
+      - command: object health=-1 f=WearNTear,health,-4 f=WearNTear,broken,vfx_odin_despawn connect
+        keys: <mod2>
+      - command: data remove=WearNTear.m_broken,health,WearNTear.m_health connect
+        keys: <mod1>,<mod2>
+    instant: false
+
+  - name: WearNTear Burnable FALSE
+    description: Set structures to not be burnable at all in area.
+    icon: BombSmoke
+    command: object type=Structure f=WearNTear,burnable,false <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+  - name: Creator 0 AREA
+    description: Set object creator to 0 in area.
+    icon: piece_xmascrown
+    command: object creator=0 <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+  - name: Disable Interaction AREA
+    description: Disables interaction on objects in the area.
+    icon: Eyescream
+    command: tweak_object interact=false <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+  - name: Enable Interaction AREA
+    description: Enables interaction on objects in the area.
+    icon: Eyescream
+    command: tweak_object interact=true <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+  - name: Magic Chest Tweaker
+    description: Adds wood and stone to the selected chest, sets 2min respawn, and renames it.
+    icon: ChestTreasure
+    command: tweak_chest item=Wood,1,500,999 item=Stone,1,500,999 respawn=2 chance=1.0 maxamount=2 minamount=2 name="Magic Chest"
+
+  - name: Area Cannot Be Removed & indestructible
+    description: Pieces can't be removed in the area! Also turns off primary and random target and applies -1 health / wearntear health.
+    icon: hammer
+    command: object f=WearNTear,health,-1 health=-1 f=Piece,canBeRemoved,false f=Piece,primaryTarget,false f=Piece,randomTarget,false height=<h> <area>
+    initialHeight: 0
+    highlight: true
+
+  - name: Area Fueler
+    description: Fireplaces in area get infinite fuel! Come on baby light my fire!
+    icon: bonfire
+    command: object type=Fireplace f=Fireplace,infiniteFuel,true height=<h> <area>
+    initialHeight: 0
+    highlight: true
+
+  - name: Worn Pieces
+    description: |-
+      Sets all pieces in the area to worn with infinite health.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: SurtlingCore
+    command: object type=Structure f=WearNTear,health,-2 health=-1 <area> height=<h>
+    initialHeight: 0
+    highlight: true
+    continuous: -<mod1>
+    snapGround: true
+    terrainGrid: -<mod2>
+
+  - name: Broken Pieces Chance
+    description: |-
+      Randomly sets 20% of pieces in the area to broken with infinite health.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: BlackCore
+    command: object type=Structure f=WearNTear,health,-4 health=-1 chance=0.2 <area> height=<h>
+    initialHeight: 0
+    highlight: true
+    continuous: -<mod1>
+    snapGround: true
+    terrainGrid: -<mod2>
+
+  - name: AreaRuiner
+    description: Randomly removes pieces in the highlighted area.
+    icon: SledgeDemolisher
+    command: object remove chance=0.5 type=Piece height=<h> <area>
+    initialHeight: 0
+    highlight: true
+
+  - name: Data Grab
+    description: Haxboi data gräbz
+    icon: hammer
+    command: data save=hax <area>
+    initialHeight: 0
+    highlight: true
+
+  - name: Structure Health DEFAULT AREA
+    description: Set structure health to default in area.
+    icon: hammer
+    command: data remove=health,WearNTear.m_health type=Structure <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+  - name: Structure Health Infinite AREA
+    description: Set structure health to infinite in area.
+    icon: hammer
+    command: object type=Structure health=-1 f=WearNTear,health,-1 <area>
+    initialHeight: 0
+    highlight: true
+
+  - name: Destructible & Treebase Health Infinite AREA
+    description: Set object minToolTier to 1073741823 in area.
+    icon: hammer
+    command: object f=Destructible,minToolTier,1073741823 f=TreeBase,minToolTier,1073741823 <area>
+    initialHeight: 0
+    highlight: true
+
+  - name: Clear Object Data AREA
+    description: Clear object data in AREA
+    icon: hammer
+    command: data clear <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+  - name: Health Default AREA
+    description: Clear health and WNT health data in AREA
+    icon: hammer
+    command: data remove=health,WearNTear.m_health <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+  - name: noSupportWear 0 AREA
+    description: Set object noSupportWear to 0 in area.
+    icon: woodiron_pole
+    command: object f=WearNTear,noSupportWear,false <area> height=<h>
+    initialHeight: 0
+    highlight: true
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                             ║
+# ║  HOE TOOLS                                                                  ║
+# ║                                                                             ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+hoe:
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VANILLA TERRAIN TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Level
+    description: |-
+      Flattens terrain.
+      Hold <mod1> to smooth.
+      Hold <mod2> for free mode.
+      Hold <alt> for player height.
+    icon: mud_road
+    command: terrain level smooth=<mod1>?.5:0 <area>
+    index: 10
+    terrainGrid: -<mod2>
+    playerHeight: <alt>
+
+  - name: Raise
+    description: |-
+      Raises terrain.
+      Hold <mod1> to smooth.
+      Hold <mod2> for free mode.
+    icon: raise
+    command: terrain raise=<h> smooth=<mod1>?.5:0 <area>
+    initialHeight: 0.2
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Pave
+    description: |-
+      Paves terrain.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: paved_road
+    command: terrain paint=paved <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Grass
+    description: |-
+      Grass.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: replant
+    command: terrain paint=grass <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Dirt
+    description: |-
+      Dirt.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Hoe
+    command: terrain paint=dirt <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Cultivate
+    description: |-
+      Cultivates terrain.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: cultivate
+    command: terrain paint=cultivated <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: DarkGrass
+    description: |-
+      Dark Grass.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: trophyabomination
+    command: terrain paint=grass_dark <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: PatchyGrass
+    description: |-
+      Patchy Grass.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: iron_wall_2x2
+    command: terrain paint=patches <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: MossyPaving
+    description: |-
+      Paving with moss.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: trophygreydwarfshaman
+    command: terrain paint=paved_moss <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: DarkPaving
+    description: |-
+      Dark Paving.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: tar
+    command: terrain paint=paved_dark <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Reset
+    description: |-
+      Resets terrain.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Hoe
+    command: terrain reset <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Slope
+    description: Slope between you and aim point.
+    icon: wood_wall_roof_45
+    command: terrain slope <to>
+    targetEdge: true
+    initialShape: rectangle
+
+  - name: Remove
+    description: |-
+      Removes objects.
+      Hold <mod1> to also reset the terrain.
+    icon: softdeath
+    command: tool_object remove id=*;tool_terrain keys=<mod1> reset
+    highlight: true
+
+  - name: Tame
+    description: |-
+      Tames creatures.
+      Hold <mod1> to untame
+    icon: Carrot
+    command: object tame keys=-<mod1> <area>;object wild keys=<mod1> <area>
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STRUCTURE MODEL TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: StructureModel NEW invulnerable
+    description: |-
+      Changes connected StructureModel to NEW invulnerable health -1/-1, click on a piece to apply.
+    icon: SurtlingCore
+    command: object health=-1 f=WearNTear,health,-1 connect
+    instant: false
+
+  - name: StructureModel WORN invulnerable
+    description: |-
+      Changes connected StructureModel to WORN invulnerable health -1/-2, click on a piece to apply.
+    icon: BlackCore
+    command: object health=-1 f=WearNTear,health,-2 connect
+    instant: false
+
+  - name: StructureModel BROKEN invulnerable
+    description: |-
+      Changes connected StructureModel to BROKEN invulnerable health -1/-4, click on a piece to apply.
+    icon: thunderstone
+    command: object health=-1 f=WearNTear,health,-4 connect
+    instant: false
+
+  - name: StructureModel NEW invulnerable SINGLE PIECE
+    description: |-
+      Changes StructureModel to NEW invulnerable health -1/-1, click on a piece to apply.
+    icon: potion_health_minor
+    command: object health=-1 f=WearNTear,health,-1
+    instant: false
+
+  - name: StructureModel WORN invulnerable SINGLE PIECE
+    description: |-
+      Changes StructureModel to WORN invulnerable health -1/-2, click on a piece to apply.
+    icon: potion_eitr_minor
+    command: object health=-1 f=WearNTear,health,-2
+    instant: false
+
+  - name: StructureModel BROKEN invulnerable SINGLE PIECE
+    description: |-
+      Changes StructureModel to BROKEN invulnerable health -1/-4, click on a piece to apply.
+    icon: potion_stamina_minor
+    command: object health=-1 f=WearNTear,health,-4
+    instant: false
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DEBUG/ESP TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: ZoneCorners
+    description: |-
+      Toggle Zone Corner Rays
+    icon: Crystal
+    command: esp_toggle ZoneCorner
+
+  - name: GhostNoSpawns
+    description: |-
+      Toggle spawners on and off while ghosting.
+    icon: TrophyWraith
+    command: hammer_tool dev_config ghost_no_spawns
+
+  - name: ESP Spawns Toggle
+    description: |-
+      Toggle spawner rays on and off.
+    icon: ancientseed
+    command: esp_toggle SpawnPointOneTime;esp_toggle SpawnPointRespawning;esp_toggle SpawnZone
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SHIP TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Ship Enhancer - Smooth and quick!
+    description: Ship Enhancer - Smooth and quick!
+    icon: MushroomOmelette
+    instant: true
+    command: object id=Raft,Karve radius=15 f=Ship,sailForceFactor,0.4 f=Ship,stearForce,1;object id=VikingShip,TrailerShip radius=15 f=Ship,sailForceOffset,-1 f=Ship,sailForceFactor,0.6 radius=15;object id=Raft f=Ship,sailForceOffset,0 radius=15
+
+  - name: Landing - Sea Level
+    description: Land your ship gracefully to sea level.
+    icon: MushroomYellow
+    command: object id=Raft,Karve,VikingShip,TrailerShip f=Ship,force,0.4 radius=15
+
+  - name: Landing - Hover Off Ground
+    description: Land your ship and hover above the waves.
+    icon: MagicallyStuffedShroomUncooked
+    instant: true
+    command: object id=Raft,Karve,VikingShip,TrailerShip f=Ship,force,1 radius=15
+
+  - name: Takeoff
+    description: Take off to the skies!
+    icon: MagicallyStuffedShroom
+    instant: true
+    command: object id=Raft,Karve,VikingShip,TrailerShip f=Ship,force,2 radius=15
+
+  - name: Altitude Shifter - Altitude 30 holding ALT, 50 holding Shift.
+    description: Altitude 30 holding ALT, 50 holding Shift.
+    icon: MushroomBlue
+    instant: true
+    command: object id=Raft,Karve,VikingShip,TrailerShip f=Ship,waterLevelOffset,10030 keys=leftalt radius=15;object id=Raft,Karve,VikingShip,TrailerShip f=Ship,waterLevelOffset,10050 keys=leftshift radius=15
+
+  - name: Altitude Shifter - Altitude 80 holding ALT, 120 holding Shift.
+    description: Altitude 80 holding ALT, 120 holding Shift.
+    icon: MushroomJotunPuffs
+    instant: true
+    command: object id=Raft,Karve,VikingShip,TrailerShip radius=15 f=Ship,waterLevelOffset,10080 keys=leftalt;object id=Raft,Karve,VikingShip,TrailerShip radius=15 f=Ship,waterLevelOffset,10120 keys=leftshift
+
+  - name: Altitude Shifter - Altitude 150 holding ALT, 200 holding Shift.
+    description: Altitude 150 holding ALT, 200 holding Shift.
+    icon: MushroomMagecap
+    instant: true
+    command: object id=Raft,Karve,VikingShip,TrailerShip radius=15 f=Ship,waterLevelOffset,10150 keys=leftalt;object id=Raft,Karve,VikingShip,TrailerShip f=Ship,waterLevelOffset,10200 keys=leftshift radius=15
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SPELL/EFFECT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Healdropper
+    description: Heals in an area where aimed at.
+    icon: AmberPearl
+    instant: false
+    snapGround: true
+    command: tool_spawn DvergerStaffHeal_aoe radius=1;tool_spawn sfx_dverger_heal_finish radius=1
+
+  - name: Root Friends
+    description: Root friends! Everyone needs pals!
+    icon: Turnip
+    command: tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn tentaroot tame=true amount=12 radius=10;tool_spawn sfx_gdking_shoot_trigger pos=0,0,0;nonono
+
+  - name: Gloopdrop
+    description: Drops gloop where clicked at, it's vile and disgusting!
+    icon: Bombbile
+    command: tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn bonemass_throw_projectile pos=0,0,10 radius=1;challenge;tool_spawn sfx_neck_death radius=1 pos=0,0,0;wait 1400;tool_spawn bilebomb_explosion radius=3 pos=0,0,0
+
+  - name: Ice Nova
+    description: Blast enemies with Freezing Nova in an area
+    icon: Freezing
+    command: tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn sfx_icestaff_start amount=10 pos=0,0,0;tool_spawn fx_DvergerMage_Nova_ring pos=0,0,0 radius=1;wait 1500;tool_spawn DvergerStaffNova_aoe pos=0,0,0 radius=1
+
+  - name: Avalance
+    description: Call down an avalance to smash down on their heads!
+    icon: Frost
+    command: tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn caverock_ice_stalagtite_falling amount=8 pos=0,0,12 radius=3;tool_spawn vfx_iceblocker_destroyed amount=3 pos=0,0,12 radius=3;tool_spawn vfx_ColdBall_Hit pos=0,0,0;tool_spawn sfx_icestaff_start amount=10 pos=0,0,0;wave
+
+  - name: Zapper
+    description: Zap em!!!
+    icon: Lightning
+    command: addstatus Lightning 2;flex;tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn fx_himminafl_aoe amount=1 pos=0,0,0 radius=1;tool_spawn lightningAOE pos=0,0,0 radius=1;
+
+  - name: Thors Kiss
+    description: ZAP EM FIVE TIMES AT ONCE, AAAAAH! GOD OF THUNDER!
+    icon: AtgeirHimminAfl
+    command: addstatus Lightning 2;kneel;tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn fx_himminafl_aoe amount=5 pos=0,0,0 radius=4;tool_spawn lightningAOE amount=5 pos=0,0,0 radius=2;
+
+  - name: Clusterbomb
+    description: Blow em away with FLAMES!
+    icon: Warm
+    command: tool_spawn vfx_FireAddFuel pos=0,0,0 radius=1;tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn DvergerStaffFire_clusterbomb_aoe pos=0,0,0 radius=1;tool_spawn DvergerStaffFire_fire_aoe pos=0,0,0 radius=1;addstatus Burning 1;cower;tool_spawn vfx_ImpDeath pos=0,0,0 radius=1;tool_spawn sfx_firestaff_launch pos=0,0,0 radius=1;tool_spawn sfx_firestaff_launch pos=0,0,0 radius=1;
+
+  - name: NovaDropper
+    description: Destroys anything with a nova blast
+    icon: wisp
+    command: addstatus Spirit 2;tool_spawn vfx_WishbonePing pos=0,0,0 radius=1;tool_spawn fx_goblinking_death radius=1 pos=0,0,0;tool_spawn aoe_nova radius=0 pos=0,0,0;tool_spawn deergodexplosion radius=0 pos=0,0,0;tool_spawn fx_goblinking_meteor_hit radius=0 pos=0,0,0
+
+  - name: Bloodbath
+    description: Make it look like a massacre happened where you click at!
+    icon: Bloodbag
+    command: tool_spawn vfx_deer_death pos=0,0,0 radius=1;tool_spawn sfx_draugrpile_hit pos=0,0,0 radius=1;tool_spawn vfx_deer_death amount=20;tool_spawn sfx_draugrpile_hit amount=3 pos=0,0,0 radius=1;tool_spawn vfx_goblin_death amount=20
+
+  - name: Meteor
+    description: |-
+      Drops a Meteor from the sky!
+    icon: QueenDrop
+    instant: false
+    command: tool_spawn projectile_meteor f=Projectile,gravity,4 pos=0,0,80
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MISTLANDS PAINT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: MistlandsPainter
+    description: |-
+      Paints different Rocky textures in the Mistlands
+      <mod1> for Plants
+      <mod2> for Smooth Rock
+    icon: PickaxeBlackMetal
+    command: tool_terrain paint=0,1,0,0 keys=-<mod1>,-<mod2>;tool_terrain paint=1,0,0,0 keys=-<mod1>,<mod2>;tool_terrain paint=0,0,0,0 keys=<mod1>,-<mod2>
+    snapGround: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ASHLANDS PAINT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: AshlandsGrass
+    description: |-
+      Grass in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: replant
+    command: tool tool_terrain paint=0,0,0,0
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Hot Grass
+    description: |-
+      Hot Grass in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Warm
+    command: tool tool_terrain paint=0,0,0,0.24
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Dead Grass
+    description: |-
+      Dead Grass in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: trophyabomination
+    command: tool tool_terrain paint=0.5,0.5,0,0
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Patchy Grass
+    description: |-
+      Patchy Grass in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: iron_wall_2x2
+    command: tool tool_terrain paint=0,0.5,0,0
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Cultivate Ashlands
+    description: |-
+      Cultivate in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: cultivate
+    command: tool tool_terrain paint=0,1,0,0
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Hot Paving
+    description: |-
+      Hot Paving in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: TrophyCharredMelee
+    command: tool tool_terrain paint=0,0,1,0.24
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Dark Paving Ashlands
+    description: |-
+      Dark Paving in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: tar
+    command: tool tool_terrain paint=0,0.5,0.5,0
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Pave Ashlands
+    description: |-
+      Pave in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: paved_road
+    command: tool tool_terrain paint=0,0,1,0
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Mossypave Ashlands
+    description: |-
+      Mossypave in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: trophygreydwarfshaman
+    command: tool tool_terrain paint=0,0.5,0.5,0
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Lava red
+    description: |-
+      Lava red in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: FlametalOre
+    command: tool tool_terrain paint=1,0,0,1
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Lava orange
+    description: |-
+      Lava orange in Ashlands.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: FlametalOre
+    command: tool tool_terrain paint=0,0,0,1
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Disable Keys
+    description: Disable Late-Game Global Keys- Yagluth, Queen, Goblin King, Surtling, Fader
+    icon: TrophyFader
+    command: removekey defeated_goblinking;removekey defeated_queen;removekey defeated_goblinking;removekey killed_surtling;removekey defeated_fader;removekey bosshildir2;removekey bosshildir3;say Disabled Keys - Yagluth, Queen, Goblin King, Surtling, Fader, we were bros
+    instant: false
+
+  - name: Tame Creatures
+    description: |-
+      <#00ffff>Tame</color> creatures.
+      Hold <#FFF000><mod1></color> to untame.
+    icon: Carrot
+    commands:
+      - command: object tame <area>
+      - command: object wild <area>
+        keys: <mod1>
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ADVANCED PAINT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Paint - Dirt
+    description: |-
+      Paint the terrain with <#00ffff>dirt</color>.
+      <#FF9900>Create orange lava in Ashlands.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: path
+    command: tool_terrain paint=1,0,0,1
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Cultivate
+    description: |-
+      <#00ffff>Cultivate</color> the terrain.
+      <#CC0000>Create red lava in Ashlands.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: cultivate
+    command: tool_terrain paint=0,1,0,1
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Grass
+    description: |-
+      Paint the terrain with <#00ffff>grass</color>.
+      <#999999>Remove lava in Ashlands.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: replant
+    command: tool_terrain paint=0,0,0,0
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Dead Grass
+    description: |-
+      Paint the terrain with <#00ffff>dead grass</color>.
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: TrophyAbomination
+    command: tool_terrain paint=0.5,0.5,0,0
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Patchy Dark Grass
+    description: |-
+      Paint the terrain with <#00ffff>patchy dark grass</color>.
+      <#CC0000>Create red lava in Ashlands.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: AncientSeed
+    command: tool_terrain paint=0,0.75,0,1
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Pave
+    description: |-
+      Paint the terrain with <#00ffff>paves</color>.
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: paved_road
+    command: tool_terrain paint=0,0,1,0
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Mossy Pave
+    description: |-
+      Paint the terrain with <#00ffff>mossy paves</color>.
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: ScaleHide
+    command: tool_terrain paint=0,0.5,0.5,0
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Dirt Pave
+    description: |-
+      Paint the terrain with <#00ffff>paved dirt</color>.
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: stone_pile
+    command: tool_terrain paint=1,0,0.5,0.5
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Lighter Pave
+    description: |-
+      Paint the terrain with <#00ffff>lighter paves</color>.
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: grausten_pile
+    command: tool_terrain paint=1,0,0.5,0
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Darker Pave
+    description: |-
+      Paint the terrain with <#00ffff>darker paves</color>.
+      <#FF9900>Create orange paved lava in Ashlands.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: coal_pile
+    command: tool_terrain paint=0,1,0.5,1
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Mistland Grass
+    description: |-
+      <#669900>Paint Mistlands terrain with grass.</color>
+      Hold <#FFF000><alt></color> to paint with <#006600>patches</color>.
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: SpiceForests
+    commands:
+      - command: tool_terrain paint=0,0,0,1
+      - command: tool_terrain paint=0,0,0,0.24
+        keys: <alt>
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Hot Dirt
+    description: |-
+      <#CC6600>Create hot dirt in Ashlands.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: SpiceAshlands
+    command: tool_terrain paint=0,0,0,0.24
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Hot Pave
+    description: |-
+      <#CC6600>Create hot paved dirt in Ashlands.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: piece_pot1_cracked
+    command: tool_terrain paint=0,0,1,0.24
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Rocky Dirt
+    description: |-
+      <#999999>Paint Ashlands terrain with rocky dirt.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: TinOre
+    command: tool_terrain paint=1,0,0,0
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint - Ash Dirt
+    description: |-
+      <#999999>Paint Ashlands terrain with ashy dirt.</color>
+      Hold <#FFF000><mod1></color> for use continuously.
+      Hold <#FFF000><mod2></color> for free mode.
+    icon: SilverOre
+    command: tool_terrain paint=0,1,0,0
+    continuous: <mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BIOME OVERLAY TOOLS (VANILLA TERRAIN)
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Paint Snow
+    description: |-
+      Paint <#AADDFF>snow overlay</color> on terrain.
+      Works in ANY biome - ignores world biome!
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Crystal
+    command: paint_biome snow <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint Snow Large
+    description: |-
+      Paint <#AADDFF>large snow overlay</color> on terrain.
+      Works in ANY biome - ignores world biome!
+    icon: Crystal
+    command: paint_biome snow 15
+    terrainGrid: false
+    snapGround: true
+
+  - name: Paint Lava
+    description: |-
+      Paint <#FF6600>lava/ash overlay</color> on terrain.
+      Creates Ashlands charred ground texture.
+      Works in ANY biome!
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: FlametalOre
+    command: paint_biome lava <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: true
+
+  - name: Paint Lava Large
+    description: |-
+      Paint <#FF6600>large lava/ash overlay</color> on terrain.
+      Creates Ashlands charred ground texture.
+      Works in ANY biome!
+    icon: FlametalOreNew
+    command: paint_biome lava 15
+    terrainGrid: false
+    snapGround: true
+
+  - name: Paint Swamp Overlay
+    description: |-
+      Paint <#556B2F>swamp overlay</color> on terrain.
+      Creates dark swampy ground texture.
+      Works in ANY biome!
+      Hold <mod1> for single use.
+    icon: Guck
+    command: paint_biome swamp <area>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Paint BlackForest Overlay
+    description: |-
+      Paint <#228B22>black forest overlay</color> on terrain.
+      Creates forest floor texture.
+      Works in ANY biome!
+      Hold <mod1> for single use.
+    icon: FineWood
+    command: paint_biome forest <area>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Paint Plains Overlay
+    description: |-
+      Paint <#DAA520>plains overlay</color> on terrain.
+      Creates golden grass texture.
+      Works in ANY biome!
+      Hold <mod1> for single use.
+    icon: Barley
+    command: paint_biome plains <area>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Paint Mistlands Overlay
+    description: |-
+      Paint <#4B0082>mistlands overlay</color> on terrain.
+      Creates dark mistlands texture.
+      Works in ANY biome!
+      Hold <mod1> for single use.
+    icon: BlackCore
+    command: paint_biome mistlands <area>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Paint Meadows Overlay
+    description: |-
+      Paint <#90EE90>meadows overlay</color> on terrain.
+      Creates bright green grass texture.
+      Works in ANY biome!
+      Hold <mod1> for single use.
+    icon: Dandelion
+    command: paint_biome meadows <area>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Reset Biome Overlay
+    description: |-
+      <#FFFFFF>Reset</color> biome overlay to original.
+      Restores terrain to world's natural biome.
+      Hold <mod1> for single use.
+    icon: Hoe
+    command: paint_biome reset <area>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Reset All Biome Overlays
+    description: |-
+      <#FFFFFF>Reset ALL</color> biome overlays in the world.
+      Restores all painted terrain to original biomes.
+    icon: Hammer
+    command: reset_biome_overlay all
+    instant: true
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                             ║
+# ║  CUSTOM DIRTFLOOR TERRAIN TOOLS (with WEC Undo Support)                     ║
+# ║                                                                             ║
+# ║  These tools work on custom terrain that floats above vanilla terrain.      ║
+# ║  Use snapGround: false so the ruler stays at cursor height.                 ║
+# ║                                                                             ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  - name: DirtFloor Terrain
+    description: |-
+      Place <#8B4513>custom terrain disk</color> at cursor.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust height offset.
+      Hold <mod1> for single placement.
+      <#00FFFF>Snaps to ground by default.</color>
+    icon: Hoe
+    command: place_dirtfloor <area> offset=<h>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: DirtFloor Floating
+    description: |-
+      Place <#8B4513>floating terrain disk</color> at cursor height.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust height.
+      Hold <mod1> for single placement.
+      <#FF6600>Does NOT snap to ground - for bridges/caves!</color>
+    icon: DragonEgg
+    command: place_dirtfloor <area> offset=<h>
+    continuous: -<mod1>
+    snapGround: false
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CAVE/ISOLATED TERRAIN TOOLS
+# These create terrain that NEVER auto-merges with normal terrain
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Cave Floor
+    description: |-
+      Place <#654321>cave floor terrain</color> that stays separate.
+      <#FF00FF>ISOLATED - Won't merge with other terrain!</color>
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single placement.
+      <#00FFFF>Uses IH ruler position for precise height!</color>
+    icon: BlackCore
+    command: place_cave_floor <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Cave Ceiling
+    description: |-
+      Place <#4A3728>cave ceiling terrain</color> that stays separate.
+      <#FF00FF>ISOLATED - Won't merge with other terrain!</color>
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single placement.
+      <#00FFFF>Uses IH ruler position for precise height!</color>
+    icon: TrophyAbomination
+    command: place_cave_ceiling <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Bridge Terrain
+    description: |-
+      Place <#8B4513>bridge terrain</color> that stays separate.
+      <#FF00FF>ISOLATED - Won't merge with ground terrain!</color>
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single placement.
+      <#00FFFF>Uses IH ruler position for precise height!</color>
+    icon: wood_floor
+    command: place_bridge_terrain <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Delete Custom Terrain
+    description: |-
+      <#FF4444>Delete</color> custom terrain in area.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust height range.
+      Hold <mod1> for single use.
+      <#FFA500>Respects height bounds - won't delete other layers!</color>
+    icon: SledgeDemolisher
+    command: delete_dirtfloor height=<h> <area>
+    highlight: true
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Precision Hole Punch
+    description: |-
+      <#FF4444>Punch</color> precise hole in custom terrain.
+      <#FFFF00>Raycasts to find exact terrain layer.</color>
+      <#00FF00>Only deletes the layer you're aiming at!</color>
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      <#00FFFF>Perfect for creating cave entrances.</color>
+    icon: PickaxeIron
+    command: punch_terrain_hole <area>
+    highlight: true
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Patch Terrain Hole
+    description: |-
+      <#00FF00>Patch</color> (fill) holes in custom terrain.
+      <#FFFF00>Raycasts to find terrain and samples nearby height.</color>
+      <#00FF00>Fills in holes punched by Precision Hole Punch!</color>
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      <#00FFFF>Use to repair terrain or close cave entrances.</color>
+    icon: Stone
+    command: patch_terrain_hole <area>
+    highlight: true
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Custom Terrain Paved
+    description: |-
+      Paint <#808080>paved stone</color> on custom terrain.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Stone
+    command: terrain paint=paved <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: false
+
+  - name: Custom Terrain Cultivated
+    description: |-
+      Paint <#8B4513>cultivated soil</color> on custom terrain.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Cultivator
+    command: terrain paint=cultivated <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: false
+
+  - name: Custom Terrain Dirt
+    description: |-
+      Paint <#654321>dirt path</color> on custom terrain.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Wood
+    command: terrain paint=dirt <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: false
+
+  - name: Custom Terrain Grass
+    description: |-
+      Paint <#90EE90>grass</color> on custom terrain.
+      Resets paint to default grass texture.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Dandelion
+    command: terrain paint=grass <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: false
+
+  - name: Level Custom Terrain
+    description: |-
+      <#FFFFFF>Level</color> custom terrain to cursor height.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to fine-tune height.
+      Hold <mod1> for single use.
+      <#00FFFF>Supports WEC Undo!</color>
+    icon: Hoe
+    command: terrain level=<y> <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Raise Custom Terrain
+    description: |-
+      <#00FF00>Raise</color> custom terrain by amount.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust amount.
+      Hold <mod1> for single use.
+      <#00FFFF>Supports WEC Undo!</color>
+    icon: Stone
+    command: terrain delta=<h> <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Lower Custom Terrain
+    description: |-
+      <#FF4444>Lower</color> custom terrain by amount.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust amount.
+      Hold <mod1> for single use.
+      <#00FFFF>Supports WEC Undo!</color>
+    icon: SledgeDemolisher
+    command: terrain delta=<h> <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Smooth Custom Terrain
+    description: |-
+      <#90EE90>Smooth</color> custom terrain at cursor.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      <#00FFFF>Supports WEC Undo!</color>
+    icon: Cultivator
+    command: terrain smooth=1 <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Slope Custom North
+    description: |-
+      Create <#808080>slope</color> facing <#FFFFFF>North</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust angle.
+      Hold <mod1> for single use.
+    icon: Wood
+    command: terrain slope=<h>,n <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Slope Custom South
+    description: |-
+      Create <#808080>slope</color> facing <#FFFFFF>South</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust angle.
+      Hold <mod1> for single use.
+    icon: Wood
+    command: terrain slope=<h>,s <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Slope Custom East
+    description: |-
+      Create <#808080>slope</color> facing <#FFFFFF>East</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust angle.
+      Hold <mod1> for single use.
+    icon: Wood
+    command: terrain slope=<h>,e <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Slope Custom West
+    description: |-
+      Create <#808080>slope</color> facing <#FFFFFF>West</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> to adjust angle.
+      Hold <mod1> for single use.
+    icon: Wood
+    command: terrain slope=<h>,w <area>
+    continuous: -<mod1>
+    snapGround: false
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                             ║
+# ║  CUSTOM WATER TOOLS (v4 - True Water Plane with Gravity Settling)           ║
+# ║                                                                             ║
+# ║  NEW BEHAVIOR:                                                              ║
+# ║    - Ponds: All connected water settles to a SINGLE flat level              ║
+# ║    - Rivers: Can have gradual slopes between waypoints                      ║
+# ║    - Banks: Water CLIPS through terrain (correct, not bumpy edges)          ║
+# ║    - No more "stacked pancake" appearance from overlapping disks            ║
+# ║                                                                             ║
+# ║  HOW TO USE:                                                                ║
+# ║    1. Place water disks at the SAME HEIGHT for ponds                        ║
+# ║    2. Place water disks at DIFFERENT HEIGHTS for rivers (they slope)        ║
+# ║    3. Let water clip through banks - this is correct behavior               ║
+# ║                                                                             ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  - name: Place Pond Water
+    description: |-
+      Place <#0099FF>pond water</color> at cursor.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>All water at same height settles to a flat plane.</color>
+      Hold <mod1> for single placement.
+      <#00FFFF>TIP: Paint multiple overlapping disks at SAME height for ponds!</color>
+    icon: FishRaw
+    command: place_water depth=5 <area>
+    continuous: -<mod1>
+    snapGround: true
+    highlight: true
+
+  - name: Place River Water
+    description: |-
+      Place <#0099FF>river water</color> at cursor height.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#FF6600>Does NOT snap - for sloped rivers!</color>
+      Hold <mod1> for single placement.
+      <#00FFFF>TIP: Paint at DIFFERENT heights to create river slope!</color>
+    icon: FishCooked
+    command: place_water depth=3 <area>
+    continuous: -<mod1>
+    snapGround: false
+    highlight: true
+
+  - name: Place Custom Water
+    description: |-
+      Place <#0099FF>custom water</color> at cursor.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> adjusts max depth.
+      Hold <mod1> for single placement.
+      <#00FFFF>Water surface at ruler Y, clips through banks.</color>
+    icon: FishRaw
+    command: place_water depth=<h> <area>
+    continuous: -<mod1>
+    snapGround: true
+    highlight: true
+
+  - name: Place Water (Floating)
+    description: |-
+      Place <#0099FF>floating water</color> at ruler height.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> adjusts max depth.
+      Hold <mod1> for single placement.
+      <#FF6600>Does NOT snap to ground - for elevated pools!</color>
+    icon: FishCooked
+    command: place_water depth=<h> <area>
+    continuous: -<mod1>
+    snapGround: false
+    highlight: true
+
+  - name: Place Tar Pool
+    description: |-
+      Place <#333333>tar pool</color> at cursor.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Page Up/Down</color> adjusts edge curl depth.
+      Hold <mod1> for single placement.
+      <#FF6600>Creates tar instead of water!</color>
+    icon: Tar
+    command: place_water tar depth=<h> <area>
+    continuous: -<mod1>
+    snapGround: true
+    highlight: true
+
+  - name: Delete Custom Water
+    description: |-
+      <#FF4444>Delete</color> custom water in area.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+    icon: SledgeDemolisher
+    command: delete_water_area <area>
+    highlight: true
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Mop Water (Precision)
+    description: |-
+      <#00AAFF>Mop</color> (precision remove) water at cursor.
+      <#FFFF00>Scroll</color> to adjust radius.
+      <#00FF00>Removes ONLY the pixels you hover over!</color>
+      Hold <mod1> for single use.
+      <#FFA500>Use for cleaning up pond/river edges.</color>
+      <#00FFFF>Does NOT recombine - fast & saves immediately!</color>
+    icon: Hoe
+    command: mop_water <area>
+    highlight: true
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Clear Zone Water
+    description: |-
+      <#FF4444>Clear ALL</color> custom water in current zone.
+      Use with caution - removes all custom water!
+    icon: Hammer
+    command: clear_zone_water_all
+    instant: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WATER SMOOTHING & LIQUID TYPE TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Smooth Water
+    description: |-
+      <#00FFFF>Smooth</color> water surface transitions.
+      Averages disk heights for seamless blending.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Use to fix wonky auto-generated rivers.
+      Hold <mod1> for single use.
+    icon: Hoe
+    command: smooth_water <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Place Ice
+    description: |-
+      Place <#AADDFF>frozen ice</color> surface <#00FF00>directly</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Solid walkable frozen water - no conversion needed!
+      Hold <mod1> for single use.
+      <#00FFFF>Creates water with ice type in one step.</color>
+    icon: Crystal
+    command: place_water depth=5 type=ice <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Place Boiling Water
+    description: |-
+      Place <#FF6600>boiling water</color> (Ashlands style) <#00FF00>directly</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hot water that deals <#FF4400>fire damage</color>!
+      Hold <mod1> for single use.
+      <#00FFFF>Creates boiling water in one step.</color>
+    icon: Coal
+    command: place_water depth=5 type=boiling <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Place Freezing Water
+    description: |-
+      Place <#00FFFF>freezing water</color> (Deep North style) <#00FF00>directly</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Cold water that deals <#00AAFF>frost damage</color>!
+      Hold <mod1> for single use.
+      <#00FFFF>Creates freezing water in one step.</color>
+    icon: FreezeGland
+    command: place_water depth=5 type=freezing <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Place Lava
+    description: |-
+      Place <#FF4400>swimable lava</color> <#00FF00>directly</color>.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Heavy <#FF0000>fire damage</color> while swimming!
+      Hold <mod1> for single use.
+      <#00FFFF>Creates lava in one step - no conversion needed.</color>
+    icon: SurtlingCore
+    command: place_water depth=5 type=lava <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Cycle Liquid Type
+    description: |-
+      <#AAAAFF>Cycle</color> liquid type of water at cursor.
+      Water → Tar → Ice → Boiling → Freezing → Lava
+      Hold <mod1> to cycle <#FFFF00>backward</color>.
+    icon: Crystal
+    commands:
+      - command: cycle_liquid_type forward
+      - command: cycle_liquid_type backward
+        keys: <mod1>
+    instant: false
+    snapGround: false
+
+  - name: Freeze Water
+    description: |-
+      <#AADDFF>Freeze</color> custom water into solid ice.
+      Click on existing water to freeze.
+      Ice can be walked on!
+    icon: Crystal
+    command: freeze_water
+    instant: false
+    snapGround: false
+
+  - name: Thaw Water
+    description: |-
+      <#FF6600>Thaw</color> frozen ice back to water.
+      Click on frozen water to thaw.
+    icon: Coal
+    command: thaw_water
+    instant: false
+    snapGround: false
+
+  - name: Break Ice Hole
+    description: |-
+      <#FFFFFF>Create hole</color> in frozen ice.
+      <#FFFF00>Scroll</color> to adjust hole radius.
+      Creates circular opening in ice.
+    icon: PickaxeIron
+    command: break_ice <area>
+    continuous: false
+    snapGround: false
+
+  - name: Water Info
+    description: |-
+      Show <#00FFFF>info</color> about custom water at cursor.
+      Displays surface level, depth, type, combiner info.
+    icon: Crystal
+    command: water_info_at
+    instant: true
+
+  - name: Convert to Water
+    description: |-
+      Convert <#333333>tar</color> to <#0099FF>water</color> at cursor.
+      Click on tar pool to convert.
+    icon: FishRaw
+    command: water_convert water
+    instant: false
+
+  - name: Convert to Tar
+    description: |-
+      Convert <#0099FF>water</color> to <#333333>tar</color> at cursor.
+      Click on water to convert.
+    icon: Tar
+    command: water_convert tar
+    instant: false
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WATERFALL TERRAIN PAINT TOOLS
+# These use a terrain-paint approach like lava but with water shader
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Paint Waterfall
+    description: |-
+      Paint <#0099FF>waterfall texture</color> on cliff faces.
+      Uses terrain paint system with water shader.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+      <#00FFFF>Best used on steep terrain!</color>
+    icon: Crystal
+    command: paint_waterfall <area>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Clear Waterfall Paint
+    description: |-
+      <#FF4444>Remove</color> waterfall paint in area.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+    icon: Hoe
+    command: clear_waterfall_paint <area>
+    continuous: -<mod1>
+    snapGround: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WATERFALL VFX TOOLS
+# Manual placement of fog/mist and splash effects
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Place Waterfall Mist
+    description: |-
+      Place <#AADDFF>mist/fog VFX</color> at cursor.
+      Use at TOP of waterfalls where water rolls over.
+      <#FFFF00>Scroll</color> to adjust scale.
+      Hold <mod1> for single placement.
+    icon: wisp
+    command: place_water_vfx mist scale=<h>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Place Waterfall Splash
+    description: |-
+      Place <#AADDFF>splash VFX</color> at cursor.
+      Use at BOTTOM of waterfalls where water lands.
+      <#FFFF00>Scroll</color> to adjust scale.
+      Hold <mod1> for single placement.
+    icon: FishRaw
+    command: place_water_vfx splash scale=<h>
+    continuous: -<mod1>
+    snapGround: true
+
+  - name: Clear Water VFX
+    description: |-
+      <#FF4444>Remove</color> water VFX in area.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Hold <mod1> for single use.
+    icon: SledgeDemolisher
+    command: clear_water_vfx <area>
+    continuous: -<mod1>
+    snapGround: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CLUTTER/GRASS PAINTING TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Paint Clutter
+    description: |-
+      Paint <#90EE90>grass/vegetation</color> at cursor.
+      <#FFF000>Alt+Scroll</color> to cycle clutter types!
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Dandelion
+    commands:
+      - command: clutter_cycle_mode on
+      - command: paint_clutter <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: false
+
+  - name: Clear Clutter
+    description: |-
+      <#FF6666>Remove</color> painted clutter in area.
+      Hold <mod1> for single use.
+    icon: Hoe
+    command: clear_clutter <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Clear All Clutter
+    description: |-
+      <#FF6666>Remove ALL</color> painted clutter in the world.
+    icon: Hammer
+    command: clear_clutter all
+    instant: true
+
+  - name: Meadows Grass
+    description: |-
+      Paint <#90EE90>meadows grass</color>.
+      Hold <mod1> for single use.
+      Hold <mod2> for free mode.
+    icon: Dandelion
+    command: paint_clutter instanced_meadows_grass <area>
+    continuous: -<mod1>
+    terrainGrid: -<mod2>
+    snapGround: false
+
+  - name: Meadows Grass Short
+    description: |-
+      Paint <#7CCD7C>short meadows grass</color>.
+      Good for paths and clearings.
+      Hold <mod1> for single use.
+    icon: Thistle
+    command: paint_clutter instanced_meadows_grass_short <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Meadows Flowers
+    description: |-
+      Paint <#FFB6C1>meadows flowers</color>.
+      Hold <mod1> for single use.
+    icon: Dandelion
+    command: paint_clutter instanced_meadows_flowers <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Forest Groundcover
+    description: |-
+      Paint <#228B22>forest groundcover</color>.
+      Green forest floor vegetation.
+      Hold <mod1> for single use.
+    icon: FineWood
+    command: paint_clutter instanced_forest_groundcover <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Forest Groundcover Brown
+    description: |-
+      Paint <#8B4513>brown forest groundcover</color>.
+      Autumn-colored forest floor.
+      Hold <mod1> for single use.
+    icon: Wood
+    command: paint_clutter instanced_forest_groundcover_brown <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Forest Ferns
+    description: |-
+      Paint <#006400>ferns (ormbunke)</color>.
+      Large decorative ferns.
+      Hold <mod1> for single use.
+    icon: AncientSeed
+    command: paint_clutter instanced_ormbunke <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Swamp Grass
+    description: |-
+      Paint <#556B2F>swamp grass</color>.
+      Dark murky vegetation.
+      Hold <mod1> for single use.
+    icon: Guck
+    command: paint_clutter instanced_swamp_grass <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Swamp Grass Bloom
+    description: |-
+      Paint <#6B8E23>swamp grass with blooms</color>.
+      Flowering swamp plants.
+      Hold <mod1> for single use.
+    icon: Ooze
+    command: paint_clutter instanced_swamp_grass_bloom <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Heath Grass
+    description: |-
+      Paint <#DAA520>plains heath grass</color>.
+      Golden grass of the plains.
+      Hold <mod1> for single use.
+    icon: Barley
+    command: paint_clutter instanced_heathgrass <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Heath Flowers
+    description: |-
+      Paint <#FFD700>plains heath flowers</color>.
+      Yellow wildflowers.
+      Hold <mod1> for single use.
+    icon: Cloudberry
+    command: paint_clutter instanced_heathflowers <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Mistlands Grass
+    description: |-
+      Paint <#4B0082>mistlands grass</color>.
+      Dark purple-tinted vegetation.
+      Hold <mod1> for single use.
+    icon: BlackCore
+    command: paint_clutter instanced_mistlands_grass_short <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Ashlands Grass Short
+    description: |-
+      Paint <#8B0000>ashlands grass (short)</color>.
+      Charred volcanic vegetation.
+      Hold <mod1> for single use.
+    icon: FlametalOre
+    command: paint_clutter instanced_ashlands_grass_short <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Ashlands Grass Long
+    description: |-
+      Paint <#A52A2A>ashlands grass (long)</color>.
+      Tall charred volcanic grass.
+      Hold <mod1> for single use.
+    icon: FlametalOreNew
+    command: paint_clutter instanced_ashlands_grass_long <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Water Reeds
+    description: |-
+      Paint <#2F4F4F>water reeds (vass)</color>.
+      Tall reeds for water edges.
+      Hold <mod1> for single use.
+    icon: FishRaw
+    command: paint_clutter instanced_vass <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Water Lilies
+    description: |-
+      Paint <#FFB6C1>water lilies</color>.
+      <#00FFFF>Auto-snaps to water surface!</color>
+      Only spawns where there is water.
+      Hold <mod1> for single use.
+    icon: FishRaw
+    command: paint_clutter instanced_waterlilies <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Shrubs
+    description: |-
+      Paint <#556B2F>shrubs</color>.
+      Small decorative bushes.
+      Hold <mod1> for single use.
+    icon: BeechSeeds
+    command: paint_clutter instanced_shrub <area>
+    continuous: -<mod1>
+    snapGround: false
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CUSTOM TERRAIN UTILITY TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Terrain Cleanup
+    description: |-
+      <#FFAA00>Cleanup</color> duplicate terrain layers.
+      Fixes floating grass and Z-fighting.
+      Use if terrain looks weird after edits.
+    icon: Hammer
+    command: terrain_cleanup
+    instant: true
+
+  - name: Regenerate Terrain
+    description: |-
+      <#00AAFF>Regenerate</color> all terrain meshes nearby.
+      Forces complete rebuild of custom terrain.
+      Use if terrain doesn't look right.
+    icon: Hammer
+    command: terrain_regenerate
+    instant: true
+
+  - name: Isolated Mode Toggle
+    description: |-
+      <#FF00FF>Toggle</color> isolated terrain placement mode.
+      When ON, new terrain won't auto-combine.
+      Good for caves, bridges, multi-level.
+      Hold <mod1> to turn OFF.
+    icon: DragonEgg
+    commands:
+      - command: terrain_isolated_mode toggle
+      - command: terrain_isolated_mode off
+        keys: <mod1>
+    instant: true
+
+  - name: Terrain Undo
+    description: |-
+      <#FFFF00>Undo</color> last custom terrain operation.
+      Works independently of WEC undo.
+    icon: Hammer
+    command: terrain_undo
+    instant: true
+
+  - name: Terrain Redo
+    description: |-
+      <#FFFF00>Redo</color> last undone terrain operation.
+      Works independently of WEC redo.
+    icon: Hammer
+    command: terrain_redo
+    instant: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DATA/OBJECT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Clear Object Data
+    description: |-
+      <#00ffff>Clear object datas</color> in area.
+    icon: Wisp
+    command: data clear <area> height=<h>
+    highlight: true
+
+  - name: Invisible Piece Hoe
+    description: |-
+      Make build pieces <#00ffff>invisible</color>.
+      Hold <#FFF000><mod1></color> to undo.
+      Hold <#FFF000><mod2></color> to affect connected pieces.
+    icon: TrophyWraith
+    commands:
+      - command: object health=-1 f=WearNTear,health,-4 f=WearNTear,broken,vfx_odin_despawn
+      - command: data remove=WearNTear.m_broken; object health=-1 f=WearNTear,health,-1
+        keys: <mod1>
+      - command: object health=-1 f=WearNTear,health,-4 f=WearNTear,broken,vfx_odin_despawn connect
+        keys: <mod2>
+      - command: data remove=WearNTear.m_broken; object health=-1 f=WearNTear,health,-1 connect
+        keys: <mod1>,<mod2>
+    instant: false
+
+  - name: Invulnerable Piece (WNT New)
+    description: |-
+      Make objects <#00ffff>invulnerable</color>.
+      WearNTear = <#669900>New</color>
+      Hold <#FFF000><mod1></color> to undo.
+      Hold <#FFF000><mod2></color> to affect connected pieces.
+      Hold <#FFF000><mod1>, <mod2></color> to undo connected.
+    icon: woodwall
+    commands:
+      - command: object health=-1 f=WearNTear,health,-1
+      - command: data remove=health,WearNTear.m_health
+        keys: <mod1>
+      - command: object health=-1 f=WearNTear,health,-1 connect
+        keys: <mod2>
+      - command: data remove=health,WearNTear.m_health connect
+        keys: <mod1>,<mod2>
+    highlight: true
+    instant: false
+
+  - name: Invulnerable Piece (WNT Worn)
+    description: |-
+      Make objects <#00ffff>invulnerable</color>.
+      WearNTear = <#CC6600>Worn</color>
+      Hold <#FFF000><mod1></color> to undo.
+      Hold <#FFF000><mod2></color> to affect connected pieces.
+      Hold <#FFF000><mod1>, <mod2></color> to undo connected.
+    icon: wood_wall_half
+    commands:
+      - command: object health=-1 f=WearNTear,health,-2
+      - command: data remove=health,WearNTear.m_health
+        keys: <mod1>
+      - command: object health=-1 f=WearNTear,health,-2 connect
+        keys: <mod2>
+      - command: data remove=health,WearNTear.m_health connect
+        keys: <mod1>,<mod2>
+    highlight: true
+    instant: false
+
+  - name: Invulnerable Piece (WNT Broken)
+    description: |-
+      Make objects <#00ffff>invulnerable</color>.
+      WearNTear = <#CC0000>Broken</color>
+      Hold <#FFF000><mod1></color> to undo.
+      Hold <#FFF000><mod2></color> to affect connected pieces.
+      Hold <#FFF000><mod1>, <mod2></color> to undo connected.
+    icon: wood_wall_quarter
+    commands:
+      - command: object health=-1 f=WearNTear,health,-4
+      - command: data remove=health,WearNTear.m_health
+        keys: <mod1>
+      - command: object health=-1 f=WearNTear,health,-4 connect
+        keys: <mod2>
+      - command: data remove=health,WearNTear.m_health connect
+        keys: <mod1>,<mod2>
+    highlight: true
+    instant: false
+
+  - name: Restore Default Health
+    description: |-
+      Set object's health <#00ffff>back to default</color> in area.
+    icon: MechanicalSpring
+    command: data remove=health,WearNTear.m_health <area> height=<h>
+    highlight: true
+
+  - name: Indestructible Nature Object
+    description: |-
+      Make nature objects <#00ffff>indestructible</color>.
+      Inclusive of trees, bushes, rocks, etc.
+      Hold <#FFF000><mod1></color> to undo.
+    icon: FlametalOreNew
+    commands:
+      - command: tool_object health=-1 f=WearNTear,health,-1
+      - command: tool_object f=Destructible,minToolTier,999 f=TreeBase,minToolTier,999 f=MineRock5,minToolTier,999
+      - command: data remove=Destructible.m_minToolTier,TreeBase.m_minToolTier,MineRock5.m_minToolTier,health,WearNTear.m_health type=Destructible,TreeBase,MineRock5 <area>
+        keys: <mod1>
+    highlight: true
+    instant: false
+
+  - name: Irremovable Piece
+    description: |-
+      Make build pieces <#00ffff>irremovable</color>.
+      Hold <#FFF000><mod1></color> to undo.
+    icon: ashwood_wall_2x2
+    commands:
+      - command: tool_object type=Piece f=Piece,canBeRemoved,false <area>
+      - command: tool_object type=Piece f=Piece,canBeRemoved,true <area>
+        keys: <mod1>
+    highlight: true
+    instant: false
+
+  - name: Irremovable ItemStand
+    description: |-
+      Make itemstands <#00ffff>irremovable</color>.
+      Hold <#FFF000><mod1></color> to undo.
+    icon: itemstand
+    commands:
+      - command: tool_object type=ItemStand f=ItemStand,canBeRemoved,false <area>
+      - command: tool_object type=ItemStand f=ItemStand,canBeRemoved,true <area>
+        keys: <mod1>
+    highlight: true
+    instant: false
+
+  - name: Infinite Fuel
+    description: |-
+      Give fireplaces <#00ffff>infinite fuel</color>.
+      Inclusive of bathtub.
+      Hold <#FFF000><mod1></color> to undo.
+    icon: fire_pit
+    commands:
+      - command: tool_object type=Fireplace f=Fireplace,infiniteFuel,true
+      - command: tool_object id=piece_bathtub f=Smelter,fuel,10 f=Smelter,fuelPerProduct,0
+      - command: tool_object type=Fireplace f=Fireplace,infiniteFuel,false fuel=0
+        keys: <mod1>
+      - command: tool_object id=piece_bathtub f=Smelter,fuel,0 f=Smelter,fuelPerProduct,1
+        keys: <mod1>
+
+  - name: Non-pickable Objects
+    description: |-
+      Make pickables <#00ffff>non-pickable</color>.
+      Hold <#FFF000><mod1></color> to undo.
+    icon: CarrotSeeds
+    commands:
+      - command: tool_object type=Pickable f=Pickable,picked,1 f=Pickable,hideWhenPicked,vfx_odin_despawn <area>
+      - command: data remove=picked,Pickable.m_hideWhenPicked type=Pickable <area>
+        keys: <mod1>

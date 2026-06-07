@@ -1,0 +1,439 @@
+// =============================================================================
+// BETTER CONTINENTS — ImageMapFloat & Height Pipeline COMPLETE REFERENCE
+// Source: BetterContinents.dll v0.7.30 (decompiled via JetBrains)
+// Purpose: Understanding exactly how BC stores heightmap data and converts
+//          pixel values to world terrain heights, so we can read the same
+//          data and compute accurate world Y for river water placement.
+// =============================================================================
+
+
+// =============================================================================
+// ImageMapBase — Base class for all BC image maps
+// =============================================================================
+// 
+// Fields:
+//   public string FilePath = "";
+//   public byte[] SourceData = Array.Empty<byte>();
+//   public int Size;                    // Square dimension (e.g. 2048, 4096)
+//
+// The Size field tells us the image dimensions. All maps are square (width == height).
+// SourceData is the raw PNG/image bytes.
+// The image is FLIPPED VERTICALLY on load:
+//   image.Mutate(x => x.Flip(FlipMode.Vertical));
+// This means pixel [0,0] = bottom-left of the image = world (-TotalRadius, -TotalRadius).
+
+
+// =============================================================================
+// ImageMapFloat — Heightmap storage (THE KEY CLASS)
+// =============================================================================
+//
+// Decompiled with JetBrains decompiler
+// Type: BetterContinents.ImageMapFloat
+// Assembly: BetterContinents, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+
+// using SixLabors.ImageSharp;
+// using SixLabors.ImageSharp.PixelFormats;
+// using System;
+// using System.Diagnostics;
+// using UnityEngine;
+// 
+// namespace BetterContinents;
+// 
+// internal class ImageMapFloat : ImageMapBase
+// {
+//   private float[] Map = Array.Empty<float>();           // <-- THE HEIGHTMAP DATA
+//   private float[] AlphaMap = Array.Empty<float>();      // Optional alpha channel
+// 
+//   // --- Creation methods ---
+//   public static ImageMapFloat? Create(string path, bool alpha);
+//   public static ImageMapFloat? Create(byte[] data, string path, bool legacy = false);
+//   public static ImageMapFloat? Create(byte[] data, bool alpha);
+//   public bool CreateMap(bool alpha) => !alpha ? CreateMap<L16>() : CreateMap<La16>();
+//   public bool CreateMapLegacy() => CreateMap<Rgba32>();
+//
+//   // --- Pixel loading ---
+//   // Loads pixels from the image into the Map float[].
+//   // For L16 (16-bit grayscale): pixel.ToVector4().X gives 0.0-1.0 normalized height
+//   // For La16 (16-bit grayscale + alpha): same for height, alpha stored separately
+//   // For Rgba32 (legacy): pixel.ToVector4().X = R channel as 0.0-1.0
+//   protected override bool LoadTextureToMap<T>(Image<T> image)
+//   {
+//       this.Map = this.LoadPixels<T, float>(image, pixel => pixel.ToVector4().X);
+//       this.AlphaMap = !(image is Image<La16> image1) 
+//           ? Array.Empty<float>() 
+//           : this.LoadPixels<La16, float>(image1, pixel => (float)pixel.A / (float)ushort.MaxValue);
+//       return true;
+//   }
+//
+//   // --- THE CRITICAL METHOD: Bilinear-interpolated height lookup ---
+//   // Input: (x, y) in NORMALIZED 0-1 coordinates
+//   // Output: float height value (0.0 to 1.0 for grayscale heightmap)
+//   //
+//   // This is what ApplyHeightmap() and GetBiomeHeightWithHeight() call.
+//   public float GetValue(float x, float y)
+//   {
+//       float f1 = x * (float)(this.Size - 1);
+//       double f2 = (double)y * (double)(this.Size - 1);
+//       int num1 = Mathf.FloorToInt(f1);
+//       int num2 = Mathf.FloorToInt((float)f2);
+//       float t1 = f1 - (float)num1;
+//       float t2 = (float)f2 - (float)num2;
+//       int num3 = Mathf.Clamp(num1, 0, this.Size - 1);
+//       int num4 = Mathf.Clamp(num1 + 1, 0, this.Size - 1);
+//       int num5 = Mathf.Clamp(num2, 0, this.Size - 1);
+//       int num6 = Mathf.Clamp(num2 + 1, 0, this.Size - 1);
+//       float a1 = this.Map[num5 * this.Size + num3];
+//       float b2 = this.Map[num5 * this.Size + num4];
+//       float a2 = this.Map[num6 * this.Size + num3];
+//       float b1 = this.Map[num6 * this.Size + num4];
+//       return Mathf.Lerp(
+//           Mathf.Lerp(a1, b2, t1),
+//           Mathf.Lerp(a2, b1, t1),
+//           t2
+//       );
+//   }
+// }
+//
+// KEY OBSERVATIONS:
+// 1. Map[] is row-major: Map[y * Size + x]
+// 2. Values are 0.0 to 1.0 (normalized from 16-bit grayscale)
+// 3. GetValue() does bilinear interpolation between the 4 nearest pixels
+// 4. Input coords are NORMALIZED (0-1), not world coords
+// 5. Image is vertically flipped on load, so Map[0] = bottom-left of image
+
+
+// =============================================================================
+// COORDINATE SYSTEM — World ? Normalized ? Pixel
+// =============================================================================
+//
+// BC uses a simple linear mapping:
+//
+// World ? Normalized:
+//   static float Normalize(float x) {
+//       return Mathf.Clamp(x / TotalSize + 0.5f, 0f, 1f);
+//   }
+//   where TotalSize = TotalRadius * 2 (default 21000)
+//
+// Normalized ? World:
+//   static Vector2 NormalizedToWorld(Vector2 p) {
+//       return (p - Half) * TotalSize;     // Half = (0.5, 0.5)
+//   }
+//
+// Normalized ? Pixel:
+//   pixelX = normalizedX * (Size - 1)
+//   pixelY = normalizedY * (Size - 1)
+//
+// Pixel ? Array Index:
+//   index = pixelY * Size + pixelX        // Row-major, Y-first
+//
+// EXAMPLES (default world: TotalRadius=10500, TotalSize=21000):
+//   World (0, 0)     ? Normalized (0.5, 0.5)   ? center of map
+//   World (-10500, -10500) ? Normalized (0, 0)  ? bottom-left pixel
+//   World (10500, 10500)   ? Normalized (1, 1)  ? top-right pixel
+//
+// Static fields on BetterContinents class:
+//   public static float TotalRadius = 10500f;
+//   public static float TotalSize = TotalRadius * 2f;   // 21000
+//   public static float WorldRadius = 10000f;            // Playable area radius
+//
+// These are set by SetSize() when world loads:
+//   public static void SetSize(float size, float edge) {
+//       TotalRadius = size + edge;
+//       TotalSize = TotalRadius * 2f;
+//       WorldRadius = size;
+//   }
+
+
+// =============================================================================
+// HEIGHT PIPELINE — How heightmap pixel ? world terrain Y
+// =============================================================================
+//
+// There are multiple versions (V1, V2, V3) of GetBaseHeight depending on BC
+// settings version. The key methods for HeightmapOverrideAll mode:
+//
+// --- GetBiomeHeightWithHeight (postfix on GetBiomeHeight) ---
+// Used when: HeightmapOverrideAll = true AND no paint/lava/moss/vegetation maps
+//
+//   public static float GetBiomeHeightWithHeight(
+//       float result,                  // vanilla GetBiomeHeight result (ignored)
+//       WorldGenerator __instance,
+//       float wx, float wy)
+//   {
+//       return __instance.GetBaseHeight(wx, wy, false) * 200f;
+//   }
+//
+// --- GetBiomeHeightWithHeightPaint (postfix on GetBiomeHeight) ---
+// Used when: HeightmapOverrideAll = true AND has paint/lava/moss/vegetation maps
+//
+//   public static float GetBiomeHeightWithHeightPaint(
+//       float result,
+//       WorldGenerator __instance,
+//       Heightmap.Biome biome,
+//       ref Color mask,
+//       float wx, float wy)
+//   {
+//       Settings.ApplyPaintMap(wx, wy, biome, ref mask);
+//       return __instance.GetBaseHeight(wx, wy, false) * 200f;
+//   }
+//
+// In BOTH cases the formula is:
+//   worldY = GetBaseHeight(wx, wy, false) * 200f
+//
+// --- GetBaseHeight (V3, latest version) ---
+//   private static float GetBaseHeightV3(float wx, float wy, float m_minMountainDistance) {
+//       float v = Utils.Length(wx, wy);
+//       float x = Normalize(wx);          // World ? 0-1
+//       float y = Normalize(wy);          // World ? 0-1
+//       float inValue = Settings.ApplyHeightmap(x, y, 0f);  // <-- READS HEIGHTMAP
+//       float result = BaseHeightNoise?.Apply(wx, wy, inValue) ?? 0f;
+//       result = result - 0.15f + Settings.SeaLevelAdjustment;
+//       // ... edge dropoff, mountain distance checks ...
+//       return result;
+//   }
+//
+// --- ApplyHeightmap ---
+//   public float ApplyHeightmap(float x, float y, float height) {
+//       if (HeightMap == null || blend==0 && add==0 && mask==0) return height;
+//       float num = HeightMap.GetValue(x, y);              // 0-1 from heightmap
+//       float a = Mathf.Lerp(height, num * HeightmapAmount, HeightmapBlend);
+//       return Mathf.Lerp(a, a * num, HeightmapMask) + num * HeightmapAdd;
+//   }
+//
+// SIMPLIFIED FORMULA for HeightmapOverrideAll with default settings:
+//   HeightmapAmount = 1.0 (default)
+//   HeightmapBlend = 1.0 (default)
+//   HeightmapAdd = 0.0 (default)
+//   HeightmapMask = 0.0 (default)
+//   BaseHeightNoise = empty (no noise layers for override)
+//   SeaLevelAdjustment = varies (default slider 0.5 ? adjustment = 0.0)
+//
+//   ApplyHeightmap(x, y, 0) = Lerp(0, pixelValue * 1.0, 1.0) = pixelValue
+//   BaseHeightNoise.Apply(wx, wy, pixelValue) with empty stack = pixelValue
+//   GetBaseHeight = pixelValue - 0.15 + seaLevelAdj
+//   GetBiomeHeight = GetBaseHeight * 200
+//
+// THEREFORE:
+//   worldY = (pixelValue - 0.15 + seaLevelAdj) * 200
+//
+// For default sea level (slider 0.5):
+//   SeaLevel property: set => SeaLevelAdjustment = Lerp(1, -1, value)
+//   At 0.5: SeaLevelAdjustment = Lerp(1, -1, 0.5) = 0.0
+//
+//   worldY = (pixelValue - 0.15) * 200
+//   worldY = pixelValue * 200 - 30
+//
+// CRITICAL INSIGHT: The constant -30 is exactly ZoneSystem.m_waterLevel (30)!
+// This means:
+//   pixelValue = 0.15  ?  worldY = 0   (sea level, water at Y=30 is 30m above)
+//   pixelValue = 0.0   ?  worldY = -30  (deep ocean)
+//   pixelValue = 0.3   ?  worldY = 30   (AT water level exactly)
+//   pixelValue = 0.5   ?  worldY = 70   (well above water)
+//   pixelValue = 1.0   ?  worldY = 170  (mountain peak)
+//
+// The SEA LEVEL in heightmap terms is pixelValue = 0.15 + waterLevel/200
+//   = 0.15 + 30/200 = 0.15 + 0.15 = 0.30
+//
+// Anything darker than gray value 0.30 (?77/255 in 8-bit) is underwater.
+// River channels painted darker than their banks are guaranteed depressions.
+
+
+// =============================================================================
+// COMPLETE FORMULA REFERENCE
+// =============================================================================
+//
+// For our BCHeightmapWaterDetector, the exact conversions are:
+//
+// 1. Read BC's heightmap float[] (via reflection on Settings.HeightMap.Map)
+//    - These are the SAME values GetValue() interpolates
+//    - Row-major: Map[y * Size + x], values 0.0-1.0
+//
+// 2. Convert pixel value to world Y:
+//    WITH HeightmapOverrideAll (most common custom map scenario):
+//      worldY = (pixelValue - 0.15 + seaLevelAdj) * 200
+//
+//    WITHOUT HeightmapOverrideAll (heightmap blended with vanilla terrain):
+//      blendedValue = Lerp(vanillaHeight, pixelValue * HeightmapAmount, HeightmapBlend)
+//      worldY = further processed through biome heights, AddRivers, etc.
+//      (Much more complex — for this case, use GetRiverWeight mode instead)
+//
+// 3. Sea level threshold:
+//    pixelValue_at_sea_level = 0.15 - seaLevelAdj + (waterLevel / 200)
+//    With defaults: 0.15 + 0.15 = 0.30
+//    Pixels below this ? underwater terrain
+//
+// 4. Pixel ? World coordinate conversion:
+//    World ? Pixel:
+//      nx = Clamp(worldX / TotalSize + 0.5, 0, 1)
+//      ny = Clamp(worldZ / TotalSize + 0.5, 0, 1)
+//      px = nx * (Size - 1)
+//      py = ny * (Size - 1)
+//
+//    Pixel ? World:
+//      nx = px / (Size - 1)
+//      ny = py / (Size - 1)
+//      worldX = (nx - 0.5) * TotalSize
+//      worldZ = (ny - 0.5) * TotalSize
+//
+// 5. Bilinear interpolation for sub-pixel sampling:
+//    GetValue(nx, ny) does this automatically.
+//    For our direct Map[] reads, we get nearest-pixel values.
+//    This is fine for depression detection (we process every pixel).
+
+
+// =============================================================================
+// REFLECTION ACCESS — What we read via BCHeightmapWaterDetector
+// =============================================================================
+//
+// Access chain:
+//   BetterContinents.BetterContinents.Settings       (static field)
+//     ? BetterContinentsSettings.HeightMap            (private ImageMapFloat? field)
+//       ? ImageMapFloat.Map                           (private float[] field)
+//       ? ImageMapFloat.Size                          (public int field, inherited from ImageMapBase)
+//
+// Additional settings we read:
+//   Settings.HeightmapAmount          (float, default 1.0)
+//   Settings.SeaLevelAdjustment       (float, default 0.0 for slider at 0.5)
+//   Settings.HeightmapOverrideAll     (bool)
+//   Settings.ShouldHeightMapOverrideAll  (property: HasHeightMap && HeightmapOverrideAll)
+//
+// World size:
+//   BetterContinents.BetterContinents.TotalRadius     (static float, default 10500)
+//   BetterContinents.BetterContinents.WorldRadius      (static float, default 10000)
+//   BetterContinents.BetterContinents.TotalSize        (static float, TotalRadius * 2)
+//
+// Field names to search via AccessTools:
+//   "Map"   on ImageMapFloat          ? float[]
+//   "Size"  on ImageMapBase           ? int
+//   "HeightMap" on BetterContinentsSettings ? ImageMapFloat?
+//   "Settings" on BetterContinents    ? BetterContinentsSettings
+//   "HeightmapAmount" on BetterContinentsSettings ? float
+//   "SeaLevelAdjustment" on BetterContinentsSettings ? float
+//   "TotalRadius" on BetterContinents ? static float
+//   "WorldRadius" on BetterContinents ? static float
+
+
+// =============================================================================
+// OUR DIRECT-READ APPROACH (NEW)
+// =============================================================================
+//
+// Instead of depression detection (neighborhood averages, flood fills, etc.),
+// we can read the heightmap the SAME WAY BC does and get exact terrain heights:
+//
+// For each pixel in the heightmap:
+//   1. pixelValue = Map[y * Size + x]
+//   2. worldY = (pixelValue - 0.15 + seaLevelAdj) * 200
+//   3. If worldY < waterLevel (30) ? this pixel is underwater
+//   4. If pixel is underwater AND its neighbors are above water ? bank/shoreline
+//   5. Connected underwater pixels below a threshold ? river/lake/ocean
+//
+// For river centerline tracing:
+//   1. Find all pixels below waterLevel (or below bank level)
+//   2. For elongated connected regions ? trace the darkest path (lowest terrain)
+//   3. Width = how many pixels across the channel at each cross-section
+//   4. Surface Y = waterLevel where terrain < waterLevel
+//                 = terrainY + offset where terrain >= waterLevel
+//
+// For elevated rivers (terrain channels above sea level):
+//   1. Find pixels that are LOCAL MINIMA (lower than neighbors in cross-section)
+//   2. These are river valleys carved into the heightmap at any elevation
+//   3. Surface Y = terrainY + small offset (water follows terrain contour)
+//   4. This catches mountain streams and highland rivers
+//
+// ADVANTAGE over depression analysis:
+//   - Exact same height values BC uses ? perfect alignment
+//   - No neighborhood average needed ? simpler, faster
+//   - Direct world Y computation ? accurate bank heights
+//   - Works for both ocean-level AND elevated rivers
+//   - Can compute exact water depth at any point
+
+
+// =============================================================================
+// BC SETTINGS — Key fields on BetterContinentsSettings
+// =============================================================================
+//
+// public class BetterContinentsSettings {
+//   public bool EnabledForThisWorld;
+//   public int Version;                    // Save format version (max 11)
+//   public float GlobalScale;              // Terrain feature scale
+//   public float SeaLevelAdjustment;       // Sea level shift (default 0)
+//   public float HeightmapAmount = 1f;     // Height multiplier
+//   public float HeightmapBlend = 1f;      // Blend strength with vanilla
+//   public float HeightmapAdd;             // Additive height
+//   public bool HeightmapOverrideAll = true; // Override ALL terrain gen
+//   public float HeightmapMask;            // Mask blend
+//   public bool RiversEnabled = true;      // Whether rivers are generated
+//   public float WorldSize = 10000f;       // Playable radius
+//   public float EdgeSize = 500f;          // Edge buffer
+//   public NoiseStackSettings BaseHeightNoise; // Additional noise layers
+//   
+//   // Computed property:
+//   public bool ShouldHeightMapOverrideAll => HasHeightMap && HeightmapOverrideAll;
+//   public bool HasHeightMap => HeightMap != null;
+//   
+//   private ImageMapFloat? HeightMap;       // <-- The heightmap data
+//   
+//   // Sea level conversion:
+//   // SeaLevel property (0-1 slider):
+//   //   set => SeaLevelAdjustment = Lerp(1, -1, value)
+//   //   get => InverseLerp(1, -1, SeaLevelAdjustment)
+//   // At slider 0.5: SeaLevelAdjustment = 0
+//   // At slider 0.0: SeaLevelAdjustment = 1 (higher terrain, less sea)
+//   // At slider 1.0: SeaLevelAdjustment = -1 (lower terrain, more sea)
+// }
+
+
+// =============================================================================
+// WorldSizeHelper — How BC modifies world boundaries
+// =============================================================================
+//
+// BC can change world size via settings:
+//   WorldSize (playable radius, default 10000)
+//   EdgeSize (edge buffer, default 500)
+//
+// Static fields updated:
+//   WorldSizeHelper.WorldRadius = worldSize
+//   WorldSizeHelper.EdgeSize = edgeSize
+//   WorldSizeHelper.WorldTotalRadius = WorldRadius + EdgeSize
+//
+// Also updates BetterContinents main class:
+//   BetterContinents.TotalRadius = size + edge
+//   BetterContinents.TotalSize = TotalRadius * 2
+//   BetterContinents.WorldRadius = size
+//
+// Our code reads TotalRadius and WorldRadius from the BetterContinents class
+// via reflection. If they're > 15000 we assume they're diameters and halve them.
+
+
+// =============================================================================
+// SUMMARY: What our detector needs to do
+// =============================================================================
+//
+// 1. Via reflection, read:
+//    - Settings.HeightMap.Map (float[])
+//    - Settings.HeightMap.Size (int)  
+//    - Settings.SeaLevelAdjustment (float)
+//    - Settings.HeightmapAmount (float)
+//    - BetterContinents.TotalRadius (float)
+//    - BetterContinents.WorldRadius (float)
+//
+// 2. Convert pixel values to world heights:
+//    worldY = (pixelValue * HeightmapAmount - 0.15 + seaLevelAdj) * 200
+//
+// 3. For each pixel, compute world XZ:
+//    worldX = ((px / (Size-1)) - 0.5) * TotalRadius * 2
+//    worldZ = ((py / (Size-1)) - 0.5) * TotalRadius * 2
+//
+// 4. Detect water bodies:
+//    - Ocean: pixels where worldY < waterLevel AND connected to map edge
+//    - Rivers: elongated connected regions below local bank height
+//    - Lakes: compact connected regions below surrounding terrain
+//
+// 5. For each detected river:
+//    - Trace centerline (darkest/lowest path through the channel)
+//    - At each point: width = channel extent, surfaceY from heightmap
+//    - Generate PathPoints for AutoWaterGenerator
+//
+// 6. For each detected lake:
+//    - Find extent of depression
+//    - Generate grid of disk points
+//    - Surface at waterLevel or local fill level

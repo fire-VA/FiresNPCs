@@ -1,0 +1,9 @@
+{
+    "name":  "FiresNPCs",
+    "version_number":  "0.1.3",
+    "website_url":  "https://github.com/fire-VA/FiresNPCs",
+    "description":  "Part of the Fires mod family for Valheim.",
+    "dependencies":  [
+                         "denikson-BepInExPack_Valheim-5.4.2202"
+                     ]
+}

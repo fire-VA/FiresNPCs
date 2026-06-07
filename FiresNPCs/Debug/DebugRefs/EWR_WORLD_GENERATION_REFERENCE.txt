@@ -1,0 +1,332 @@
+// =============================================================================
+// EXPAND WORLD RIVERS — WORLD GENERATION REFERENCE
+// Source: ExpandWorldRivers.dll (decompiled)
+// Purpose: Reference for auto-generating custom rivers/water on the map
+// =============================================================================
+
+// =============================================================================
+// Configuration.cs — All configurable parameters for lakes, rivers, streams
+// =============================================================================
+
+// --- WATER ---
+// Water level: 30f (default) — altitude of global water
+// Wave multiplier: 1f — multiplies wave size
+// Wave only height: true — multiplier only affects Y axis
+
+// --- LAKES ---
+// Lake search interval: 128f — how often a point is checked for lakes (meters)
+//   Increase to find more smaller lakes
+// Lake depth: -20f — how deep a point must be to count as a lake
+//   Increase (closer to 0) to find more shallow lakes
+// Lake merge radius: 800f — how big an area merges into a single lake
+//   Decrease to get more lakes
+// Lake max distance 1: 2000f — lakes within this get a river between them
+//   Increase for more and longer rivers
+// Lake max distance 2: 5000f — fallback: lakes without a river do longer search
+//   Increase for very long rivers
+
+// --- RIVERS ---
+// Rivers enabled: true
+// River check interval: 128f — how often river altitude is checked
+// River max altitude: 50f — river invalid if this terrain altitude found between lakes
+// River min width: 60f — minimum width randomly selected between this and max
+// River max width: 100f — maximum width randomly selected
+// River curve width: 15f — how wide the curves are
+// River curve wave length: 20f — how often river changes direction
+// River seed: null (derived from world seed)
+
+// --- STREAMS ---
+// Streams enabled: true
+// Stream seed: null (derived from world seed)
+// Stream max amount: 3000 — NOT scaled with world radius
+// Stream search iterations: 100 — how many tries to find start/end point
+// Stream start min altitude: -4f
+// Stream start max altitude: 1f
+// Stream end min altitude: 6f
+// Stream end max altitude: 14f
+// Stream min width: 20f
+// Stream max width: 20f
+// Stream min length: 80f
+// Stream max length: 200f
+// Stream curve width: 15f
+// Stream curve wave length: 20f
+
+
+// =============================================================================
+// Helper.cs — Math utilities for altitude/height conversion
+// =============================================================================
+
+public static class Helper
+{
+    // Valheim's height system:
+    // - "altitude" = height relative to water level
+    // - "height" = altitude + water level (absolute Y)
+    // - "base height" = height / 200f (normalized for WorldGenerator)
+
+    public static float AltitudeToBaseHeight(float altitude)
+    {
+        return HeightToBaseHeight(AltitudeToHeight(altitude));
+    }
+
+    public static float HeightToBaseHeight(float altitude)
+    {
+        return altitude / 200f;
+    }
+
+    public static float AltitudeToHeight(float altitude)
+    {
+        return Configuration.WaterLevel + altitude;
+    }
+
+    // Transpiler helpers for replacing IL constants:
+    // Replace(instructions, oldFloat, newFloat)
+    // Replace(instructions, oldDouble, newDouble)
+    // Replace(instructions, oldSbyte, newSbyte)
+    // Replace(instructions, oldInt, newInt)
+    // ReplaceSeed(instructions, fieldName, newSeedValue)
+}
+
+
+// =============================================================================
+// FindLakes.cs — Patches WorldGenerator.FindLakes()
+// =============================================================================
+// HarmonyPatch: WorldGenerator.FindLakes
+
+// Prefix: Clears m_lakes list to start fresh
+public static bool Prefix(WorldGenerator __instance)
+{
+    __instance.m_lakes = new List<Vector2>();
+    return false; // Skip original — transpiler handles the actual logic
+}
+
+// Transpiler replaces these constants in the original FindLakes():
+// 0.05f  -> AltitudeToBaseHeight(LakeDepth)     // depth threshold
+// 128.0  -> LakeSearchInterval                   // grid step X
+// 128.0  -> LakeSearchInterval                   // grid step Z
+// 800f   -> LakeMergeRadius                      // merge distance
+
+// VANILLA FindLakes() ALGORITHM (from WorldGenerator):
+// 1. Iterate world in 128m grid steps
+// 2. At each point, call GetBaseHeight(x, z)
+// 3. If baseHeight < 0.05f (i.e. below water level - 20m altitude), it's a lake candidate
+// 4. Check if any existing lake is within 800m — if so, skip (merge)
+// 5. Otherwise add to m_lakes list as Vector2(x, z)
+// Result: m_lakes = list of lake center positions
+
+
+// =============================================================================
+// IsRiverAllowed.cs — Patches WorldGenerator.IsRiverAllowed()
+// =============================================================================
+// HarmonyPatch: WorldGenerator.IsRiverAllowed
+
+// Transpiler replaces:
+// 0.05f -> AltitudeToBaseHeight(LakeDepth)
+
+// VANILLA IsRiverAllowed() ALGORITHM:
+// Checks points along a line between two lakes
+// At each point, if terrain baseHeight > threshold, river is NOT allowed
+// (terrain too high = mountain blocking the river path)
+
+
+// =============================================================================
+// PlaceRivers.cs — Patches WorldGenerator.PlaceRivers()
+// =============================================================================
+// HarmonyPatch: WorldGenerator.PlaceRivers
+
+// Prefix: When rivers disabled, returns empty list
+public static bool Prefix(ref List<WorldGenerator.River> __result)
+{
+    __result = new List<WorldGenerator.River>();
+    return false;
+}
+
+// Transpiler replaces these constants in vanilla PlaceRivers():
+// If RiverSeed has value: replaces m_riverSeed field load with constant
+// 2000f  -> LakeMaxDistance1        // primary lake connection distance
+// 0.4f   -> AltitudeToBaseHeight(RiverMaxAltitude)  // max terrain height (1st pass)
+// 128f   -> RiverCheckInterval      // altitude check step (1st pass)
+// 5000f  -> LakeMaxDistance2        // fallback lake connection distance
+// 0.4f   -> AltitudeToBaseHeight(RiverMaxAltitude)  // max terrain height (2nd pass)
+// 128f   -> RiverCheckInterval      // altitude check step (2nd pass)
+// 60f    -> RiverMinWidth           // min width
+// 100f   -> RiverMaxWidth           // max width
+// 60f    -> RiverMinWidth           // min width (second reference)
+// 15.0   -> RiverCurveWidth         // curve amplitude
+// 20.0   -> RiverCurveWaveLength    // curve frequency
+
+// VANILLA PlaceRivers() ALGORITHM:
+// 1. For each lake, find nearest other lake within 2000m
+// 2. Check IsRiverAllowed() between them (no high terrain blocking)
+// 3. If allowed, generate river path with curves:
+//    - Base path = straight line between lake centers
+//    - Apply sinusoidal curves: curveWidth * sin(distance / curveWaveLength)
+//    - Width varies along length: random between minWidth and maxWidth
+// 4. Second pass: lakes without rivers get longer search (5000m)
+// 5. Each river stored as WorldGenerator.River:
+//    - Vector2 p0, p1 (start/end lake positions)
+//    - Vector2 center (midpoint)
+//    - float widthMin, widthMax
+//    - float curveWidth, curveWavelength
+
+
+// =============================================================================
+// PlaceStreams.cs — Patches WorldGenerator.PlaceStreams()
+// =============================================================================
+// HarmonyPatch: WorldGenerator.PlaceStreams
+
+// Prefix: When streams disabled, returns empty list
+public static bool Prefix(ref List<WorldGenerator.River> __result)
+{
+    __result = new List<WorldGenerator.River>();
+    return false;
+}
+
+// Transpiler replaces these constants in vanilla PlaceStreams():
+// If StreamSeed has value: replaces m_streamSeed field load with constant
+// 100 (sbyte)  -> StreamSearchIterations     // search attempts for start point
+// 26f          -> AltitudeToHeight(StreamStartMinAltitude)  // start min height
+// 31f          -> AltitudeToHeight(StreamStartMaxAltitude)  // start max height
+// 100 (sbyte)  -> StreamSearchIterations     // search attempts for end point
+// 36f          -> AltitudeToHeight(StreamEndMinAltitude)    // end min height
+// 44f          -> AltitudeToHeight(StreamEndMaxAltitude)    // end max height
+// 80f          -> StreamMinLength            // min stream length
+// 200f         -> StreamMaxLength            // max stream length
+// 26f          -> AltitudeToHeight(StreamStartMinAltitude)  // validation check
+// 44f          -> AltitudeToHeight(StreamEndMaxAltitude)    // validation check
+// 20f          -> StreamMaxWidth             // width
+// 15.0         -> StreamCurveWidth           // curve amplitude
+// 20.0         -> StreamCurveWaveLength      // curve frequency
+// 3000         -> StreamMaxAmount            // max placement attempts
+
+// VANILLA PlaceStreams() ALGORITHM:
+// 1. Try up to 3000 random positions on the map
+// 2. For each, search up to 100 times for valid START point:
+//    - Random position, check height is between 26-31 (near water level)
+// 3. Search up to 100 times for valid END point:
+//    - Random offset from start, check height is between 36-44 (slightly uphill)
+// 4. Check length is between 80-200m
+// 5. Validate entire path stays within altitude bounds
+// 6. Generate curved path like rivers but narrower (20m width)
+// 7. Streams use same River struct as rivers
+
+
+// =============================================================================
+// Pregenerate.cs — Patches WorldGenerator.Pregenerate()
+// =============================================================================
+// HarmonyPatch: WorldGenerator.Pregenerate
+// Priority: 500
+
+// Prefix: Clears ALL river/stream/lake data before regeneration
+private static void Prefix(WorldGenerator __instance)
+{
+    __instance.m_riverCacheLock.EnterWriteLock();
+    __instance.m_riverPoints = new Dictionary<Vector2i, WorldGenerator.RiverPoint[]>();
+    __instance.m_rivers = new List<WorldGenerator.River>();
+    __instance.m_streams = new List<WorldGenerator.River>();
+    __instance.m_lakes = new List<Vector2>();
+    __instance.m_cachedRiverGrid = new Vector2i(-999999, -999999);
+    __instance.m_cachedRiverPoints = Array.Empty<WorldGenerator.RiverPoint>();
+    __instance.m_riverCacheLock.ExitWriteLock();
+}
+
+// KEY WorldGenerator FIELDS:
+// m_rivers: List<WorldGenerator.River>     — generated river paths
+// m_streams: List<WorldGenerator.River>    — generated stream paths
+// m_lakes: List<Vector2>                   — detected lake positions (XZ)
+// m_riverPoints: Dictionary<Vector2i, RiverPoint[]>  — spatial lookup cache
+// m_cachedRiverGrid: Vector2i              — last cached grid cell
+// m_cachedRiverPoints: RiverPoint[]        — cached points for fast lookup
+// m_riverCacheLock: ReaderWriterLockSlim   — thread safety for river cache
+// m_riverSeed: int                         — seed for river random
+// m_streamSeed: int                        — seed for stream random
+
+// WorldGenerator.River struct:
+// - Vector2 p0         — start point (lake position)
+// - Vector2 p1         — end point (lake position)
+// - Vector2 center     — midpoint
+// - float widthMin     — minimum width along river
+// - float widthMax     — maximum width along river
+// - float curveWidth   — amplitude of sinusoidal curve
+// - float curveWavelength — wavelength of curve
+
+// WorldGenerator.RiverPoint struct:
+// - Vector2 p          — position
+// - float w            — width at this point
+// - float w2           — secondary width (for blending?)
+
+
+// =============================================================================
+// Generate.cs — Triggers world regeneration
+// =============================================================================
+
+public static void World()
+{
+    Patcher.Patch();
+    if (WorldGenerator.instance == null) return;
+
+    EWR.Log.LogInfo("Regenerating the world.");
+    WorldGenerator.instance.Pregenerate();
+
+    // Regenerate ALL heightmaps (terrain chunks)
+    foreach (Heightmap heightmap in Object.FindObjectsOfType<Heightmap>())
+    {
+        heightmap.m_buildData = null;
+        heightmap.Regenerate();
+    }
+
+    // Clear clutter (grass etc.)
+    ClutterSystem.instance?.ClearAll();
+
+    // Restart all water volumes
+    foreach (WaterVolume waterVolume in WaterHelper.Get())
+        waterVolume.Start();
+
+    // Regenerate minimap if enabled
+    if (Configuration.RegenerateMap)
+        Map();
+}
+
+public static void Map()
+{
+    if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) return;
+    Minimap.instance?.GenerateWorldMap();
+}
+
+
+// =============================================================================
+// Patcher.cs — Harmony patch management
+// =============================================================================
+
+public static class Patcher
+{
+    public static WorldGenerator? WG;
+
+    public static bool IsMenu => WG == null || WG.m_world.m_menu;
+
+    public static void Patch()
+    {
+        Harmony.UnpatchSelf();
+        if (WG != null)
+        {
+            EWS.RefreshWaterLevel();
+            EWD.RefreshWaterLevel();
+        }
+        Harmony.PatchAll();
+        CheckRivers(Harmony);   // Unpatch river overrides if rivers enabled
+        CheckStreams(Harmony);   // Unpatch stream overrides if streams enabled
+    }
+
+    // When rivers/streams are ENABLED, the Prefix patches (which return empty lists)
+    // are UNPATCHED so the transpiler-modified vanilla code runs instead.
+    // When DISABLED, the Prefix stays and returns empty lists.
+}
+
+
+// =============================================================================
+// DebugCommands.cs — Console commands for debugging
+// =============================================================================
+
+// ew_map     — Refreshes the world map
+// ew_lakes   — Pings all lake positions on minimap
+// ew_rivers  — Pings all river center positions on minimap
+// ew_streams — Pings all stream center positions on minimap

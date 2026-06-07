@@ -1,0 +1,351 @@
+=============================================================
+VALHEIM COMPLETE ENVIRONMENT REFERENCE
+Generated: 2026-02-24 19:16:57
+=============================================================
+
+=== ENVIRONMENT SUMMARY ===
+
+Environment Name                      | Flags
+--------------------------------------|---------------------------
+Clear                                 | [COLD@NIGHT]
+Twilight_Clear                        | [COLD][COLD@NIGHT]
+Misty                                 | [COLD@NIGHT]
+Darklands_dark                        | [DARK][COLD][COLD@NIGHT]
+Heath clear                           | [COLD@NIGHT]
+DeepForest Mist                       | [COLD@NIGHT]
+GDKing                                | [COLD@NIGHT]
+Rain                                  | [DARK][WET][COLD@NIGHT]
+LightRain                             | [DARK][WET][COLD@NIGHT]
+ThunderStorm                          | [DARK][WET][COLD@NIGHT]
+Eikthyr                               | [DARK][COLD@NIGHT]
+GoblinKing                            | [DARK]
+nofogts                               | [DARK][WET][COLD@NIGHT]
+SwampRain                             | [DARK][WET][COLD@NIGHT]
+Bonemass                              | [WET][COLD@NIGHT]
+Snow                                  | [FREEZE]
+Twilight_Snow                         | [COLD][COLD@NIGHT]
+Twilight_SnowStorm                    | [FREEZE][COLD@NIGHT]
+SnowStorm                             | [FREEZE][COLD@NIGHT]
+Moder                                 | [FREEZE][COLD@NIGHT]
+Crypt                                 | [DARK]
+Ghosts                                | [DARK][COLD][COLD@NIGHT]
+SunkenCrypt                           | [DARK]
+Caves                                 | [DARK][FREEZE][COLD]
+CavesHildir                           | [DARK][FREEZE][COLD]
+Mistlands_clear                       | [COLD@NIGHT]
+Mistlands_rain                        | [DARK][WET][COLD@NIGHT]
+Mistlands_thunder                     | [DARK][WET][COLD@NIGHT]
+InfectedMine                          | [DARK]
+Queen                                 | [DARK]
+CryptHildir                           | [DARK]
+Ashlands_ashrain                      | 
+Ashlands_ashrain_clear                | 
+Ashlands_storm                        | 
+Ashlands_meteorshower                 | 
+Ashlands_misty                        | 
+Ashlands_CinderRain                   | 
+Ashlands_SeaStorm                     | [DARK]
+Fader                                 | 
+DeepNorth_Freezing                    | [WET][FREEZE][FREEZE@NIGHT][COLD][COLD@NIGHT]
+Clear Winter                          | [COLD][COLD@NIGHT]
+Clear Summer                          | 
+Misty Winter                          | [COLD][COLD@NIGHT]
+Misty Summer                          | 
+DeepForest Mist Winter                | [COLD][COLD@NIGHT]
+DeepForest Mist Summer                | 
+Rain Winter                           | [DARK][WET][FREEZE@NIGHT][COLD][COLD@NIGHT]
+LightRain Winter                      | [DARK][WET][COLD][COLD@NIGHT]
+ThunderStorm Winter                   | [DARK][WET][FREEZE][FREEZE@NIGHT][COLD][COLD@NIGHT]
+ThunderStorm Fall                     | [DARK][WET][COLD][COLD@NIGHT]
+SwampRain Winter                      | [DARK][WET][COLD][COLD@NIGHT]
+SwampRain Fall                        | [WET][COLD][COLD@NIGHT]
+Mistlands_clear Winter                | [COLD][COLD@NIGHT]
+Mistlands_clear Summer                | 
+Mistlands_rain Winter                 | [DARK][WET][FREEZE@NIGHT][COLD][COLD@NIGHT]
+Mistlands_thunder Winter              | [DARK][WET][FREEZE][FREEZE@NIGHT][COLD][COLD@NIGHT]
+Darklands_dark Winter                 | [FREEZE@NIGHT][COLD][COLD@NIGHT]
+Heath clear Winter                    | [COLD][COLD@NIGHT]
+Heath clear Summer                    | 
+Swamp Summer                          | [DARK]
+SwampRain Summer                      | [DARK]
+
+=== WIND INTENSITY REFERENCE ===
+
+Wind values from environments for reference:
+
+  Wind 0.00-0.10:
+    - Darklands_dark
+    - Crypt
+
+  Wind 0.00-0.00:
+    - Ghosts
+    - SunkenCrypt
+    - Caves
+    - CavesHildir
+    - InfectedMine
+    - Queen
+    - CryptHildir
+
+  Wind 0.05-0.20:
+    - Mistlands_clear
+    - Mistlands_clear Winter
+    - Mistlands_clear Summer
+
+  Wind 0.05-0.50:
+    - Mistlands_rain
+    - Mistlands_rain Winter
+
+  Wind 0.10-0.60:
+    - Clear
+    - DeepForest Mist
+    - LightRain
+    - Snow
+    - Clear Winter
+    - Clear Summer
+    - DeepForest Mist Winter
+    - DeepForest Mist Summer
+    - LightRain Winter
+    - Darklands_dark Winter
+    - Swamp Summer
+
+  Wind 0.10-0.30:
+    - Misty
+    - GDKing
+    - SwampRain
+    - Bonemass
+    - Misty Winter
+    - Misty Summer
+    - SwampRain Winter
+    - SwampRain Fall
+    - SwampRain Summer
+
+  Wind 0.10-0.50:
+    - Ashlands_ashrain
+    - Ashlands_ashrain_clear
+    - Ashlands_meteorshower
+    - Ashlands_misty
+    - Fader
+
+  Wind 0.20-0.60:
+    - Twilight_Clear
+
+  Wind 0.30-0.60:
+    - Twilight_Snow
+
+  Wind 0.40-0.80:
+    - Heath clear
+    - Heath clear Winter
+    - Heath clear Summer
+
+  Wind 0.50-1.00:
+    - Rain
+    - Mistlands_thunder
+    - DeepNorth_Freezing
+    - Rain Winter
+    - Mistlands_thunder Winter
+
+  Wind 0.50-0.70:
+    - GoblinKing
+
+  Wind 0.70-1.00:
+    - Twilight_SnowStorm
+
+  Wind 0.75-0.70:
+    - Ashlands_CinderRain
+
+  Wind 0.80-1.00:
+    - ThunderStorm
+    - SnowStorm
+    - Ashlands_SeaStorm
+    - ThunderStorm Winter
+    - ThunderStorm Fall
+
+  Wind 0.90-1.00:
+    - Eikthyr
+
+  Wind 1.00-1.00:
+    - nofogts
+    - Moder
+
+  Wind 2.50-3.00:
+    - Ashlands_storm
+
+=== ENVIRONMENTS BY CATEGORY ===
+
+  [Clear Weather]
+    - Clear
+    - Twilight_Clear
+    - Heath clear
+    - DeepForest Mist
+    - GDKing
+    - Snow
+    - Twilight_Snow
+    - Moder
+    - Ashlands_CinderRain
+    - Clear Winter
+    - Clear Summer
+    - DeepForest Mist Winter
+    - DeepForest Mist Summer
+    - Heath clear Winter
+    - Heath clear Summer
+
+  [Rainy/Wet]
+    - Rain
+    - LightRain
+    - ThunderStorm
+    - nofogts
+    - SwampRain
+    - Bonemass
+    - Mistlands_rain
+    - Mistlands_thunder
+    - DeepNorth_Freezing
+    - Rain Winter
+    - LightRain Winter
+    - ThunderStorm Winter
+    - ThunderStorm Fall
+    - SwampRain Winter
+    - SwampRain Fall
+    - Mistlands_rain Winter
+    - Mistlands_thunder Winter
+
+  [Dark/Indoor]
+    - Darklands_dark
+    - Rain
+    - LightRain
+    - ThunderStorm
+    - Eikthyr
+    - GoblinKing
+    - nofogts
+    - SwampRain
+    - Crypt
+    - Ghosts
+    - SunkenCrypt
+    - Caves
+    - CavesHildir
+    - Mistlands_rain
+    - Mistlands_thunder
+    - InfectedMine
+    - Queen
+    - CryptHildir
+    - Ashlands_SeaStorm
+    - Rain Winter
+    - LightRain Winter
+    - ThunderStorm Winter
+    - ThunderStorm Fall
+    - SwampRain Winter
+    - Mistlands_rain Winter
+    - Mistlands_thunder Winter
+    - Swamp Summer
+    - SwampRain Summer
+
+  [Cold/Mountain]
+    - Twilight_Clear
+    - Darklands_dark
+    - Snow
+    - Twilight_Snow
+    - Twilight_SnowStorm
+    - SnowStorm
+    - Moder
+    - Ghosts
+    - Caves
+    - CavesHildir
+    - DeepNorth_Freezing
+    - Clear Winter
+    - Misty Winter
+    - DeepForest Mist Winter
+    - Rain Winter
+    - LightRain Winter
+    - ThunderStorm Winter
+    - ThunderStorm Fall
+    - SwampRain Winter
+    - SwampRain Fall
+    - Mistlands_clear Winter
+    - Mistlands_rain Winter
+    - Mistlands_thunder Winter
+    - Darklands_dark Winter
+    - Heath clear Winter
+
+  [Misty/Foggy]
+    - Misty
+    - Twilight_SnowStorm
+    - SnowStorm
+    - Mistlands_clear
+    - Ashlands_ashrain
+    - Ashlands_ashrain_clear
+    - Ashlands_storm
+    - Ashlands_meteorshower
+    - Ashlands_misty
+    - Fader
+    - Misty Winter
+    - Misty Summer
+    - Mistlands_clear Winter
+    - Mistlands_clear Summer
+    - Darklands_dark Winter
+
+=== CODE REFERENCE: Environment Names Array ===
+
+// Copy this into EnvironmentBoxController.EnvironmentNames:
+public static readonly string[] EnvironmentNames = {
+    "",  // No override (use world environment)
+    "Clear",
+    "Twilight_Clear",
+    "Misty",
+    "Darklands_dark",
+    "Heath clear",
+    "DeepForest Mist",
+    "GDKing",
+    "Rain",
+    "LightRain",
+    "ThunderStorm",
+    "Eikthyr",
+    "GoblinKing",
+    "nofogts",
+    "SwampRain",
+    "Bonemass",
+    "Snow",
+    "Twilight_Snow",
+    "Twilight_SnowStorm",
+    "SnowStorm",
+    "Moder",
+    "Crypt",
+    "Ghosts",
+    "SunkenCrypt",
+    "Caves",
+    "CavesHildir",
+    "Mistlands_clear",
+    "Mistlands_rain",
+    "Mistlands_thunder",
+    "InfectedMine",
+    "Queen",
+    "CryptHildir",
+    "Ashlands_ashrain",
+    "Ashlands_ashrain_clear",
+    "Ashlands_storm",
+    "Ashlands_meteorshower",
+    "Ashlands_misty",
+    "Ashlands_CinderRain",
+    "Ashlands_SeaStorm",
+    "Fader",
+    "DeepNorth_Freezing",
+    "Clear Winter",
+    "Clear Summer",
+    "Misty Winter",
+    "Misty Summer",
+    "DeepForest Mist Winter",
+    "DeepForest Mist Summer",
+    "Rain Winter",
+    "LightRain Winter",
+    "ThunderStorm Winter",
+    "ThunderStorm Fall",
+    "SwampRain Winter",
+    "SwampRain Fall",
+    "Mistlands_clear Winter",
+    "Mistlands_clear Summer",
+    "Mistlands_rain Winter",
+    "Mistlands_thunder Winter",
+    "Darklands_dark Winter",
+    "Heath clear Winter",
+    "Heath clear Summer",
+    "Swamp Summer",
+    "SwampRain Summer",
+};

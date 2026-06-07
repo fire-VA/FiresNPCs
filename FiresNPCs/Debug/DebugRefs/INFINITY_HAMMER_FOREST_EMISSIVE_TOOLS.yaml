@@ -1,0 +1,166 @@
+﻿# ═══════════════════════════════════════════════════════════════════════════════
+# ║                                                                             ║
+# ║  VERDANT'S ASCENT - EMISSIVE CLUTTER TOOLS                                 ║
+# ║                                                                             ║
+# ║  Emissive vegetation that glows.                                            ║
+# ║  Prefabs: VA_InstancedForestEmissive, VA_vassEmission, VA_FernsEmissive     ║
+# ║                                                                             ║
+# ║  Add these entries to your infinity_hammer.yaml under the hoe: section.     ║
+# ║                                                                             ║
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FOREST EMISSIVE PLACEMENT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Paint Forest Emissive
+    description: |-
+      <#66FF88>Paint Forest Emissive Clutter</color> at cursor position.
+      Glowing instanced forest groundcover vegetation.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Persistent — survives zone reload.
+      Hold <mod1> for single use.
+    icon: AncientSeed
+    command: paint_clutter VA_InstancedForestEmissive <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Paint Forest Emissive (Small)
+    description: |-
+      <#66FF88>Small Forest Emissive Patch</color> (3m radius).
+      Glowing instanced forest groundcover.
+    icon: AncientSeed
+    command: paint_clutter VA_InstancedForestEmissive 3
+    instant: false
+    snapGround: false
+
+  - name: Paint Forest Emissive (Medium)
+    description: |-
+      <#66FF88>Medium Forest Emissive Patch</color> (6m radius).
+      Glowing instanced forest groundcover.
+    icon: AncientSeed
+    command: paint_clutter VA_InstancedForestEmissive 6
+    instant: false
+    snapGround: false
+
+  - name: Paint Forest Emissive (Large)
+    description: |-
+      <#66FF88>Large Forest Emissive Patch</color> (12m radius).
+      Glowing instanced forest groundcover.
+    icon: AncientSeed
+    command: paint_clutter VA_InstancedForestEmissive 12
+    instant: false
+    snapGround: false
+
+  - name: Paint Forest Emissive (XLarge)
+    description: |-
+      <#66FF88>Extra Large Forest Emissive Field</color> (20m radius).
+      Glowing instanced forest groundcover.
+    icon: AncientSeed
+    command: paint_clutter VA_InstancedForestEmissive 20
+    instant: false
+    snapGround: false
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMISSIVE VASS (WATER REEDS) PLACEMENT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Paint Emissive Vass
+    description: |-
+      <#88FFAA>Paint Emissive Vass Clutter</color> at cursor position.
+      Glowing instanced water reeds.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Persistent — survives zone reload.
+      Hold <mod1> for single use.
+    icon: FishRaw
+    command: paint_clutter VA_vassEmission <area>
+    continuous: -<mod1>a;r
+    snapGround: false
+
+  - name: Paint Emissive Vass (Small)
+    description: |-
+      <#88FFAA>Small Emissive Vass Patch</color> (3m radius).
+      Glowing instanced water reeds.
+    icon: FishRaw
+    command: paint_clutter VA_vassEmission 3
+    instant: false
+    snapGround: false
+
+  - name: Paint Emissive Vass (Medium)
+    description: |-
+      <#88FFAA>Medium Emissive Vass Patch</color> (6m radius).
+      Glowing instanced water reeds.
+    icon: FishRaw
+    command: paint_clutter VA_vassEmission 6
+    instant: false
+    snapGround: false
+
+  - name: Paint Emissive Vass (Large)
+    description: |-
+      <#88FFAA>Large Emissive Vass Patch</color> (12m radius).
+      Glowing instanced water reeds.
+    icon: FishRaw
+    command: paint_clutter VA_vassEmission 12
+    instant: false
+    snapGround: false
+
+  - name: Paint Emissive Vass (XLarge)
+    description: |-
+      <#88FFAA>Extra Large Emissive Vass Field</color> (20m radius).
+      Glowing instanced water reeds.
+    icon: FishRaw
+    command: paint_clutter VA_vassEmission 20
+    instant: false
+    snapGround: false
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMISSIVE FERNS PLACEMENT TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+  - name: Paint Emissive Ferns
+    description: |-
+      <#44FF66>Paint Emissive Ferns Clutter</color> at cursor position.
+      Glowing instanced fern vegetation.
+      <#FFFF00>Scroll</color> to adjust radius.
+      Persistent — survives zone reload.
+      Hold <mod1> for single use.
+    icon: Thistle
+    command: paint_clutter VA_FernsEmissive <area>
+    continuous: -<mod1>
+    snapGround: false
+
+  - name: Paint Emissive Ferns (Small)
+    description: |-
+      <#44FF66>Small Emissive Ferns Patch</color> (3m radius).
+      Glowing instanced fern vegetation.
+    icon: Thistle
+    command: paint_clutter VA_FernsEmissive 3
+    instant: false
+    snapGround: false
+
+  - name: Paint Emissive Ferns (Medium)
+    description: |-
+      <#44FF66>Medium Emissive Ferns Patch</color> (6m radius).
+      Glowing instanced fern vegetation.
+    icon: Thistle
+    command: paint_clutter VA_FernsEmissive 6
+    instant: false
+    snapGround: false
+
+  - name: Paint Emissive Ferns (Large)
+    description: |-
+      <#44FF66>Large Emissive Ferns Patch</color> (12m radius).
+      Glowing instanced fern vegetation.
+    icon: Thistle
+    command: paint_clutter VA_FernsEmissive 12
+    instant: false
+    snapGround: false
+
+  - name: Paint Emissive Ferns (XLarge)
+    description: |-
+      <#44FF66>Extra Large Emissive Ferns Field</color> (20m radius).
+      Glowing instanced fern vegetation.
+    icon: Thistle
+    command: paint_clutter VA_FernsEmissive 20
+    instant: false
+    snapGround: false
