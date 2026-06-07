@@ -225,7 +225,18 @@
       "Bash(ls -la FiresHeightmap.shader.meta)",
       "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"shader-check-heightmap\" -ExecuteMethod \"FiresShaderCheck.CheckShader\" -ExtraArgs @\\('-shaderPath','Assets/Shaders/Fires/FiresHeightmap.shader','-shaderBundle','tossinshade'\\) -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\firescheck-heightmap.log\")",
       "Bash(grep -viE \"^\\\\s*$\")",
-      "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build.log\")"
+      "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build.log\")",
+      "Bash(echo \"=== latest YoinkScanMe execution summary ===\")",
+      "Bash(grep -niE '\\\\[YoinkScanMe\\\\]|Reimport:|Manifest:|Textures:|Done\\\\.|Output goes|saved|written|prefab.json' /c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/LogOutput.log)",
+      "Bash(echo \"=== unity log size ===\")",
+      "Bash(ls -lh /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/yoink-batch-import.log)",
+      "Bash(powershell.exe -Command 'Get-Process -Name Unity -ErrorAction SilentlyContinue | Select-Object Id,@{N='\\\\''Mins'\\\\'';E={[math]::Round\\(\\(\\(Get-Date\\)-$_.StartTime\\).TotalMinutes,1\\)}} | Format-Table -AutoSize')",
+      "Bash(powershell.exe -Command 'Get-Process | Where-Object {$_.Name -match '\\\\''Unity|VBCSCompiler|UnityShaderCompiler|UnityCrash'\\\\'' } | Select-Object Name,Id | Format-Table -AutoSize')",
+      "Bash([ -f \"$F\" ])",
+      "Bash(python3 -c ' *)",
+      "Bash(rm -f \".fires-headless.lock\" \"/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Temp/UnityLockfile\")",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -NoProfile -Command \"& 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1' -Label 'model-build' -ExecuteMethod 'FiresModelImport.BuildPlayerPrefab' -ExtraArgs @\\('-modelPath','C:\\\\Users\\\\travi\\\\Downloads\\\\_model_triage2\\\\style-01--anim-combo\\\\source\\\\style_01_AnimCombo.fbx','-texturesDir','C:\\\\Users\\\\travi\\\\Downloads\\\\_model_triage2\\\\style-01--anim-combo\\\\textures','-basePrefab','Assets/Characters/Player/model/player_fem.prefab'\\) -LogFile 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\model-build.log'; Copy-Item 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets\\\\AssetBundles\\\\firesplayermodels' 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresTossinShade\\\\FiresTossinShade\\\\firesplayermodels' -Force; dotnet build 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresTossinShade\\\\FiresTossinShade\\\\FiresTossinShade.csproj' -c Release -v minimal | Select-String 'Build succeeded|Build FAILED|error'; Copy-Item 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresTossinShade\\\\FiresTossinShade\\\\bin\\\\Release\\\\FiresTossinShade.dll' 'C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresTossinShade\\\\FiresTossinShade.dll' -Force; \\(Get-Item 'C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresTossinShade\\\\FiresTossinShade.dll'\\).LastWriteTime\")",
+      "Bash(echo \"PIPELINE_DONE exit=$?\")"
     ]
   }
 }
