@@ -90,9 +90,16 @@ namespace FiresRPGmaker.Modules.Marketplace
                     continue;
                 }
                 var parts = line.Split(':');
-                if (parts.Length != 2) continue;
-                if (int.TryParse(parts[1].Trim(), out int limit))
-                    profile.CurrencyLimits[parts[0].Trim()] = limit;
+                if (parts.Length == 2)
+                {
+                    if (int.TryParse(parts[1].Trim(), out int limit))
+                        profile.CurrencyLimits[parts[0].Trim()] = limit;
+                    continue;
+                }
+                // KG-format compat: a bare currency name (no colon) is just "accept this currency"
+                // with no per-bank limit. Default to a large cap so the UX still works.
+                if (parts.Length == 1 && !string.IsNullOrWhiteSpace(parts[0]))
+                    profile.CurrencyLimits[parts[0].Trim()] = 1_000_000;
             }
         }
 

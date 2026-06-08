@@ -38,6 +38,19 @@ namespace FiresRPGmaker.Modules.Marketplace
                 optionsFetcher: () => new System.Collections.Generic.List<string>
                 { "gambler", "marketplace", "achievement", "leaderboard", "mail", "transmog", "banker", "all" });
 
+            // Copy KG Marketplace .cfg files into our firesnpcs/<module>/ folders. Path arg is the KG
+            // Marketplace\Configs folder; defaults to the standard dedicated-server install location.
+            new Terminal.ConsoleCommand("firesnpcs_import_kg",
+                "[optional path to Marketplace\\Configs] - copy KG Marketplace .cfg files into firesnpcs folders + reload",
+                args =>
+                {
+                    string src = args.Length > 1 ? string.Join(" ", args.Args, 1, args.Args.Length - 1)
+                                                 : @"C:\Program Files (x86)\Steam\steamapps\common\Valheim dedicated server\BepInEx\config\Marketplace\Configs";
+                    int copied = ImportKGConfigs(src);
+                    int reloaded = ReloadModule("all");
+                    args.Context.AddString("[firesnpcs] imported " + copied + " KG file(s) from '" + src + "', reloaded " + reloaded + " module(s).");
+                });
+
             // Force-regenerate example.cfg files from the latest in-code templates. Wipes user edits to
             // example.cfg specifically — useful when a sample profile's header (e.g. [basic] -> [example])
             // changes shape and the stale file would otherwise be kept.
@@ -49,6 +62,37 @@ namespace FiresRPGmaker.Modules.Marketplace
                     int reloaded = ReloadModule("all"); // triggers WriteExampleProfile for each missing example
                     args.Context.AddString("[firesnpcs] reset " + deleted + " example.cfg file(s), reloaded " + reloaded + " module(s).");
                 });
+        }
+
+        private static readonly (string KgFolder, string OurFolder)[] _kgFolderMap = {
+            ("Bankers",                  "banker"),
+            ("Gamblers",                 "gambler"),
+            ("LeaderboardAchievements",  "achievement"),
+            ("Transmogrifications",      "transmog"),
+        };
+
+        private static int ImportKGConfigs(string srcRoot)
+        {
+            int n = 0;
+            if (string.IsNullOrEmpty(srcRoot) || !System.IO.Directory.Exists(srcRoot))
+            {
+                UnityEngine.Debug.LogWarning("[firesnpcs_import_kg] source folder not found: " + srcRoot);
+                return 0;
+            }
+            foreach (var (kg, ours) in _kgFolderMap)
+            {
+                string srcDir = System.IO.Path.Combine(srcRoot, kg);
+                if (!System.IO.Directory.Exists(srcDir)) continue;
+                string dstDir = System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", ours);
+                System.IO.Directory.CreateDirectory(dstDir);
+                foreach (var f in System.IO.Directory.GetFiles(srcDir, "*.cfg", System.IO.SearchOption.TopDirectoryOnly))
+                {
+                    string dst = System.IO.Path.Combine(dstDir, System.IO.Path.GetFileName(f));
+                    try { System.IO.File.Copy(f, dst, overwrite: true); n++; }
+                    catch (System.Exception ex) { UnityEngine.Debug.LogError("[firesnpcs_import_kg] " + f + ": " + ex.Message); }
+                }
+            }
+            return n;
         }
 
         private static int DeleteExampleFiles()
