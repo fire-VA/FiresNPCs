@@ -102,9 +102,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var trt = textGo.GetComponent<RectTransform>();
             trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
             var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.font = TMP_Settings.defaultFontAsset;
             txt.fontSize = 16f; txt.color = new Color(0.96f, 0.91f, 0.76f);
             txt.alignment = TextAlignmentOptions.Left;
+            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(txt);
 
             input.textViewport = vrt; input.textComponent = txt;
             input.lineType = TMP_InputField.LineType.SingleLine;
@@ -159,7 +159,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.GetComponent<Image>().color = currency == _selectedCurrency
                 ? new Color(0.32f, 0.22f, 0.10f, 0.95f)
                 : new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            rowGo.GetComponent<LayoutElement>().minHeight = 30f;
+            SetRowHeight(rowGo, 30f);
             rowGo.GetComponent<Button>().onClick.AddListener(() => { _selectedCurrency = currency; Refresh(); });
 
             MakeLabel(rowGo.transform, currency,                new Vector2(0.02f, 0f), new Vector2(0.40f, 1f), Vector2.zero, Vector2.zero, size: 14f);

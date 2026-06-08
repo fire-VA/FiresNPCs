@@ -25,6 +25,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         // PlayerInputPatches block movement/camera/M-key while one of these panels is on screen.
         private static int _openCount;
         public static bool AnyOpen => _openCount > 0;
+        // Per-instance open flag: tracks whether THIS panel currently counts toward _openCount, so we
+        // never double-increment on repeated Open() calls and never double-decrement on Close().
+        private bool _opened;
 
         protected abstract string PanelTitle { get; }
         protected virtual Vector2 PanelSize => new Vector2(720f, 520f);
@@ -38,22 +41,27 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_subtitleText != null)
                 _subtitleText.text = npcDisplayName + "  -  Profile: " + (string.IsNullOrEmpty(profileName) ? "<none>" : profileName);
             OnOpen(profileName, npcDisplayName);
-            bool wasOpen = _panelGo.activeSelf;
             _panelGo.SetActive(true);
-            if (!wasOpen)
+            if (!_opened)
             {
+                _opened = true;
                 _openCount++;
-                try { GUIManager.BlockInput(true); } catch { }
             }
-            // Re-apply Valheim font on every open — TMP can re-substitute its default after scene loads.
+            // CALL BLOCK INPUT EVERY OPEN (regression 2026-06-07): gating it on "wasOpen=false" missed the
+            // first open because the just-built panel was already active=true by default → BlockInput never
+            // ran → GameCamera.UpdateCamera kept rotating with mouse delta.
+            try { GUIManager.BlockInput(true); } catch { }
             try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
         }
 
         public void Close()
         {
-            if (_panelGo == null || !_panelGo.activeSelf) return;
-            _panelGo.SetActive(false);
-            _openCount = Mathf.Max(0, _openCount - 1);
+            if (_panelGo != null) _panelGo.SetActive(false);
+            if (_opened)
+            {
+                _opened = false;
+                _openCount = Mathf.Max(0, _openCount - 1);
+            }
             if (_openCount == 0)
             {
                 try { GUIManager.BlockInput(false); } catch { }
@@ -138,10 +146,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             trt.anchorMin = new Vector2(0f, 0.45f); trt.anchorMax = new Vector2(1f, 1f);
             trt.offsetMin = new Vector2(14f, 0f); trt.offsetMax = new Vector2(-44f, 0f);
             var title = titleGo.AddComponent<TextMeshProUGUI>();
-            title.font = TMP_Settings.defaultFontAsset;
             title.text = PanelTitle; title.fontSize = 22f;
             title.alignment = TextAlignmentOptions.MidlineLeft;
             title.color = new Color(1f, 0.85f, 0.55f); title.fontStyle = FontStyles.Bold;
+            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(title);
 
             var subGo = new GameObject("Subtitle", typeof(RectTransform));
             subGo.transform.SetParent(bt, false);
@@ -149,10 +157,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             srt.anchorMin = new Vector2(0f, 0f); srt.anchorMax = new Vector2(1f, 0.45f);
             srt.offsetMin = new Vector2(14f, 0f); srt.offsetMax = new Vector2(-14f, 0f);
             _subtitleText = subGo.AddComponent<TextMeshProUGUI>();
-            _subtitleText.font = TMP_Settings.defaultFontAsset;
             _subtitleText.text = ""; _subtitleText.fontSize = 13f;
             _subtitleText.alignment = TextAlignmentOptions.MidlineLeft;
             _subtitleText.color = new Color(0.85f, 0.78f, 0.62f);
+            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(_subtitleText);
         }
 
         private void BuildCloseButton(RectTransform parent)
@@ -172,9 +180,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
             lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
             var x = label.AddComponent<TextMeshProUGUI>();
-            x.font = TMP_Settings.defaultFontAsset; x.text = "X";
+            x.text = "X";
             x.fontSize = 20f; x.alignment = TextAlignmentOptions.Center;
             x.color = new Color(1f, 0.9f, 0.85f); x.fontStyle = FontStyles.Bold;
+            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(x);
         }
 
         // ---- shared widget helpers ----
@@ -190,9 +199,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
             rt.offsetMin = offMin; rt.offsetMax = offMax;
             var t = go.AddComponent<TextMeshProUGUI>();
-            t.font = TMP_Settings.defaultFontAsset; t.text = text; t.fontSize = size;
+            t.text = text; t.fontSize = size;
             t.alignment = align; t.color = color ?? new Color(0.96f, 0.91f, 0.76f);
             t.enableWordWrapping = true;
+            // Apply the configured Valheim/Primary font directly — ApplyValheimFontToAll is conditional
+            // (only swaps Liberation/null), so we'd be stuck with TMP's default pixel font otherwise.
+            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(t);
             return t;
         }
 
@@ -207,6 +219,19 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var img = go.GetComponent<Image>();
             img.color = color;
             return img;
+        }
+
+        /// <summary>Sets both LayoutElement min AND preferred height on a row, so the parent VerticalLayoutGroup
+        /// (with childControlHeight=true) reliably sizes the row regardless of which property Unity reads.</summary>
+        protected static void SetRowHeight(GameObject rowGo, float height)
+        {
+            var le = rowGo.GetComponent<LayoutElement>();
+            if (le == null) le = rowGo.AddComponent<LayoutElement>();
+            le.minHeight = height; le.preferredHeight = height;
+            // Belt-and-suspenders: also stamp the RectTransform height so a missing/late layout pass
+            // doesn't leave the row at sizeDelta.y=0 (the original empty-list bug 2026-06-07).
+            var rt = rowGo.GetComponent<RectTransform>();
+            if (rt != null) rt.sizeDelta = new Vector2(rt.sizeDelta.x, height);
         }
 
         protected static Button MakeButton(Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,
@@ -226,9 +251,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
             lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
             var t = labelGo.AddComponent<TextMeshProUGUI>();
-            t.font = TMP_Settings.defaultFontAsset; t.text = label; t.fontSize = fontSize;
+            t.text = label; t.fontSize = fontSize;
             t.alignment = TextAlignmentOptions.Center;
             t.color = new Color(0.96f, 0.91f, 0.76f);
+            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(t);
             return btn;
         }
 

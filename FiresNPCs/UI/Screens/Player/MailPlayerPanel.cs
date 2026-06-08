@@ -129,7 +129,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.GetComponent<Image>().color = msg == _selected
                 ? new Color(0.32f, 0.22f, 0.10f, 0.95f)
                 : new Color(0.12f, 0.10f, 0.06f, 0.85f);
-            rowGo.GetComponent<LayoutElement>().minHeight = 48f;
+            SetRowHeight(rowGo, 48f);
             rowGo.GetComponent<Button>().onClick.AddListener(() => { SelectMessage(msg); Refresh(); });
 
             MakeLabel(rowGo.transform, msg.Subject,
@@ -170,7 +170,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var rowGo = new GameObject("Att_" + att.Prefab, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             rowGo.transform.SetParent(_attachmentList, false);
             rowGo.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            rowGo.GetComponent<LayoutElement>().minHeight = 24f;
+            SetRowHeight(rowGo, 24f);
             MakeLabel(rowGo.transform, att.Prefab + "  x" + att.Count,
                       new Vector2(0f, 0f), new Vector2(1f, 1f),
                       new Vector2(8f, 0f), new Vector2(-8f, 0f),

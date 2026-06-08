@@ -160,7 +160,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var rowGo = new GameObject("Trans_" + t.Prefab, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             rowGo.transform.SetParent(_availableContent, false);
             rowGo.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            rowGo.GetComponent<LayoutElement>().minHeight = 28f;
+            SetRowHeight(rowGo, 28f);
 
             MakeLabel(rowGo.transform, t.Prefab,                          new Vector2(0.01f, 0f), new Vector2(0.55f, 1f), Vector2.zero, Vector2.zero, size: 13f);
             MakeLabel(rowGo.transform, t.PricePrefab + " x" + t.PriceAmount, new Vector2(0.56f, 0f), new Vector2(0.83f, 1f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));

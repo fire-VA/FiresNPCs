@@ -101,9 +101,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var trt = textGo.GetComponent<RectTransform>();
             trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
             var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.font = TMP_Settings.defaultFontAsset;
             txt.fontSize = 14f; txt.color = new Color(0.96f, 0.91f, 0.76f);
             txt.alignment = TextAlignmentOptions.Left;
+            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(txt);
 
             input.textViewport = vrt; input.textComponent = txt;
             input.lineType = TMP_InputField.LineType.SingleLine;
@@ -156,7 +156,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var rowGo = new GameObject("Listing_" + l.ItemPrefab, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             rowGo.transform.SetParent(_listingContent, false);
             rowGo.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            rowGo.GetComponent<LayoutElement>().minHeight = 30f;
+            SetRowHeight(rowGo, 30f);
 
             MakeLabel(rowGo.transform, l.ItemPrefab,           new Vector2(0.02f, 0f), new Vector2(0.40f, 1f), Vector2.zero, Vector2.zero, size: 13f);
             MakeLabel(rowGo.transform, l.Count.ToString(),      new Vector2(0.42f, 0f), new Vector2(0.54f, 1f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center);

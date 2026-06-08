@@ -245,7 +245,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.GetComponent<Image>().color = isMe
                 ? new Color(0.32f, 0.22f, 0.10f, 0.95f)
                 : new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            rowGo.GetComponent<LayoutElement>().minHeight = 26f;
+            SetRowHeight(rowGo, 26f);
             var nameColor = isMe ? new Color(1f, 0.95f, 0.55f) : new Color(0.96f, 0.91f, 0.76f);
             string[] vals = {
                 rank.ToString(),
@@ -299,7 +299,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.GetComponent<Image>().color = done
                 ? new Color(0.12f, 0.20f, 0.10f, 0.92f)
                 : new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            rowGo.GetComponent<LayoutElement>().minHeight = 56f;
+            SetRowHeight(rowGo, 56f);
 
             MakeLabel(rowGo.transform, (done ? "[X] " : "[  ] ") + def.Name,
                       new Vector2(0.02f, 0.55f), new Vector2(0.50f, 0.95f), Vector2.zero, Vector2.zero,
