@@ -56,22 +56,33 @@ namespace FiresRPGmaker.Modules.Marketplace
             if (_migrated.Contains(moduleFolder)) return;
             _migrated.Add(moduleFolder);
             if (!_legacyByCurrent.TryGetValue(moduleFolder, out string legacyName)) return;
-            string legacy = Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", legacyName);
-            if (!Directory.Exists(legacy)) return;
-            try
+
+            // Try TWO legacy locations: the original BepInEx/config/firesnpcs/<oldname>/ (pre-2026-06-08)
+            // AND BepInEx/config/FiresRPGmaker/<oldname>/ (where the user manually parked files).
+            string[] legacyRoots = {
+                Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs",     legacyName),
+                Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", legacyName),
+            };
+
+            try { Directory.CreateDirectory(dst); } catch { }
+            int totalMoved = 0;
+            foreach (var legacy in legacyRoots)
             {
-                Directory.CreateDirectory(dst);
-                int moved = 0;
-                foreach (var f in Directory.GetFiles(legacy, "*.cfg"))
+                if (!Directory.Exists(legacy) || string.Equals(legacy, dst, System.StringComparison.OrdinalIgnoreCase)) continue;
+                try
                 {
-                    string dstFile = Path.Combine(dst, Path.GetFileName(f));
-                    if (!File.Exists(dstFile)) { File.Move(f, dstFile); moved++; }
-                    else { File.Delete(f); }
+                    foreach (var f in Directory.GetFiles(legacy, "*.cfg"))
+                    {
+                        string dstFile = Path.Combine(dst, Path.GetFileName(f));
+                        if (!File.Exists(dstFile)) { File.Move(f, dstFile); totalMoved++; }
+                        else { File.Delete(f); }
+                    }
+                    try { if (Directory.GetFiles(legacy).Length == 0) Directory.Delete(legacy, recursive: false); } catch { }
                 }
-                Debug.Log("[MarketplacePaths] migrated " + moved + " .cfg(s) from firesnpcs/" + legacyName + " -> FiresRPGmaker/" + moduleFolder);
-                try { if (Directory.GetFiles(legacy).Length == 0) Directory.Delete(legacy, recursive: false); } catch { }
+                catch (System.Exception ex) { Debug.LogError("[MarketplacePaths] migrate from " + legacy + " failed: " + ex.Message); }
             }
-            catch (System.Exception ex) { Debug.LogError("[MarketplacePaths] migration " + moduleFolder + " failed: " + ex.Message); }
+            if (totalMoved > 0)
+                Debug.Log("[MarketplacePaths] migrated " + totalMoved + " .cfg(s) -> FiresRPGmaker/" + moduleFolder);
         }
     }
 }

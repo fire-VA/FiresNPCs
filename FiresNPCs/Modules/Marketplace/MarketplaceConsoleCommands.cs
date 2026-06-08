@@ -38,6 +38,25 @@ namespace FiresRPGmaker.Modules.Marketplace
                 optionsFetcher: () => new System.Collections.Generic.List<string>
                 { "gambler", "marketplace", "achievement", "leaderboard", "mail", "transmog", "banker", "all" });
 
+            // Achievement + Leaderboard are GLOBAL (not NPC-tied as of 2026-06-08). Console openers — we'll
+            // also add a journal entry as the proper opener once the journal screen is touched.
+            new Terminal.ConsoleCommand("firesnpcs_leaderboard",
+                "[optional profile name] - opens the Leaderboard panel on the Stats tab",
+                args =>
+                {
+                    string profile = args.Length > 1 ? args[1] : "example";
+                    global::FiresRPGmaker.UI.Screens.PlayerPanels.LeaderboardPlayerPanel.Show(
+                        profile, "Leaderboard",
+                        global::FiresRPGmaker.UI.Screens.PlayerPanels.LeaderboardPlayerPanel.InnerTab.Stats);
+                });
+            new Terminal.ConsoleCommand("firesnpcs_achievements",
+                "[optional profile name] - opens the Leaderboard panel on the Achievements tab",
+                args =>
+                {
+                    string profile = args.Length > 1 ? args[1] : "example";
+                    global::FiresRPGmaker.UI.Screens.PlayerPanels.AchievementPlayerPanel.Show(profile, "Achievements");
+                });
+
             // Copy KG Marketplace .cfg files into our FiresRPGmaker/<Module>/ folders. Path arg is the KG
             // Marketplace\Configs folder; defaults to the standard dedicated-server install location.
             new Terminal.ConsoleCommand("firesnpcs_import_kg",

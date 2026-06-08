@@ -140,7 +140,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (profile == null)
             {
                 _profileSummary.text = "Profile '" + _profileName + "' not loaded.";
-                _statusText.text = "Drop a .cfg into config\\firesnpcs\\banker\\ then use the admin Apply button to reload.";
+                string loaded = string.Join(", ", BankerProfileManager.AllProfileNames);
+                _statusText.text = (string.IsNullOrEmpty(loaded) ? "No profiles loaded yet. " : "Loaded profiles: " + loaded + ". ")
+                                 + "Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Bankers\\ and run firesnpcs_reload banker.";
                 return;
             }
             _profileSummary.text = "Interest: " + profile.InterestPerMinute.ToString("0.##") + "% / min  -  " + profile.CurrencyLimits.Count + " accepted currency(ies)";

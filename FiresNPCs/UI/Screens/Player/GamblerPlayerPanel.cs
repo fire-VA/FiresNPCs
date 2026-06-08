@@ -107,7 +107,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (profile == null)
             {
                 _costText.text = "Profile '" + _profileName + "' not loaded.";
-                if (_resultText != null) _resultText.text = "Drop a .cfg into config\\firesnpcs\\gambler\\ and use Apply on the admin tab to reload.";
+                string loaded = string.Join(", ", GamblerProfileManager.AllProfileNames);
+                if (_resultText != null)
+                    _resultText.text = (string.IsNullOrEmpty(loaded) ? "No profiles loaded yet. " : "Loaded profiles: " + loaded + ". ")
+                                     + "Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Gamblers\\ and run firesnpcs_reload gambler.";
                 if (_rollButton != null) _rollButton.interactable = false;
                 return;
             }

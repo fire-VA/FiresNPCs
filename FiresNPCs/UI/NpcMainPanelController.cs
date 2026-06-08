@@ -114,15 +114,14 @@ namespace FiresRPGmaker.UI
 
         // Single source of truth for the 6 v1-stub modules. Order = visual order in the 2nd tab row.
         // Adding a new module = add an entry here + a corresponding ScreenMode case in PanelElementManager.
-        // Row-2 tab labels intentionally drop the "Npc" suffix that row-1 carries — with 6 cells competing
-        // for the same panel width, every extra glyph clips ("Leaderboard Npc" wrapped/truncated in v1).
+        // Per 2026-06-08 feedback: Achievement + Leaderboard are NOT NPC-tied — they're global UIs opened
+        // from the quest journal / a console command, NOT something an admin assigns per NPC. Dropped them
+        // from this admin-tab table. Their data managers + the merged panel still exist for the global open.
         private static readonly (NpcType Type, string FieldName, string Label,
                                  string ScreenName, string ApplyName, string TabLabel)[] EXTRA_MODULES =
         {
             (NpcType.Gambler,     "gamblerProfile",     "Gambler",     "GamblerConfigScreen",     "GamblerApplyButton",     "Gambler"),
             (NpcType.Marketplace, "marketplaceProfile", "Marketplace", "MarketplaceConfigScreen", "MarketplaceApplyButton", "Market"),
-            (NpcType.Achievement, "achievementProfile", "Achievement", "AchievementConfigScreen", "AchievementApplyButton", "Achieve"),
-            (NpcType.Leaderboard, "leaderboardProfile", "Leaderboard", "LeaderboardConfigScreen", "LeaderboardApplyButton", "Leaders"),
             (NpcType.Mail,        "mailProfile",        "Mail",        "MailConfigScreen",        "MailApplyButton",        "Mail"),
             (NpcType.Transmog,    "transmogProfile",    "Transmog",    "TransmogConfigScreen",    "TransmogApplyButton",    "Transmog"),
         };

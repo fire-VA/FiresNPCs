@@ -934,10 +934,14 @@ HandleInfoNpcInteraction(player);
       break;
       case NpcType.Gambler:      Screens.PlayerPanels.GamblerPlayerPanel.Show(gamblerProfile, GetDisplayName());           break;
       case NpcType.Marketplace:  Screens.PlayerPanels.MarketplacePlayerPanel.Show(marketplaceProfile, GetDisplayName());   break;
-      case NpcType.Achievement:  Screens.PlayerPanels.AchievementPlayerPanel.Show(achievementProfile, GetDisplayName());   break;
-      case NpcType.Leaderboard:  Screens.PlayerPanels.LeaderboardPlayerPanel.Show(leaderboardProfile, GetDisplayName());   break;
       case NpcType.Mail:         Screens.PlayerPanels.MailPlayerPanel.Show(mailProfile, GetDisplayName());                 break;
       case NpcType.Transmog:     Screens.PlayerPanels.TransmogPlayerPanel.Show(transmogProfile, GetDisplayName());         break;
+      // Achievement + Leaderboard NPC types are legacy — global panels now. If an old NPC still has the
+      // type stored on its ZDO, just fall through to the admin panel as a stub.
+      case NpcType.Achievement:
+      case NpcType.Leaderboard:
+          NpcMainPanelController.ShowForNpc(this);
+      break;
           default:
                  NpcMainPanelController.ShowForNpc(this);
    break;
