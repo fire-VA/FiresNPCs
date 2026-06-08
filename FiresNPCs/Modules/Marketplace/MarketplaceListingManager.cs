@@ -72,6 +72,19 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         public static IEnumerable<string> GetLoadedProfileNames() { EnsureLoaded(); return _listingsByProfile.Keys; }
 
+        public static void AddListing(string profile, MarketplaceListing l)
+        {
+            EnsureLoaded();
+            if (string.IsNullOrEmpty(profile)) return;
+            string key = profile.ToLowerInvariant();
+            if (!_listingsByProfile.TryGetValue(key, out var pool))
+            {
+                pool = new List<MarketplaceListing>();
+                _listingsByProfile[key] = pool;
+            }
+            pool.Add(l);
+        }
+
         public static void RemoveListing(string profile, MarketplaceListing l)
         {
             EnsureLoaded();

@@ -37,6 +37,31 @@ namespace FiresRPGmaker.Modules.Marketplace
                 },
                 optionsFetcher: () => new System.Collections.Generic.List<string>
                 { "gambler", "marketplace", "achievement", "leaderboard", "mail", "transmog", "banker", "all" });
+
+            // Force-regenerate example.cfg files from the latest in-code templates. Wipes user edits to
+            // example.cfg specifically — useful when a sample profile's header (e.g. [basic] -> [example])
+            // changes shape and the stale file would otherwise be kept.
+            new Terminal.ConsoleCommand("firesnpcs_reset_examples",
+                "- delete every config\\firesnpcs\\<module>\\example.cfg and regenerate the latest sample",
+                args =>
+                {
+                    int deleted = DeleteExampleFiles();
+                    int reloaded = ReloadModule("all"); // triggers WriteExampleProfile for each missing example
+                    args.Context.AddString("[firesnpcs] reset " + deleted + " example.cfg file(s), reloaded " + reloaded + " module(s).");
+                });
+        }
+
+        private static int DeleteExampleFiles()
+        {
+            int n = 0;
+            string root = System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs");
+            if (!System.IO.Directory.Exists(root)) return 0;
+            foreach (var dir in System.IO.Directory.GetDirectories(root))
+            {
+                var f = System.IO.Path.Combine(dir, "example.cfg");
+                if (System.IO.File.Exists(f)) { try { System.IO.File.Delete(f); n++; } catch { } }
+            }
+            return n;
         }
 
         private static int ReloadModule(string which)

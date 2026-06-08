@@ -138,6 +138,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             };
 
             foreach (var listing in rows) BuildRow(listing);
+            ReflowScroll(_listingContent);
 
             _statusText.text = rows.Count + " listing(s)  -  Tab: " + _currentTab;
         }
@@ -163,19 +164,38 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             MakeLabel(rowGo.transform, l.Price + " " + l.Currency, new Vector2(0.56f, 0f), new Vector2(0.72f, 1f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
             MakeLabel(rowGo.transform, l.SellerName,            new Vector2(0.74f, 0f), new Vector2(0.88f, 1f), Vector2.zero, Vector2.zero, size: 13f);
 
-            var actionBtn = MakeButton(rowGo.transform, _currentTab == Tab.MyListings ? "Cancel" : "Buy",
+            string btnLabel = _currentTab switch { Tab.MyListings => "Cancel", Tab.Sell => "List", _ => "Buy" };
+            Color btnColor = _currentTab switch
+            {
+                Tab.MyListings => new Color(0.4f, 0.18f, 0.10f, 0.95f),
+                Tab.Sell       => new Color(0.42f, 0.30f, 0.15f, 0.95f),
+                _              => new Color(0.22f, 0.42f, 0.22f, 0.95f),
+            };
+            var actionBtn = MakeButton(rowGo.transform, btnLabel,
                                        new Vector2(0.89f, 0.15f), new Vector2(0.99f, 0.85f),
-                                       Vector2.zero, Vector2.zero,
-                                       bgColor: _currentTab == Tab.MyListings
-                                                ? new Color(0.4f, 0.18f, 0.10f, 0.95f)
-                                                : new Color(0.22f, 0.42f, 0.22f, 0.95f),
-                                       fontSize: 12f);
+                                       Vector2.zero, Vector2.zero, bgColor: btnColor, fontSize: 12f);
             actionBtn.onClick.AddListener(() =>
             {
                 if (_currentTab == Tab.MyListings)
                 {
                     MarketplaceListingManager.RemoveListing(_profileName, l);
                     _statusText.text = "Cancelled listing for " + l.ItemPrefab + ".";
+                    Refresh();
+                    return;
+                }
+                if (_currentTab == Tab.Sell)
+                {
+                    var sellPlayer = Player.m_localPlayer; if (sellPlayer == null) { _statusText.text = "No active player."; return; }
+                    var sellInv = sellPlayer.GetInventory();
+                    if (!ConsumeFromInventory(sellInv, l.ItemPrefab, l.Count))
+                    { _statusText.text = "Couldn't consume " + l.ItemPrefab + " from inventory."; return; }
+                    MarketplaceListingManager.AddListing(_profileName, new MarketplaceListing
+                    {
+                        Currency = l.Currency, Price = l.Price,
+                        ItemPrefab = l.ItemPrefab, Count = l.Count,
+                        SellerName = l.SellerName, SellerId = l.SellerId,
+                    });
+                    _statusText.text = "Listed " + l.Count + "x " + l.ItemPrefab + " for " + l.Price + " " + l.Currency + ".";
                     Refresh();
                     return;
                 }

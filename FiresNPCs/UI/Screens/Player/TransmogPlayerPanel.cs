@@ -152,6 +152,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 return;
             }
             foreach (var t in available) BuildAvailableRow(t);
+            ReflowScroll(_availableContent);
             _statusText.text = "Slot: " + _selectedSlot + "  -  " + available.Count + " option(s)";
         }
 

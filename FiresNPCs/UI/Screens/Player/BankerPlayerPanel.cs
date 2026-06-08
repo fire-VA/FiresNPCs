@@ -150,6 +150,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             {
                 BuildRow(kv.Key, BankerBalanceStore.Get(playerName, kv.Key), kv.Value);
             }
+            ReflowScroll(_rowContent);
         }
 
         private void BuildRow(string currency, int balance, int limit)

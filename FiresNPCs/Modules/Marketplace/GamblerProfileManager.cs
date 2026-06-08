@@ -130,7 +130,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "# Format: [profilename] header (optionally =MAXROLLS), then comma-separated PREFAB,MIN-MAX pairs.",
                 "# First pair on each line is the REQUIRED currency to pay; the rest are possible rewards.",
                 "",
-                "[basic]",
+                "[example]",
                 "Coins,10,Wood,5-15,Stone,5-15,Resin,2-6,Feathers,1-4,Flint,2-8",
                 "",
                 "[premium=3]",

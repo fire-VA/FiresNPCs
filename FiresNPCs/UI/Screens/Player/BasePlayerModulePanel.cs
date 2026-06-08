@@ -288,26 +288,53 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             crt.anchoredPosition = Vector2.zero;
             crt.sizeDelta = new Vector2(0f, 0f);
 
-            var vlg = content.AddComponent<VerticalLayoutGroup>();
-            vlg.padding = new RectOffset(padding, padding, padding, padding);
-            vlg.spacing = rowSpacing;
-            vlg.childAlignment = TextAnchor.UpperCenter;
-            // CRITICAL: childControlHeight MUST be true — otherwise the layout group uses each child's
-            // RectTransform.sizeDelta.y (which is 0 for new GameObjects) and rows render at height 0,
-            // leaving the list visually empty. With true, VLG reads LayoutElement.preferredHeight/minHeight
-            // from each row and sets the child's height accordingly. (Lesson 2026-06-07.)
-            vlg.childControlWidth = true; vlg.childControlHeight = true;
-            vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
-
-            var fitter = content.AddComponent<ContentSizeFitter>();
-            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            // Manual positioning (not VerticalLayoutGroup): VLG + ContentSizeFitter were silently leaving
+            // rows at height 0 in this layering setup. Each panel calls ReflowScroll() after adding rows
+            // to position them top-down by their LayoutElement.preferredHeight + spacing.
+            // (Stash spacing/padding on the LayoutElement of the Content rect itself so ReflowScroll
+            // can read them later without the call-sites needing to pass them.)
+            var le = content.AddComponent<LayoutElement>();
+            le.minHeight = padding * 2f;
+            le.preferredHeight = rowSpacing; // re-purposed as "row spacing" by ReflowScroll
+            le.flexibleHeight = padding;     // re-purposed as "padding"
 
             var sr = go.GetComponent<ScrollRect>();
             sr.viewport = vrt; sr.content = crt;
             sr.horizontal = false; sr.vertical = true;
             sr.scrollSensitivity = scrollSensitivity;
             return crt;
+        }
+
+        /// <summary>Call after adding/removing rows under <paramref name="content"/> (the rect returned by
+        /// <see cref="MakeVerticalScroll"/>). Positions each child top-down by its LayoutElement.preferredHeight
+        /// + the spacing/padding the scroll was built with, and resizes the content rect to fit.</summary>
+        protected static void ReflowScroll(RectTransform content)
+        {
+            if (content == null) return;
+            var meta = content.GetComponent<LayoutElement>();
+            float spacing = meta != null ? meta.preferredHeight : 4f;
+            float padding = meta != null ? meta.flexibleHeight : 6f;
+
+            float y = padding;
+            for (int i = 0; i < content.childCount; i++)
+            {
+                var child = content.GetChild(i) as RectTransform;
+                if (child == null) continue;
+                var cle = child.GetComponent<LayoutElement>();
+                float h = cle != null && cle.preferredHeight > 0 ? cle.preferredHeight
+                        : cle != null && cle.minHeight > 0 ? cle.minHeight
+                        : child.sizeDelta.y > 0 ? child.sizeDelta.y : 24f;
+
+                child.anchorMin = new Vector2(0f, 1f);
+                child.anchorMax = new Vector2(1f, 1f);
+                child.pivot = new Vector2(0.5f, 1f);
+                child.offsetMin = new Vector2(padding, child.offsetMin.y);
+                child.offsetMax = new Vector2(-padding, child.offsetMax.y);
+                child.anchoredPosition = new Vector2(0f, -y);
+                child.sizeDelta = new Vector2(-padding * 2f, h);
+                y += h + spacing;
+            }
+            content.sizeDelta = new Vector2(content.sizeDelta.x, y + padding);
         }
     }
 }

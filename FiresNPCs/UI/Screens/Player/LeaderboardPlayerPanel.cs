@@ -228,6 +228,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 BuildStatRow(rank, e, isMe);
                 rank++;
             }
+            ReflowScroll(_statsRowContent);
         }
 
         private static LeaderboardEntry ToEntry(LeaderboardTracker.Stats s) => new LeaderboardEntry
@@ -289,6 +290,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 total += def.Score; if (done) earned += def.Score;
                 BuildAchRow(def, progress, done);
             }
+            ReflowScroll(_achRowContent);
             _achSummary.text = "Unlocked: " + unlocked + "/" + defs.Count + "  -  Score: " + earned + "/" + total;
         }
 

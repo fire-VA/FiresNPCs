@@ -123,11 +123,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 rowGo.GetComponent<Image>().color = new Color(0.12f, 0.10f, 0.06f, 0.85f);
                 SetRowHeight(rowGo, 26f);
 
-                var t = MakeLabel(rowGo.transform, item.Prefab + "  x" + item.Min + (item.Min == item.Max ? "" : "-" + item.Max),
-                                  new Vector2(0f, 0f), new Vector2(1f, 1f),
-                                  new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                  size: 13f);
+                MakeLabel(rowGo.transform, item.Prefab + "  x" + item.Min + (item.Min == item.Max ? "" : "-" + item.Max),
+                          new Vector2(0f, 0f), new Vector2(1f, 1f),
+                          new Vector2(8f, 0f), new Vector2(-8f, 0f),
+                          size: 13f);
             }
+            ReflowScroll(_rewardList);
         }
 
         private void OnRollClicked()

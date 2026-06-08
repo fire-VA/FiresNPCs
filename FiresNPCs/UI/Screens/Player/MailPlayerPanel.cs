@@ -119,6 +119,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 return;
             }
             foreach (var msg in inbox) BuildInboxRow(msg);
+            ReflowScroll(_inboxContent);
             if (_selected == null) SelectMessage(inbox[0]);
         }
 
@@ -156,6 +157,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _detailBody.text = msg.Body;
             ClearAttachments();
             foreach (var att in msg.Attachments) BuildAttachmentRow(att);
+            ReflowScroll(_attachmentList);
             _statusText.text = msg.Attachments.Count + " attachment(s)";
         }
 
