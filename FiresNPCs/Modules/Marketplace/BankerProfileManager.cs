@@ -65,7 +65,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             Debug.Log("[BankerProfileManager] Loaded " + _profiles.Count + " profile(s)");
         }
 
-        public static string GetProfileFolder() => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "banker");
+        public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Bankers);
 
         private static void LoadOne(string file)
         {

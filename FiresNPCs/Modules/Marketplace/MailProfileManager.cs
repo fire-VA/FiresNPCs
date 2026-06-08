@@ -68,7 +68,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                       + " message(s) across " + _byProfile.Count + " profile(s)");
         }
 
-        public static string GetProfileFolder() => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "mail");
+        public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Mail);
 
         private static void LoadOne(string file)
         {

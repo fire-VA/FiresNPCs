@@ -79,7 +79,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                       + " entry(ies) across " + _byProfile.Count + " profile(s)");
         }
 
-        public static string GetProfileFolder() => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "leaderboard");
+        public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Leaderboard);
 
         private static void LoadOne(string file)
         {

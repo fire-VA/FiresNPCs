@@ -118,7 +118,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             Debug.Log("[MarketplaceListingManager] Loaded " + totalRows + " sample listing(s) across " + _listingsByProfile.Count + " profile(s) from " + folder);
         }
 
-        public static string GetProfileFolder() => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "marketplace");
+        public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Marketplace);
 
         private static void LoadOne(string file)
         {

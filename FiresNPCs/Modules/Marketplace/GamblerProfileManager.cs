@@ -73,10 +73,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             Debug.Log("[GamblerProfileManager] Loaded " + _profiles.Count + " profile(s) from " + folder);
         }
 
-        public static string GetProfileFolder()
-        {
-            return Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "gambler");
-        }
+        public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Gamblers);
 
         private static void LoadOne(string file)
         {

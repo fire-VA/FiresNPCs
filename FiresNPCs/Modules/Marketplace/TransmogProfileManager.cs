@@ -62,7 +62,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                       + " transmog(s) across " + _byProfile.Count + " profile(s)");
         }
 
-        public static string GetProfileFolder() => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "transmog");
+        public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Transmogs);
 
         private static void LoadOne(string file)
         {

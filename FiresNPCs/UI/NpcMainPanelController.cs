@@ -144,24 +144,38 @@ namespace FiresRPGmaker.UI
                     if (btn != null) _moduleTabs[m.Type] = btn;
                 }
             }
-            ShimDetailPanelForRow2();
+            EnsureTabsBarGrid();
             Debug.Log("[NpcMainPanelController] Wired " + _moduleScreens.Count + " extra module screens + " + _moduleTabs.Count + " extra tabs");
         }
 
-        /// <summary>Pushes DetailPanel's top edge DOWN past row 2 so the form fields (Npc Name / Profile /
-        /// Model Override) don't render behind the Gambler/Market/etc. tab buttons. Row 2 is parented
-        /// under TabsBar (sibling of DetailPanel), so without this DetailPanel reaches its baked top
-        /// position which overlaps the row-2 cells.</summary>
-        private void ShimDetailPanelForRow2()
+        /// <summary>Replaces TabsBar's existing HorizontalLayoutGroup (if any) with a GridLayoutGroup
+        /// constrained to 6 columns + 2 rows. All 11 tabs (5 baked + Banker + 6 module clones) share
+        /// TabsBar's existing footprint, so DetailPanel doesn't need to move. Idempotent.</summary>
+        private void EnsureTabsBarGrid()
         {
-            if (detailPanel == null || _tabsRow2 == null) return;
-            var rt = detailPanel.GetComponent<RectTransform>(); if (rt == null) return;
-            var row2rt = _tabsRow2.GetComponent<RectTransform>();
-            float row2H = row2rt != null && row2rt.rect.height > 0 ? row2rt.rect.height : 48f;
-            // Shrink DetailPanel's top by row 2 height + a small gap. offsetMax.y is negative-from-parent-top,
-            // so MORE negative = lower top edge.
-            float shimY = row2H + 14f;
-            if (rt.offsetMax.y > -shimY) rt.offsetMax = new Vector2(rt.offsetMax.x, -shimY);
+            if (traderTabButton == null) return;
+            var tabsBar = traderTabButton.transform.parent; if (tabsBar == null) return;
+            var tbrt = tabsBar.GetComponent<RectTransform>(); if (tbrt == null) return;
+
+            var hlg = tabsBar.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            if (hlg != null) DestroyImmediate(hlg);
+
+            var grid = tabsBar.GetComponent<UnityEngine.UI.GridLayoutGroup>();
+            if (grid == null) grid = tabsBar.gameObject.AddComponent<UnityEngine.UI.GridLayoutGroup>();
+            grid.startCorner = UnityEngine.UI.GridLayoutGroup.Corner.UpperLeft;
+            grid.startAxis = UnityEngine.UI.GridLayoutGroup.Axis.Horizontal;
+            grid.childAlignment = TextAnchor.UpperCenter;
+            grid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 6;
+            grid.padding = new RectOffset(4, 4, 2, 2);
+            grid.spacing = new Vector2(4f, 4f);
+
+            // Cell size = fit 6 columns x 2 rows into TabsBar minus padding/spacing.
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(tbrt);
+            float w = Mathf.Max(60f, (tbrt.rect.width  - 8f - 5 * 4f) / 6f);
+            float h = Mathf.Max(22f, (tbrt.rect.height - 4f - 1 * 4f) / 2f);
+            grid.cellSize = new Vector2(w, h);
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(tbrt);
         }
 
         /// <summary>Returns the (lazily-created) 2nd tab-row Transform — a sibling of TabsBar placed directly below it.
@@ -216,13 +230,13 @@ namespace FiresRPGmaker.UI
             return _tabsRow2;
         }
 
-        /// <summary>Clones traderTabButton into the 2nd tab row, renames + relabels it, wires the click,
-        /// and registers a tab highlight so the orange active-border treatment matches the row-1 tabs.</summary>
+        /// <summary>Clones traderTabButton as a sibling under TabsBar, renames + relabels it, wires the click,
+        /// and registers a tab highlight so the orange active-border treatment matches the baked tabs.
+        /// EnsureTabsBarGrid() positions every child into a grid afterwards.</summary>
         private Button CreateExtraTab(NpcType type, string tabLabel)
         {
             if (traderTabButton == null) return null;
-            var row = EnsureTabsRow2();
-            var clone = Instantiate(traderTabButton.gameObject, row);
+            var clone = Instantiate(traderTabButton.gameObject, traderTabButton.transform.parent);
             clone.name = tabLabel.Replace(" ", "") + "TabButton";
 
             // The trader clone copies its inner highlight GameObject (created at runtime by

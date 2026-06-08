@@ -38,15 +38,15 @@ namespace FiresRPGmaker.Modules.Marketplace
                 optionsFetcher: () => new System.Collections.Generic.List<string>
                 { "gambler", "marketplace", "achievement", "leaderboard", "mail", "transmog", "banker", "all" });
 
-            // Copy KG Marketplace .cfg files into our firesnpcs/<module>/ folders. Path arg is the KG
+            // Copy KG Marketplace .cfg files into our FiresRPGmaker/<Module>/ folders. Path arg is the KG
             // Marketplace\Configs folder; defaults to the standard dedicated-server install location.
             new Terminal.ConsoleCommand("firesnpcs_import_kg",
-                "[optional path to Marketplace\\Configs] - copy KG Marketplace .cfg files into firesnpcs folders + reload",
+                "[optional path to Marketplace\\Configs] - copy KG Marketplace .cfg files into FiresRPGmaker folders + reload",
                 args =>
                 {
                     string src = args.Length > 1 ? string.Join(" ", args.Args, 1, args.Args.Length - 1)
                                                  : @"C:\Program Files (x86)\Steam\steamapps\common\Valheim dedicated server\BepInEx\config\Marketplace\Configs";
-                    int copied = ImportKGConfigs(src);
+                    int copied = ImportKGConfigs(src, line => args.Context.AddString("[firesnpcs] " + line));
                     int reloaded = ReloadModule("all");
                     args.Context.AddString("[firesnpcs] imported " + copied + " KG file(s) from '" + src + "', reloaded " + reloaded + " module(s).");
                 });
@@ -64,33 +64,34 @@ namespace FiresRPGmaker.Modules.Marketplace
                 });
         }
 
+        // KG subfolder name -> our subfolder name (both relative to their respective config roots).
+        // Same on both sides since MarketplacePaths uses KG-aligned folder names.
         private static readonly (string KgFolder, string OurFolder)[] _kgFolderMap = {
-            ("Bankers",                  "banker"),
-            ("Gamblers",                 "gambler"),
-            ("LeaderboardAchievements",  "achievement"),
-            ("Transmogrifications",      "transmog"),
+            (MarketplacePaths.Bankers,      MarketplacePaths.Bankers),
+            (MarketplacePaths.Gamblers,     MarketplacePaths.Gamblers),
+            (MarketplacePaths.Achievements, MarketplacePaths.Achievements),
+            (MarketplacePaths.Transmogs,    MarketplacePaths.Transmogs),
         };
 
-        private static int ImportKGConfigs(string srcRoot)
+        public static int ImportKGConfigs(string srcRoot, System.Action<string> log = null)
         {
             int n = 0;
+            void Say(string s) { (log ?? (l => UnityEngine.Debug.Log("[firesnpcs_import_kg] " + l)))(s); }
             if (string.IsNullOrEmpty(srcRoot) || !System.IO.Directory.Exists(srcRoot))
-            {
-                UnityEngine.Debug.LogWarning("[firesnpcs_import_kg] source folder not found: " + srcRoot);
-                return 0;
-            }
+            { Say("source folder not found: " + srcRoot); return 0; }
             foreach (var (kg, ours) in _kgFolderMap)
             {
                 string srcDir = System.IO.Path.Combine(srcRoot, kg);
-                if (!System.IO.Directory.Exists(srcDir)) continue;
-                string dstDir = System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", ours);
-                System.IO.Directory.CreateDirectory(dstDir);
-                foreach (var f in System.IO.Directory.GetFiles(srcDir, "*.cfg", System.IO.SearchOption.TopDirectoryOnly))
+                if (!System.IO.Directory.Exists(srcDir)) { Say("skip " + kg + " (no source folder)"); continue; }
+                string dstDir = MarketplacePaths.GetFolder(ours);
+                var files = System.IO.Directory.GetFiles(srcDir, "*.cfg", System.IO.SearchOption.TopDirectoryOnly);
+                foreach (var f in files)
                 {
                     string dst = System.IO.Path.Combine(dstDir, System.IO.Path.GetFileName(f));
                     try { System.IO.File.Copy(f, dst, overwrite: true); n++; }
-                    catch (System.Exception ex) { UnityEngine.Debug.LogError("[firesnpcs_import_kg] " + f + ": " + ex.Message); }
+                    catch (System.Exception ex) { Say(System.IO.Path.GetFileName(f) + " -> error " + ex.Message); }
                 }
+                Say(kg + ": " + files.Length + " file(s) copied -> " + dstDir);
             }
             return n;
         }

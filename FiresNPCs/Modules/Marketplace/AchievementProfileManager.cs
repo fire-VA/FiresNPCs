@@ -66,7 +66,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                       + " achievement(s) across " + _byProfile.Count + " profile(s)");
         }
 
-        public static string GetProfileFolder() => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "achievement");
+        public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Achievements);
 
         private static void LoadOne(string file)
         {
