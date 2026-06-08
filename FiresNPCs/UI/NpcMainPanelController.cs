@@ -165,8 +165,10 @@ namespace FiresRPGmaker.UI
             rowGo.transform.SetParent(tabsBar, false);
             var rrt = rowGo.GetComponent<RectTransform>();
             var tbrt = tabsBar.GetComponent<RectTransform>();
-            const float rowHpx = 36f;
-            const float gapPx = 8f;
+            // Row 1's baked tabs are ~48px tall — row 2 needs at least that much clearance plus a real gap
+            // or the tops of row 2 buttons jam under row 1's bottoms (seen 2026-06-07).
+            const float rowHpx = 48f;
+            const float gapPx = 22f;
             rrt.anchorMin = new Vector2(0f, 0f);
             rrt.anchorMax = new Vector2(1f, 0f);
             rrt.pivot = new Vector2(0.5f, 1f);

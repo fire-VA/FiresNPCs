@@ -392,6 +392,11 @@ public static bool IsCustomPanelOpen()
         Screens.TraderUIController.Instance.IsVisible)
         return true;
 
+    // Check Marketplace-module player panels (Banker, Gambler, Marketplace, Achievement, Leaderboard,
+    // Mail, Transmog). The base panel maintains a static AnyOpen counter on Open/Close.
+    if (Screens.PlayerPanels.BasePlayerModulePanel.AnyOpen)
+        return true;
+
     // Check Help panel
     if (FiresCore.Help.HelpPanel.Instance != null &&
         FiresCore.Help.HelpPanel.Instance.IsVisible)

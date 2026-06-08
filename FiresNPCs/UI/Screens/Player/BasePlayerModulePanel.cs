@@ -21,6 +21,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected TMP_Text _subtitleText;
         private bool _built;
 
+        // Static "any panel open" registry — read by GUIManager.IsCustomPanelOpen so the existing
+        // PlayerInputPatches block movement/camera/M-key while one of these panels is on screen.
+        private static int _openCount;
+        public static bool AnyOpen => _openCount > 0;
+
         protected abstract string PanelTitle { get; }
         protected virtual Vector2 PanelSize => new Vector2(720f, 520f);
 
@@ -33,21 +38,42 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_subtitleText != null)
                 _subtitleText.text = npcDisplayName + "  -  Profile: " + (string.IsNullOrEmpty(profileName) ? "<none>" : profileName);
             OnOpen(profileName, npcDisplayName);
+            bool wasOpen = _panelGo.activeSelf;
             _panelGo.SetActive(true);
-            try { GUIManager.BlockInput(true); } catch { }
+            if (!wasOpen)
+            {
+                _openCount++;
+                try { GUIManager.BlockInput(true); } catch { }
+            }
+            // Re-apply Valheim font on every open — TMP can re-substitute its default after scene loads.
+            try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
         }
 
         public void Close()
         {
-            if (_panelGo != null) _panelGo.SetActive(false);
-            try { GUIManager.BlockInput(false); } catch { }
+            if (_panelGo == null || !_panelGo.activeSelf) return;
+            _panelGo.SetActive(false);
+            _openCount = Mathf.Max(0, _openCount - 1);
+            if (_openCount == 0)
+            {
+                try { GUIManager.BlockInput(false); } catch { }
+            }
         }
 
         public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
 
         protected virtual void Update()
         {
-            if (IsOpen && Input.GetKeyDown(KeyCode.Escape)) Close();
+            if (!IsOpen) return;
+            if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+            // Per-frame cursor keep-alive — Valheim's Hud.Update / GUIManager hide the cursor again on
+            // every frame, so a one-shot Cursor.visible=true in BlockInput isn't enough. Force it while
+            // a player panel is open.
+            if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
+            {
+                Cursor.visible = true;
+                Cursor.lockState = CursorLockMode.None;
+            }
         }
 
         private void EnsureBuilt()
@@ -56,6 +82,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _built = true;
             BuildShell();
             BuildContent(_contentArea);
+        }
+
+        // Re-apply Valheim font lazily after the build pass so every child Text/TMP picks it up.
+        private void EnsureValheimFont()
+        {
+            try { if (_panelGo != null) GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
         }
 
         private void BuildShell()
@@ -234,7 +266,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             vlg.padding = new RectOffset(padding, padding, padding, padding);
             vlg.spacing = rowSpacing;
             vlg.childAlignment = TextAnchor.UpperCenter;
-            vlg.childControlWidth = true; vlg.childControlHeight = false;
+            // CRITICAL: childControlHeight MUST be true — otherwise the layout group uses each child's
+            // RectTransform.sizeDelta.y (which is 0 for new GameObjects) and rows render at height 0,
+            // leaving the list visually empty. With true, VLG reads LayoutElement.preferredHeight/minHeight
+            // from each row and sets the child's height accordingly. (Lesson 2026-06-07.)
+            vlg.childControlWidth = true; vlg.childControlHeight = true;
             vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
 
             var fitter = content.AddComponent<ContentSizeFitter>();

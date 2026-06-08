@@ -35,5 +35,28 @@ namespace FiresRPGmaker.UI.Patches
         {
             return !GUIManager.ShouldBlockGameInput();
         }
+
+    }
+
+    /// <summary>
+    /// Client-only input gates added 2026-06-07: M key (Minimap) and TAB (Inventory) are not routed
+    /// through Player.TakeInput, so typing into a text field while a custom UI panel is open used to
+    /// pop the map/inventory underneath. These prefixes short-circuit those Update bodies while a panel
+    /// is registered with GUIManager.
+    /// </summary>
+    [HarmonyPatch]
+    public static class ClientInputGatePatches
+    {
+        [HarmonyPatch(typeof(Minimap), "Update")]
+        [HarmonyPrefix]
+        private static bool Minimap_Update_Prefix() => !GUIManager.ShouldBlockGameInput();
+
+        [HarmonyPatch(typeof(InventoryGui), "Update")]
+        [HarmonyPrefix]
+        private static bool InventoryGui_Update_Prefix()
+        {
+            // Don't block when inventory IS the active UI (e.g. opened from admin Dressing Room screen).
+            return !GUIManager.ShouldBlockGameInput() || (InventoryGui.instance != null && InventoryGui.IsVisible());
+        }
     }
 }

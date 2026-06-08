@@ -168,6 +168,8 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetChestItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetLegItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetShoulderItem_Patch",
+            // Client input gates (M key, TAB) — Minimap/InventoryGui don't exist server-side.
+            "FiresRPGmaker.UI.Patches.ClientInputGatePatches",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server
