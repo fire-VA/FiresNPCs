@@ -144,7 +144,24 @@ namespace FiresRPGmaker.UI
                     if (btn != null) _moduleTabs[m.Type] = btn;
                 }
             }
+            ShimDetailPanelForRow2();
             Debug.Log("[NpcMainPanelController] Wired " + _moduleScreens.Count + " extra module screens + " + _moduleTabs.Count + " extra tabs");
+        }
+
+        /// <summary>Pushes DetailPanel's top edge DOWN past row 2 so the form fields (Npc Name / Profile /
+        /// Model Override) don't render behind the Gambler/Market/etc. tab buttons. Row 2 is parented
+        /// under TabsBar (sibling of DetailPanel), so without this DetailPanel reaches its baked top
+        /// position which overlaps the row-2 cells.</summary>
+        private void ShimDetailPanelForRow2()
+        {
+            if (detailPanel == null || _tabsRow2 == null) return;
+            var rt = detailPanel.GetComponent<RectTransform>(); if (rt == null) return;
+            var row2rt = _tabsRow2.GetComponent<RectTransform>();
+            float row2H = row2rt != null && row2rt.rect.height > 0 ? row2rt.rect.height : 48f;
+            // Shrink DetailPanel's top by row 2 height + a small gap. offsetMax.y is negative-from-parent-top,
+            // so MORE negative = lower top edge.
+            float shimY = row2H + 14f;
+            if (rt.offsetMax.y > -shimY) rt.offsetMax = new Vector2(rt.offsetMax.x, -shimY);
         }
 
         /// <summary>Returns the (lazily-created) 2nd tab-row Transform — a sibling of TabsBar placed directly below it.

@@ -80,7 +80,12 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         private static void LoadOne(string file)
         {
-            string key = "default"; int maxRolls = 1;
+            // Filename basename = default profile key, so a user who types the filename as the NPC's
+            // profile name gets something to load (covers stale [basic]/[premium] example.cfg without
+            // forcing a manual delete).
+            string fileBasename = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+            string firstHeader = null;
+            string key = fileBasename; int maxRolls = 1;
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();
@@ -91,6 +96,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     var inside = line.Replace("[", "").Replace("]", "").Replace(" ", "");
                     var eq = inside.Split('=');
                     key = eq[0].ToLowerInvariant();
+                    if (firstHeader == null) firstHeader = key;
                     maxRolls = eq.Length > 1 && int.TryParse(eq[1], out var r) ? r : 1;
                     continue;
                 }
@@ -118,6 +124,12 @@ namespace FiresRPGmaker.Modules.Marketplace
                     RequiredItem = required, Rewards = items,
                 };
             }
+
+            // Filename-basename alias: if the .cfg used custom headers like [basic]/[premium] and the user
+            // typed the filename (e.g. "example") as the profile on the NPC, point that name at the FIRST
+            // header so the panel still loads something.
+            if (firstHeader != null && !_profiles.ContainsKey(fileBasename) && _profiles.TryGetValue(firstHeader, out var firstProfile))
+                _profiles[fileBasename] = firstProfile;
         }
 
         private static void WriteExampleProfile(string folder)
