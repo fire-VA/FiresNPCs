@@ -337,6 +337,9 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                 case AdditionalTerritoryFlags.OnlyForGuild:
                     territory.OnlyForGuild = custom;
                     break;
+                case AdditionalTerritoryFlags.OnlyForFaction:
+                    territory.OnlyForFaction = custom;
+                    break;
                 case AdditionalTerritoryFlags.EWPSpawner:
                      if (!string.IsNullOrEmpty(custom)) territory.CustomSpawnerNames.Add(custom);
                      var def = ParseCustomSpawnDef(custom);

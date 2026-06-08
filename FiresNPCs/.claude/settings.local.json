@@ -285,7 +285,19 @@
       "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/_tooltest.py)",
       "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/remap_bones.py -- /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-st.glb /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-apose.fbx /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-named.fbx)",
       "PowerShell(Get-ChildItem 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2' -Directory | Where-Object { $_.Name -match 'Venture|Multiplayer|TargetPortal|AntiCheat' } | Select-Object Name)",
-      "Bash(grep -nA 60 \"MenuItem\\\\|public static void Build\" \"/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/FiresUIBake/Editor/FiresTraderBuilder.cs\")"
+      "Bash(grep -nA 60 \"MenuItem\\\\|public static void Build\" \"/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/FiresUIBake/Editor/FiresTraderBuilder.cs\")",
+      "PowerShell(& 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\VAGhettoNetworking\\\\Tools\\\\Scan-HarmonyPatches.ps1')",
+      "Bash(grep -nA 15 \"ReloadCurrency\\\\|GetCurrentCurrencyName\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/MainMarketplace/Marketplace_UI.cs)",
+      "Bash(grep -nB 1 -A 4 \"HasFlag\\(AdditionalTerritoryFlags\\\\.\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Territories/TerritoryRuntime.cs)",
+      "Bash(grep -nB 2 -A 10 \"OnlyForGuild\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Territories/TerritoryRuntime.cs)",
+      "Bash(grep -rnB 2 -A 10 \"OnlyForGuild\" --include=\"*.cs\")",
+      "Bash(grep -nB 1 -A 4 \"public string OnlyForGuild\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Territories/TerritoryModels.cs)",
+      "Bash(grep -nB 1 -A 3 \"QuestType ==\\\\|QuestType.Equals\\\\|case \\\\\"Kill\\\\|case \\\\\"Collect\\\\|case \\\\\"Craft\\\\|case \\\\\"Talk\\\\|case \\\\\"Build\\\\|case \\\\\"Move\\\\|case \\\\\"Harvest\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Quest/QuestProgressPatches.cs)",
+      "Bash(grep -nB 1 -A 2 \"RewardType\\\\|Reward.*:\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Managers/QuestManager.cs)",
+      "Bash(grep -nB 2 -A 6 \"NoMist\\\\|FindBaseSpawnPoint\\\\|OnlyForGuild\\\\|IsPermitted\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/TerritorySystem/TerritorySystem_Main_Client.cs)",
+      "Bash(grep -nB 2 -A 10 \"public bool IsPermitted\\\\|IsPermitted\\(\\)\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/TerritorySystem/TerritorySystem_DataTypes.cs)",
+      "Bash(grep -nB 2 -A 15 \"static.*IsPermitted\\\\|private.*bool.*Permitted\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Territories/TerritoryRuntime.cs)",
+      "Bash(grep -nA 5 \"class GuildData\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Guilds/GuildAPI.cs)"
     ]
   }
 }

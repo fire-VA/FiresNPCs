@@ -27,6 +27,13 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static readonly Dictionary<string, List<TransmogOption>> _byProfile = new();
         private static bool _initialized;
 
+        public static IReadOnlyList<TransmogOption> GetAllForProfile(string profile)
+        {
+            EnsureLoaded();
+            if (string.IsNullOrEmpty(profile)) return new List<TransmogOption>();
+            return _byProfile.TryGetValue(profile.ToLowerInvariant(), out var pool) ? pool : new List<TransmogOption>();
+        }
+
         public static IReadOnlyList<TransmogOption> GetForSlot(string profile, string slot)
         {
             EnsureLoaded();
@@ -113,16 +120,33 @@ namespace FiresRPGmaker.Modules.Marketplace
             if (pool.Count > 0 && !_byProfile.ContainsKey(key)) _byProfile[key] = pool;
         }
 
-        /// <summary>Best-effort slot detection from prefab name prefix; defaults to Helmet so unknown
-        /// items still show up under at least one slot (rather than being silently dropped).</summary>
+        /// <summary>Best-effort item-type detection from prefab name (matches KG's ItemType enum strings).
+        /// Used when a KG-format .cfg row doesn't carry an explicit slot. Falls back via ObjectDB
+        /// lookup if the name doesn't pattern-match.</summary>
         private static string GuessSlotFromPrefab(string prefab)
         {
             if (string.IsNullOrEmpty(prefab)) return "Helmet";
             string p = prefab.ToLowerInvariant();
+
+            // Authoritative source — look up the actual ItemType from ObjectDB when available.
+            if (ObjectDB.instance != null)
+            {
+                var go = ObjectDB.instance.GetItemPrefab(prefab);
+                var drop = go != null ? go.GetComponent<ItemDrop>() : null;
+                if (drop?.m_itemData?.m_shared != null)
+                    return drop.m_itemData.m_shared.m_itemType.ToString();
+            }
+
+            // Fall back to name-prefix heuristics for offline / pre-ObjectDB loads.
             if (p.StartsWith("helmet")) return "Helmet";
-            if (p.StartsWith("cape")) return "Cape";
+            if (p.StartsWith("cape")) return "Shoulder";
             if (p.Contains("chest")) return "Chest";
             if (p.Contains("legs")) return "Legs";
+            if (p.StartsWith("bow")) return "Bow";
+            if (p.StartsWith("shield")) return "Shield";
+            if (p.StartsWith("tool") || p.Contains("pickaxe") || p.Contains("hoe") || p.StartsWith("axe") || p.StartsWith("hammer")) return "Tool";
+            if (p.Contains("sword") || p.Contains("knife") || p.Contains("club") || p.Contains("mace")) return "OneHandedWeapon";
+            if (p.Contains("atgeir") || p.Contains("battleaxe") || p.Contains("sledge") || p.Contains("polearm")) return "TwoHandedWeapon";
             return "Helmet";
         }
 

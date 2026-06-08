@@ -5,6 +5,9 @@ using UnityEngine;
 
 namespace FiresRPGmaker.Modules.Marketplace
 {
+    /// <summary>KG-aligned category enum so the Marketplace UI can filter listings.</summary>
+    public enum MarketCategory { All, Weapons, Armor, Consumable, Tools, Resources }
+
     /// <summary>Single auction-house listing row (browse/sell/own).</summary>
     public class MarketplaceListing
     {
@@ -14,6 +17,10 @@ namespace FiresRPGmaker.Modules.Marketplace
         public string Currency = "Coins";
         public string SellerName;
         public long SellerId;
+
+        /// <summary>Cached category for filtering — derived from the ItemDrop's ItemType the first
+        /// time we look at it (vanilla Armor/Weapon/Bow/Shield → KG bucket). All=passes everything.</summary>
+        public MarketCategory Category = MarketCategory.All;
     }
 
     /// <summary>
@@ -35,6 +42,9 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static bool _initialized;
 
         public static IReadOnlyList<MarketplaceListing> GetListings(bool myListingsOnly, string profileName, string filterLower)
+            => GetListings(myListingsOnly, profileName, filterLower, MarketCategory.All);
+
+        public static IReadOnlyList<MarketplaceListing> GetListings(bool myListingsOnly, string profileName, string filterLower, MarketCategory category)
         {
             EnsureLoaded();
             if (!_listingsByProfile.TryGetValue((profileName ?? "").ToLowerInvariant(), out var pool))
@@ -47,7 +57,40 @@ namespace FiresRPGmaker.Modules.Marketplace
             if (!string.IsNullOrEmpty(filterLower))
                 q = q.Where(l => l.ItemPrefab.ToLowerInvariant().Contains(filterLower)
                               || l.SellerName.ToLowerInvariant().Contains(filterLower));
+            if (category != MarketCategory.All)
+                q = q.Where(l => ClassifyCategory(l) == category);
             return q.ToList();
+        }
+
+        /// <summary>Maps a listing's item to a KG MarketCategory, by ObjectDB lookup the first time.</summary>
+        public static MarketCategory ClassifyCategory(MarketplaceListing l)
+        {
+            if (l.Category != MarketCategory.All) return l.Category;
+            if (ObjectDB.instance == null) return MarketCategory.All;
+            var go = ObjectDB.instance.GetItemPrefab(l.ItemPrefab);
+            var drop = go != null ? go.GetComponent<ItemDrop>() : null;
+            if (drop?.m_itemData?.m_shared == null) return MarketCategory.All;
+            var t = drop.m_itemData.m_shared.m_itemType;
+            l.Category = t switch
+            {
+                ItemDrop.ItemData.ItemType.OneHandedWeapon
+              or ItemDrop.ItemData.ItemType.TwoHandedWeapon
+              or ItemDrop.ItemData.ItemType.TwoHandedWeaponLeft
+              or ItemDrop.ItemData.ItemType.Bow => MarketCategory.Weapons,
+                ItemDrop.ItemData.ItemType.Helmet
+              or ItemDrop.ItemData.ItemType.Chest
+              or ItemDrop.ItemData.ItemType.Legs
+              or ItemDrop.ItemData.ItemType.Shoulder
+              or ItemDrop.ItemData.ItemType.Shield => MarketCategory.Armor,
+                ItemDrop.ItemData.ItemType.Consumable => MarketCategory.Consumable,
+                ItemDrop.ItemData.ItemType.Tool => MarketCategory.Tools,
+                ItemDrop.ItemData.ItemType.Material
+              or ItemDrop.ItemData.ItemType.Trophy
+              or ItemDrop.ItemData.ItemType.Misc
+              or ItemDrop.ItemData.ItemType.Ammo => MarketCategory.Resources,
+                _ => MarketCategory.All,
+            };
+            return l.Category;
         }
 
         /// <summary>Items the local player could plausibly list (their inventory slots, not yet wired).</summary>

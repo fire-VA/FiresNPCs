@@ -55,6 +55,21 @@ namespace FiresRPGmaker.Modules.Territories
                 if (t.Permitted.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                     .Any(p => string.Equals(p.Trim(), pid, StringComparison.OrdinalIgnoreCase))) return true;
             }
+            // KG parity: OnlyForGuild / OnlyForFaction grant access to anyone whose guild/faction matches.
+            // OnlyForGuild — uses our GuildAPI (mirrors KG's API.GetOwnGuild()).
+            if (t.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.OnlyForGuild) && !string.IsNullOrEmpty(t.OnlyForGuild))
+            {
+                try
+                {
+                    var ownGuild = global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild();
+                    if (ownGuild != null && string.Equals(ownGuild.Name, t.OnlyForGuild, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                catch { /* GuildAPI not loaded — skip */ }
+            }
+            // OnlyForFaction — placeholder until we ship our Faction module. If a faction registry is
+            // present in the future we resolve it here; for now treat as "permission denied unless other
+            // condition above already granted" (KG's behavior when faction system absent).
             return false;
         }
 
@@ -202,6 +217,10 @@ namespace FiresRPGmaker.Modules.Territories
             return IsPermitted(terr, player);
         }
 
+        // Public wrappers for cross-file patch callers (see TerritoryRuntime.MissingFlagPatches.cs).
+        public static bool HasRestrictionBypassPublic(Territory terr, Player player) => HasRestrictionBypass(terr, player);
+        public static Territory GetTerritory(Vector3 pos) => GetTerritoryInternal(pos);
+
         private static void ApplyMoveSpeedMultiplier(Player player)
         {
             if (player == null) return;
@@ -232,13 +251,13 @@ namespace FiresRPGmaker.Modules.Territories
             return y >= min && y <= max;
         }
 
-        private static Territory GetTerritory(Vector3 pos)
+        private static Territory GetTerritoryInternal(Vector3 pos)
         {
             var terr = TerritorySyncedState.GetCurrent(pos);
             if (terr == null) return null;
             return IsWithinHeight(terr, pos.y) ? terr : null;
         }
-        private static Territory GetTerritory(Player player) => player == null ? null : GetTerritory(player.transform.position);
+        private static Territory GetTerritory(Player player) => player == null ? null : GetTerritoryInternal(player.transform.position);
 
         [HarmonyPatch(typeof(Player), "Update")]
         [HarmonyPostfix]

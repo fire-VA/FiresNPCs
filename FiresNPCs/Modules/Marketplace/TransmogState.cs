@@ -6,38 +6,74 @@ using UnityEngine;
 namespace FiresRPGmaker.Modules.Marketplace
 {
     /// <summary>
-    /// Per-player picked transmog appearance per slot. Persists to
-    /// <c>BepInEx/config/firesnpcs/transmog/_picks.csv</c>. Looked up by player name + slot in the
-    /// VisEquipment patches below — the actual armor item never changes, only the visualized prefab.
+    /// Per-player transmog overrides keyed by ITEM PREFAB NAME (KG-style, not by slot).
+    /// Each entry says "when this player wears <baseItemName>, render it as <replacedPrefab>".
+    /// Persists to <c>BepInEx/config/FiresRPGmaker/Transmogrifications/_picks.csv</c>.
     /// </summary>
     public static class TransmogState
     {
-        public const string SlotHelmet = "Helmet";
-        public const string SlotChest = "Chest";
-        public const string SlotLegs = "Legs";
-        public const string SlotCape = "Cape";
+        // KG's TypeColors — used by the UI to color-code each item-type category.
+        public static readonly Dictionary<string, Color> TypeColors = new()
+        {
+            { "All",                 Color.cyan },
+            { "OneHandedWeapon",     Color.yellow },
+            { "TwoHandedWeapon",     new Color(1f, 0.56f, 0.03f) },
+            { "TwoHandedWeaponLeft", new Color(1f, 0.46f, 0.23f) },
+            { "Bow",                 Color.green },
+            { "Tool",                new Color(1f, 0.33f, 0.42f) },
+            { "Shield",              Color.magenta },
+            { "Chest",               new Color(0.40f, 0.55f, 1f) },
+            { "Helmet",              new Color(0.53f, 0.66f, 1f) },
+            { "Legs",                new Color(0.55f, 0.30f, 1f) },
+            { "Shoulder",            new Color(0.74f, 0.53f, 1f) },
+            { "Utility",             Color.white },
+        };
 
+        // Item types KG considers transmoggable.
+        public static readonly string[] AvailableTypes = {
+            "OneHandedWeapon", "TwoHandedWeapon", "TwoHandedWeaponLeft", "Bow",
+            "Tool", "Shield", "Chest", "Helmet", "Legs", "Shoulder", "Utility",
+        };
+
+        // (playerName, baseItemPrefab) -> replacedPrefab
         private static readonly Dictionary<string, string> _picks = new();
         private static bool _loaded;
 
-        public static string Get(string playerName, string slot)
+        public static string Get(string playerName, string baseItemPrefab)
         {
             EnsureLoaded();
-            _picks.TryGetValue(Key(playerName, slot), out var v);
+            _picks.TryGetValue(Key(playerName, baseItemPrefab), out var v);
             return v;
         }
 
-        public static void Set(string playerName, string slot, string prefab)
+        public static void Set(string playerName, string baseItemPrefab, string replacedPrefab)
         {
             EnsureLoaded();
-            if (string.IsNullOrEmpty(prefab)) _picks.Remove(Key(playerName, slot));
-            else _picks[Key(playerName, slot)] = prefab;
+            if (string.IsNullOrEmpty(replacedPrefab)) _picks.Remove(Key(playerName, baseItemPrefab));
+            else _picks[Key(playerName, baseItemPrefab)] = replacedPrefab;
             Save();
             RefreshLocalEquipment();
         }
 
-        private static string Key(string player, string slot) => (player ?? "") + "::" + (slot ?? "");
-        private static string StorePath => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "transmog", "_picks.csv");
+        public static bool HasTransmog(string playerName, string baseItemPrefab)
+        {
+            EnsureLoaded();
+            return _picks.ContainsKey(Key(playerName, baseItemPrefab));
+        }
+
+        public static IEnumerable<KeyValuePair<string, string>> ForPlayer(string playerName)
+        {
+            EnsureLoaded();
+            string prefix = (playerName ?? "") + "::";
+            foreach (var kv in _picks)
+            {
+                if (kv.Key.StartsWith(prefix))
+                    yield return new KeyValuePair<string, string>(kv.Key.Substring(prefix.Length), kv.Value);
+            }
+        }
+
+        private static string Key(string player, string baseItem) => (player ?? "") + "::" + (baseItem ?? "");
+        private static string StorePath => Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "Transmogrifications", "_picks.csv");
 
         private static void EnsureLoaded()
         {
@@ -63,7 +99,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var path = StorePath;
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
-                var lines = new List<string> { "# player,slot,prefab" };
+                var lines = new List<string> { "# player,baseItemPrefab,replacedPrefab" };
                 foreach (var kv in _picks)
                 {
                     var sep = kv.Key.IndexOf("::", System.StringComparison.Ordinal);
@@ -79,22 +115,27 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             var p = Player.m_localPlayer; if (p == null) return;
             var vis = p.m_visEquipment; if (vis == null) return;
-            // Trigger VisEquipment to rebuild — UpdateEquipmentVisuals is the cheapest way to force a re-equip pass.
             vis.UpdateEquipmentVisuals();
         }
     }
 
     /// <summary>
-    /// VisEquipment patches that swap the visualized armor prefab to the picked transmog while the
-    /// player's actual ItemData stays untouched. Each helmet/chest/legs/cape SetXItem is intercepted
-    /// and the prefab name is replaced when a transmog is set for that slot.
+    /// VisEquipment patches that swap the visualized armor/weapon prefab based on the player's selected
+    /// transmog for the BASE ITEM CURRENTLY EQUIPPED IN THAT SLOT. The actual ItemData is untouched.
     /// </summary>
     public static class TransmogVisualPatches
     {
-        private static string LocalPick(string slot)
+        /// <summary>Returns the transmog replacement prefab name for the currently-equipped item in
+        /// the given slot accessor lambda, or the original name if none / not the local player.</summary>
+        private static string LookupReplacement(VisEquipment vis, System.Func<Player, ItemDrop.ItemData> equipped, string fallback)
         {
-            var p = Player.m_localPlayer;
-            return p == null ? null : TransmogState.Get(p.GetPlayerName(), slot);
+            if (vis == null || Player.m_localPlayer == null) return fallback;
+            if (vis.gameObject != Player.m_localPlayer.gameObject) return fallback;
+            var item = equipped(Player.m_localPlayer);
+            string baseName = item?.m_dropPrefab != null ? item.m_dropPrefab.name : fallback;
+            if (string.IsNullOrEmpty(baseName)) return fallback;
+            var pick = TransmogState.Get(Player.m_localPlayer.GetPlayerName(), baseName);
+            return string.IsNullOrEmpty(pick) ? fallback : pick;
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetHelmetItem))]
@@ -102,12 +143,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             [HarmonyPrefix]
             private static void Prefix(VisEquipment __instance, ref string name)
-            {
-                if (__instance == null || Player.m_localPlayer == null) return;
-                if (__instance.gameObject != Player.m_localPlayer.gameObject) return;
-                var pick = LocalPick(TransmogState.SlotHelmet);
-                if (!string.IsNullOrEmpty(pick)) name = pick;
-            }
+                => name = LookupReplacement(__instance, p => p.m_helmetItem, name);
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetChestItem))]
@@ -115,12 +151,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             [HarmonyPrefix]
             private static void Prefix(VisEquipment __instance, ref string name)
-            {
-                if (__instance == null || Player.m_localPlayer == null) return;
-                if (__instance.gameObject != Player.m_localPlayer.gameObject) return;
-                var pick = LocalPick(TransmogState.SlotChest);
-                if (!string.IsNullOrEmpty(pick)) name = pick;
-            }
+                => name = LookupReplacement(__instance, p => p.m_chestItem, name);
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetLegItem))]
@@ -128,12 +159,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             [HarmonyPrefix]
             private static void Prefix(VisEquipment __instance, ref string name)
-            {
-                if (__instance == null || Player.m_localPlayer == null) return;
-                if (__instance.gameObject != Player.m_localPlayer.gameObject) return;
-                var pick = LocalPick(TransmogState.SlotLegs);
-                if (!string.IsNullOrEmpty(pick)) name = pick;
-            }
+                => name = LookupReplacement(__instance, p => p.m_legItem, name);
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetShoulderItem))]
@@ -141,12 +167,31 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             [HarmonyPrefix]
             private static void Prefix(VisEquipment __instance, ref string name)
-            {
-                if (__instance == null || Player.m_localPlayer == null) return;
-                if (__instance.gameObject != Player.m_localPlayer.gameObject) return;
-                var pick = LocalPick(TransmogState.SlotCape);
-                if (!string.IsNullOrEmpty(pick)) name = pick;
-            }
+                => name = LookupReplacement(__instance, p => p.m_shoulderItem, name);
+        }
+
+        [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetRightItem))]
+        public static class SetRightItem_Patch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(VisEquipment __instance, ref string name)
+                => name = LookupReplacement(__instance, p => p.m_rightItem, name);
+        }
+
+        [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetLeftItem))]
+        public static class SetLeftItem_Patch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(VisEquipment __instance, ref string name, ref int variant)
+                => name = LookupReplacement(__instance, p => p.m_leftItem, name);
+        }
+
+        [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetUtilityItem))]
+        public static class SetUtilityItem_Patch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(VisEquipment __instance, ref string name)
+                => name = LookupReplacement(__instance, p => p.m_utilityItem, name);
         }
     }
 }

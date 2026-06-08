@@ -41,6 +41,20 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         public static IReadOnlyCollection<string> AllProfileNames => _profiles.Keys;
 
+        /// <summary>Union of every currency name accepted by ANY loaded Banker profile. Used as the
+        /// authoritative "possible currencies" list for the Marketplace Sell-tab currency dropdown
+        /// (matches KG's <c>_possibleCurrencies</c> global config). Always includes "Coins" as a baseline.</summary>
+        public static IReadOnlyList<string> GetAllAcceptedCurrencies()
+        {
+            EnsureLoaded();
+            var set = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "Coins" };
+            foreach (var p in _profiles.Values)
+                foreach (var c in p.CurrencyLimits.Keys) set.Add(c);
+            var list = new System.Collections.Generic.List<string>(set);
+            list.Sort(System.StringComparer.OrdinalIgnoreCase);
+            return list;
+        }
+
         public static void EnsureLoaded()
         {
             if (_initialized) return;

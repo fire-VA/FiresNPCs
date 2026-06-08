@@ -61,6 +61,7 @@ namespace FiresRPGmaker.Modules.Territories
         JoinOtherServer = 1 << 10,
         RevealOnMap = 1 << 11,
         NoTool = 1 << 12,
+        OnlyForFaction = 1 << 13, // KG parity — pairs with OnlyForGuild, gates territory access by faction membership
     }
 
     public enum TerritoryShape
@@ -115,6 +116,10 @@ namespace FiresRPGmaker.Modules.Territories
         public GradientType GradientType = GradientType.LeftRight;
         public float ExponentialValue = 1f;
         public string OnlyForGuild = null;
+        /// <summary>KG-parity: pairs with <see cref="OnlyForGuild"/>. When the AdditionalTerritoryFlags
+        /// OnlyForFaction bit is set, this stores the faction tag the territory is restricted to.
+        /// Enforcement (entry / interaction gating) lives alongside OnlyForGuild's enforcement path.</summary>
+        public string OnlyForFaction = null;
         public int UID = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
         public float PeriodicHealValue;
         public float PeriodicHealInterval = 1f;
@@ -197,6 +202,7 @@ namespace FiresRPGmaker.Modules.Territories
             pkg.Write(Wind);
             pkg.Write(DropMultiplier);
             pkg.Write(OnlyForGuild ?? "");
+            pkg.Write(OnlyForFaction ?? "");
             pkg.Write(CustomSpawnerNames.Count); foreach (var s in CustomSpawnerNames) pkg.Write(s);
             pkg.Write(CustomSpawners.Count);
             foreach (var sp in CustomSpawners)
@@ -269,6 +275,7 @@ namespace FiresRPGmaker.Modules.Territories
             t.Wind = pkg.ReadSingle();
             t.DropMultiplier = pkg.ReadSingle();
             t.OnlyForGuild = pkg.ReadString();
+            t.OnlyForFaction = pkg.ReadString();
             int customSpawnerCount = pkg.ReadInt();
             t.CustomSpawnerNames = new HashSet<string>();
             for (int i = 0; i < customSpawnerCount; i++) t.CustomSpawnerNames.Add(pkg.ReadString());

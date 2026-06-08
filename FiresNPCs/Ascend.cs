@@ -168,8 +168,24 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetChestItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetLegItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetShoulderItem_Patch",
+            "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetRightItem_Patch",
+            "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetLeftItem_Patch",
+            "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetUtilityItem_Patch",
             // Client input gates (M key, TAB) — Minimap/InventoryGui don't exist server-side.
             "FiresRPGmaker.UI.Patches.ClientInputGatePatches",
+            // Territory missing-flag patches — most reference Player.m_localPlayer / Hud / MessageHud.
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_UseStamina_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_UseEitr_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_GetRunSpeedFactor_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_GetJogSpeedFactor_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_TeleportTo_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_HardDeath_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_AutoPickup_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Attack_SpawnOnHitTerrain_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+ArmorStand_UseItem_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+SpawnSystem_UpdateSpawning_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Mister_OnEnable_Patch",
+            "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+SpawnSystem_FindBaseSpawnPoint_Patch",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server

@@ -34,6 +34,28 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static readonly Dictionary<string, List<MailEntry>> _byProfile = new();
         private static bool _initialized;
 
+        private static int _nextLocalId = 10000;
+
+        /// <summary>Returns the next unique mail id for client-staged outgoing mails.</summary>
+        public static int NextLocalId() { return System.Threading.Interlocked.Increment(ref _nextLocalId); }
+
+        /// <summary>
+        /// Stage a mail in the recipient's profile inbox (local-only v1 — no cross-player delivery yet).
+        /// Once the LiteDB MailRepository RPC lands, this becomes a network call; the API stays the same
+        /// so the panel send button doesn't change.
+        /// </summary>
+        public static void AppendLocalMail(string recipientProfile, MailEntry entry)
+        {
+            EnsureLoaded();
+            string key = (recipientProfile ?? "").ToLowerInvariant();
+            if (!_byProfile.TryGetValue(key, out var pool))
+            {
+                pool = new List<MailEntry>();
+                _byProfile[key] = pool;
+            }
+            pool.Insert(0, entry); // newest first
+        }
+
         public static IReadOnlyList<MailEntry> GetMail(string profile)
         {
             EnsureLoaded();
