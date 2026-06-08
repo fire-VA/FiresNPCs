@@ -79,18 +79,51 @@ namespace FiresRPGmaker.Modules.Marketplace
                     pool = _byProfile[key];
                     continue;
                 }
-                var parts = line.Split('|');
-                if (parts.Length < 4) continue;
-                int.TryParse(parts[3], out int price);
-                pool.Add(new TransmogOption
+                // My pipe format: Slot|Prefab|Currency|Price
+                if (line.Contains("|"))
                 {
-                    Slot = parts[0].Trim(),
-                    Prefab = parts[1].Trim(),
-                    PricePrefab = parts[2].Trim(),
-                    PriceAmount = price,
-                });
+                    var parts = line.Split('|');
+                    if (parts.Length < 4) continue;
+                    int.TryParse(parts[3], out int price);
+                    pool.Add(new TransmogOption
+                    {
+                        Slot = parts[0].Trim(),
+                        Prefab = parts[1].Trim(),
+                        PricePrefab = parts[2].Trim(),
+                        PriceAmount = price,
+                    });
+                    continue;
+                }
+                // KG comma format: Prefab, Currency, Price, IgnoreCategory [, optional fields ignored]
+                // Auto-classify slot by prefab name prefix (KG didn't store slot — its data was global).
+                if (line.Contains(","))
+                {
+                    var parts = line.Replace(" ", "").Split(',');
+                    if (parts.Length < 3) continue;
+                    int.TryParse(parts[2], out int kgPrice);
+                    pool.Add(new TransmogOption
+                    {
+                        Slot = GuessSlotFromPrefab(parts[0]),
+                        Prefab = parts[0],
+                        PricePrefab = parts.Length > 1 ? parts[1] : "Coins",
+                        PriceAmount = kgPrice,
+                    });
+                }
             }
             if (pool.Count > 0 && !_byProfile.ContainsKey(key)) _byProfile[key] = pool;
+        }
+
+        /// <summary>Best-effort slot detection from prefab name prefix; defaults to Helmet so unknown
+        /// items still show up under at least one slot (rather than being silently dropped).</summary>
+        private static string GuessSlotFromPrefab(string prefab)
+        {
+            if (string.IsNullOrEmpty(prefab)) return "Helmet";
+            string p = prefab.ToLowerInvariant();
+            if (p.StartsWith("helmet")) return "Helmet";
+            if (p.StartsWith("cape")) return "Cape";
+            if (p.Contains("chest")) return "Chest";
+            if (p.Contains("legs")) return "Legs";
+            return "Helmet";
         }
 
         private static void WriteExampleProfile(string folder)

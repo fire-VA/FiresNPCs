@@ -73,35 +73,74 @@ namespace FiresRPGmaker.Modules.Marketplace
             string key = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             var pool = new List<AchievementDef>();
             int nextId = 1;
+            // KG-format buffer: 6 data lines per [header] block (TriggerType / Name / Description /
+            // Prefab,MinAmount / R,G,B / Score). When pipe-separated my-format lines appear, we still
+            // honor them inline.
+            var kgBlock = new List<string>();
+            string kgHeader = null;
+
+            void FlushKgBlock()
+            {
+                if (kgBlock.Count == 6 && !string.IsNullOrEmpty(kgHeader))
+                {
+                    var prefabMin = kgBlock[3].Replace(" ", "").Split(',');
+                    string prefab = prefabMin.Length > 0 ? prefabMin[0] : "";
+                    int minAmt = prefabMin.Length > 1 && int.TryParse(prefabMin[1], out var m) ? m : 0;
+                    int score = int.TryParse(kgBlock[5].Trim(), out var s) ? s : 0;
+                    pool.Add(new AchievementDef
+                    {
+                        Id = nextId++,
+                        Name = kgBlock[1].Trim(),
+                        Description = kgBlock[2].Trim(),
+                        TriggerType = kgBlock[0].Trim(),
+                        Prefab = prefab,
+                        MinAmount = minAmt,
+                        Score = score,
+                        MockProgress = 0,
+                    });
+                }
+                kgBlock.Clear(); kgHeader = null;
+            }
+
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();
-                if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
+                if (string.IsNullOrEmpty(line) || line.StartsWith("#")) { FlushKgBlock(); continue; }
                 if (line.StartsWith("["))
                 {
+                    FlushKgBlock();
                     key = line.Replace("[", "").Replace("]", "").Trim().ToLowerInvariant();
                     if (!_byProfile.ContainsKey(key)) _byProfile[key] = new List<AchievementDef>();
                     pool = _byProfile[key];
+                    kgHeader = key;
                     continue;
                 }
-                var parts = line.Split('|');
-                if (parts.Length < 7) continue;
-                int.TryParse(parts[0], out int id);
-                int.TryParse(parts[5], out int minAmt);
-                int.TryParse(parts[6], out int score);
-                var def = new AchievementDef
+                if (line.Contains("|"))
                 {
-                    Id = id > 0 ? id : nextId++,
-                    Name = parts[1].Trim(),
-                    Description = parts[2].Trim(),
-                    TriggerType = parts[3].Trim(),
-                    Prefab = parts[4].Trim(),
-                    MinAmount = minAmt,
-                    Score = score,
-                    MockProgress = Mathf.Clamp(Random.Range(0, minAmt + 1), 0, minAmt),
-                };
-                pool.Add(def);
+                    // My pipe-separated format.
+                    var parts = line.Split('|');
+                    if (parts.Length < 7) continue;
+                    int.TryParse(parts[0], out int id);
+                    int.TryParse(parts[5], out int minAmtP);
+                    int.TryParse(parts[6], out int scoreP);
+                    pool.Add(new AchievementDef
+                    {
+                        Id = id > 0 ? id : nextId++,
+                        Name = parts[1].Trim(),
+                        Description = parts[2].Trim(),
+                        TriggerType = parts[3].Trim(),
+                        Prefab = parts[4].Trim(),
+                        MinAmount = minAmtP,
+                        Score = scoreP,
+                        MockProgress = 0,
+                    });
+                    continue;
+                }
+                // KG block format: accumulate 6 lines under current header.
+                kgBlock.Add(line);
+                if (kgBlock.Count == 6) FlushKgBlock();
             }
+            FlushKgBlock();
             if (pool.Count > 0 && !_byProfile.ContainsKey(key)) _byProfile[key] = pool;
         }
 

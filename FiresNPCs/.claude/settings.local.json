@@ -283,7 +283,8 @@
       "Bash(echo \"EXIT $?\")",
       "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/inspect_player_rig.py -- /c/Users/travi/Downloads/_model_triage2/sexygirl-st-named.fbx)",
       "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/_tooltest.py)",
-      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/remap_bones.py -- /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-st.glb /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-apose.fbx /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-named.fbx)"
+      "Bash('/c/Program Files/Blender Foundation/Blender 5.1/blender.exe' --background --python /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Blender/remap_bones.py -- /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-st.glb /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-apose.fbx /c/Users/travi/Downloads/_model_triage2/sexygirl-tool-named.fbx)",
+      "PowerShell(Get-ChildItem 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2' -Directory | Where-Object { $_.Name -match 'Venture|Multiplayer|TargetPortal|AntiCheat' } | Select-Object Name)"
     ]
   }
 }
