@@ -272,13 +272,16 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rt.offsetMin = offMin; rt.offsetMax = offMax;
             go.GetComponent<Image>().color = new Color(0.08f, 0.06f, 0.04f, 0.85f);
 
-            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(Mask));
+            // Viewport uses RectMask2D (pure rect clip) instead of Mask + Image — Mask needs a Graphic
+            // with valid mesh to write the stencil buffer, but our programmatic alpha-0 sprite-null Image
+            // produces zero verts → nothing gets stenciled → every child row gets clipped invisible
+            // (the bug that broke Banker/Marketplace/Transmog/Mail/Gambler row rendering). RectMask2D
+            // works without any Graphic, matching how UIBuilderHelper.CreateScrollArea has always done it.
+            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
             viewport.transform.SetParent(go.transform, false);
             var vrt = viewport.GetComponent<RectTransform>();
             vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
             vrt.offsetMin = new Vector2(4f, 4f); vrt.offsetMax = new Vector2(-4f, -4f);
-            viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.0f);
-            viewport.GetComponent<Mask>().showMaskGraphic = false;
 
             var content = new GameObject("Content", typeof(RectTransform));
             content.transform.SetParent(viewport.transform, false);
