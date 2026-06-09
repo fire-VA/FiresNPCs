@@ -1649,15 +1649,9 @@ namespace FiresRPGmaker.Modules.Vault
                             {
                                 if (def.Rewards != null && def.Rewards.Count > 0)
                                 {
-                                    foreach (var rwd in def.Rewards)
-                                    {
-                                        try
-                                        {
-                                            // Always bank as Type="item", Prefab=rwd.Target, Amount=rwd.Amount
-                                            data.AddBankItem("item", rwd.Target ?? string.Empty, rwd.Amount);
-                                        }
-                                        catch { }
-                                    }
+                                    // Per-type dispatch — handles Item / RandomItem / Skill / Skill_EXP / Pet /
+                                    // SetCustomValue / AddCustomValue / Mod-bridge stubs (KG parity).
+                                    QuestRewardDispatcher.GrantAll(data, player, def.Rewards);
                                 }
 
                                 // send notify to player (sender of RPC_KillEvent will be used by caller)
@@ -1805,7 +1799,7 @@ namespace FiresRPGmaker.Modules.Vault
                         data.ActiveQuests.RemoveAt(i);
                         try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
                         if (def.Rewards != null)
-                            foreach (var r in def.Rewards) { try { data.AddBankItem("item", r.Target ?? "", r.Amount); } catch { } }
+                            QuestRewardDispatcher.GrantAll(data, player, def.Rewards);
                     }
                     break;
                 }
@@ -1851,7 +1845,7 @@ namespace FiresRPGmaker.Modules.Vault
                         data.ActiveQuests.RemoveAt(i);
                         try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
                         if (def.Rewards != null)
-                            foreach (var r in def.Rewards) { try { data.AddBankItem("item", r.Target ?? "", r.Amount); } catch { } }
+                            QuestRewardDispatcher.GrantAll(data, player, def.Rewards);
                     }
                     break;
                 }
