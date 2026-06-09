@@ -6,6 +6,8 @@ using UnityEngine;
 using FiresRPGmaker.Modules.Progression;
 using FiresRPGmaker.Modules.Quest;
 using FiresRPGmaker.Modules.Vault;
+using FiresRPGmaker.Modules.Marketplace;
+using FiresRPGmaker.Modules.Guilds;
 
 namespace FiresRPGmaker.Modules.Dialogues
 {
@@ -169,10 +171,201 @@ namespace FiresRPGmaker.Modules.Dialogues
                 case "maxeitrmore": return CheckStat(player.GetMaxEitr(), parts, true, "Max Eitr");
                 case "maxeitrless": return CheckStat(player.GetMaxEitr(), parts, false, "Max Eitr");
                 case "none": return ConditionResult.Pass();
+                // ── KG-parity conditions added 2026-06-08 ──
+                case "hasachievement":              return CheckHasAchievement(parts, false);
+                case "nothasachievement":           return CheckHasAchievement(parts, true);
+                case "hasachievementscore":         return CheckHasAchievementScore(parts, false);
+                case "nothasachievementscore":      return CheckHasAchievementScore(parts, true);
+                case "hasguild":                    return CheckHasGuild(player, parts, false);
+                case "nothasguild":                 return CheckHasGuild(player, parts, true);
+                case "hasguildwithname":            return CheckHasGuildWithName(player, parts, false);
+                case "nothasguildwithname":         return CheckHasGuildWithName(player, parts, true);
+                case "guildlevelmore":              return CheckGuildLevel(player, parts, true);
+                case "guildlevelless":              return CheckGuildLevel(player, parts, false);
+                case "guildhasachievement":         return CheckGuildHasAchievement(player, parts, false);
+                case "notguildhasachievement":      return CheckGuildHasAchievement(player, parts, true);
+                case "isvip":                       return CheckIsVIP(player, false);
+                case "notisvip":                    return CheckIsVIP(player, true);
+                case "npcmodelequals":              return CheckNpcModelEquals(parts, false);
+                case "notnpcmodelequals":           return CheckNpcModelEquals(parts, true);
+                case "npcnameequals":               return CheckNpcNameEquals(parts, false);
+                case "notnpcnameequals":            return CheckNpcNameEquals(parts, true);
+                case "playerhasallcustomdatakeys":  return CheckCustomDataKeys(player, parts, requireAll: true,  invert: false);
+                case "notplayerhasallcustomdatakeys": return CheckCustomDataKeys(player, parts, requireAll: true,  invert: true);
+                case "playerhasoneofcustomdatakeys": return CheckCustomDataKeys(player, parts, requireAll: false, invert: false);
+                case "notplayerhasoneofcustomdatakeys": return CheckCustomDataKeys(player, parts, requireAll: false, invert: true);
+                case "modinstalled":                return CheckModInstalled(parts, false);
+                case "notmodinstalled":             return CheckModInstalled(parts, true);
+                case "irongatestatmore":            return CheckIronGateStat(parts, true);
+                case "irongatestatless":            return CheckIronGateStat(parts, false);
                 default:
                     Debug.LogWarning($"[DialogueConditionEngine] Unknown condition type: {typeName}");
                     return ConditionResult.Pass();
             }
+        }
+
+        // ─── KG-parity condition implementations ─────────────────────────────
+
+        /// <summary>Snapshot of the currently-talked-to NPC. Set by DialogueUI on Show; cleared on Hide.
+        /// Used by NPCModelEquals / NPCNameEquals which have no other NPC handle from the parts array.</summary>
+        public static string CurrentNpcName;
+        public static string CurrentNpcModel;
+
+        /// <summary>Walks every loaded achievement profile and yields each definition once.</summary>
+        private static IEnumerable<AchievementDef> EnumerateAllAchievements()
+        {
+            foreach (var profileName in AchievementProfileManager.GetLoadedProfileNames())
+                foreach (var def in AchievementProfileManager.GetAchievements(profileName))
+                    yield return def;
+        }
+
+        private static ConditionResult CheckHasAchievement(string[] parts, bool invert)
+        {
+            if (parts.Length < 2) return ConditionResult.Pass();
+            string achId = parts[1].Trim();
+            try
+            {
+                string playerName = Player.m_localPlayer?.GetPlayerName() ?? "Local";
+                foreach (var def in EnumerateAllAchievements())
+                {
+                    if (!string.Equals(def.Name, achId, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(def.Id.ToString(), achId, StringComparison.OrdinalIgnoreCase)) continue;
+                    int progress = LeaderboardTracker.GetProgress(playerName, def.TriggerType, def.Prefab);
+                    bool earned = progress >= def.MinAmount;
+                    return earned != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Achievement required: {def.Name}");
+                }
+            }
+            catch { }
+            return invert ? ConditionResult.Pass() : ConditionResult.Fail($"Achievement not found: {achId}");
+        }
+
+        private static ConditionResult CheckHasAchievementScore(string[] parts, bool invert)
+        {
+            if (parts.Length < 2 || !int.TryParse(parts[1].Trim(), out int needed)) return ConditionResult.Pass();
+            try
+            {
+                string playerName = Player.m_localPlayer?.GetPlayerName() ?? "Local";
+                int total = 0;
+                foreach (var def in EnumerateAllAchievements())
+                {
+                    int progress = LeaderboardTracker.GetProgress(playerName, def.TriggerType, def.Prefab);
+                    if (progress >= def.MinAmount) total += def.Score;
+                }
+                bool ok = total >= needed;
+                return ok != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Need {needed} achievement score (have {total})");
+            }
+            catch { return ConditionResult.Pass(); }
+        }
+
+        private static ConditionResult CheckHasGuild(Player player, string[] parts, bool invert)
+        {
+            try
+            {
+                var g = GuildAPI.GetOwnGuild();
+                bool hasGuild = g != null;
+                return hasGuild != invert ? ConditionResult.Pass() : ConditionResult.Fail(invert ? "Must not be in a guild" : "Must be in a guild");
+            }
+            catch { return ConditionResult.Pass(); }
+        }
+
+        private static ConditionResult CheckHasGuildWithName(Player player, string[] parts, bool invert)
+        {
+            if (parts.Length < 2) return ConditionResult.Pass();
+            string target = parts[1].Trim();
+            try
+            {
+                var g = GuildAPI.GetOwnGuild();
+                bool match = g != null && string.Equals(g.Name, target, StringComparison.OrdinalIgnoreCase);
+                return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Need to be in guild '{target}'");
+            }
+            catch { return ConditionResult.Pass(); }
+        }
+
+        private static ConditionResult CheckGuildLevel(Player player, string[] parts, bool more)
+        {
+            // Guild leveling not implemented yet — pass through as no-op so dialogue isn't blocked.
+            // Wire up GuildData.Level + revisit this once the Guilds mod gains the leveling system.
+            return ConditionResult.Pass();
+        }
+
+        private static ConditionResult CheckGuildHasAchievement(Player player, string[] parts, bool invert)
+        {
+            // Guild-level achievements not yet ported (KG had GuildAchievement_DataTypes). Pass through
+            // as no-op so dialogue isn't blocked; revisit when the guild-achievement module lands.
+            return invert ? ConditionResult.Pass() : ConditionResult.Pass();
+        }
+
+        private static ConditionResult CheckIsVIP(Player player, bool invert)
+        {
+            // VIP === admin for now (no separate VIP tier yet). Matches KG behavior on servers without VIP cfg.
+            bool isAdmin = false;
+            try { isAdmin = global::FiresRPGmaker.FiresRPGmaker.Instance?.configSync?.IsAdmin == true; } catch { }
+            if (ZNet.instance != null && ZNet.instance.IsServer()) isAdmin = true;
+            return isAdmin != invert ? ConditionResult.Pass() : ConditionResult.Fail(invert ? "Cannot be VIP" : "VIP required");
+        }
+
+        private static ConditionResult CheckNpcModelEquals(string[] parts, bool invert)
+        {
+            if (parts.Length < 2 || string.IsNullOrEmpty(CurrentNpcModel)) return ConditionResult.Pass();
+            string target = parts[1].Trim();
+            bool match = string.Equals(CurrentNpcModel, target, StringComparison.OrdinalIgnoreCase);
+            return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"NPC model must {(invert ? "not " : "")}be '{target}'");
+        }
+
+        private static ConditionResult CheckNpcNameEquals(string[] parts, bool invert)
+        {
+            if (parts.Length < 2 || string.IsNullOrEmpty(CurrentNpcName)) return ConditionResult.Pass();
+            string target = parts[1].Trim();
+            bool match = string.Equals(CurrentNpcName, target, StringComparison.OrdinalIgnoreCase);
+            return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"NPC name must {(invert ? "not " : "")}be '{target}'");
+        }
+
+        private static ConditionResult CheckCustomDataKeys(Player player, string[] parts, bool requireAll, bool invert)
+        {
+            if (parts.Length < 2 || player == null) return ConditionResult.Pass();
+            // Keys are comma-OR-semicolon separated in parts[1] (or each as its own part).
+            var keys = new List<string>();
+            for (int i = 1; i < parts.Length; i++)
+                keys.AddRange(parts[i].Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries));
+            if (keys.Count == 0) return ConditionResult.Pass();
+
+            int hits = 0;
+            foreach (var k in keys)
+            {
+                string trimmed = k.Trim();
+                if (player.m_customData != null && player.m_customData.ContainsKey(trimmed)) hits++;
+            }
+            bool ok = requireAll ? hits == keys.Count : hits > 0;
+            return ok != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Custom-data keys {(requireAll ? "(all)" : "(one of)")}: {string.Join(", ", keys)}");
+        }
+
+        private static ConditionResult CheckModInstalled(string[] parts, bool invert)
+        {
+            if (parts.Length < 2) return ConditionResult.Pass();
+            string guid = parts[1].Trim();
+            bool installed = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(guid);
+            return installed != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Mod {(invert ? "must not be" : "required")}: {guid}");
+        }
+
+        private static ConditionResult CheckIronGateStat(string[] parts, bool more)
+        {
+            // Vanilla IronGate stats are tracked on the active PlayerProfile.m_playerStats dictionary.
+            if (parts.Length < 3 || Game.instance == null) return ConditionResult.Pass();
+            string statKey = parts[1].Trim();
+            if (!int.TryParse(parts[2].Trim(), out int threshold)) return ConditionResult.Pass();
+            int value = 0;
+            try
+            {
+                if (System.Enum.TryParse(statKey, ignoreCase: true, out PlayerStatType parsed))
+                {
+                    var profile = Game.instance.GetPlayerProfile();
+                    if (profile != null && profile.m_playerStats.m_stats.TryGetValue(parsed, out var v))
+                        value = (int)v;
+                }
+            }
+            catch { }
+            bool ok = more ? value >= threshold : value <= threshold;
+            return ok ? ConditionResult.Pass() : ConditionResult.Fail($"Stat {statKey} must {(more ? ">=" : "<=")} {threshold} (have {value})");
         }
 
         #region Condition Implementations

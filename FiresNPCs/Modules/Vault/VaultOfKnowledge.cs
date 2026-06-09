@@ -77,6 +77,8 @@ namespace FiresRPGmaker.Modules.Vault
             {
                 // clients send kill events and stat updates; server applies them to m_customData and persists
                 ZRoutedRpc.instance.Register("FiresRPGmaker_KillEvent", new Action<long, ZPackage>(RPC_KillEvent));
+                ZRoutedRpc.instance.Register("FiresRPGmaker_QuestProgressEvent", new Action<long, ZPackage>(RPC_QuestProgressEvent));
+                ZRoutedRpc.instance.Register("FiresRPGmaker_QuestMoveCheck", new Action<long, ZPackage>(RPC_QuestMoveCheck));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_UpdateStat", new Action<long, ZPackage>(RPC_UpdateStat));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_AnnouncePlayerInfo", new Action<long, ZPackage>(RPC_AnnouncePlayerInfo));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_RequestPlayerData", new Action<long, ZPackage>(RPC_RequestPlayerData));
@@ -1736,6 +1738,128 @@ namespace FiresRPGmaker.Modules.Vault
             catch (Exception ex)
             {
                 Debug.LogError($"[FiresRPGmaker] RPC_KillEvent exception: {ex}");
+            }
+        }
+
+        /// <summary>Generic progress dispatcher for Collect/Harvest/Craft/Build/Talk quest types (KG parity).
+        /// Kill stays on its own RPC for backwards-compat; everything else funnels through here.</summary>
+        private static void RPC_QuestProgressEvent(long sender, ZPackage pkg)
+        {
+            try
+            {
+                if (!ZNet.instance.IsServer() || Instance == null || pkg == null) return;
+                long playerId = pkg.ReadLong();
+                string questType = pkg.ReadString();
+                string prefab = pkg.ReadString();
+                int amount = pkg.ReadInt();
+                if (playerId == 0 || string.IsNullOrEmpty(questType) || string.IsNullOrEmpty(prefab)) return;
+                ApplyQuestProgressLocal(playerId, questType, prefab, amount);
+            }
+            catch (Exception ex) { Debug.LogError("[FiresRPGmaker] RPC_QuestProgressEvent exception: " + ex); }
+        }
+
+        /// <summary>Move-quest position check. Compares player's xz position to each Move active quest's
+        /// target ("x,y,z" string in <c>QuestTarget.Prefab</c>) and counts a hit within 10m.</summary>
+        private static void RPC_QuestMoveCheck(long sender, ZPackage pkg)
+        {
+            try
+            {
+                if (!ZNet.instance.IsServer() || Instance == null || pkg == null) return;
+                long playerId = pkg.ReadLong();
+                float x = pkg.ReadSingle();
+                float y = pkg.ReadSingle();
+                float z = pkg.ReadSingle();
+                ApplyMoveQuestCheckLocal(playerId, new Vector3(x, y, z));
+            }
+            catch (Exception ex) { Debug.LogError("[FiresRPGmaker] RPC_QuestMoveCheck exception: " + ex); }
+        }
+
+        /// <summary>Shared progress applier — used by both the RPC handler and the inline single-player
+        /// path. Walks the player's vault data, finds active quests of the matching type whose targets
+        /// hit the prefab, bumps progress, auto-completes if applicable, banks rewards, saves.</summary>
+        public static void ApplyQuestProgressLocal(long playerId, string questType, string prefab, int amount)
+        {
+            if (Instance == null || QuestManager.Instance == null) return;
+            var player = Player.GetPlayer(playerId);
+            PlayerVaultData data = player != null
+                ? (DeserializeFromCustomData(player) ?? new PlayerVaultData(playerId))
+                : Instance.LoadPlayerData(playerId);
+            if (data == null) return;
+
+            bool anyChange = false;
+            for (int i = data.ActiveQuests.Count - 1; i >= 0; i--)
+            {
+                var active = data.ActiveQuests[i];
+                var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
+                if (def == null) continue;
+                if (!string.Equals(def.QuestType, questType, StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (var t in def.QuestTargets)
+                {
+                    if (!string.Equals(t.Prefab, prefab, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (active.Progress >= t.Amount) continue;
+                    active.Progress = Math.Min(t.Amount, active.Progress + Math.Max(1, amount));
+                    anyChange = true;
+                    if (active.Progress >= t.Amount && def.Autocomplete)
+                    {
+                        data.AddCompletedQuest(active.QuestId, 1);
+                        data.ActiveQuests.RemoveAt(i);
+                        try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
+                        if (def.Rewards != null)
+                            foreach (var r in def.Rewards) { try { data.AddBankItem("item", r.Target ?? "", r.Amount); } catch { } }
+                    }
+                    break;
+                }
+            }
+            if (anyChange)
+            {
+                if (player != null) Instance.SavePlayerDataFromZDO(playerId, player);
+                else Instance.SavePlayerData(playerId, data);
+            }
+        }
+
+        /// <summary>Move-quest distance check (KG parity, every 3s on client). Target stored as
+        /// "x,y,z" string in <c>QuestTarget.Prefab</c>; within 10m counts as one progress tick.</summary>
+        public static void ApplyMoveQuestCheckLocal(long playerId, Vector3 position)
+        {
+            if (Instance == null || QuestManager.Instance == null) return;
+            var player = Player.GetPlayer(playerId);
+            PlayerVaultData data = player != null
+                ? (DeserializeFromCustomData(player) ?? new PlayerVaultData(playerId))
+                : Instance.LoadPlayerData(playerId);
+            if (data == null) return;
+
+            bool anyChange = false;
+            for (int i = data.ActiveQuests.Count - 1; i >= 0; i--)
+            {
+                var active = data.ActiveQuests[i];
+                var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
+                if (def == null || !string.Equals(def.QuestType, "Move", StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (var t in def.QuestTargets)
+                {
+                    if (active.Progress >= t.Amount) continue;
+                    if (string.IsNullOrEmpty(t.Prefab)) continue;
+                    var bits = t.Prefab.Split(',');
+                    if (bits.Length < 3) continue;
+                    if (!float.TryParse(bits[0], out var tx) || !float.TryParse(bits[1], out var ty) || !float.TryParse(bits[2], out var tz)) continue;
+                    var target = new Vector3(tx, ty, tz);
+                    if (Vector2.Distance(new Vector2(position.x, position.z), new Vector2(target.x, target.z)) > 10f) continue;
+                    active.Progress = Math.Min(t.Amount, active.Progress + 1);
+                    anyChange = true;
+                    if (active.Progress >= t.Amount && def.Autocomplete)
+                    {
+                        data.AddCompletedQuest(active.QuestId, 1);
+                        data.ActiveQuests.RemoveAt(i);
+                        try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
+                        if (def.Rewards != null)
+                            foreach (var r in def.Rewards) { try { data.AddBankItem("item", r.Target ?? "", r.Amount); } catch { } }
+                    }
+                    break;
+                }
+            }
+            if (anyChange)
+            {
+                if (player != null) Instance.SavePlayerDataFromZDO(playerId, player);
+                else Instance.SavePlayerData(playerId, data);
             }
         }
 

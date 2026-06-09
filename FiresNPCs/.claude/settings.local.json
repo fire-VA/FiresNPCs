@@ -297,7 +297,9 @@
       "Bash(grep -nB 2 -A 6 \"NoMist\\\\|FindBaseSpawnPoint\\\\|OnlyForGuild\\\\|IsPermitted\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/TerritorySystem/TerritorySystem_Main_Client.cs)",
       "Bash(grep -nB 2 -A 10 \"public bool IsPermitted\\\\|IsPermitted\\(\\)\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/TerritorySystem/TerritorySystem_DataTypes.cs)",
       "Bash(grep -nB 2 -A 15 \"static.*IsPermitted\\\\|private.*bool.*Permitted\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Territories/TerritoryRuntime.cs)",
-      "Bash(grep -nA 5 \"class GuildData\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Guilds/GuildAPI.cs)"
+      "Bash(grep -nA 5 \"class GuildData\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Guilds/GuildAPI.cs)",
+      "Bash(grep -nB 2 -A 8 \"TryAddRewardKill\\\\|TryAddRewardMove\\\\|TryAddRewardCraft\\\\|TryAddRewardBuild\\\\|TryAddRewardTalk\\\\|TryAddRewardPickup\\\\|TryAddRewardHarvest\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/Quests/Quests_Main_Client.cs)",
+      "Bash(grep -nB 1 -A 3 \"class ActiveQuestData\\\\|VaultData\\\\|_Quests.*customData\\\\|FiresRPGmaker_Quests\\\\|FiresRPGmaker_Vault\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Vault/VaultOfKnowledge.cs)"
     ]
   }
 }

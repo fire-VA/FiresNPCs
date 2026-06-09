@@ -106,6 +106,21 @@ namespace FiresRPGmaker.Modules.Dialogues
             _currentUID = dialogueUID;
             _navigationStack.Clear();
 
+            // Publish NPC context for dialogue conditions (NPCNameEquals / NPCModelEquals lookup).
+            try
+            {
+                DialogueConditionEngine.CurrentNpcName = _currentNpcName;
+                string model = null;
+                if (npcView != null)
+                {
+                    // Pull the model override from the NpcController on the same GameObject if present.
+                    var npcCtl = npcView.GetComponentInChildren<global::FiresRPGmaker.UI.NpcController>(true);
+                    if (npcCtl != null) model = npcCtl.modelOverride;
+                }
+                DialogueConditionEngine.CurrentNpcModel = model;
+            }
+            catch { }
+
             EnsureUI();
             PopulateDialogue(dialogue);
 
@@ -173,6 +188,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             _currentUID = null;
             _currentNpcView = null;
             _navigationStack.Clear();
+            DialogueConditionEngine.CurrentNpcName = null;
+            DialogueConditionEngine.CurrentNpcModel = null;
 
             NpcHoverHudSuppressor.Clear();
             GUIManager.BlockInput(false);
@@ -782,6 +799,11 @@ namespace FiresRPGmaker.Modules.Dialogues
                 DialogueCommandEngine.ExecuteAll(option.Commands, _currentNpcView);
             if (option.RandomCommands != null && option.RandomCommands.Count > 0)
                 DialogueCommandEngine.ExecuteRandom(option.RandomCommands, _currentNpcView);
+
+            // Talk-quest progression hook (KG parity): every dialogue option click counts as "talking to"
+            // the NPC. The Talk quest's target is the NPC's display name and the quest's TargetCount is
+            // the number of separate dialogue interactions required.
+            try { global::FiresRPGmaker.Modules.Quest.TalkQuestBridge.OnTalkedTo(_currentNpcName); } catch { }
 
             // Transition
             string nextUID = option.GetNextTransition();
