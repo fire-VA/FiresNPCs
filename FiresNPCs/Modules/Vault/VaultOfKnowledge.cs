@@ -1812,7 +1812,8 @@ namespace FiresRPGmaker.Modules.Vault
             }
             if (anyChange)
             {
-                if (player != null) Instance.SavePlayerDataFromZDO(playerId, player);
+                data.IsDirty = true;
+                if (player != null) { Instance.SerializeToCustomData(player, data); Instance.SavePlayerDataFromZDO(playerId, player); }
                 else Instance.SavePlayerData(playerId, data);
             }
         }
@@ -1859,7 +1860,8 @@ namespace FiresRPGmaker.Modules.Vault
             }
             if (anyChange)
             {
-                if (player != null) Instance.SavePlayerDataFromZDO(playerId, player);
+                data.IsDirty = true;
+                if (player != null) { Instance.SerializeToCustomData(player, data); Instance.SavePlayerDataFromZDO(playerId, player); }
                 else Instance.SavePlayerData(playerId, data);
             }
         }

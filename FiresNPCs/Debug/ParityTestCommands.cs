@@ -327,9 +327,12 @@ namespace FiresRPGmaker
                 {
                     MakeSyntheticQuest(c[0], c[1], c[2], 1);
                     data.ActiveQuests.Add(new ActiveQuestData { QuestId = c[0], Progress = 0, StartedAt = DateTime.UtcNow });
+                    // ApplyQuestProgressLocal deserializes from customData, so push the synthetic
+                    // active row in before firing. The autocomplete chain serializes the result back.
+                    vault.SerializeToCustomData(player, data);
                     VaultOfKnowledge.ApplyQuestProgressLocal(pid, c[1], c[2], 1);
-                    var freshData = vault.GetPlayerData(pid);
-                    bool completed = freshData.CompletedQuests.ContainsKey(c[0]);
+                    data = vault.GetPlayerData(pid); // refresh local handle from saved state
+                    bool completed = data.CompletedQuests.ContainsKey(c[0]);
                     Report(c[1].PadRight(8) + " (" + c[2] + ")", completed, completed ? "completed → reward path fired" : "no progress observed");
                 }
 
@@ -341,9 +344,10 @@ namespace FiresRPGmaker
                                        pos.z.ToString(System.Globalization.CultureInfo.InvariantCulture);
                     MakeSyntheticQuest("fires_sanity_move", "Move", targetXYZ, 1);
                     data.ActiveQuests.Add(new ActiveQuestData { QuestId = "fires_sanity_move", Progress = 0, StartedAt = DateTime.UtcNow });
+                    vault.SerializeToCustomData(player, data);
                     VaultOfKnowledge.ApplyMoveQuestCheckLocal(pid, pos);
-                    var freshData = vault.GetPlayerData(pid);
-                    bool moveOk = freshData.CompletedQuests.ContainsKey("fires_sanity_move");
+                    data = vault.GetPlayerData(pid);
+                    bool moveOk = data.CompletedQuests.ContainsKey("fires_sanity_move");
                     Report("Move     (10m radius)", moveOk, moveOk ? "completed at player position" : "no match");
                 }
 
