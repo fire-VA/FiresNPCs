@@ -235,6 +235,9 @@
     <Compile Include="Modules\Quest\QuestProgressPatches.cs" />
     <Compile Include="Modules\Quest\QuestProgressPatches.NewTypes.cs" />
     <Compile Include="Modules\Quest\QuestRewardDispatcher.cs" />
+    <Compile Include="Modules\Quest\QuestLifecycleDispatcher.cs" />
+    <Compile Include="Modules\Marketplace\API_ClientSide.cs" />
+    <Compile Include="Debug\ParityTestCommands.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.MissingFlagPatches.cs" />
     <Compile Include="Modules\Territories\DeepNorthEnvironment.cs" />
     <Compile Include="Modules\Territories\OutlineSurveyor.cs" />

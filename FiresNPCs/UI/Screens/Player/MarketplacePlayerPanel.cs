@@ -23,7 +23,24 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private Tab _currentTab = Tab.Buy;
         private MarketCategory _category = MarketCategory.All;
 
-        private const int RowsPerPage = 14;   // matches KG's MAXITEMSPERPAGE
+        /// <summary>KG-parity sort modes — values match KG's ChangeSortBy(int) wire format so we can
+        /// reuse identical 1..4 indexing on header clicks.</summary>
+        private enum SortBy { None = 0, ItemName = 1, Count = 2, Price = 3, Seller = 4 }
+        private enum SortType { Ascending, Descending }
+        private SortBy _sortMode = SortBy.None;
+        private SortType _sortType = SortType.Ascending;
+        private TMP_Text _hdrItem, _hdrQty, _hdrPrice, _hdrSeller;
+
+        /// <summary>Tile density cycle — KG ships fixed 14 r/p; we extend with Compact/Normal/Large so
+        /// players can trade scroll depth for at-a-glance listing count without losing rows on a 4K monitor.</summary>
+        private enum TileSize { Compact, Normal, Large }
+        private TileSize _tileSize = TileSize.Normal;
+        private int RowsPerPage => _tileSize switch { TileSize.Compact => 24, TileSize.Large => 8, _ => 14 };
+        private float RowHeightPx => _tileSize switch { TileSize.Compact => 18f, TileSize.Large => 46f, _ => 30f };
+        private float RowFontSize => _tileSize switch { TileSize.Compact => 11f, TileSize.Large => 16f, _ => 13f };
+        private Button _sizeCycleButton;
+        private TMP_Text _sizeCycleLabel;
+
         private int _page = 0;
         private int _maxPage = 1;
 
@@ -89,13 +106,22 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 _categoryButtons[i] = btn;
             }
 
-            // Column header
+            // Column header — KG-parity sort: clicking a column sets/toggles the sort mode (asc↔desc).
             MakePanel(contentArea, "ColHeader", new Color(0.05f, 0.04f, 0.02f, 0.95f),
                       new Vector2(0f, 0.82f), new Vector2(1f, 0.87f), Vector2.zero, Vector2.zero);
-            MakeLabel(contentArea, "Item",     new Vector2(0.02f, 0.82f), new Vector2(0.40f, 0.87f), Vector2.zero, Vector2.zero, size: 13f, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Qty",      new Vector2(0.42f, 0.82f), new Vector2(0.54f, 0.87f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Price",    new Vector2(0.56f, 0.82f), new Vector2(0.72f, 0.87f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Seller",   new Vector2(0.74f, 0.82f), new Vector2(0.88f, 0.87f), Vector2.zero, Vector2.zero, size: 13f, color: new Color(1f, 0.85f, 0.55f));
+            _hdrItem   = MakeSortHeader(contentArea, "Item",   SortBy.ItemName, new Vector2(0.02f, 0.82f), new Vector2(0.40f, 0.87f), TextAlignmentOptions.Left);
+            _hdrQty    = MakeSortHeader(contentArea, "Qty",    SortBy.Count,    new Vector2(0.42f, 0.82f), new Vector2(0.54f, 0.87f), TextAlignmentOptions.Center);
+            _hdrPrice  = MakeSortHeader(contentArea, "Price",  SortBy.Price,    new Vector2(0.56f, 0.82f), new Vector2(0.72f, 0.87f), TextAlignmentOptions.Center);
+            _hdrSeller = MakeSortHeader(contentArea, "Seller", SortBy.Seller,   new Vector2(0.74f, 0.82f), new Vector2(0.88f, 0.87f), TextAlignmentOptions.Left);
+
+            // Tile size cycle button — top-right of the header row.
+            _sizeCycleButton = MakeButton(contentArea, "Tiles",
+                                          new Vector2(0.89f, 0.82f), new Vector2(0.99f, 0.87f),
+                                          Vector2.zero, Vector2.zero,
+                                          bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 11f);
+            _sizeCycleButton.name = "SizeCycle";
+            _sizeCycleLabel = _sizeCycleButton.GetComponentInChildren<TMP_Text>();
+            _sizeCycleButton.onClick.AddListener(CycleTileSize);
 
             _listingContent = MakeVerticalScroll(contentArea,
                                                  new Vector2(0f, 0.27f), new Vector2(1f, 0.81f),
@@ -396,12 +422,16 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 _ => new List<MarketplaceListing>(),
             };
 
-            // Paginate (KG paginates at 14 rows/page).
-            _maxPage = Mathf.Max(1, Mathf.CeilToInt(rows.Count / (float)RowsPerPage));
+            // KG-parity sort (None = leave native order, otherwise OrderBy/OrderByDescending).
+            rows = ApplySort(rows);
+
+            // Paginate (KG paginates at 14 rows/page; we cycle 8/14/24 by tile size).
+            int rpp = RowsPerPage;
+            _maxPage = Mathf.Max(1, Mathf.CeilToInt(rows.Count / (float)rpp));
             if (_page >= _maxPage) _page = _maxPage - 1;
             if (_page < 0) _page = 0;
-            int skip = _page * RowsPerPage;
-            int take = Mathf.Min(RowsPerPage, rows.Count - skip);
+            int skip = _page * rpp;
+            int take = Mathf.Min(rpp, rows.Count - skip);
             for (int i = 0; i < take; i++) BuildRow(rows[skip + i]);
             ReflowScroll(_listingContent);
 
@@ -429,7 +459,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.GetComponent<Image>().color = l == _selected
                 ? new Color(0.32f, 0.22f, 0.14f, 0.95f)
                 : new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            SetRowHeight(rowGo, 30f);
+            SetRowHeight(rowGo, RowHeightPx);
             rowGo.GetComponent<Button>().onClick.AddListener(() =>
             {
                 _selected = l;
@@ -437,10 +467,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 Refresh();
             });
 
-            MakeLabel(rowGo.transform, l.ItemPrefab,           new Vector2(0.02f, 0f), new Vector2(0.40f, 1f), Vector2.zero, Vector2.zero, size: 13f);
-            MakeLabel(rowGo.transform, l.Count.ToString(),      new Vector2(0.42f, 0f), new Vector2(0.54f, 1f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center);
-            MakeLabel(rowGo.transform, l.Price + " " + l.Currency, new Vector2(0.56f, 0f), new Vector2(0.72f, 1f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(rowGo.transform, l.SellerName,            new Vector2(0.74f, 0f), new Vector2(0.99f, 1f), Vector2.zero, Vector2.zero, size: 13f);
+            float fs = RowFontSize;
+            MakeLabel(rowGo.transform, l.ItemPrefab,           new Vector2(0.02f, 0f), new Vector2(0.40f, 1f), Vector2.zero, Vector2.zero, size: fs);
+            MakeLabel(rowGo.transform, l.Count.ToString(),      new Vector2(0.42f, 0f), new Vector2(0.54f, 1f), Vector2.zero, Vector2.zero, size: fs, align: TextAlignmentOptions.Center);
+            MakeLabel(rowGo.transform, l.Price + " " + l.Currency, new Vector2(0.56f, 0f), new Vector2(0.72f, 1f), Vector2.zero, Vector2.zero, size: fs, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
+            MakeLabel(rowGo.transform, l.SellerName,            new Vector2(0.74f, 0f), new Vector2(0.99f, 1f), Vector2.zero, Vector2.zero, size: fs);
         }
 
         // ─── confirm panel (KG's AFTERPRESS) ───
@@ -591,6 +622,77 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 remaining -= take;
             }
             return remaining == 0;
+        }
+
+        // ─── KG-parity sort + size cycle ─────────────────────────────────
+
+        /// <summary>Builds a column-header that acts as a sort toggle. Visual: glyph (⇧/⇩) gets
+        /// appended to the active column's label so the player can read the current sort at a glance.</summary>
+        private TMP_Text MakeSortHeader(Transform parent, string label, SortBy mode, Vector2 anchorMin, Vector2 anchorMax, TextAlignmentOptions align)
+        {
+            var btn = MakeButton(parent, label,
+                                 anchorMin, anchorMax,
+                                 Vector2.zero, Vector2.zero,
+                                 bgColor: new Color(0f, 0f, 0f, 0f), fontSize: 13f);
+            btn.name = "Sort" + mode;
+            var txt = btn.GetComponentInChildren<TMP_Text>();
+            if (txt != null)
+            {
+                txt.color = new Color(1f, 0.85f, 0.55f);
+                txt.alignment = align;
+            }
+            btn.onClick.AddListener(() => ChangeSortBy(mode));
+            return txt;
+        }
+
+        private void ChangeSortBy(SortBy mode)
+        {
+            if (_sortMode == mode)
+                _sortType = _sortType == SortType.Ascending ? SortType.Descending : SortType.Ascending;
+            else { _sortMode = mode; _sortType = SortType.Ascending; }
+            _page = 0;
+            UpdateSortHeaderLabels();
+            Refresh();
+        }
+
+        private void UpdateSortHeaderLabels()
+        {
+            string glyph = _sortType == SortType.Ascending ? " ⇧" : " ⇩"; // ⇧/⇩
+            if (_hdrItem   != null) _hdrItem.text   = "Item"   + (_sortMode == SortBy.ItemName ? glyph : "");
+            if (_hdrQty    != null) _hdrQty.text    = "Qty"    + (_sortMode == SortBy.Count    ? glyph : "");
+            if (_hdrPrice  != null) _hdrPrice.text  = "Price"  + (_sortMode == SortBy.Price    ? glyph : "");
+            if (_hdrSeller != null) _hdrSeller.text = "Seller" + (_sortMode == SortBy.Seller   ? glyph : "");
+        }
+
+        private IReadOnlyList<MarketplaceListing> ApplySort(IReadOnlyList<MarketplaceListing> rows)
+        {
+            if (_sortMode == SortBy.None) return rows;
+            System.Collections.Generic.IEnumerable<MarketplaceListing> q = rows;
+            q = _sortMode switch
+            {
+                SortBy.ItemName => _sortType == SortType.Ascending ? q.OrderBy(r => r.ItemPrefab) : q.OrderByDescending(r => r.ItemPrefab),
+                SortBy.Count    => _sortType == SortType.Ascending ? q.OrderBy(r => r.Count)      : q.OrderByDescending(r => r.Count),
+                SortBy.Price    => _sortType == SortType.Ascending ? q.OrderBy(r => r.Price)      : q.OrderByDescending(r => r.Price),
+                SortBy.Seller   => _sortType == SortType.Ascending ? q.OrderBy(r => r.SellerName) : q.OrderByDescending(r => r.SellerName),
+                _ => q,
+            };
+            return q.ToList();
+        }
+
+        private void CycleTileSize()
+        {
+            _tileSize = _tileSize switch
+            {
+                TileSize.Compact => TileSize.Normal,
+                TileSize.Normal  => TileSize.Large,
+                _                => TileSize.Compact,
+            };
+            if (_sizeCycleLabel != null)
+                _sizeCycleLabel.text = _tileSize == TileSize.Compact ? "Compact"
+                                     : _tileSize == TileSize.Large   ? "Large"
+                                     :                                 "Normal";
+            _page = 0;
+            Refresh();
         }
     }
 }

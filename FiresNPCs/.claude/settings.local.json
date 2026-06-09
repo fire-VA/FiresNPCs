@@ -302,7 +302,9 @@
       "Bash(grep -nB 1 -A 3 \"class ActiveQuestData\\\\|VaultData\\\\|_Quests.*customData\\\\|FiresRPGmaker_Quests\\\\|FiresRPGmaker_Vault\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Vault/VaultOfKnowledge.cs)",
       "Bash(grep -nB 1 -A 3 'AddBankItem\\\\|rwd\\\\.\\\\|reward\\\\.Type\\\\|RewardType\\\\|GrantReward' /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Vault/VaultOfKnowledge.cs)",
       "Bash(grep -nB 2 -A 8 \"TransferComplition\\\\b\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/Quests/Quests_DataTypes.cs)",
-      "Bash(grep -nB 1 -A 15 \"TransferComplition > 0\\\\|HandleQuestEvent\\\\|public.*QuestEvent\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/Quests/Quests_DataTypes.cs)"
+      "Bash(grep -nB 1 -A 15 \"TransferComplition > 0\\\\|HandleQuestEvent\\\\|public.*QuestEvent\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/Quests/Quests_DataTypes.cs)",
+      "Bash(cp \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\bin\\\\Debug\\\\FiresRPGmaker.dll\" \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\FiresRPGmaker.dll\")",
+      "Bash(cp \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\bin\\\\Debug\\\\FiresRPGmaker.pdb\" \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\FiresRPGmaker.pdb\")"
     ]
   }
 }

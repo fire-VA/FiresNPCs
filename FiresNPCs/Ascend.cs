@@ -192,6 +192,8 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+InventoryGui_DoCrafting_Patch",
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+Player_PlacePiece_Patch",
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+Player_Update_MoveQuest_Patch",
+            // Quest lifecycle OnDeath hook — local-player only, dedi never has m_localPlayer.
+            "FiresRPGmaker.Modules.Quest.QuestLifecyclePatches+Player_OnDeath_Patch",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server
