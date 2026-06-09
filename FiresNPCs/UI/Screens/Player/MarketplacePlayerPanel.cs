@@ -435,6 +435,26 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             for (int i = 0; i < take; i++) BuildRow(rows[skip + i]);
             ReflowScroll(_listingContent);
 
+            // ── DIAG: dump row rendering state ──
+            try
+            {
+                Debug.Log("[MP DIAG] rows.Count=" + rows.Count + " skip=" + skip + " take=" + take +
+                          " listingContent.childCount=" + _listingContent.childCount +
+                          " listingContent.sizeDelta=" + _listingContent.sizeDelta +
+                          " listingContent.rect=" + _listingContent.rect);
+                for (int i = 0; i < Mathf.Min(3, _listingContent.childCount); i++)
+                {
+                    var c = _listingContent.GetChild(i) as RectTransform;
+                    if (c == null) continue;
+                    Debug.Log("[MP DIAG]   child[" + i + "] name=" + c.name + " active=" + c.gameObject.activeInHierarchy +
+                              " sizeDelta=" + c.sizeDelta + " anchoredPos=" + c.anchoredPosition +
+                              " rect=" + c.rect + " labels=" + c.childCount);
+                    var img = c.GetComponent<Image>();
+                    if (img != null) Debug.Log("[MP DIAG]   child[" + i + "] image.color=" + img.color + " enabled=" + img.enabled);
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[MP DIAG] " + ex.Message); }
+
             // Highlight active category button.
             for (int i = 0; i < _categoryButtons.Length; i++)
                 HighlightTab(_categoryButtons[i], (int)_category == i);
