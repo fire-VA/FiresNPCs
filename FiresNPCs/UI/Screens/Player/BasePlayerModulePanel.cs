@@ -187,42 +187,41 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         }
 
         // ---- shared widget helpers ----
+        //
+        // All Make* helpers below delegate to FiresCore.UI.UIBuilderHelper (FiresUnifiedCore) so we have
+        // ONE UI construction pipeline instead of two parallel ones. The legacy local implementations
+        // (programmatic GameObject + AddComponent<Image>) drove a Mask-with-no-geometry rendering bug
+        // that left rows clickable but invisible across every BasePlayerModulePanel-based panel
+        // (Banker/Marketplace/Transmog/Mail/Gambler/Leaderboard). UIBuilderHelper has always rendered
+        // correctly (QuestInteractionScreenController uses it in production).
+        //
+        // The Make* API surface is preserved — call sites don't change — only the implementation moves.
 
         protected static TMP_Text MakeLabel(Transform parent, string text, Vector2 anchorMin, Vector2 anchorMax,
                                             Vector2 offMin, Vector2 offMax, float size = 14f,
                                             TextAlignmentOptions align = TextAlignmentOptions.MidlineLeft,
                                             Color? color = null)
         {
-            var go = new GameObject("Label", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
+            var tmp = FiresCore.UI.UIBuilderHelper.CreateLabel(parent, "Label", text, size,
+                                                               color ?? new Color(0.96f, 0.91f, 0.76f),
+                                                               anchorMin, anchorMax, align);
+            var rt = tmp.rectTransform;
             rt.offsetMin = offMin; rt.offsetMax = offMax;
-            var t = go.AddComponent<TextMeshProUGUI>();
-            t.text = text; t.fontSize = size;
-            t.alignment = align; t.color = color ?? new Color(0.96f, 0.91f, 0.76f);
-            t.enableWordWrapping = true;
-            // Apply the configured Valheim/Primary font directly — ApplyValheimFontToAll is conditional
-            // (only swaps Liberation/null), so we'd be stuck with TMP's default pixel font otherwise.
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(t);
-            return t;
+            tmp.enableWordWrapping = true;
+            return tmp;
         }
 
         protected static Image MakePanel(Transform parent, string name, Color color,
                                          Vector2 anchorMin, Vector2 anchorMax, Vector2 offMin, Vector2 offMax)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
+            var go = FiresCore.UI.UIBuilderHelper.CreatePanel(parent, name, anchorMin, anchorMax, color);
             var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
             rt.offsetMin = offMin; rt.offsetMax = offMax;
-            var img = go.GetComponent<Image>();
-            img.color = color;
-            return img;
+            return go.GetComponent<Image>();
         }
 
-        /// <summary>Sets both LayoutElement min AND preferred height on a row, so the parent VerticalLayoutGroup
-        /// (with childControlHeight=true) reliably sizes the row regardless of which property Unity reads.</summary>
+        /// <summary>Sets both LayoutElement min AND preferred height on a row + stamps RectTransform.sizeDelta.y
+        /// so <see cref="ReflowScroll"/> can find the row's intended height regardless of which property it reads first.</summary>
         protected static void SetRowHeight(GameObject rowGo, float height)
         {
             var le = rowGo.GetComponent<LayoutElement>();
@@ -237,75 +236,60 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected static Button MakeButton(Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,
                                            Vector2 offMin, Vector2 offMax, Color? bgColor = null, float fontSize = 15f)
         {
-            var go = new GameObject(label + "Button", typeof(RectTransform), typeof(Image), typeof(Button));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
+            Color norm = bgColor ?? new Color(0.22f, 0.42f, 0.22f, 0.95f);
+            // Build hover/pressed by lightening/darkening the base — matches UIBuilderHelper's default Button feel.
+            Color hover = new Color(Mathf.Clamp01(norm.r + 0.10f), Mathf.Clamp01(norm.g + 0.10f), Mathf.Clamp01(norm.b + 0.10f), norm.a);
+            Color press = new Color(Mathf.Clamp01(norm.r - 0.08f), Mathf.Clamp01(norm.g - 0.08f), Mathf.Clamp01(norm.b - 0.08f), norm.a);
+            var btn = FiresCore.UI.UIBuilderHelper.CreateButton(parent, label, anchorMin, anchorMax, norm, hover, press);
+            var rt = btn.GetComponent<RectTransform>();
             rt.offsetMin = offMin; rt.offsetMax = offMax;
-            go.GetComponent<Image>().color = bgColor ?? new Color(0.22f, 0.42f, 0.22f, 0.95f);
-            var btn = go.GetComponent<Button>();
-
-            var labelGo = new GameObject("Text", typeof(RectTransform));
-            labelGo.transform.SetParent(go.transform, false);
-            var lrt = labelGo.GetComponent<RectTransform>();
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
-            var t = labelGo.AddComponent<TextMeshProUGUI>();
-            t.text = label; t.fontSize = fontSize;
-            t.alignment = TextAlignmentOptions.Center;
-            t.color = new Color(0.96f, 0.91f, 0.76f);
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(t);
+            // Override the default button text font size — UIBuilderHelper uses UIFontConfig's ButtonText size,
+            // but the panels want per-call control (12-14f range for compact toolbar buttons).
+            var t = btn.GetComponentInChildren<TMP_Text>();
+            if (t != null) t.fontSize = fontSize;
             return btn;
         }
 
         /// <summary>Creates a vertical ScrollRect inside contentArea. Returns the Content RectTransform that
-        /// child entries should be parented under — it has a VerticalLayoutGroup + ContentSizeFitter so
-        /// rows auto-stack and the scroll area expands.</summary>
+        /// child entries should be parented under — <see cref="ReflowScroll"/> repositions them top-down
+        /// after the panel adds rows.
+        ///
+        /// Delegates to <c>UIBuilderHelper.CreateScrollArea</c>, then overrides scrolling tuning and
+        /// stashes <paramref name="rowSpacing"/> + <paramref name="padding"/> onto a Content-side
+        /// <see cref="LayoutElement"/> so <see cref="ReflowScroll"/> can read them later without the
+        /// call-sites needing to pass them through.</summary>
         protected static RectTransform MakeVerticalScroll(Transform parent, Vector2 anchorMin, Vector2 anchorMax,
                                                           Vector2 offMin, Vector2 offMax, float rowSpacing = 4f,
                                                           int padding = 6, float scrollSensitivity = 60f)
         {
-            var go = new GameObject("ScrollView", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
+            var scroll = FiresCore.UI.UIBuilderHelper.CreateScrollArea(parent, "ScrollView",
+                                                                       anchorMin, anchorMax,
+                                                                       backgroundColor: new Color(0.08f, 0.06f, 0.04f, 0.85f));
+            // Apply caller's offset insets to the scroll root.
+            var rt = scroll.Root.GetComponent<RectTransform>();
             rt.offsetMin = offMin; rt.offsetMax = offMax;
-            go.GetComponent<Image>().color = new Color(0.08f, 0.06f, 0.04f, 0.85f);
 
-            // Viewport uses RectMask2D (pure rect clip) instead of Mask + Image — Mask needs a Graphic
-            // with valid mesh to write the stencil buffer, but our programmatic alpha-0 sprite-null Image
-            // produces zero verts → nothing gets stenciled → every child row gets clipped invisible
-            // (the bug that broke Banker/Marketplace/Transmog/Mail/Gambler row rendering). RectMask2D
-            // works without any Graphic, matching how UIBuilderHelper.CreateScrollArea has always done it.
-            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
-            viewport.transform.SetParent(go.transform, false);
-            var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.offsetMin = new Vector2(4f, 4f); vrt.offsetMax = new Vector2(-4f, -4f);
+            // Override scroll tuning to match the legacy MakeVerticalScroll feel.
+            scroll.ScrollRect.scrollSensitivity = scrollSensitivity;
 
-            var content = new GameObject("Content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            var crt = content.GetComponent<RectTransform>();
-            crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f);
-            crt.pivot = new Vector2(0.5f, 1f);
-            crt.anchoredPosition = Vector2.zero;
-            crt.sizeDelta = new Vector2(0f, 0f);
+            // Force the Content rect into the pivot/anchor shape ReflowScroll expects. UIBuilderHelper
+            // ships it with pivot (0,1); ReflowScroll positions children using pivot (0.5,1) on the
+            // Content, so normalize here for backwards compatibility with the rest of the helpers.
+            scroll.Content.anchorMin = new Vector2(0f, 1f);
+            scroll.Content.anchorMax = new Vector2(1f, 1f);
+            scroll.Content.pivot = new Vector2(0.5f, 1f);
+            scroll.Content.anchoredPosition = Vector2.zero;
+            scroll.Content.sizeDelta = Vector2.zero;
 
-            // Manual positioning (not VerticalLayoutGroup): VLG + ContentSizeFitter were silently leaving
-            // rows at height 0 in this layering setup. Each panel calls ReflowScroll() after adding rows
-            // to position them top-down by their LayoutElement.preferredHeight + spacing.
-            // (Stash spacing/padding on the LayoutElement of the Content rect itself so ReflowScroll
-            // can read them later without the call-sites needing to pass them.)
-            var le = content.AddComponent<LayoutElement>();
-            le.minHeight = padding * 2f;
-            le.preferredHeight = rowSpacing; // re-purposed as "row spacing" by ReflowScroll
-            le.flexibleHeight = padding;     // re-purposed as "padding"
+            // Stash rowSpacing/padding on a Content-side LayoutElement so ReflowScroll can read them.
+            // This is the same trick the legacy implementation used — keeping it preserves the contract
+            // ReflowScroll relies on without breaking any panel call sites.
+            var meta = scroll.Content.gameObject.AddComponent<LayoutElement>();
+            meta.minHeight = padding * 2f;
+            meta.preferredHeight = rowSpacing; // re-purposed as "row spacing" by ReflowScroll
+            meta.flexibleHeight = padding;     // re-purposed as "padding"
 
-            var sr = go.GetComponent<ScrollRect>();
-            sr.viewport = vrt; sr.content = crt;
-            sr.horizontal = false; sr.vertical = true;
-            sr.scrollSensitivity = scrollSensitivity;
-            return crt;
+            return scroll.Content;
         }
 
         /// <summary>Call after adding/removing rows under <paramref name="content"/> (the rect returned by

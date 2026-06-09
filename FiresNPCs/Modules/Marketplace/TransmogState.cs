@@ -114,8 +114,15 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static void RefreshLocalEquipment()
         {
             var p = Player.m_localPlayer; if (p == null) return;
-            var vis = p.m_visEquipment; if (vis == null) return;
-            vis.UpdateEquipmentVisuals();
+            // VisEquipment.UpdateEquipmentVisuals() reads the ZDO hash for each slot and feeds it directly
+            // to SetXxxEquipped — it NEVER calls SetXxxItem(string), so the TransmogVisualPatches sitting
+            // on those setters wouldn't fire on transmog Apply (only on unequip/re-equip via
+            // Humanoid.SetupEquipment). Call SetupEquipment() reflectively here so every slot's setter
+            // re-runs with the original prefab name; our prefix swaps the name to the transmog replacement,
+            // SetXxxItem stamps the swapped hash into the ZDO, and the next visual refresh renders the swap.
+            var method = AccessTools.Method(typeof(Humanoid), "SetupEquipment");
+            try { method?.Invoke(p, null); }
+            catch (System.Exception ex) { Debug.LogWarning("[TransmogState] SetupEquipment refresh failed: " + ex.Message); }
         }
     }
 

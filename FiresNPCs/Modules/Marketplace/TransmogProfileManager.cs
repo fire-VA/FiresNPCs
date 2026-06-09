@@ -56,10 +56,9 @@ namespace FiresRPGmaker.Modules.Marketplace
             _byProfile.Clear();
             var folder = GetProfileFolder();
             if (!Directory.Exists(folder))
-            {
                 try { Directory.CreateDirectory(folder); } catch { }
-                WriteExampleProfile(folder);
-            }
+            // Always seed example.cfg if missing — see same fix in BankerProfileManager.
+            WriteExampleProfile(folder);
             foreach (var file in Directory.GetFiles(folder, "*.cfg", SearchOption.AllDirectories))
             {
                 try { LoadOne(file); }

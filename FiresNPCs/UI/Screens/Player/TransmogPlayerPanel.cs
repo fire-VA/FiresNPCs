@@ -148,7 +148,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
             if (_selectedItem != null)
             {
-                _selectedNameText.text = _selectedItem.m_shared.m_name + "  (" + _selectedItem.m_shared.m_itemType + ")";
+                string sn = Localization.instance != null
+                    ? Localization.instance.Localize(_selectedItem.m_shared.m_name)
+                    : _selectedItem.m_shared.m_name;
+                _selectedNameText.text = sn + "  (" + _selectedItem.m_shared.m_itemType + ")";
                 _reverseButton.interactable = TransmogState.HasTransmog(playerName, _selectedItem.m_dropPrefab.name);
             }
             else
@@ -180,7 +183,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var nameColor = hasTransmog
                 ? new Color(1f, 0.31f, 0.31f)
                 : new Color(0.96f, 0.91f, 0.76f);
-            MakeLabel(rowGo.transform, item.m_shared.m_name,
+            // m_shared.m_name is a $localization key — resolve through Valheim's Localization service so
+            // the player sees "Leather Chestpiece" instead of "$item_chest_leather".
+            string displayName = Localization.instance != null
+                ? Localization.instance.Localize(item.m_shared.m_name)
+                : item.m_shared.m_name;
+            MakeLabel(rowGo.transform, displayName,
                       new Vector2(0.02f, 0f), new Vector2(0.85f, 1f),
                       Vector2.zero, Vector2.zero,
                       size: 13f, color: nameColor);
@@ -282,7 +290,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (!ConsumeFromInventory(inv, t.PricePrefab, t.PriceAmount)) { _statusText.text = "Failed to consume currency."; return; }
 
             TransmogState.Set(player.GetPlayerName(), _selectedItem.m_dropPrefab.name, t.Prefab);
-            _statusText.text = "Applied " + t.Prefab + " to " + _selectedItem.m_shared.m_name + ".";
+            string itemDisp = Localization.instance != null ? Localization.instance.Localize(_selectedItem.m_shared.m_name) : _selectedItem.m_shared.m_name;
+            _statusText.text = "Applied " + t.Prefab + " to " + itemDisp + ".";
+            // TransmogState.Set already calls RefreshLocalEquipment (which routes through SetupEquipment).
             Refresh();
         }
 
@@ -290,7 +300,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         {
             var player = Player.m_localPlayer; if (player == null || _selectedItem == null) return;
             TransmogState.Set(player.GetPlayerName(), _selectedItem.m_dropPrefab.name, null);
-            _statusText.text = "Reverted " + _selectedItem.m_shared.m_name + " to default.";
+            string itemDisp = Localization.instance != null ? Localization.instance.Localize(_selectedItem.m_shared.m_name) : _selectedItem.m_shared.m_name;
+            _statusText.text = "Reverted " + itemDisp + " to default.";
+            try { player.GetComponent<VisEquipment>()?.UpdateEquipmentVisuals(); } catch { }
             Refresh();
         }
 
