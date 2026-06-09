@@ -450,10 +450,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                               " sizeDelta=" + c.sizeDelta + " anchoredPos=" + c.anchoredPosition +
                               " rect=" + c.rect + " labels=" + c.childCount);
                     var img = c.GetComponent<Image>();
-                    if (img != null) Debug.Log("[MP DIAG]   child[" + i + "] image.color=" + img.color + " enabled=" + img.enabled);
+                    if (img != null) Debug.Log("[MP DIAG]   child[" + i + "] image.color=" + img.color + " enabled=" + img.enabled +
+                                                " sprite=" + (img.sprite != null ? img.sprite.name : "null") +
+                                                " material=" + (img.material != null ? img.material.name : "null") +
+                                                " canvasRenderer.cull=" + c.gameObject.GetComponent<CanvasRenderer>()?.cull);
                 }
             }
-            catch (Exception ex) { Debug.LogWarning("[MP DIAG] " + ex.Message); }
+            catch (System.Exception ex) { Debug.LogWarning("[MP DIAG] " + ex.Message); }
 
             // Highlight active category button.
             for (int i = 0; i < _categoryButtons.Length; i++)

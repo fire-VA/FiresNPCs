@@ -146,6 +146,28 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             foreach (var it in items) BuildInventoryRow(it, playerName);
             ReflowScroll(_inventoryContent);
 
+            // ── DIAG: dump row rendering state ──
+            try
+            {
+                UnityEngine.Debug.Log("[TM DIAG] items.Count=" + items.Count +
+                                      " inventoryContent.childCount=" + _inventoryContent.childCount +
+                                      " inventoryContent.sizeDelta=" + _inventoryContent.sizeDelta +
+                                      " inventoryContent.rect=" + _inventoryContent.rect);
+                for (int i = 0; i < Mathf.Min(3, _inventoryContent.childCount); i++)
+                {
+                    var c = _inventoryContent.GetChild(i) as RectTransform;
+                    if (c == null) continue;
+                    UnityEngine.Debug.Log("[TM DIAG]   child[" + i + "] name=" + c.name + " active=" + c.gameObject.activeInHierarchy +
+                                          " sizeDelta=" + c.sizeDelta + " anchoredPos=" + c.anchoredPosition +
+                                          " rect=" + c.rect + " labels=" + c.childCount);
+                    var img = c.GetComponent<Image>();
+                    if (img != null) UnityEngine.Debug.Log("[TM DIAG]   child[" + i + "] image.color=" + img.color + " enabled=" + img.enabled +
+                                                            " sprite=" + (img.sprite != null ? img.sprite.name : "null") +
+                                                            " material=" + (img.material != null ? img.material.name : "null"));
+                }
+            }
+            catch (System.Exception ex) { UnityEngine.Debug.LogWarning("[TM DIAG] " + ex.Message); }
+
             if (_selectedItem != null)
             {
                 _selectedNameText.text = _selectedItem.m_shared.m_name + "  (" + _selectedItem.m_shared.m_itemType + ")";
