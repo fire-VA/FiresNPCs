@@ -211,6 +211,9 @@ namespace FiresRPGmaker.Modules.Dialogues
             VaultOfKnowledge.Instance.SavePlayerData(playerId, vaultData);
 
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Quest accepted: {def.Name ?? questId}");
+
+            // KG-parity lifecycle: fire OnAcceptQuest commands.
+            try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(def, global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnAccept); } catch { }
         }
 
         private static void Cmd_RemoveQuest(Player player, string[] parts)

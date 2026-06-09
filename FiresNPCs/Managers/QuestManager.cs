@@ -1774,6 +1774,18 @@ foreach (var raw in lines)
         public bool Autocomplete { get; set; }
      public string PreviewImage { get; set; }  // Optional custom preview image filename (without extension)
 
+        /// <summary>KG-parity: when this quest auto-completes, the quest with this ID is auto-accepted
+        /// for the same player (chain-quest follow-up). Empty/null = no chain.</summary>
+        public string TransferComplition { get; set; }
+
+        /// <summary>KG-parity: popup text shown when a TransferComplition chain fires.</summary>
+        public string TransferComplitionText { get; set; }
+
+        /// <summary>KG-parity lifecycle hook commands. Keys: OnAcceptQuest / OnCancelQuest /
+        /// OnCompleteQuest / OnQuestTimeout / OnDeath. Values: command strings run through
+        /// <c>DialogueCommandEngine.ExecuteAll</c> when the event fires.</summary>
+        public Dictionary<string, List<string>> LifecycleEvents { get; set; } = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
     public QuestDefinition() { }
 
   public QuestDefinition(string questId)

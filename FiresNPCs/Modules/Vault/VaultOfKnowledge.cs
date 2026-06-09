@@ -145,6 +145,8 @@ namespace FiresRPGmaker.Modules.Vault
 
                 if (removed)
                 {
+                    // KG-parity lifecycle: fire OnQuestTimeout commands before the row is gone.
+                    try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(QuestManager.Instance?.GetQuestDefinition(questId), global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnTimeout); } catch { }
                     try
                     {
                         if (data.FailedQuests == null) data.FailedQuests = new List<string>();
@@ -1654,6 +1656,9 @@ namespace FiresRPGmaker.Modules.Vault
                                     QuestRewardDispatcher.GrantAll(data, player, def.Rewards);
                                 }
 
+                                // KG-parity lifecycle: OnCompleteQuest commands + TransferComplition chain follow-up.
+                                try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.OnCompleted(def, data, player); } catch { }
+
                                 // send notify to player (sender of RPC_KillEvent will be used by caller)
                                 try
                                 {
@@ -1800,6 +1805,7 @@ namespace FiresRPGmaker.Modules.Vault
                         try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
                         if (def.Rewards != null)
                             QuestRewardDispatcher.GrantAll(data, player, def.Rewards);
+                        try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.OnCompleted(def, data, player); } catch { }
                     }
                     break;
                 }
@@ -1846,6 +1852,7 @@ namespace FiresRPGmaker.Modules.Vault
                         try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
                         if (def.Rewards != null)
                             QuestRewardDispatcher.GrantAll(data, player, def.Rewards);
+                        try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.OnCompleted(def, data, player); } catch { }
                     }
                     break;
                 }
@@ -2190,6 +2197,8 @@ namespace FiresRPGmaker.Modules.Vault
                         if (!data.ActiveQuests.Any(q => q.QuestId == questId))
                         {
                             data.ActiveQuests.Add(new ActiveQuestData { QuestId = questId, Progress = 0, StartedAt = DateTime.UtcNow });
+                            // KG-parity lifecycle: fire OnAcceptQuest commands.
+                            try { QuestLifecycleDispatcher.Fire(QuestManager.Instance?.GetQuestDefinition(questId), QuestLifecycleDispatcher.EventOnAccept); } catch { }
 
                             // Start timer if quest defines a time limit >0
                             try

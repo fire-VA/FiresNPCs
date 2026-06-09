@@ -22,7 +22,7 @@ namespace FiresRPGmaker.Modules.Quest
     {
         /// <summary>Grants one reward. <paramref name="data"/> is the vault row to bank into;
         /// <paramref name="player"/> is the live player for immediate delivery (may be null for offline grants).</summary>
-        public static void Grant(PlayerVaultData data, Player player, QuestManager.QuestReward reward)
+        public static void Grant(PlayerVaultData data, Player player, QuestReward reward)
         {
             if (reward == null) return;
             string type = (reward.Type ?? "item").Trim().ToLowerInvariant();
@@ -77,7 +77,7 @@ namespace FiresRPGmaker.Modules.Quest
         }
 
         /// <summary>Convenience: grant every reward in a quest.</summary>
-        public static void GrantAll(PlayerVaultData data, Player player, IEnumerable<QuestManager.QuestReward> rewards)
+        public static void GrantAll(PlayerVaultData data, Player player, IEnumerable<QuestReward> rewards)
         {
             if (rewards == null) return;
             foreach (var r in rewards) Grant(data, player, r);
@@ -167,7 +167,7 @@ namespace FiresRPGmaker.Modules.Quest
 
         // ─── MOD-BRIDGE channel (stubs) ───────────────────────────────────
 
-        private static void ModBridgeStub(string typeName, QuestManager.QuestReward reward, string reason)
+        private static void ModBridgeStub(string typeName, QuestReward reward, string reason)
         {
             Debug.LogWarning("[QuestReward] " + typeName + " skipped — " + reason
                 + ". Target=" + (reward.Target ?? "") + " Amount=" + reward.Amount);

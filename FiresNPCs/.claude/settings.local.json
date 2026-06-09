@@ -300,7 +300,9 @@
       "Bash(grep -nA 5 \"class GuildData\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Guilds/GuildAPI.cs)",
       "Bash(grep -nB 2 -A 8 \"TryAddRewardKill\\\\|TryAddRewardMove\\\\|TryAddRewardCraft\\\\|TryAddRewardBuild\\\\|TryAddRewardTalk\\\\|TryAddRewardPickup\\\\|TryAddRewardHarvest\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/Quests/Quests_Main_Client.cs)",
       "Bash(grep -nB 1 -A 3 \"class ActiveQuestData\\\\|VaultData\\\\|_Quests.*customData\\\\|FiresRPGmaker_Quests\\\\|FiresRPGmaker_Vault\" /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Vault/VaultOfKnowledge.cs)",
-      "Bash(grep -nB 1 -A 3 'AddBankItem\\\\|rwd\\\\.\\\\|reward\\\\.Type\\\\|RewardType\\\\|GrantReward' /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Vault/VaultOfKnowledge.cs)"
+      "Bash(grep -nB 1 -A 3 'AddBankItem\\\\|rwd\\\\.\\\\|reward\\\\.Type\\\\|RewardType\\\\|GrantReward' /c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Modules/Vault/VaultOfKnowledge.cs)",
+      "Bash(grep -nB 2 -A 8 \"TransferComplition\\\\b\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/Quests/Quests_DataTypes.cs)",
+      "Bash(grep -nB 1 -A 15 \"TransferComplition > 0\\\\|HandleQuestEvent\\\\|public.*QuestEvent\" /c/Users/travi/OneDrive/Desktop/valheimRip2/kg.MarketplaceREF/Marketplace/Modules/Quests/Quests_DataTypes.cs)"
     ]
   }
 }

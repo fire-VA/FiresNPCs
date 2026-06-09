@@ -1880,6 +1880,8 @@ if (playerData?.BankItems != null && playerData.BankItems.Count > 0)
       }
     else VaultOfKnowledge.Instance?.ApplyQuestFlagLocally(playerId, questId, "active", true);
   MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest accepted: {_selectedQuest.Name}");
+      // KG-parity lifecycle: fire OnAcceptQuest commands.
+      try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(_selectedQuest, global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnAccept); } catch { }
 
       // Immediately update button states so Accept greys out and Cancel enables
       // without waiting for vault sync round-trip
@@ -1947,6 +1949,8 @@ pkg.Write(false);
         }
       else VaultOfKnowledge.Instance?.ApplyQuestFlagLocally(playerId, questId, "active", false);
   MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest abandoned: {_selectedQuest.Name}");
+      // KG-parity lifecycle: fire OnCancelQuest commands.
+      try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(_selectedQuest, global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnCancel); } catch { }
 
       // Immediately update button states so Cancel greys out and Accept enables
       if (_acceptButton != null) _acceptButton.interactable = true;
