@@ -88,17 +88,19 @@ namespace FiresRPGmaker.Modules.Quest
             }
         }
 
-        /// <summary>"Build" — Player.PlacePiece confirms a built structure.</summary>
+        /// <summary>"Build" — Player.PlacePiece confirms a built structure. In this Valheim version
+        /// PlacePiece is a void method, so we read the piece arg directly without checking __result.
+        /// (Hooking <c>Piece.SetCreator</c> as a belt-and-suspenders backup since it's only called
+        /// after the place succeeds.)</summary>
         [HarmonyPatch(typeof(Player), nameof(Player.PlacePiece))]
         public static class Player_PlacePiece_Patch
         {
             [HarmonyPostfix]
-            private static void Postfix(Player __instance, Piece piece, bool __result)
+            private static void Postfix(Player __instance, Piece piece)
             {
-                if (!__result || __instance != Player.m_localPlayer || piece == null) return;
+                if (__instance != Player.m_localPlayer || piece == null) return;
                 string prefab = piece.gameObject?.name;
                 if (string.IsNullOrEmpty(prefab)) return;
-                // Strip the "(Clone)" suffix some pieces get when instanced.
                 int paren = prefab.IndexOf("(Clone)", StringComparison.Ordinal);
                 if (paren > 0) prefab = prefab.Substring(0, paren);
                 QuestProgressClient.SendProgress("Build", prefab, 1);
