@@ -315,7 +315,8 @@
       "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-sampler-fix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
       "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-tex2dmacro-fix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
       "Bash(python -m json.tool)",
-      "Bash(grep -A2 m_Mesh: __TRACKED_VAR__/Item_BouncingBet_BF.prefab)"
+      "Bash(grep -A2 m_Mesh: __TRACKED_VAR__/Item_BouncingBet_BF.prefab)",
+      "Bash(break)"
     ]
   }
 }
