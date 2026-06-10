@@ -69,21 +69,26 @@ namespace FiresRPGmaker.UI.Screens
         private const float COL_X_RESTOCK =  409.446f;
         private const float COL_W_RESTOCK =   78.714f;
 
-        // Top-of-page overlays — shop name centered on the left page's title band, gold display
-        // centered on the right page's title band. The va_background5 artwork paints a small
-        // horizontal title rule just below each page's top-corner decoration; this Y puts the
-        // text right on that rule. (Body top is at BODY_CENTER_Y + BODY_HEIGHT/2 ≈ 180; the
-        // painted title band sits ~220 above that — between the rune-border decoration and the
-        // column-header text strip.)
-        private const float OVERLAY_Y    = BODY_CENTER_Y + BODY_HEIGHT * 0.5f + 220f;
+        // Top-of-page overlays — exact placement from the FiresVAngarde BuildGoldDisplay / BuildShopNameHeader:
+        //   anchoredPosition.Y = -22.93 + 289.12/2 + 33 = 154.63   (in the original 800×750 panel)
+        // The original ran at localScale=1.8 so 154.63 × 1.8 = 278.33 in our 1440-space coords.
+        // Our book is shifted down 30 (BOOK_Y_OFFSET) so to land at the same visual position relative
+        // to the book artwork: 278.33 + BOOK_Y_OFFSET = 248.33.
+        private const float OVERLAY_Y    = 248.33f;
         private const float SHOP_NAME_X  = -193.400f;        // centered over Items column (left page)
         private const float GOLD_X       =  242.856f;        // centered over SellPrice column (right page)
 
-        private const float ROW_HEIGHT = 32.4f;              // matches the IconRow SizeDelta from the saved layout
-        private const float ICON_SIZE  = 28.8f;              // matches Icon SizeDelta from the saved layout
-        private const float ROW_SPACING = 1.8f;
-        private const float FONT_SIZE = 16f;
-        private const float FONT_SIZE_SMALL = 10f;
+        // Row sizing pulled verbatim from FiresVAngarde TraderUIController constants:
+        //   ROW_HEIGHT=14, ICON_SIZE=14, ROW_SPACING=0, FONT_SIZE=11, FONT_SIZE_SMALL=7
+        // multiplied by 1.8 (the original panel's localScale) to map into our 1440×1350 panel space.
+        // The earlier 32.4 stride was extracted from the saved JSON IconRow which captured the rendered
+        // height under those scale settings — and was making rows span TWO painted parchment lines.
+        // Using the source constants directly gives a 25.2 stride that sits on every painted line.
+        private const float ROW_HEIGHT = 25.2f;              // 14 × 1.8
+        private const float ICON_SIZE  = 25.2f;              // 14 × 1.8
+        private const float ROW_SPACING = 0f;                // original had no gap
+        private const float FONT_SIZE = 19.8f;               // 11 × 1.8
+        private const float FONT_SIZE_SMALL = 12.6f;         // 7 × 1.8
         private const float SCROLL_SENSITIVITY = 40f;
 
         // KG modifier values.
@@ -111,8 +116,18 @@ namespace FiresRPGmaker.UI.Screens
         private NpcController _currentNpc;
         private TraderProfile _currentProfile;
 
-        private readonly Dictionary<TradeEntry, int> _tradeAmounts = new Dictionary<TradeEntry, int>();
-        private readonly Dictionary<TradeEntry, RowUIRefs> _rowRefs = new Dictionary<TradeEntry, RowUIRefs>();
+        /// <summary>One UI row = one tradeable item with optional buy AND sell trades attached.
+        /// Built by <see cref="GroupTradesByItem"/> from the loaded profile.</summary>
+        private class TradePair
+        {
+            public TradeItemStack DisplayItem;
+            public TradeEntry BuyTrade;     // Coins → Item (player pays Coins, receives item). Null if not offered.
+            public TradeEntry SellTrade;    // Item → Coins (player gives item, receives Coins). Null if not offered.
+        }
+
+        private readonly List<TradePair> _tradePairs = new List<TradePair>();
+        private readonly Dictionary<TradePair, int> _tradeAmounts = new Dictionary<TradePair, int>();
+        private readonly Dictionary<TradePair, RowUIRefs> _rowRefs = new Dictionary<TradePair, RowUIRefs>();
 
         private struct RowUIRefs
         {
@@ -124,8 +139,6 @@ namespace FiresRPGmaker.UI.Screens
             public Button sellPriceBtn;
             public TextMeshProUGUI ownedText;
             public TMP_InputField qtyInput;
-            public bool isBuyTrade;
-            public bool isSellTrade;
         }
 
         // Scroll content roots — 7 synced columns matching the original saved layout
@@ -376,9 +389,10 @@ namespace FiresRPGmaker.UI.Screens
             srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 0.5f);
             srt.pivot = new Vector2(0.5f, 0.5f);
             srt.anchoredPosition = new Vector2(SHOP_NAME_X, OVERLAY_Y);
-            srt.sizeDelta = new Vector2(380f, 32f);
+            // Original: sizeDelta = (180, 18), fontSize = 11 — × 1.8.
+            srt.sizeDelta = new Vector2(324f, 32.4f);
             _shopNameText = shopGo.AddComponent<TextMeshProUGUI>();
-            _shopNameText.fontSize = 22f;
+            _shopNameText.fontSize = 19.8f;
             _shopNameText.color = INK_DARK;
             _shopNameText.alignment = TextAlignmentOptions.Center;
             _shopNameText.fontStyle = FontStyles.Italic | FontStyles.Bold;
@@ -393,7 +407,8 @@ namespace FiresRPGmaker.UI.Screens
             grt.anchorMin = grt.anchorMax = new Vector2(0.5f, 0.5f);
             grt.pivot = new Vector2(0.5f, 0.5f);
             grt.anchoredPosition = new Vector2(GOLD_X, OVERLAY_Y);
-            grt.sizeDelta = new Vector2(220f, 32f);
+            // Original: sizeDelta = (120, 18) × 1.8.
+            grt.sizeDelta = new Vector2(216f, 32.4f);
 
             var hlg = goldGo.AddComponent<HorizontalLayoutGroup>();
             hlg.spacing = 6f;
@@ -403,11 +418,14 @@ namespace FiresRPGmaker.UI.Screens
 
             var iconGo = new GameObject("CoinIcon", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             iconGo.transform.SetParent(goldGo.transform, false);
+            // Original FiresVAngarde set BOTH iconRT.sizeDelta AND LayoutElement.preferredW/H. My
+            // previous version only set the LayoutElement — and because the HLG runs with
+            // childControlWidth=false the icon never got resized. Setting sizeDelta explicitly here
+            // matches the original exactly: 12 × 1.8 = 21.6 effective.
+            var iconRT = (RectTransform)iconGo.transform;
+            iconRT.sizeDelta = new Vector2(21.6f, 21.6f);
             var iconLE = iconGo.GetComponent<LayoutElement>();
-            // Match the original FiresVAngarde GoldDisplay proportions — small ornate icon, not a
-            // big inventory-style nugget. Original was 12×12 at localScale 1.8 (≈22px effective);
-            // here we run unscaled so use 18 to land at the same effective size on screen.
-            iconLE.preferredWidth = 18f; iconLE.preferredHeight = 18f;
+            iconLE.preferredWidth = 21.6f; iconLE.preferredHeight = 21.6f;
             var iconImg = iconGo.GetComponent<Image>();
             iconImg.preserveAspect = true; iconImg.raycastTarget = false;
             var coinPrefab = ZNetScene.instance?.GetPrefab("Coins");
@@ -420,7 +438,8 @@ namespace FiresRPGmaker.UI.Screens
             var textGo = new GameObject("GoldText", typeof(RectTransform), typeof(LayoutElement));
             textGo.transform.SetParent(goldGo.transform, false);
             var textLE = textGo.GetComponent<LayoutElement>();
-            textLE.preferredWidth = 140f; textLE.preferredHeight = 22f;
+            // Original: preferredWidth=90, preferredHeight=16, fontSize=10 — × 1.8.
+            textLE.preferredWidth = 162f; textLE.preferredHeight = 28.8f;
             _goldAmountText = textGo.AddComponent<TextMeshProUGUI>();
             _goldAmountText.fontSize = 18f;
             _goldAmountText.color = INK_GOLD;
@@ -521,17 +540,14 @@ namespace FiresRPGmaker.UI.Screens
             if (idx < 0 || idx >= ModifierValues.Length) return;
             _modifier = ModifierValues[idx];
             RefreshModifierButtonsVisual();
-            if (_currentProfile != null)
+            foreach (var pair in _tradePairs)
             {
-                foreach (var trade in _currentProfile.Trades)
+                _tradeAmounts[pair] = _modifier;
+                if (_rowRefs.TryGetValue(pair, out var refs))
                 {
-                    _tradeAmounts[trade] = _modifier;
-                    if (_rowRefs.TryGetValue(trade, out var refs))
-                    {
-                        if (refs.qtyInput != null && refs.qtyInput.text != _modifier.ToString())
-                            refs.qtyInput.SetTextWithoutNotify(_modifier.ToString());
-                        OnAmountChanged(trade, _modifier);
-                    }
+                    if (refs.qtyInput != null && refs.qtyInput.text != _modifier.ToString())
+                        refs.qtyInput.SetTextWithoutNotify(_modifier.ToString());
+                    OnAmountChanged(pair, _modifier);
                 }
             }
         }
@@ -690,112 +706,141 @@ namespace FiresRPGmaker.UI.Screens
             ClearRows();
             _rowRefs.Clear();
             if (_currentProfile == null) return;
-            foreach (var trade in _currentProfile.Trades)
+            GroupTradesByItem();
+            foreach (var pair in _tradePairs)
             {
-                if (!PassesSearch(trade)) continue;
-                AddTradeRow(trade);
+                if (!PassesSearch(pair)) continue;
+                AddTradeRow(pair);
             }
         }
 
-        private bool PassesSearch(TradeEntry trade)
+        /// <summary>Walks every <see cref="TradeEntry"/> in the active profile, groups them by their
+        /// display item (the non-currency side keyed on PrefabName:Level), and assigns each to either
+        /// the BuyTrade or SellTrade slot on the resulting <see cref="TradePair"/>. This is what
+        /// collapses the "8 separate rows" view into "4 rows each with both buy and sell columns".</summary>
+        private void GroupTradesByItem()
+        {
+            _tradePairs.Clear();
+            var byKey = new Dictionary<string, TradePair>();
+            foreach (var trade in _currentProfile.Trades)
+            {
+                var primaryReward = trade.RewardItems.FirstOrDefault();
+                var primaryCost = trade.CostItems.FirstOrDefault();
+                if (primaryReward == null || primaryCost == null) continue;
+
+                var displayItem = FindDisplayItem(trade);
+                if (displayItem == null) continue;
+                string key = (displayItem.PrefabName ?? "?") + ":" + displayItem.Level;
+                if (!byKey.TryGetValue(key, out var pair))
+                {
+                    pair = new TradePair { DisplayItem = displayItem };
+                    byKey[key] = pair;
+                    _tradePairs.Add(pair);
+                }
+                bool isBuy  = IsCurrencyStack(primaryCost);   // Coins → Item
+                bool isSell = IsCurrencyStack(primaryReward); // Item → Coins
+                if (isBuy  && pair.BuyTrade  == null) pair.BuyTrade  = trade;
+                if (isSell && pair.SellTrade == null) pair.SellTrade = trade;
+            }
+        }
+
+        private bool PassesSearch(TradePair pair)
         {
             if (string.IsNullOrEmpty(_searchLower)) return true;
-            var displayItem = FindDisplayItem(trade);
-            if (displayItem == null) return false;
-            ResolveItemInfo(displayItem.PrefabName, out string displayName, out _);
+            if (pair?.DisplayItem == null) return false;
+            ResolveItemInfo(pair.DisplayItem.PrefabName, out string displayName, out _);
             return displayName != null && displayName.ToLowerInvariant().Contains(_searchLower);
         }
 
-        private void AddTradeRow(TradeEntry trade)
+        private void AddTradeRow(TradePair pair)
         {
-            var primaryReward = trade.RewardItems.FirstOrDefault();
-            var primaryCost = trade.CostItems.FirstOrDefault();
-            if (primaryReward == null || primaryCost == null) return;
+            if (!_tradeAmounts.ContainsKey(pair)) _tradeAmounts[pair] = _modifier;
+            int qty = _tradeAmounts[pair];
+            bool canBuy  = pair.BuyTrade  != null && CanAffordTrade(pair.BuyTrade,  qty);
+            bool canSell = pair.SellTrade != null && CanAffordTrade(pair.SellTrade, qty);
 
-            if (!_tradeAmounts.ContainsKey(trade)) _tradeAmounts[trade] = _modifier;
-            int qty = _tradeAmounts[trade];
-            bool canAfford = CanAffordTrade(trade, qty);
-
-            bool isBuyTrade = IsCurrencyStack(primaryCost);
-            bool isSellTrade = IsCurrencyStack(primaryReward);
-
-            var displayItem = FindDisplayItem(trade);
+            var displayItem = pair.DisplayItem;
             ResolveItemInfo(displayItem.PrefabName, out string displayName, out Sprite icon);
             if (displayItem.Level > 0) displayName += $" ★{displayItem.Level - 1}";
             string itemLabel = displayItem.Amount > 1 ? $"{displayItem.Amount} {displayName}" : displayName;
             int ownedCount = CountPlayerItems(displayItem.PrefabName, displayItem.Level);
 
-            // ── Left page: separate Icons column then Items column (matches saved layout) ──
+            // ── Left page ──
             AddIconCell(_iconsContent, icon);
             var ownedTmp = AddItemCellWithOwned(_itemContent, itemLabel, ownedCount);
 
-            // ── Right page: 5 narrow columns ──
+            // ── Right page — BUY column ──
             (TextMeshProUGUI text, Image bg, Button btn) buyRefs;
-            if (isBuyTrade)
+            if (pair.BuyTrade != null)
             {
-                string buyText = FormatCostSummary(trade.CostItems, qty);
-                buyRefs = AddButtonCell(_buyContent, buyText, canAfford ? INK_RED : INK_DIM,
-                                        canAfford, () => ShowTradeConfirmation(trade, true));
+                string buyText = FormatCostSummary(pair.BuyTrade.CostItems, qty);
+                buyRefs = AddButtonCell(_buyContent, buyText, canBuy ? INK_RED : INK_DIM,
+                                        canBuy, () => ShowTradeConfirmation(pair, true));
             }
             else buyRefs = (AddUnavailableCell(_buyContent), null, null);
 
-            var qtyInput = AddAmountInputCell(_amountContent, trade, qty);
+            // ── Right page — AMOUNT input ──
+            var qtyInput = AddAmountInputCell(_amountContent, pair, qty);
 
+            // ── Right page — SELL column ──
             TextMeshProUGUI sellTmp = null; Image sellBg = null; Button sellBtn = null;
-            if (isSellTrade)
+            if (pair.SellTrade != null)
             {
-                string sellText = FormatCostSummary(trade.RewardItems, qty);
-                var sellRefs = AddButtonCell(_sellContent, sellText, canAfford ? INK_GREEN : INK_DIM,
-                                             canAfford, () => ShowTradeConfirmation(trade, false));
+                string sellText = FormatCostSummary(pair.SellTrade.RewardItems, qty);
+                var sellRefs = AddButtonCell(_sellContent, sellText, canSell ? INK_GREEN : INK_DIM,
+                                             canSell, () => ShowTradeConfirmation(pair, false));
                 sellTmp = sellRefs.text; sellBg = sellRefs.bg; sellBtn = sellRefs.btn;
             }
             else sellTmp = AddUnavailableCell(_sellContent);
 
-            _rowRefs[trade] = new RowUIRefs
+            _rowRefs[pair] = new RowUIRefs
             {
                 buyPriceText = buyRefs.text, buyPriceBg = buyRefs.bg, buyPriceBtn = buyRefs.btn,
                 sellPriceText = sellTmp, sellPriceBg = sellBg, sellPriceBtn = sellBtn,
                 ownedText = ownedTmp, qtyInput = qtyInput,
-                isBuyTrade = isBuyTrade, isSellTrade = isSellTrade,
             };
 
-            string stockText = trade.Stock < 0 ? "∞" : trade.Stock.ToString();
-            Color stockColor = trade.Stock == 0 ? INK_STOCK_OUT : INK_STOCK_OK;
+            // ── Stock / Restock — prefer BuyTrade's values (that's what gates new acquisition);
+            // fall back to SellTrade if no buy side exists.
+            var stockSource = pair.BuyTrade ?? pair.SellTrade;
+            string stockText = stockSource.Stock < 0 ? "∞" : stockSource.Stock.ToString();
+            Color stockColor = stockSource.Stock == 0 ? INK_STOCK_OUT : INK_STOCK_OK;
             AddTextCell(_stockContent, stockText, TextAlignmentOptions.Center, stockColor);
 
-            string restockText = trade.Stock < 0 ? "—"
-                              : trade.Stock > 0 ? "Available"
-                              : trade.RestockSeconds > 0 ? FormatTime(trade.RestockSeconds)
+            string restockText = stockSource.Stock < 0 ? "—"
+                              : stockSource.Stock > 0 ? "Available"
+                              : stockSource.RestockSeconds > 0 ? FormatTime(stockSource.RestockSeconds)
                               : "Sold Out";
             AddTextCell(_restockContent, restockText, TextAlignmentOptions.Center, INK_BROWN);
         }
 
-        private void OnAmountChanged(TradeEntry trade, int newAmount)
+        private void OnAmountChanged(TradePair pair, int newAmount)
         {
             newAmount = Mathf.Max(1, newAmount);
-            _tradeAmounts[trade] = newAmount;
-            if (!_rowRefs.TryGetValue(trade, out var refs)) return;
-            bool canAfford = CanAffordTrade(trade, newAmount);
+            _tradeAmounts[pair] = newAmount;
+            if (!_rowRefs.TryGetValue(pair, out var refs)) return;
 
-            if (refs.isBuyTrade)
+            if (pair.BuyTrade != null)
             {
+                bool canBuy = CanAffordTrade(pair.BuyTrade, newAmount);
                 if (refs.buyPriceText != null)
                 {
-                    refs.buyPriceText.text = FormatCostSummary(trade.CostItems, newAmount);
-                    refs.buyPriceText.color = canAfford ? INK_RED : INK_DIM;
+                    refs.buyPriceText.text = FormatCostSummary(pair.BuyTrade.CostItems, newAmount);
+                    refs.buyPriceText.color = canBuy ? INK_RED : INK_DIM;
                 }
-                if (refs.buyPriceBg != null) refs.buyPriceBg.color = canAfford ? BTN_BG_OK : BTN_BG_NO;
-                if (refs.buyPriceBtn != null) refs.buyPriceBtn.interactable = canAfford;
+                if (refs.buyPriceBg != null) refs.buyPriceBg.color = canBuy ? BTN_BG_OK : BTN_BG_NO;
+                if (refs.buyPriceBtn != null) refs.buyPriceBtn.interactable = canBuy;
             }
-            if (refs.isSellTrade)
+            if (pair.SellTrade != null)
             {
+                bool canSell = CanAffordTrade(pair.SellTrade, newAmount);
                 if (refs.sellPriceText != null)
                 {
-                    refs.sellPriceText.text = FormatCostSummary(trade.RewardItems, newAmount);
-                    refs.sellPriceText.color = canAfford ? INK_GREEN : INK_DIM;
+                    refs.sellPriceText.text = FormatCostSummary(pair.SellTrade.RewardItems, newAmount);
+                    refs.sellPriceText.color = canSell ? INK_GREEN : INK_DIM;
                 }
-                if (refs.sellPriceBg != null) refs.sellPriceBg.color = canAfford ? BTN_BG_OK : BTN_BG_NO;
-                if (refs.sellPriceBtn != null) refs.sellPriceBtn.interactable = canAfford;
+                if (refs.sellPriceBg != null) refs.sellPriceBg.color = canSell ? BTN_BG_OK : BTN_BG_NO;
+                if (refs.sellPriceBtn != null) refs.sellPriceBtn.interactable = canSell;
             }
         }
 
@@ -900,7 +945,7 @@ namespace FiresRPGmaker.UI.Screens
             return $"{itemLabel} {ownedTag}";
         }
 
-        private TMP_InputField AddAmountInputCell(RectTransform parent, TradeEntry trade, int currentAmount)
+        private TMP_InputField AddAmountInputCell(RectTransform parent, TradePair pair, int currentAmount)
         {
             if (parent == null) return null;
             var row = CreateRow(parent, "AmountRow");
@@ -937,7 +982,7 @@ namespace FiresRPGmaker.UI.Screens
             inputField.caretColor = INK_DARK;
             inputField.selectionColor = new Color(0.55f, 0.40f, 0.18f, 0.55f);
 
-            var captured = trade;
+            var captured = pair;
             inputField.onValueChanged.AddListener(val =>
             {
                 if (int.TryParse(val, out int parsed) && parsed >= 1) OnAmountChanged(captured, parsed);
@@ -986,12 +1031,11 @@ namespace FiresRPGmaker.UI.Screens
 
         private void RefreshOwnedCounts()
         {
-            if (_currentProfile == null) return;
-            foreach (var trade in _currentProfile.Trades)
+            foreach (var pair in _tradePairs)
             {
-                if (!_rowRefs.TryGetValue(trade, out var refs)) continue;
+                if (!_rowRefs.TryGetValue(pair, out var refs)) continue;
                 if (refs.ownedText == null) continue;
-                var displayItem = FindDisplayItem(trade);
+                var displayItem = pair.DisplayItem;
                 ResolveItemInfo(displayItem.PrefabName, out string displayName, out _);
                 if (displayItem.Level > 0) displayName += $" ★{displayItem.Level - 1}";
                 string itemLabel = displayItem.Amount > 1 ? $"{displayItem.Amount} {displayName}" : displayName;
@@ -1012,9 +1056,11 @@ namespace FiresRPGmaker.UI.Screens
             return true;
         }
 
-        private void ExecuteTrade(TradeEntry trade)
+        private void ExecuteTrade(TradePair pair, bool isBuy)
         {
-            int qty = _tradeAmounts.TryGetValue(trade, out int q) ? q : 1;
+            var trade = isBuy ? pair.BuyTrade : pair.SellTrade;
+            if (trade == null) return;
+            int qty = _tradeAmounts.TryGetValue(pair, out int q) ? q : 1;
             if (!CanAffordTrade(trade, qty))
             { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Not enough items!"); return; }
 
@@ -1027,7 +1073,7 @@ namespace FiresRPGmaker.UI.Screens
 
             if (trade.Stock > 0) trade.Stock = Mathf.Max(0, trade.Stock - qty);
 
-            OnAmountChanged(trade, qty);
+            OnAmountChanged(pair, qty);
             RefreshGoldDisplay();
             RefreshOwnedCounts();
         }
@@ -1149,13 +1195,15 @@ namespace FiresRPGmaker.UI.Screens
 
         #region Confirm Dialog
 
-        private void ShowTradeConfirmation(TradeEntry trade, bool isBuy)
+        private void ShowTradeConfirmation(TradePair pair, bool isBuy)
         {
-            int qty = _tradeAmounts.TryGetValue(trade, out int q) ? q : 1;
+            var trade = isBuy ? pair.BuyTrade : pair.SellTrade;
+            if (trade == null) return;
+            int qty = _tradeAmounts.TryGetValue(pair, out int q) ? q : 1;
             if (!CanAffordTrade(trade, qty))
             { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Not enough items!"); return; }
 
-            var displayItem = FindDisplayItem(trade);
+            var displayItem = pair.DisplayItem;
             ResolveItemInfo(displayItem.PrefabName, out string itemName, out _);
             int itemAmount = displayItem.Amount * qty;
             var currencyStack = isBuy ? trade.CostItems.FirstOrDefault() : trade.RewardItems.FirstOrDefault();
@@ -1166,7 +1214,7 @@ namespace FiresRPGmaker.UI.Screens
 
             EnsureConfirmDialog();
             _confirmText.text = message;
-            _pendingTradeAction = () => ExecuteTrade(trade);
+            _pendingTradeAction = () => ExecuteTrade(pair, isBuy);
             _confirmRoot.SetActive(true);
         }
 

@@ -332,7 +332,8 @@
       "Bash(awk -F: '$1<7524')",
       "Bash(awk -F: '$1>=6900 && $1<=7480')",
       "Bash(awk -F: '$1>=7524 && $1<=8190')",
-      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-signfix-mipfix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\" -MaxWaitSeconds 3600)"
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-signfix-mipfix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\" -MaxWaitSeconds 3600)",
+      "Bash(xargs echo \"folders:\")"
     ]
   }
 }
