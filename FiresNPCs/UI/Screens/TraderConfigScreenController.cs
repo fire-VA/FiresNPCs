@@ -40,16 +40,24 @@ namespace FiresRPGmaker.UI.Screens
             // The panel Header already shows "Setup Trader: <npc>", so there is no in-screen title.
             var rt = GetComponent<RectTransform>() ?? gameObject.AddComponent<RectTransform>();
 
-            // Bands give the Apply button (which sits outside this rect, anchored to the bottom of the
-            // panel) enough headroom — and push the labels down a hair so they don't crowd the tab bar.
-            CreateLabel(rt, "Trader Profile  (type an existing name to load it, or a new name to create)", 0.87f, 0.95f, 14f, TextAlignmentOptions.Left);
-            _profileInput = CreateInput(rt, 0.78f, 0.855f, false);
+            // Layout bands (Y fractions of the content rect, 0 = bottom, 1 = top of form area).
+            // Designed so labels sit BETWEEN their neighbouring elements and the Trades input can
+            // grow tall without colliding with the Apply button at the bottom:
+            //   tabs   ────────────────────── ~0.95 (above the form)
+            //   "Trader Profile" hint label   0.84-0.90 (sits below the tabs, above the input)
+            //   Profile input                 0.76-0.83
+            //   "Trades" hint label           0.71-0.755 (tight against profile input bottom)
+            //   Trades input (scrollable)     0.20-0.705 (largest area, vertical scrollbar on right)
+            //   Status / "Saved..." text      0.12-0.18
+            //   Apply button                  bottom (anchored outside this rect)
+            CreateLabel(rt, "Trader Profile  (type an existing name to load it, or a new name to create)", 0.84f, 0.90f, 14f, TextAlignmentOptions.Left);
+            _profileInput = CreateInput(rt, 0.76f, 0.83f, false);
             _profileInput.onEndEdit.AddListener(LoadProfileTrades);
 
-            CreateLabel(rt, "Trades  -  one per line:   cost, amount, reward, amount[, level]", 0.69f, 0.77f, 14f, TextAlignmentOptions.Left);
-            _tradesInput = CreateInput(rt, 0.18f, 0.68f, true);
+            CreateLabel(rt, "Trades  -  one per line:   cost, amount, reward, amount[, level]", 0.71f, 0.755f, 14f, TextAlignmentOptions.Left);
+            _tradesInput = CreateInput(rt, 0.20f, 0.705f, true);
 
-            _statusText = CreateLabel(rt, "", 0.10f, 0.17f, 13f, TextAlignmentOptions.Left);
+            _statusText = CreateLabel(rt, "", 0.12f, 0.18f, 13f, TextAlignmentOptions.Left);
 
             _applyButton = applyButton;
             if (_applyButton != null) { _applyButton.onClick.RemoveAllListeners(); _applyButton.onClick.AddListener(ApplyChanges); }
@@ -111,7 +119,16 @@ namespace FiresRPGmaker.UI.Screens
 
         private void SetStatus(string s) { if (_statusText != null) _statusText.text = s; }
 
-        // --- minimal Unity-UI builders (anchors are fractional Y bands of the screen rect) ---
+        // --- label + input builders ---
+        //
+        // Labels read as ink-black on the parchment (the prior tan-on-parchment was nearly invisible).
+        // The trades input is given a real Scrollbar wired through TMP_InputField.verticalScrollbar
+        // so long profile lists (44+ trades in the screenshot) scroll properly. Scrollbar is built
+        // via FiresCore.UI.UIBuilderHelper.CreateVerticalScrollbar — same path BasePlayerModulePanel
+        // and QuestInteractionScreenController use, so we don't keep two parallel scrollbar widgets.
+        private static readonly Color INK_BLACK = new Color(0.10f, 0.07f, 0.04f, 1f);
+        private const float SCROLLBAR_WIDTH = 14f;
+
         private TMP_Text CreateLabel(RectTransform parent, string text, float yMin, float yMax, float size, TextAlignmentOptions align)
         {
             var go = new GameObject("Label", typeof(RectTransform));
@@ -121,7 +138,9 @@ namespace FiresRPGmaker.UI.Screens
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             var tmp = go.AddComponent<TextMeshProUGUI>();
             tmp.font = TMP_Settings.defaultFontAsset;
-            tmp.text = text; tmp.fontSize = size; tmp.alignment = align; tmp.color = new Color(0.96f, 0.91f, 0.76f);
+            tmp.text = text; tmp.fontSize = size; tmp.alignment = align;
+            tmp.color = INK_BLACK;
+            tmp.fontStyle = FontStyles.Bold;
             tmp.enableWordWrapping = true;
             return tmp;
         }
@@ -137,10 +156,13 @@ namespace FiresRPGmaker.UI.Screens
 
             var input = go.AddComponent<TMP_InputField>();
 
+            // Viewport — leave room on the right for the scrollbar when multiline.
             var viewport = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
             viewport.transform.SetParent(rt, false);
             var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one; vrt.offsetMin = new Vector2(8f, 4f); vrt.offsetMax = new Vector2(-8f, -4f);
+            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
+            float rightInset = multiline ? -(SCROLLBAR_WIDTH + 12f) : -8f;
+            vrt.offsetMin = new Vector2(8f, 4f); vrt.offsetMax = new Vector2(rightInset, -4f);
 
             var textGo = new GameObject("Text", typeof(RectTransform));
             textGo.transform.SetParent(vrt, false);
@@ -154,6 +176,15 @@ namespace FiresRPGmaker.UI.Screens
             input.textViewport = vrt;
             input.textComponent = txt;
             input.lineType = multiline ? TMP_InputField.LineType.MultiLineNewline : TMP_InputField.LineType.SingleLine;
+
+            // Add a vertical scrollbar on the right edge of the multiline trades input, wired to the
+            // TMP_InputField — TMP handles all the scroll math, we just hand it the Scrollbar reference.
+            if (multiline)
+            {
+                var scrollbar = FiresCore.UI.UIBuilderHelper.CreateVerticalScrollbar(rt, SCROLLBAR_WIDTH);
+                input.verticalScrollbar = scrollbar;
+                input.scrollSensitivity = 6f;
+            }
             return input;
         }
     }
