@@ -324,7 +324,11 @@
       "Bash(mkdir -p '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/UILayouts/custom/')",
       "Bash(cp '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/an test/BepInEx/config/FiresRPGmaker/UILayouts/custom/traderuifixed.json' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/UILayouts/custom/traderuifixed.json')",
       "Bash(cp '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/an test/BepInEx/config/FiresRPGmaker/UILayouts/custom/tradertest1.json' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/UILayouts/custom/tradertest1.json')",
-      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-verbatim-port\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")"
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-verbatim-port\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-signfix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
+      "Bash(cp -fv '/c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/bin/Debug/FiresRPGmaker.dll' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/FiresRPGmaker/FiresRPGmaker.dll')",
+      "Bash(cp -fv '/c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/bin/Debug/FiresRPGmaker.pdb' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/FiresRPGmaker/FiresRPGmaker.pdb')",
+      "Bash(powershell -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,StartTime | Format-Table -AutoSize\")"
     ]
   }
 }
