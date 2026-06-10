@@ -306,7 +306,16 @@
       "Bash(cp \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\bin\\\\Debug\\\\FiresRPGmaker.dll\" \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\FiresRPGmaker.dll\")",
       "Bash(cp \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\bin\\\\Debug\\\\FiresRPGmaker.pdb\" \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\FiresRPGmaker.pdb\")",
       "Bash(stat -c \"%y  %n\" \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\bin\\\\Debug\\\\FiresRPGmaker.dll\" \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\FiresRPGmaker.dll\" 2>&1)",
-      "Bash(grep -noE \"add a \\\\`_TerrainGlossScale\\\\`[^.]*\\\\.\" reference_shader_dossier.md)"
+      "Bash(grep -noE \"add a \\\\`_TerrainGlossScale\\\\`[^.]*\\\\.\" reference_shader_dossier.md)",
+      "Bash(echo \"=== reconstructed Gold_mat — colors + floats \\(json says _ColorTint1=gold[1,0.78,0.13], _Glossiness=1, _Metallicness=1\\) ===\")",
+      "Bash(grep -E '_Color|_Tint|_Gloss|_Metallic|_Emission' 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets\\\\Custom\\\\YoinkReconstructed\\\\Materials\\\\Gold_mat.mat')",
+      "Bash(echo \"\")",
+      "Bash(echo \"=== does LoadMaterial even handle Color/Range/Float props, or only Texture? ===\")",
+      "Bash(grep -nE '\"Color\"|\"Range\"|\"Float\"|\"Vector\"|SetColor|SetFloat|SetTexture|case ' \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets\\\\Editor\\\\AssetRipperPatches\\\\FiresYoinkReconstruct.cs\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-sampler-fix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-tex2dmacro-fix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
+      "Bash(python -m json.tool)",
+      "Bash(grep -A2 m_Mesh: __TRACKED_VAR__/Item_BouncingBet_BF.prefab)"
     ]
   }
 }

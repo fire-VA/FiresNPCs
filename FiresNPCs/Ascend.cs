@@ -171,6 +171,8 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetRightItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetLeftItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetUtilityItem_Patch",
+            // Inventory grid marker — InventoryGrid is a client-only UI component.
+            "FiresRPGmaker.Modules.Marketplace.InventoryGrid_TransmogMarker_Patch",
             // Client input gates (M key, TAB) — Minimap/InventoryGui don't exist server-side.
             "FiresRPGmaker.UI.Patches.ClientInputGatePatches",
             // Territory missing-flag patches — most reference Player.m_localPlayer / Hud / MessageHud.
