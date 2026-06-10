@@ -53,8 +53,11 @@ namespace FiresRPGmaker.UI.Screens
 
         private const float COL_X_ICONS   = -390.078f;
         private const float COL_W_ICONS   =   75.186f;
-        private const float COL_X_ITEMS   = -193.400f;
-        private const float COL_W_ITEMS   =  207f;
+        // Widened from the saved layout's 207 → 290 so long names like "Carapace Breastplate (owned-0)"
+        // don't ellipsize. The Icons column right edge is at -352.5 and Buy column left edge is at +39.6;
+        // 290 wide centered at -165 leaves comfortable gaps on both sides (left edge -310, right -20).
+        private const float COL_X_ITEMS   = -165f;
+        private const float COL_W_ITEMS   =  290f;
         private const float COL_X_BUY     =   82.800f;
         private const float COL_W_BUY     =   86.400f;
         private const float COL_X_AMOUNT  =  157.000f;
@@ -66,9 +69,13 @@ namespace FiresRPGmaker.UI.Screens
         private const float COL_X_RESTOCK =  409.446f;
         private const float COL_W_RESTOCK =   78.714f;
 
-        // Top-of-page overlays (shop name on left page, gold display on right page). Y just above
-        // the painted column-header band of the book — derived from BODY_CENTER_Y + BODY_HEIGHT/2 + ~50.
-        private const float OVERLAY_Y    = BODY_CENTER_Y + BODY_HEIGHT * 0.5f + 50f;
+        // Top-of-page overlays — shop name centered on the left page's title band, gold display
+        // centered on the right page's title band. The va_background5 artwork paints a small
+        // horizontal title rule just below each page's top-corner decoration; this Y puts the
+        // text right on that rule. (Body top is at BODY_CENTER_Y + BODY_HEIGHT/2 ≈ 180; the
+        // painted title band sits ~220 above that — between the rune-border decoration and the
+        // column-header text strip.)
+        private const float OVERLAY_Y    = BODY_CENTER_Y + BODY_HEIGHT * 0.5f + 220f;
         private const float SHOP_NAME_X  = -193.400f;        // centered over Items column (left page)
         private const float GOLD_X       =  242.856f;        // centered over SellPrice column (right page)
 
@@ -397,7 +404,10 @@ namespace FiresRPGmaker.UI.Screens
             var iconGo = new GameObject("CoinIcon", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             iconGo.transform.SetParent(goldGo.transform, false);
             var iconLE = iconGo.GetComponent<LayoutElement>();
-            iconLE.preferredWidth = 24f; iconLE.preferredHeight = 24f;
+            // Match the original FiresVAngarde GoldDisplay proportions — small ornate icon, not a
+            // big inventory-style nugget. Original was 12×12 at localScale 1.8 (≈22px effective);
+            // here we run unscaled so use 18 to land at the same effective size on screen.
+            iconLE.preferredWidth = 18f; iconLE.preferredHeight = 18f;
             var iconImg = iconGo.GetComponent<Image>();
             iconImg.preserveAspect = true; iconImg.raycastTarget = false;
             var coinPrefab = ZNetScene.instance?.GetPrefab("Coins");
@@ -410,9 +420,9 @@ namespace FiresRPGmaker.UI.Screens
             var textGo = new GameObject("GoldText", typeof(RectTransform), typeof(LayoutElement));
             textGo.transform.SetParent(goldGo.transform, false);
             var textLE = textGo.GetComponent<LayoutElement>();
-            textLE.preferredWidth = 170f; textLE.preferredHeight = 26f;
+            textLE.preferredWidth = 140f; textLE.preferredHeight = 22f;
             _goldAmountText = textGo.AddComponent<TextMeshProUGUI>();
-            _goldAmountText.fontSize = 22f;
+            _goldAmountText.fontSize = 18f;
             _goldAmountText.color = INK_GOLD;
             _goldAmountText.alignment = TextAlignmentOptions.MidlineLeft;
             _goldAmountText.fontStyle = FontStyles.Bold;
@@ -628,7 +638,11 @@ namespace FiresRPGmaker.UI.Screens
 
             var vlg = content.AddComponent<VerticalLayoutGroup>();
             vlg.spacing = ROW_SPACING;
-            vlg.padding = new RectOffset(2, 2, 4, 2);
+            // padding.top = 17 mirrors the first IconRow's AnchoredPosition.Y (-17.2) in the original
+            // traderuifixed.json layout — without this offset the rows render ~13px too high and miss
+            // the painted horizontal lines on the parchment artwork. padding.bottom = 24 leaves the
+            // matching breathing room at the bottom of the page that the original had.
+            vlg.padding = new RectOffset(2, 2, 17, 24);
             vlg.childForceExpandWidth = true;
             vlg.childForceExpandHeight = false;
             vlg.childControlWidth = true;
@@ -890,7 +904,10 @@ namespace FiresRPGmaker.UI.Screens
         {
             if (parent == null) return null;
             var row = CreateRow(parent, "AmountRow");
-            var bgImg = row.AddComponent<Image>(); bgImg.color = SEARCH_BG;
+            // Near-transparent dark overlay so the parchment shows through but you can still see the
+            // input field is interactive. Image is required because TMP_InputField uses it as the
+            // raycast target; alpha 0 would still register clicks but reads visually cleaner.
+            var bgImg = row.AddComponent<Image>(); bgImg.color = new Color(0f, 0f, 0f, 0.06f);
 
             var textGo = new GameObject("Text", typeof(RectTransform));
             textGo.transform.SetParent(row.transform, false);
@@ -911,6 +928,14 @@ namespace FiresRPGmaker.UI.Screens
             inputField.contentType = TMP_InputField.ContentType.IntegerNumber;
             inputField.characterLimit = 4;
             inputField.text = currentAmount.ToString();
+            // Caret config — without this, TMP_InputField on a programmatic field shows no cursor on
+            // focus, so the player can't tell the field is editable. customCaretColor=true lets us
+            // override the default white caret (invisible on parchment) with the dark ink color.
+            inputField.caretBlinkRate = 0.85f;
+            inputField.caretWidth = 2;
+            inputField.customCaretColor = true;
+            inputField.caretColor = INK_DARK;
+            inputField.selectionColor = new Color(0.55f, 0.40f, 0.18f, 0.55f);
 
             var captured = trade;
             inputField.onValueChanged.AddListener(val =>

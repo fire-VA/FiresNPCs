@@ -330,7 +330,9 @@
       "Bash(cp -fv '/c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/bin/Debug/FiresRPGmaker.pdb' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/FiresRPGmaker/FiresRPGmaker.pdb')",
       "Bash(powershell -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,StartTime | Format-Table -AutoSize\")",
       "Bash(awk -F: '$1<7524')",
-      "Bash(awk -F: '$1>=6900 && $1<=7480')"
+      "Bash(awk -F: '$1>=6900 && $1<=7480')",
+      "Bash(awk -F: '$1>=7524 && $1<=8190')",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-signfix-mipfix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\" -MaxWaitSeconds 3600)"
     ]
   }
 }
