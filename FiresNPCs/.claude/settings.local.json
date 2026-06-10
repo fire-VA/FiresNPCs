@@ -316,7 +316,15 @@
       "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-tex2dmacro-fix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
       "Bash(python -m json.tool)",
       "Bash(grep -A2 m_Mesh: __TRACKED_VAR__/Item_BouncingBet_BF.prefab)",
-      "Bash(break)"
+      "Bash(break)",
+      "Bash(cp \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets\\\\Custom\\\\VAitems\\\\Icons\\\\va_background5.png\" \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\va_background5.png\" 2>&1 && ls -la \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\\")",
+      "Bash(cp '/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/Icons/va_background5.png' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/FiresRPGmaker/va_background5.png' && ls -la '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/FiresRPGmaker/')",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-faithful-rewrite\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")",
+      "Bash(awk -F: '$1>=7524 && $1<=8315')",
+      "Bash(mkdir -p '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/UILayouts/custom/')",
+      "Bash(cp '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/an test/BepInEx/config/FiresRPGmaker/UILayouts/custom/traderuifixed.json' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/UILayouts/custom/traderuifixed.json')",
+      "Bash(cp '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/an test/BepInEx/config/FiresRPGmaker/UILayouts/custom/tradertest1.json' '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/UILayouts/custom/tradertest1.json')",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-verbatim-port\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\")"
     ]
   }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using FiresCore.Items;
 using FiresRPGmaker.Managers;
@@ -12,62 +13,90 @@ using UnityEngine.UI;
 namespace FiresRPGmaker.UI.Screens
 {
     /// <summary>
-    /// Player-facing trader UI — 7-column table layout (Icons / Items / BuyPrice / Qty / SellPrice /
-    /// TotalStock / RestockTime) with synchronized vertical scrolling, restored from the original
-    /// FiresVAngarde implementation and grafted with KG-Marketplace features (search bar +
-    /// x1/x5/x10/x100 global qty modifier).
+    /// Player-facing trader UI rendered as a TWO-PAGE OPEN-BOOK overlay using <c>va_background5.png</c>
+    /// as the panel artwork. Column headers (Item / Buy / Amount / Sell / Stock / Restock) are baked
+    /// into the artwork — this controller positions a synchronized data overlay over the painted columns.
     ///
-    /// Built entirely programmatically — no asset-bundle prefab needed. Panel renders at 800×750 local
-    /// coordinates and is upscaled via localScale for visibility on high-DPI displays.
+    /// Left page = Item column (icon + name + owned-count badge per row).
+    /// Right page = 5 narrow scroll columns: Buy / Amount / Sell / Stock / Restock.
+    /// Above the book panel: KG-Marketplace-parity Search input + x1/x5/x10/x100 quantity modifier.
     ///
     /// Trade engine (CanAffordTrade / ExecuteTrade / CountPlayerItems / RemovePlayerItems /
-    /// GivePlayerItems / ResolveItemInfo / FindDisplayItem / IsCurrencyStack / FormatTime / FormatCostSummary)
-    /// is preserved verbatim from the prior bundle-prefab implementation — same behaviour, new view.
+    /// GivePlayerItems / ResolveItemInfo / FindDisplayItem / IsCurrencyStack / FormatCostSummary /
+    /// FormatTime) is preserved verbatim across all the layout iterations of this UI — same trade
+    /// semantics, new view.
     /// </summary>
     public class TraderUIController : MonoBehaviour
     {
         public static TraderUIController Instance { get; private set; }
 
-        // ── Layout constants (panel is authored at 800×750, scaled up at runtime) ──
-        private const float UI_SCALE = 1.8f;
-        private const float PANEL_W = 800f;
-        private const float PANEL_H = 750f;
-        private const float ROW_HEIGHT = 14f;
-        private const float ICON_SIZE = 14f;
-        private const float ROW_SPACING = 0f;
-        private const float FONT_SIZE = 11f;
-        private const float FONT_SIZE_SMALL = 7f;
-        private const float SCROLL_SENSITIVITY = 30f;
+        // ── Image + panel layout constants ──
+        // Panel size + column rects pulled verbatim from the original saved layout
+        // `traderuifixed.json` (UI Layouts > Custom > TraderUIFixed). Background sprite reference in
+        // that file is "cached:va_background5" — the same PNG we now ship as an embedded resource.
+        // The va_background5 image is 1200×1080 but the original panel stretched it to 1440×1350 to
+        // give the rows more vertical room; we honor that stretch (preserveAspect=false on the BG).
+        private const float PANEL_W = 1440f;
+        private const float PANEL_H = 1410f;                 // 1350 book + 60 header strip above
+        private const float BOOK_W = 1440f;
+        private const float BOOK_H = 1350f;
+        private const float BOOK_Y_OFFSET = -30f;            // shift book down 30 so a 60px strip is clear at panel top
 
-        // Top strip layout (header + toolbar). All Y offsets are RELATIVE to panel center.
-        private const float HEADER_Y = 340f;       // ~340 = 750/2 - 35
-        private const float TOOLBAR_Y = 320f;
-        private const float COLUMN_HEADER_Y = 300f;
-        private const float BODY_TOP_Y = -22.93f;
-        private const float BODY_HEIGHT = 289.12f;
+        // Header strip (above the book): search + modifier buttons.
+        private const float HEADER_STRIP_Y = 675f;            // (PANEL_H / 2) - 30 = top edge of strip
 
-        // KG modifier values (x1 / x5 / x10 / x100).
+        // Column rects — exact AnchoredPosition + SizeDelta from traderuifixed.json elements:
+        //   Icons / Items / BuyPrice / AmountSoldBought / SellPrice / TotalStock / RestockTime
+        // All columns are AnchorMin/Max (0.5, 0.5), pivot (0.5, 0.5), Y = -50.274, height 520.416.
+        private const float BODY_CENTER_Y = -50.274f + BOOK_Y_OFFSET;
+        private const float BODY_HEIGHT   = 520.416f;
+
+        private const float COL_X_ICONS   = -390.078f;
+        private const float COL_W_ICONS   =   75.186f;
+        private const float COL_X_ITEMS   = -193.400f;
+        private const float COL_W_ITEMS   =  207f;
+        private const float COL_X_BUY     =   82.800f;
+        private const float COL_W_BUY     =   86.400f;
+        private const float COL_X_AMOUNT  =  157.000f;
+        private const float COL_W_AMOUNT  =   72f;
+        private const float COL_X_SELL    =  242.856f;
+        private const float COL_W_SELL    =   85.014f;
+        private const float COL_X_STOCK   =  321.246f;
+        private const float COL_W_STOCK   =   87.300f;
+        private const float COL_X_RESTOCK =  409.446f;
+        private const float COL_W_RESTOCK =   78.714f;
+
+        // Top-of-page overlays (shop name on left page, gold display on right page). Y just above
+        // the painted column-header band of the book — derived from BODY_CENTER_Y + BODY_HEIGHT/2 + ~50.
+        private const float OVERLAY_Y    = BODY_CENTER_Y + BODY_HEIGHT * 0.5f + 50f;
+        private const float SHOP_NAME_X  = -193.400f;        // centered over Items column (left page)
+        private const float GOLD_X       =  242.856f;        // centered over SellPrice column (right page)
+
+        private const float ROW_HEIGHT = 32.4f;              // matches the IconRow SizeDelta from the saved layout
+        private const float ICON_SIZE  = 28.8f;              // matches Icon SizeDelta from the saved layout
+        private const float ROW_SPACING = 1.8f;
+        private const float FONT_SIZE = 16f;
+        private const float FONT_SIZE_SMALL = 10f;
+        private const float SCROLL_SENSITIVITY = 40f;
+
+        // KG modifier values.
         private static readonly int[] ModifierValues = { 1, 5, 10, 100 };
 
-        // Parchment-friendly colours
-        private static readonly Color COL_TEXT_DARK    = new Color(0.15f, 0.10f, 0.05f, 1f);
-        private static readonly Color COL_TEXT_BROWN   = new Color(0.30f, 0.20f, 0.10f, 1f);
-        private static readonly Color COL_BUY_OK       = new Color(0.60f, 0.15f, 0.10f, 1f);
-        private static readonly Color COL_BUY_NO       = new Color(0.40f, 0.30f, 0.25f, 1f);
-        private static readonly Color COL_SELL         = new Color(0.10f, 0.40f, 0.10f, 1f);
-        private static readonly Color COL_UNAVAILABLE  = new Color(0.50f, 0.45f, 0.40f, 0.6f);
-        private static readonly Color COL_OWNED        = new Color(0.35f, 0.28f, 0.18f, 0.8f);
-        private static readonly Color COL_STOCK        = new Color(0.25f, 0.20f, 0.15f, 1f);
-        private static readonly Color COL_STOCK_EMPTY  = new Color(0.50f, 0.18f, 0.12f, 1f);
-        private static readonly Color COL_RESTOCK      = new Color(0.35f, 0.28f, 0.18f, 1f);
-        private static readonly Color COL_INPUT_TEXT   = new Color(0.12f, 0.08f, 0.04f, 1f);
-        private static readonly Color COL_INPUT_BG     = new Color(0.85f, 0.78f, 0.62f, 0.5f);
-        private static readonly Color COL_BTN_BG_OK    = new Color(0.72f, 0.65f, 0.48f, 0.45f);
-        private static readonly Color COL_BTN_BG_NO    = new Color(0.60f, 0.50f, 0.40f, 0.25f);
-        private static readonly Color COL_GOLD_TEXT    = new Color(0.65f, 0.55f, 0.15f, 1f);
-        private static readonly Color COL_MOD_ON       = new Color(0.32f, 0.22f, 0.14f, 0.95f);
-        private static readonly Color COL_MOD_OFF      = new Color(0.18f, 0.14f, 0.08f, 0.85f);
-        private static readonly Color COL_PANEL_BG     = new Color(0.20f, 0.14f, 0.08f, 0.96f);
+        // Inks chosen to read on aged-parchment.
+        private static readonly Color INK_DARK      = new Color(0.18f, 0.10f, 0.04f, 1f);
+        private static readonly Color INK_BROWN     = new Color(0.36f, 0.22f, 0.10f, 1f);
+        private static readonly Color INK_RED       = new Color(0.62f, 0.18f, 0.12f, 1f);
+        private static readonly Color INK_GREEN     = new Color(0.13f, 0.42f, 0.13f, 1f);
+        private static readonly Color INK_DIM       = new Color(0.50f, 0.42f, 0.32f, 0.7f);
+        private static readonly Color INK_GOLD      = new Color(0.68f, 0.54f, 0.16f, 1f);
+        private static readonly Color INK_OWNED     = new Color(0.40f, 0.30f, 0.18f, 0.85f);
+        private static readonly Color INK_STOCK_OK  = new Color(0.25f, 0.20f, 0.15f, 1f);
+        private static readonly Color INK_STOCK_OUT = new Color(0.55f, 0.20f, 0.15f, 1f);
+        private static readonly Color BTN_BG_OK     = new Color(0.78f, 0.65f, 0.40f, 0.30f);
+        private static readonly Color BTN_BG_NO     = new Color(0.60f, 0.50f, 0.40f, 0.18f);
+        private static readonly Color SEARCH_BG     = new Color(0.92f, 0.82f, 0.62f, 0.65f);
+        private static readonly Color MOD_ON        = new Color(0.55f, 0.32f, 0.14f, 0.85f);
+        private static readonly Color MOD_OFF       = new Color(0.35f, 0.24f, 0.14f, 0.55f);
 
         // Runtime state
         private GameObject _panelRoot;
@@ -75,7 +104,6 @@ namespace FiresRPGmaker.UI.Screens
         private NpcController _currentNpc;
         private TraderProfile _currentProfile;
 
-        // Per-trade row data
         private readonly Dictionary<TradeEntry, int> _tradeAmounts = new Dictionary<TradeEntry, int>();
         private readonly Dictionary<TradeEntry, RowUIRefs> _rowRefs = new Dictionary<TradeEntry, RowUIRefs>();
 
@@ -93,21 +121,22 @@ namespace FiresRPGmaker.UI.Screens
             public bool isSellTrade;
         }
 
-        // 7 column content roots
+        // Scroll content roots — 7 synced columns matching the original saved layout
+        // (Icons / Items / BuyPrice / AmountSoldBought / SellPrice / TotalStock / RestockTime).
         private RectTransform _iconsContent;
-        private RectTransform _itemsContent;
-        private RectTransform _buyPriceContent;
+        private RectTransform _itemContent;
+        private RectTransform _buyContent;
         private RectTransform _amountContent;
-        private RectTransform _sellPriceContent;
+        private RectTransform _sellContent;
         private RectTransform _stockContent;
         private RectTransform _restockContent;
 
         private readonly List<ScrollRect> _columnScrollRects = new List<ScrollRect>();
         private readonly List<GameObject> _rows = new List<GameObject>();
 
-        // Top strip widgets
-        private TextMeshProUGUI _goldAmountText;
+        // Top overlay widgets
         private TextMeshProUGUI _shopNameText;
+        private TextMeshProUGUI _goldAmountText;
         private TMP_InputField _searchInput;
         private string _searchLower = "";
         private int _modifier = 1;
@@ -117,6 +146,9 @@ namespace FiresRPGmaker.UI.Screens
         private GameObject _confirmRoot;
         private TMP_Text _confirmText;
         private Action _pendingTradeAction;
+
+        // Cached book sprite (loaded once from disk, shared across opens).
+        private static Sprite _bookSprite;
 
         public bool IsVisible => _panelRoot != null && _panelRoot.activeSelf;
 
@@ -149,7 +181,6 @@ namespace FiresRPGmaker.UI.Screens
             if (npc == null) return;
             string profileName = npc.traderProfile;
             if (string.IsNullOrEmpty(profileName)) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{npc.GetDisplayName()} has nothing to trade."); return; }
-
             TraderProfileManager.Initialize();
             var profile = TraderProfileManager.GetProfile(profileName);
             if (profile == null || profile.Trades.Count == 0)
@@ -201,6 +232,69 @@ namespace FiresRPGmaker.UI.Screens
 
         #endregion
 
+        #region Background sprite loader
+
+        /// <summary>Loads <c>va_background5.png</c> once and caches the Sprite. Tries the embedded resource
+        /// (shipped inside the DLL) first, then falls back to a loose PNG next to the DLL for hot-swap dev.
+        /// Returns null on missing/corrupt PNG — the panel falls back to a flat color in that case.</summary>
+        private static Sprite LoadBookSprite()
+        {
+            if (_bookSprite != null) return _bookSprite;
+            try
+            {
+                byte[] data = null;
+                // 1) Embedded resource — preferred (ships with the DLL).
+                try
+                {
+                    var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                    using (var stream = asm.GetManifestResourceStream("FiresRPGmaker.Resources.va_background5.png"))
+                    {
+                        if (stream != null)
+                        {
+                            data = new byte[stream.Length];
+                            int read = 0, off = 0;
+                            while ((read = stream.Read(data, off, data.Length - off)) > 0) off += read;
+                        }
+                    }
+                }
+                catch { /* fall through to disk */ }
+
+                // 2) Disk fallback — loose PNG next to the DLL for asset iteration without rebuilding.
+                if (data == null)
+                {
+                    string asmPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                    string pluginDir = Path.GetDirectoryName(asmPath);
+                    string pngPath = Path.Combine(pluginDir, "va_background5.png");
+                    if (!File.Exists(pngPath))
+                    {
+                        Debug.LogWarning($"[TraderUIController] book background not embedded AND missing on disk at {pngPath} — falling back to flat panel");
+                        return null;
+                    }
+                    data = File.ReadAllBytes(pngPath);
+                }
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                // LoadImage lives in UnityEngine.ImageConversionModule which targets netstandard 2.1 —
+                // calling it directly trips the .NET Standard reference mismatch in our 2.0 project.
+                // Reflection-invoke sidesteps the compile-time dependency entirely.
+                var loadImageMI = typeof(Texture2D).GetMethod("LoadImage", new[] { typeof(byte[]) })
+                                 ?? typeof(Texture2D).Assembly.GetType("UnityEngine.ImageConversion")?.GetMethod("LoadImage", new[] { typeof(Texture2D), typeof(byte[]) });
+                bool loaded = false;
+                if (loadImageMI != null)
+                {
+                    var args = loadImageMI.GetParameters().Length == 2 ? new object[] { tex, data } : new object[] { data };
+                    var target = loadImageMI.GetParameters().Length == 2 ? null : (object)tex;
+                    loaded = (bool)loadImageMI.Invoke(target, args);
+                }
+                if (!loaded) { Debug.LogWarning("[TraderUIController] LoadImage failed for va_background5.png"); return null; }
+                _bookSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                _bookSprite.name = "va_background5";
+                return _bookSprite;
+            }
+            catch (Exception ex) { Debug.LogError("[TraderUIController] LoadBookSprite failed: " + ex.Message); return null; }
+        }
+
+        #endregion
+
         #region Bootstrap
 
         private static void EnsureInstance()
@@ -208,7 +302,7 @@ namespace FiresRPGmaker.UI.Screens
             if (Instance != null && Instance._panelRoot != null) return;
             if (Hud.instance == null) return;
 
-            // Standalone top-level canvas so opening/closing doesn't dirty Hud's inventory grid.
+            // Standalone overlay canvas so opening/closing doesn't dirty Hud's inventory grid.
             var canvasGo = new GameObject("TraderUI_Canvas", typeof(RectTransform));
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -221,128 +315,82 @@ namespace FiresRPGmaker.UI.Screens
             var cr = canvasGo.GetComponent<RectTransform>();
             cr.anchorMin = Vector2.zero; cr.anchorMax = Vector2.one; cr.offsetMin = Vector2.zero; cr.offsetMax = Vector2.zero;
 
-            // Panel root — 800×750 authoring rect, upscaled by UI_SCALE so all child offsets stay in the
-            // small-coordinate space the codegen layout values were captured in.
-            var panel = new GameObject("TraderUI_Panel", typeof(RectTransform), typeof(Image));
+            // Panel root — 1200×1140 (1080 book + 60 header strip).
+            var panel = new GameObject("TraderUI_Panel", typeof(RectTransform));
             panel.transform.SetParent(canvasGo.transform, false);
             var prt = (RectTransform)panel.transform;
             prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
             prt.pivot = new Vector2(0.5f, 0.5f);
             prt.sizeDelta = new Vector2(PANEL_W, PANEL_H);
-            prt.localScale = Vector3.one * UI_SCALE;
-            var bg = panel.GetComponent<Image>();
-            bg.color = COL_PANEL_BG;
-            bg.raycastTarget = true;
             panel.AddComponent<TraderDragHandler>();
+
+            // Book artwork at the bottom of the panel.
+            var bookGo = new GameObject("BookBackground", typeof(RectTransform), typeof(Image));
+            bookGo.transform.SetParent(panel.transform, false);
+            var brt = (RectTransform)bookGo.transform;
+            brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0.5f);
+            brt.pivot = new Vector2(0.5f, 0.5f);
+            brt.anchoredPosition = new Vector2(0f, BOOK_Y_OFFSET);
+            brt.sizeDelta = new Vector2(BOOK_W, BOOK_H);
+            var bookImg = bookGo.GetComponent<Image>();
+            bookImg.raycastTarget = true;
+            var sprite = LoadBookSprite();
+            // Original layout stretched the 1200×1080 source to 1440×1350 — preserveAspect=false to match.
+            if (sprite != null) { bookImg.sprite = sprite; bookImg.color = Color.white; bookImg.preserveAspect = false; }
+            else                { bookImg.color = new Color(0.30f, 0.20f, 0.10f, 0.95f); }
 
             var controller = panel.AddComponent<TraderUIController>();
             controller._panelRoot = panel;
             controller._standaloneCanvas = canvasGo;
             controller.BuildColumns();
-            controller.BuildColumnHeaderLabels();
-            controller.BuildTopStrip();
+            controller.BuildTopOverlay();
+            controller.BuildHeaderStrip();
             controller.BuildCloseButton();
             panel.SetActive(false);
         }
 
         #endregion
 
-        #region Top Strip (shop name + gold + search + modifier)
+        #region Top overlay (shop name + gold display)
 
-        private void BuildTopStrip()
+        private void BuildTopOverlay()
         {
-            // Shop name (centered over the panel, top).
+            // Shop name — italic serif, overlaid above the Item column header on the LEFT page.
             var shopGo = new GameObject("ShopName", typeof(RectTransform));
             shopGo.transform.SetParent(_panelRoot.transform, false);
             var srt = (RectTransform)shopGo.transform;
             srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 0.5f);
             srt.pivot = new Vector2(0.5f, 0.5f);
-            srt.anchoredPosition = new Vector2(0f, HEADER_Y);
-            srt.sizeDelta = new Vector2(360f, 22f);
+            srt.anchoredPosition = new Vector2(SHOP_NAME_X, OVERLAY_Y);
+            srt.sizeDelta = new Vector2(380f, 32f);
             _shopNameText = shopGo.AddComponent<TextMeshProUGUI>();
-            _shopNameText.fontSize = 14f;
-            _shopNameText.color = new Color(1f, 0.85f, 0.55f);
+            _shopNameText.fontSize = 22f;
+            _shopNameText.color = INK_DARK;
             _shopNameText.alignment = TextAlignmentOptions.Center;
-            _shopNameText.fontStyle = FontStyles.Bold;
+            _shopNameText.fontStyle = FontStyles.Italic | FontStyles.Bold;
             _shopNameText.textWrappingMode = TextWrappingModes.NoWrap;
             _shopNameText.raycastTarget = false;
             ApplyFont(_shopNameText);
 
-            // Gold display (right side of header).
-            BuildGoldDisplay();
-
-            // Search input (left side of toolbar).
-            var searchGo = new GameObject("Search", typeof(RectTransform), typeof(Image));
-            searchGo.transform.SetParent(_panelRoot.transform, false);
-            var srrt = (RectTransform)searchGo.transform;
-            srrt.anchorMin = srrt.anchorMax = new Vector2(0.5f, 0.5f);
-            srrt.pivot = new Vector2(0.5f, 0.5f);
-            srrt.anchoredPosition = new Vector2(-140f, TOOLBAR_Y);
-            srrt.sizeDelta = new Vector2(260f, 20f);
-            searchGo.GetComponent<Image>().color = COL_INPUT_BG;
-            var searchInput = searchGo.AddComponent<TMP_InputField>();
-
-            var searchTextGo = new GameObject("Text", typeof(RectTransform));
-            searchTextGo.transform.SetParent(searchGo.transform, false);
-            var strt = (RectTransform)searchTextGo.transform;
-            Stretch(strt); strt.offsetMin = new Vector2(6f, 0f); strt.offsetMax = new Vector2(-6f, 0f);
-            var searchTmp = searchTextGo.AddComponent<TextMeshProUGUI>();
-            searchTmp.fontSize = 11f;
-            searchTmp.color = COL_INPUT_TEXT;
-            searchTmp.alignment = TextAlignmentOptions.MidlineLeft;
-            ApplyFont(searchTmp);
-
-            var placeholderGo = new GameObject("Placeholder", typeof(RectTransform));
-            placeholderGo.transform.SetParent(searchGo.transform, false);
-            var prt2 = (RectTransform)placeholderGo.transform;
-            Stretch(prt2); prt2.offsetMin = new Vector2(6f, 0f); prt2.offsetMax = new Vector2(-6f, 0f);
-            var placeholderTmp = placeholderGo.AddComponent<TextMeshProUGUI>();
-            placeholderTmp.text = "Search…";
-            placeholderTmp.fontSize = 11f;
-            placeholderTmp.color = new Color(0.4f, 0.32f, 0.20f, 0.7f);
-            placeholderTmp.alignment = TextAlignmentOptions.MidlineLeft;
-            placeholderTmp.raycastTarget = false;
-            ApplyFont(placeholderTmp);
-
-            searchInput.textViewport = strt;
-            searchInput.textComponent = searchTmp;
-            searchInput.placeholder = placeholderTmp;
-            searchInput.lineType = TMP_InputField.LineType.SingleLine;
-            searchInput.onValueChanged.AddListener(val => { _searchLower = (val ?? "").ToLowerInvariant(); PopulateUIRows(); });
-            _searchInput = searchInput;
-
-            // Modifier buttons (x1/x5/x10/x100) on the right side of toolbar.
-            for (int i = 0; i < ModifierValues.Length; i++)
-            {
-                int idx = i;
-                int val = ModifierValues[i];
-                var btn = BuildModifierButton(val, 120f + i * 56f, TOOLBAR_Y);
-                _modifierBgs[i] = btn.GetComponent<Image>();
-                btn.onClick.AddListener(() => SetModifier(idx));
-            }
-            RefreshModifierButtonsVisual();
-        }
-
-        private void BuildGoldDisplay()
-        {
+            // Gold display — coin icon + balance, overlaid above the right page header band.
             var goldGo = new GameObject("GoldDisplay", typeof(RectTransform));
             goldGo.transform.SetParent(_panelRoot.transform, false);
             var grt = (RectTransform)goldGo.transform;
             grt.anchorMin = grt.anchorMax = new Vector2(0.5f, 0.5f);
             grt.pivot = new Vector2(0.5f, 0.5f);
-            grt.anchoredPosition = new Vector2(260f, HEADER_Y);
-            grt.sizeDelta = new Vector2(140f, 22f);
+            grt.anchoredPosition = new Vector2(GOLD_X, OVERLAY_Y);
+            grt.sizeDelta = new Vector2(220f, 32f);
 
             var hlg = goldGo.AddComponent<HorizontalLayoutGroup>();
-            hlg.spacing = 4f;
-            hlg.childAlignment = TextAnchor.MiddleRight;
+            hlg.spacing = 6f;
+            hlg.childAlignment = TextAnchor.MiddleCenter;
             hlg.childForceExpandWidth = false; hlg.childForceExpandHeight = false;
             hlg.childControlWidth = false; hlg.childControlHeight = false;
 
             var iconGo = new GameObject("CoinIcon", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             iconGo.transform.SetParent(goldGo.transform, false);
             var iconLE = iconGo.GetComponent<LayoutElement>();
-            iconLE.preferredWidth = 14f; iconLE.preferredHeight = 14f;
+            iconLE.preferredWidth = 24f; iconLE.preferredHeight = 24f;
             var iconImg = iconGo.GetComponent<Image>();
             iconImg.preserveAspect = true; iconImg.raycastTarget = false;
             var coinPrefab = ZNetScene.instance?.GetPrefab("Coins");
@@ -355,16 +403,75 @@ namespace FiresRPGmaker.UI.Screens
             var textGo = new GameObject("GoldText", typeof(RectTransform), typeof(LayoutElement));
             textGo.transform.SetParent(goldGo.transform, false);
             var textLE = textGo.GetComponent<LayoutElement>();
-            textLE.preferredWidth = 110f; textLE.preferredHeight = 18f;
+            textLE.preferredWidth = 170f; textLE.preferredHeight = 26f;
             _goldAmountText = textGo.AddComponent<TextMeshProUGUI>();
-            _goldAmountText.fontSize = 12f;
-            _goldAmountText.color = COL_GOLD_TEXT;
+            _goldAmountText.fontSize = 22f;
+            _goldAmountText.color = INK_GOLD;
             _goldAmountText.alignment = TextAlignmentOptions.MidlineLeft;
             _goldAmountText.fontStyle = FontStyles.Bold;
             _goldAmountText.textWrappingMode = TextWrappingModes.NoWrap;
             _goldAmountText.raycastTarget = false;
             ApplyFont(_goldAmountText);
             _goldAmountText.text = "0";
+        }
+
+        #endregion
+
+        #region Header strip (search + modifier buttons)
+
+        private void BuildHeaderStrip()
+        {
+            // Search input on the left half of the strip.
+            var searchGo = new GameObject("Search", typeof(RectTransform), typeof(Image));
+            searchGo.transform.SetParent(_panelRoot.transform, false);
+            var srt = (RectTransform)searchGo.transform;
+            srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 0.5f);
+            srt.pivot = new Vector2(0.5f, 0.5f);
+            srt.anchoredPosition = new Vector2(-220f, HEADER_STRIP_Y);
+            srt.sizeDelta = new Vector2(360f, 38f);
+            searchGo.GetComponent<Image>().color = SEARCH_BG;
+
+            var input = searchGo.AddComponent<TMP_InputField>();
+            var textGo = new GameObject("Text", typeof(RectTransform));
+            textGo.transform.SetParent(searchGo.transform, false);
+            var trt = (RectTransform)textGo.transform;
+            Stretch(trt); trt.offsetMin = new Vector2(10f, 0f); trt.offsetMax = new Vector2(-10f, 0f);
+            var tmp = textGo.AddComponent<TextMeshProUGUI>();
+            tmp.fontSize = 18f;
+            tmp.color = INK_DARK;
+            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+            ApplyFont(tmp);
+
+            var placeholderGo = new GameObject("Placeholder", typeof(RectTransform));
+            placeholderGo.transform.SetParent(searchGo.transform, false);
+            var prt = (RectTransform)placeholderGo.transform;
+            Stretch(prt); prt.offsetMin = new Vector2(10f, 0f); prt.offsetMax = new Vector2(-10f, 0f);
+            var ptmp = placeholderGo.AddComponent<TextMeshProUGUI>();
+            ptmp.text = "Search…";
+            ptmp.fontSize = 18f;
+            ptmp.color = new Color(0.30f, 0.22f, 0.10f, 0.5f);
+            ptmp.alignment = TextAlignmentOptions.MidlineLeft;
+            ptmp.fontStyle = FontStyles.Italic;
+            ptmp.raycastTarget = false;
+            ApplyFont(ptmp);
+
+            input.textViewport = trt;
+            input.textComponent = tmp;
+            input.placeholder = ptmp;
+            input.lineType = TMP_InputField.LineType.SingleLine;
+            input.onValueChanged.AddListener(val => { _searchLower = (val ?? "").ToLowerInvariant(); PopulateUIRows(); });
+            _searchInput = input;
+
+            // x1 / x5 / x10 / x100 buttons on the right half of the strip.
+            for (int i = 0; i < ModifierValues.Length; i++)
+            {
+                int idx = i;
+                int val = ModifierValues[i];
+                var btn = BuildModifierButton(val, 60f + i * 80f, HEADER_STRIP_Y);
+                _modifierBgs[i] = btn.GetComponent<Image>();
+                btn.onClick.AddListener(() => SetModifier(idx));
+            }
+            RefreshModifierButtonsVisual();
         }
 
         private Button BuildModifierButton(int value, float xPos, float yPos)
@@ -375,15 +482,15 @@ namespace FiresRPGmaker.UI.Screens
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = new Vector2(xPos, yPos);
-            rt.sizeDelta = new Vector2(48f, 20f);
-            go.GetComponent<Image>().color = COL_MOD_OFF;
+            rt.sizeDelta = new Vector2(68f, 34f);
+            go.GetComponent<Image>().color = MOD_OFF;
 
             var labelGo = new GameObject("Label", typeof(RectTransform));
             labelGo.transform.SetParent(go.transform, false);
             Stretch((RectTransform)labelGo.transform);
             var t = labelGo.AddComponent<TextMeshProUGUI>();
             t.text = $"x{value}";
-            t.fontSize = 12f;
+            t.fontSize = 18f;
             t.color = new Color(0.96f, 0.91f, 0.76f);
             t.alignment = TextAlignmentOptions.Center;
             t.fontStyle = FontStyles.Bold;
@@ -397,7 +504,6 @@ namespace FiresRPGmaker.UI.Screens
             if (idx < 0 || idx >= ModifierValues.Length) return;
             _modifier = ModifierValues[idx];
             RefreshModifierButtonsVisual();
-            // Push the new modifier into every active row's qty input + re-cost summary.
             if (_currentProfile != null)
             {
                 foreach (var trade in _currentProfile.Trades)
@@ -418,7 +524,7 @@ namespace FiresRPGmaker.UI.Screens
             for (int i = 0; i < _modifierBgs.Length; i++)
             {
                 if (_modifierBgs[i] == null) continue;
-                _modifierBgs[i].color = (ModifierValues[i] == _modifier) ? COL_MOD_ON : COL_MOD_OFF;
+                _modifierBgs[i].color = (ModifierValues[i] == _modifier) ? MOD_ON : MOD_OFF;
             }
         }
 
@@ -429,8 +535,8 @@ namespace FiresRPGmaker.UI.Screens
             var rt = (RectTransform)go.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(1f, 1f);
-            rt.anchoredPosition = new Vector2(-8f, -8f);
-            rt.sizeDelta = new Vector2(28f, 28f);
+            rt.anchoredPosition = new Vector2(-12f, -12f);
+            rt.sizeDelta = new Vector2(36f, 36f);
             go.GetComponent<Image>().color = new Color(0.42f, 0.15f, 0.10f, 0.95f);
             go.GetComponent<Button>().onClick.AddListener(Hide);
 
@@ -438,47 +544,27 @@ namespace FiresRPGmaker.UI.Screens
             labelGo.transform.SetParent(go.transform, false);
             Stretch((RectTransform)labelGo.transform);
             var t = labelGo.AddComponent<TextMeshProUGUI>();
-            t.text = "X";
-            t.fontSize = 16f;
+            t.text = "X"; t.fontSize = 20f;
             t.color = new Color(1f, 0.9f, 0.85f);
             t.alignment = TextAlignmentOptions.Center;
-            t.fontStyle = FontStyles.Bold;
-            t.raycastTarget = false;
+            t.fontStyle = FontStyles.Bold; t.raycastTarget = false;
             ApplyFont(t);
         }
 
         #endregion
 
-        #region 7 Columns
-
-        // Codegen-derived column positions (800×750 local coordinate space).
-        private static readonly (string name, Vector2 pos, Vector2 size)[] ColumnDefs =
-        {
-            ("Icons",     new Vector2(-216.71f, BODY_TOP_Y), new Vector2( 41.77f, BODY_HEIGHT)),
-            ("Items",     new Vector2(-118.44f, BODY_TOP_Y), new Vector2(125f,    BODY_HEIGHT)),
-            ("BuyPrice",  new Vector2(  41f,    BODY_TOP_Y), new Vector2( 53f,    BODY_HEIGHT)),
-            ("Qty",       new Vector2(  87.22f, BODY_TOP_Y), new Vector2( 40f,    BODY_HEIGHT)),
-            ("SellPrice", new Vector2( 134.92f, BODY_TOP_Y), new Vector2( 47.23f, BODY_HEIGHT)),
-            ("Stock",     new Vector2( 178.47f, BODY_TOP_Y), new Vector2( 48.5f,  BODY_HEIGHT)),
-            ("Restock",   new Vector2( 227.47f, BODY_TOP_Y), new Vector2( 43.73f, BODY_HEIGHT)),
-        };
+        #region 6 Synced Columns (left page Item + 5 right-page columns)
 
         private void BuildColumns()
         {
             _columnScrollRects.Clear();
-            var contents = new RectTransform[ColumnDefs.Length];
-            for (int i = 0; i < ColumnDefs.Length; i++)
-            {
-                var (n, pos, size) = ColumnDefs[i];
-                contents[i] = CreateColumnScrollView(_panelRoot.transform, n, pos, size);
-            }
-            _iconsContent     = contents[0];
-            _itemsContent     = contents[1];
-            _buyPriceContent  = contents[2];
-            _amountContent    = contents[3];
-            _sellPriceContent = contents[4];
-            _stockContent     = contents[5];
-            _restockContent   = contents[6];
+            _iconsContent   = MakeCol("Icons",            COL_X_ICONS,   COL_W_ICONS);
+            _itemContent    = MakeCol("Items",            COL_X_ITEMS,   COL_W_ITEMS);
+            _buyContent     = MakeCol("BuyPrice",         COL_X_BUY,     COL_W_BUY);
+            _amountContent  = MakeCol("AmountSoldBought", COL_X_AMOUNT,  COL_W_AMOUNT);
+            _sellContent    = MakeCol("SellPrice",        COL_X_SELL,    COL_W_SELL);
+            _stockContent   = MakeCol("TotalStock",       COL_X_STOCK,   COL_W_STOCK);
+            _restockContent = MakeCol("RestockTime",      COL_X_RESTOCK, COL_W_RESTOCK);
 
             foreach (var sr in _columnScrollRects)
             {
@@ -487,30 +573,10 @@ namespace FiresRPGmaker.UI.Screens
             }
         }
 
-        private void BuildColumnHeaderLabels()
-        {
-            // Single-line column headers above each scroll column.
-            string[] labels = { "Icon", "Item", "Buy", "Qty", "Sell", "Stock", "Restock" };
-            for (int i = 0; i < ColumnDefs.Length; i++)
-            {
-                var def = ColumnDefs[i];
-                var go = new GameObject($"H_{def.name}", typeof(RectTransform));
-                go.transform.SetParent(_panelRoot.transform, false);
-                var rt = (RectTransform)go.transform;
-                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-                rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.anchoredPosition = new Vector2(def.pos.x, COLUMN_HEADER_Y);
-                rt.sizeDelta = new Vector2(def.size.x, 14f);
-                var tmp = go.AddComponent<TextMeshProUGUI>();
-                tmp.text = labels[i];
-                tmp.fontSize = 11f;
-                tmp.color = new Color(1f, 0.85f, 0.55f);
-                tmp.alignment = TextAlignmentOptions.Center;
-                tmp.fontStyle = FontStyles.Bold;
-                tmp.raycastTarget = false;
-                ApplyFont(tmp);
-            }
-        }
+        private RectTransform MakeCol(string name, float x, float w)
+            => CreateColumnScrollView(_panelRoot.transform, name,
+                                       new Vector2(x, BODY_CENTER_Y),
+                                       new Vector2(w, BODY_HEIGHT));
 
         private RectTransform CreateColumnScrollView(Transform parent, string colName, Vector2 anchoredPos, Vector2 sizeDelta)
         {
@@ -522,19 +588,29 @@ namespace FiresRPGmaker.UI.Screens
             colRect.anchoredPosition = anchoredPos;
             colRect.sizeDelta = sizeDelta;
 
+            // Transparent BG so the parchment shows through; raycast off so it doesn't eat clicks.
             var bgImg = col.AddComponent<Image>();
             bgImg.color = new Color(1f, 1f, 1f, 0f);
             bgImg.raycastTarget = false;
 
+            // Viewport with RectMask2D (no Graphic needed — works without sprite/material).
             var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
             viewport.transform.SetParent(col.transform, false);
             var vpRect = (RectTransform)viewport.transform;
             vpRect.anchorMin = Vector2.zero; vpRect.anchorMax = Vector2.one;
             vpRect.offsetMin = new Vector2(2, 2); vpRect.offsetMax = new Vector2(-2, -2);
-            var vpImg = viewport.AddComponent<Image>();
-            vpImg.color = new Color(0f, 0f, 0f, 0f);
-            vpImg.raycastTarget = true;
 
+            // Raycast catcher so the column accepts scroll-wheel input.
+            var raycastGo = new GameObject("RaycastCatcher", typeof(RectTransform), typeof(Image));
+            raycastGo.transform.SetParent(viewport.transform, false);
+            var rcRect = (RectTransform)raycastGo.transform;
+            rcRect.anchorMin = Vector2.zero; rcRect.anchorMax = Vector2.one;
+            rcRect.offsetMin = Vector2.zero; rcRect.offsetMax = Vector2.zero;
+            var rcImg = raycastGo.GetComponent<Image>();
+            rcImg.color = new Color(0f, 0f, 0f, 0f);
+            rcImg.raycastTarget = true;
+
+            // Content rect — top-anchored, grows downward via VerticalLayoutGroup + ContentSizeFitter.
             var content = new GameObject("Content", typeof(RectTransform));
             content.transform.SetParent(viewport.transform, false);
             var cRect = (RectTransform)content.transform;
@@ -545,7 +621,7 @@ namespace FiresRPGmaker.UI.Screens
 
             var vlg = content.AddComponent<VerticalLayoutGroup>();
             vlg.spacing = ROW_SPACING;
-            vlg.padding = new RectOffset(1, 1, 3, 1);
+            vlg.padding = new RectOffset(2, 2, 4, 2);
             vlg.childForceExpandWidth = true;
             vlg.childForceExpandHeight = false;
             vlg.childControlWidth = true;
@@ -588,14 +664,11 @@ namespace FiresRPGmaker.UI.Screens
             RefreshGoldDisplay();
         }
 
-        /// <summary>Rebuilds every row from <see cref="_currentProfile"/> applying the current
-        /// search filter. Called on first show, on search changes, and after trade execution.</summary>
         private void PopulateUIRows()
         {
             ClearRows();
             _rowRefs.Clear();
             if (_currentProfile == null) return;
-
             foreach (var trade in _currentProfile.Trades)
             {
                 if (!PassesSearch(trade)) continue;
@@ -631,17 +704,19 @@ namespace FiresRPGmaker.UI.Screens
             string itemLabel = displayItem.Amount > 1 ? $"{displayItem.Amount} {displayName}" : displayName;
             int ownedCount = CountPlayerItems(displayItem.PrefabName, displayItem.Level);
 
+            // ── Left page: separate Icons column then Items column (matches saved layout) ──
             AddIconCell(_iconsContent, icon);
-            var ownedTmp = AddItemCellWithOwned(_itemsContent, itemLabel, ownedCount);
+            var ownedTmp = AddItemCellWithOwned(_itemContent, itemLabel, ownedCount);
 
+            // ── Right page: 5 narrow columns ──
             (TextMeshProUGUI text, Image bg, Button btn) buyRefs;
             if (isBuyTrade)
             {
                 string buyText = FormatCostSummary(trade.CostItems, qty);
-                buyRefs = AddButtonCell(_buyPriceContent, buyText, canAfford ? COL_BUY_OK : COL_BUY_NO,
+                buyRefs = AddButtonCell(_buyContent, buyText, canAfford ? INK_RED : INK_DIM,
                                         canAfford, () => ShowTradeConfirmation(trade, true));
             }
-            else buyRefs = (AddUnavailableCell(_buyPriceContent), null, null);
+            else buyRefs = (AddUnavailableCell(_buyContent), null, null);
 
             var qtyInput = AddAmountInputCell(_amountContent, trade, qty);
 
@@ -649,11 +724,11 @@ namespace FiresRPGmaker.UI.Screens
             if (isSellTrade)
             {
                 string sellText = FormatCostSummary(trade.RewardItems, qty);
-                var sellRefs = AddButtonCell(_sellPriceContent, sellText, canAfford ? COL_SELL : COL_BUY_NO,
+                var sellRefs = AddButtonCell(_sellContent, sellText, canAfford ? INK_GREEN : INK_DIM,
                                              canAfford, () => ShowTradeConfirmation(trade, false));
                 sellTmp = sellRefs.text; sellBg = sellRefs.bg; sellBtn = sellRefs.btn;
             }
-            else sellTmp = AddUnavailableCell(_sellPriceContent);
+            else sellTmp = AddUnavailableCell(_sellContent);
 
             _rowRefs[trade] = new RowUIRefs
             {
@@ -664,14 +739,14 @@ namespace FiresRPGmaker.UI.Screens
             };
 
             string stockText = trade.Stock < 0 ? "∞" : trade.Stock.ToString();
-            Color stockColor = trade.Stock == 0 ? COL_STOCK_EMPTY : COL_STOCK;
+            Color stockColor = trade.Stock == 0 ? INK_STOCK_OUT : INK_STOCK_OK;
             AddTextCell(_stockContent, stockText, TextAlignmentOptions.Center, stockColor);
 
             string restockText = trade.Stock < 0 ? "—"
                               : trade.Stock > 0 ? "Available"
                               : trade.RestockSeconds > 0 ? FormatTime(trade.RestockSeconds)
                               : "Sold Out";
-            AddTextCell(_restockContent, restockText, TextAlignmentOptions.Center, COL_RESTOCK);
+            AddTextCell(_restockContent, restockText, TextAlignmentOptions.Center, INK_BROWN);
         }
 
         private void OnAmountChanged(TradeEntry trade, int newAmount)
@@ -686,9 +761,9 @@ namespace FiresRPGmaker.UI.Screens
                 if (refs.buyPriceText != null)
                 {
                     refs.buyPriceText.text = FormatCostSummary(trade.CostItems, newAmount);
-                    refs.buyPriceText.color = canAfford ? COL_BUY_OK : COL_BUY_NO;
+                    refs.buyPriceText.color = canAfford ? INK_RED : INK_DIM;
                 }
-                if (refs.buyPriceBg != null) refs.buyPriceBg.color = canAfford ? COL_BTN_BG_OK : COL_BTN_BG_NO;
+                if (refs.buyPriceBg != null) refs.buyPriceBg.color = canAfford ? BTN_BG_OK : BTN_BG_NO;
                 if (refs.buyPriceBtn != null) refs.buyPriceBtn.interactable = canAfford;
             }
             if (refs.isSellTrade)
@@ -696,9 +771,9 @@ namespace FiresRPGmaker.UI.Screens
                 if (refs.sellPriceText != null)
                 {
                     refs.sellPriceText.text = FormatCostSummary(trade.RewardItems, newAmount);
-                    refs.sellPriceText.color = canAfford ? COL_SELL : COL_BUY_NO;
+                    refs.sellPriceText.color = canAfford ? INK_GREEN : INK_DIM;
                 }
-                if (refs.sellPriceBg != null) refs.sellPriceBg.color = canAfford ? COL_BTN_BG_OK : COL_BTN_BG_NO;
+                if (refs.sellPriceBg != null) refs.sellPriceBg.color = canAfford ? BTN_BG_OK : BTN_BG_NO;
                 if (refs.sellPriceBtn != null) refs.sellPriceBtn.interactable = canAfford;
             }
         }
@@ -707,22 +782,40 @@ namespace FiresRPGmaker.UI.Screens
 
         #region Cell Factories
 
-        private void AddIconCell(RectTransform parent, Sprite sprite)
+        /// <summary>Icons column cell — centered item sprite at ICON_SIZE.</summary>
+        private void AddIconCell(RectTransform parent, Sprite icon)
         {
             if (parent == null) return;
             var row = CreateRow(parent, "IconRow");
-            if (sprite != null)
-            {
-                var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
-                iconGo.transform.SetParent(row.transform, false);
-                var ir = (RectTransform)iconGo.transform;
-                ir.anchorMin = ir.anchorMax = new Vector2(0.5f, 0.5f);
-                ir.pivot = new Vector2(0.5f, 0.5f);
-                ir.sizeDelta = new Vector2(ICON_SIZE, ICON_SIZE);
-                iconGo.GetComponent<LayoutElement>().ignoreLayout = true;
-                var img = iconGo.GetComponent<Image>();
-                img.sprite = sprite; img.preserveAspect = true; img.raycastTarget = false;
-            }
+            if (icon == null) return;
+            var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
+            iconGo.transform.SetParent(row.transform, false);
+            var ir = (RectTransform)iconGo.transform;
+            ir.anchorMin = ir.anchorMax = new Vector2(0.5f, 0.5f);
+            ir.pivot = new Vector2(0.5f, 0.5f);
+            ir.sizeDelta = new Vector2(ICON_SIZE, ICON_SIZE);
+            iconGo.GetComponent<LayoutElement>().ignoreLayout = true;
+            var img = iconGo.GetComponent<Image>();
+            img.sprite = icon; img.preserveAspect = true; img.raycastTarget = false;
+        }
+
+        /// <summary>Items column cell — name + "(owned-N)" suffix in the same TMP via rich text.</summary>
+        private TextMeshProUGUI AddItemCellWithOwned(RectTransform parent, string itemLabel, int ownedCount)
+        {
+            if (parent == null) return null;
+            var row = CreateRow(parent, "ItemRow");
+            var tmp = row.AddComponent<TextMeshProUGUI>();
+            tmp.richText = true;
+            tmp.text = FormatItemWithOwned(itemLabel, ownedCount);
+            tmp.fontSize = FONT_SIZE;
+            tmp.color = INK_DARK;
+            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
+            tmp.overflowMode = TextOverflowModes.Ellipsis;
+            tmp.raycastTarget = false;
+            tmp.margin = new Vector4(6, 0, 4, 0);
+            ApplyFont(tmp);
+            return tmp;
         }
 
         private TextMeshProUGUI AddTextCell(RectTransform parent, string text, TextAlignmentOptions align, Color color)
@@ -743,9 +836,9 @@ namespace FiresRPGmaker.UI.Screens
                                                                             Color textColor, bool interactable, Action onClick)
         {
             if (parent == null) return (null, null, null);
-            var row = CreateRow(parent, "BuyRow");
+            var row = CreateRow(parent, "BtnRow");
             var bgImg = row.AddComponent<Image>();
-            bgImg.color = interactable ? COL_BTN_BG_OK : COL_BTN_BG_NO;
+            bgImg.color = interactable ? BTN_BG_OK : BTN_BG_NO;
             var btn = row.AddComponent<Button>();
             btn.targetGraphic = bgImg;
             btn.interactable = interactable;
@@ -757,9 +850,10 @@ namespace FiresRPGmaker.UI.Screens
             var tmp = txtGo.AddComponent<TextMeshProUGUI>();
             tmp.text = text; tmp.fontSize = FONT_SIZE; tmp.color = textColor;
             tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontStyle = FontStyles.Bold;
             tmp.textWrappingMode = TextWrappingModes.NoWrap;
             tmp.overflowMode = TextOverflowModes.Ellipsis;
-            tmp.raycastTarget = false; tmp.margin = new Vector4(4, 0, 4, 0);
+            tmp.raycastTarget = false; tmp.margin = new Vector4(2, 0, 2, 0);
             ApplyFont(tmp);
             return (tmp, bgImg, btn);
         }
@@ -769,8 +863,9 @@ namespace FiresRPGmaker.UI.Screens
             if (parent == null) return null;
             var row = CreateRow(parent, "UnavailRow");
             var tmp = row.AddComponent<TextMeshProUGUI>();
-            tmp.text = "unavailable"; tmp.fontSize = FONT_SIZE_SMALL; tmp.color = COL_UNAVAILABLE;
+            tmp.text = "unavailable"; tmp.fontSize = FONT_SIZE_SMALL; tmp.color = INK_DIM;
             tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontStyle = FontStyles.Italic;
             tmp.textWrappingMode = TextWrappingModes.NoWrap;
             tmp.overflowMode = TextOverflowModes.Ellipsis;
             tmp.raycastTarget = false; tmp.margin = new Vector4(2, 0, 2, 0);
@@ -778,25 +873,9 @@ namespace FiresRPGmaker.UI.Screens
             return tmp;
         }
 
-        private TextMeshProUGUI AddItemCellWithOwned(RectTransform parent, string itemLabel, int ownedCount)
-        {
-            if (parent == null) return null;
-            var row = CreateRow(parent, "TextRow");
-            var tmp = row.AddComponent<TextMeshProUGUI>();
-            tmp.richText = true;
-            tmp.text = FormatItemWithOwned(itemLabel, ownedCount);
-            tmp.fontSize = FONT_SIZE; tmp.color = COL_TEXT_DARK;
-            tmp.alignment = TextAlignmentOptions.Left;
-            tmp.textWrappingMode = TextWrappingModes.NoWrap;
-            tmp.overflowMode = TextOverflowModes.Ellipsis;
-            tmp.raycastTarget = false; tmp.margin = new Vector4(4, 0, 4, 0);
-            ApplyFont(tmp);
-            return tmp;
-        }
-
         private static string FormatItemWithOwned(string itemLabel, int ownedCount)
         {
-            string ownedTag = $"<size=60%><color=#{ColorUtility.ToHtmlStringRGBA(COL_OWNED)}>(owned-{ownedCount})</color></size>";
+            string ownedTag = $"<size=72%><color=#{ColorUtility.ToHtmlStringRGBA(INK_OWNED)}>(owned-{ownedCount})</color></size>";
             return $"{itemLabel} {ownedTag}";
         }
 
@@ -804,15 +883,16 @@ namespace FiresRPGmaker.UI.Screens
         {
             if (parent == null) return null;
             var row = CreateRow(parent, "AmountRow");
-            var bgImg = row.AddComponent<Image>(); bgImg.color = COL_INPUT_BG;
+            var bgImg = row.AddComponent<Image>(); bgImg.color = SEARCH_BG;
 
             var textGo = new GameObject("Text", typeof(RectTransform));
             textGo.transform.SetParent(row.transform, false);
             var textRT = (RectTransform)textGo.transform;
             Stretch(textRT);
             var tmp = textGo.AddComponent<TextMeshProUGUI>();
-            tmp.fontSize = FONT_SIZE; tmp.color = COL_INPUT_TEXT;
+            tmp.fontSize = FONT_SIZE; tmp.color = INK_DARK;
             tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontStyle = FontStyles.Bold;
             tmp.textWrappingMode = TextWrappingModes.NoWrap;
             tmp.overflowMode = TextOverflowModes.Ellipsis;
             tmp.margin = new Vector4(2, 0, 2, 0);
@@ -890,7 +970,7 @@ namespace FiresRPGmaker.UI.Screens
 
         #endregion
 
-        #region Trade Logic (verbatim from prior implementation)
+        #region Trade Logic (verbatim)
 
         private bool CanAffordTrade(TradeEntry trade, int multiplier)
         {
@@ -1078,26 +1158,26 @@ namespace FiresRPGmaker.UI.Screens
             boxGo.transform.SetParent(_confirmRoot.transform, false);
             var boxRect = boxGo.AddComponent<RectTransform>();
             boxRect.anchorMin = boxRect.anchorMax = new Vector2(0.5f, 0.5f);
-            boxRect.sizeDelta = new Vector2(280f, 100f);
-            boxGo.AddComponent<Image>().color = new Color(0.12f, 0.10f, 0.08f, 0.95f);
+            boxRect.sizeDelta = new Vector2(380f, 140f);
+            boxGo.AddComponent<Image>().color = new Color(0.18f, 0.12f, 0.08f, 0.97f);
 
             var textGo = new GameObject("ConfirmText");
             textGo.transform.SetParent(boxGo.transform, false);
             var textRect = textGo.AddComponent<RectTransform>();
-            textRect.anchorMin = new Vector2(0.05f, 0.4f); textRect.anchorMax = new Vector2(0.95f, 0.95f);
+            textRect.anchorMin = new Vector2(0.05f, 0.42f); textRect.anchorMax = new Vector2(0.95f, 0.95f);
             textRect.offsetMin = Vector2.zero; textRect.offsetMax = Vector2.zero;
             _confirmText = textGo.AddComponent<TextMeshProUGUI>();
-            _confirmText.fontSize = 11f;
-            _confirmText.color = new Color(0.9f, 0.85f, 0.7f, 1f);
+            _confirmText.fontSize = 16f;
+            _confirmText.color = new Color(0.95f, 0.88f, 0.72f, 1f);
             _confirmText.alignment = TextAlignmentOptions.Center;
             _confirmText.textWrappingMode = TextWrappingModes.Normal;
             ApplyFont(_confirmText);
 
-            CreateConfirmButton(boxGo.transform, "Yes", new Vector2(-40f, -35f),
-                                new Color(0.15f, 0.45f, 0.15f, 1f),
+            CreateConfirmButton(boxGo.transform, "Yes", new Vector2(-58f, -45f),
+                                new Color(0.18f, 0.50f, 0.18f, 1f),
                                 () => { _confirmRoot.SetActive(false); _pendingTradeAction?.Invoke(); _pendingTradeAction = null; });
-            CreateConfirmButton(boxGo.transform, "No", new Vector2(40f, -35f),
-                                new Color(0.50f, 0.18f, 0.12f, 1f),
+            CreateConfirmButton(boxGo.transform, "No", new Vector2(58f, -45f),
+                                new Color(0.55f, 0.20f, 0.14f, 1f),
                                 () => { _confirmRoot.SetActive(false); _pendingTradeAction = null; });
             _confirmRoot.SetActive(false);
         }
@@ -1108,7 +1188,7 @@ namespace FiresRPGmaker.UI.Screens
             go.transform.SetParent(parent, false);
             var rect = go.AddComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(60f, 22f);
+            rect.sizeDelta = new Vector2(86f, 30f);
             rect.anchoredPosition = pos;
             var img = go.AddComponent<Image>(); img.color = bgColor;
             var btn = go.AddComponent<Button>(); btn.targetGraphic = img;
@@ -1120,9 +1200,10 @@ namespace FiresRPGmaker.UI.Screens
             textRect.anchorMin = Vector2.zero; textRect.anchorMax = Vector2.one;
             textRect.offsetMin = Vector2.zero; textRect.offsetMax = Vector2.zero;
             var tmp = textGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = label; tmp.fontSize = 11f;
-            tmp.color = new Color(0.9f, 0.85f, 0.7f, 1f);
+            tmp.text = label; tmp.fontSize = 14f;
+            tmp.color = new Color(0.95f, 0.88f, 0.72f, 1f);
             tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontStyle = FontStyles.Bold;
             try { FiresCore.UI.UIBuilderHelper.ApplyValheimFont(tmp); } catch { }
             return go;
         }
@@ -1130,7 +1211,7 @@ namespace FiresRPGmaker.UI.Screens
         #endregion
     }
 
-    /// <summary>Drag handler so the player can reposition the trader panel by clicking and dragging the background.</summary>
+    /// <summary>Drag handler so the player can reposition the trader panel by clicking and dragging it.</summary>
     public class TraderDragHandler : MonoBehaviour, IDragHandler, IBeginDragHandler
     {
         private RectTransform _rect;
