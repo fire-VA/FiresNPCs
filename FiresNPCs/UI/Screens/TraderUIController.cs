@@ -276,16 +276,23 @@ namespace FiresRPGmaker.UI.Screens
                 // LoadImage lives in UnityEngine.ImageConversionModule which targets netstandard 2.1 —
                 // calling it directly trips the .NET Standard reference mismatch in our 2.0 project.
                 // Reflection-invoke sidesteps the compile-time dependency entirely.
-                var loadImageMI = typeof(Texture2D).GetMethod("LoadImage", new[] { typeof(byte[]) })
-                                 ?? typeof(Texture2D).Assembly.GetType("UnityEngine.ImageConversion")?.GetMethod("LoadImage", new[] { typeof(Texture2D), typeof(byte[]) });
+                // The extension lives in a DIFFERENT assembly than Texture2D (UnityEngine.ImageConversionModule
+                // vs UnityEngine.CoreModule), so we resolve it by fully-qualified name. Pattern copied from
+                // FiresSteamyDumps/Debug/YoinkAssets.cs which encodes PNGs the same way in reverse.
                 bool loaded = false;
-                if (loadImageMI != null)
+                var imageConvType = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                if (imageConvType != null)
                 {
-                    var args = loadImageMI.GetParameters().Length == 2 ? new object[] { tex, data } : new object[] { data };
-                    var target = loadImageMI.GetParameters().Length == 2 ? null : (object)tex;
-                    loaded = (bool)loadImageMI.Invoke(target, args);
+                    var mi = imageConvType.GetMethod("LoadImage", new[] { typeof(Texture2D), typeof(byte[]) });
+                    if (mi != null) loaded = (bool)mi.Invoke(null, new object[] { tex, data });
                 }
-                if (!loaded) { Debug.LogWarning("[TraderUIController] LoadImage failed for va_background5.png"); return null; }
+                // Fallback: legacy instance method on Texture2D (removed in newer Unity but try anyway).
+                if (!loaded)
+                {
+                    var mi = typeof(Texture2D).GetMethod("LoadImage", new[] { typeof(byte[]) });
+                    if (mi != null) loaded = (bool)mi.Invoke(tex, new object[] { data });
+                }
+                if (!loaded) { Debug.LogWarning("[TraderUIController] LoadImage reflection failed — UnityEngine.ImageConversionModule not loaded?"); return null; }
                 _bookSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
                 _bookSprite.name = "va_background5";
                 return _bookSprite;
