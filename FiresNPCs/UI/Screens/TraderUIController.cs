@@ -48,7 +48,14 @@ namespace FiresRPGmaker.UI.Screens
         // Column rects — exact AnchoredPosition + SizeDelta from traderuifixed.json elements:
         //   Icons / Items / BuyPrice / AmountSoldBought / SellPrice / TotalStock / RestockTime
         // All columns are AnchorMin/Max (0.5, 0.5), pivot (0.5, 0.5), Y = -50.274, height 520.416.
-        private const float BODY_CENTER_Y = -50.274f + BOOK_Y_OFFSET;
+        //
+        // ROW_TOP_NUDGE shifts the column rect UP by one row-stride (25.2) so the first row sits on
+        // the painted line directly under the "Item" header band instead of the one below it. The
+        // saved JSON had column.Y = -50.274 with no header strip; my panel adds a strip above the
+        // book which shifts everything down — and the captured row-1 position ended up one painted
+        // line too low. Compensate by lifting the column origin.
+        private const float ROW_TOP_NUDGE = 25.2f;
+        private const float BODY_CENTER_Y = -50.274f + BOOK_Y_OFFSET + ROW_TOP_NUDGE;
         private const float BODY_HEIGHT   = 520.416f;
 
         private const float COL_X_ICONS   = -390.078f;
@@ -407,8 +414,10 @@ namespace FiresRPGmaker.UI.Screens
             grt.anchorMin = grt.anchorMax = new Vector2(0.5f, 0.5f);
             grt.pivot = new Vector2(0.5f, 0.5f);
             grt.anchoredPosition = new Vector2(GOLD_X, OVERLAY_Y);
-            // Original: sizeDelta = (120, 18) × 1.8.
-            grt.sizeDelta = new Vector2(216f, 32.4f);
+            // Container width = icon(21.6) + spacing(6) + text(80) + breathing room = ~120. The
+            // HorizontalLayoutGroup with MiddleCenter alignment centers this content on GOLD_X so
+            // the visible coin+number pair actually lines up with the Sell column center.
+            grt.sizeDelta = new Vector2(120f, 32.4f);
 
             var hlg = goldGo.AddComponent<HorizontalLayoutGroup>();
             hlg.spacing = 6f;
@@ -438,12 +447,17 @@ namespace FiresRPGmaker.UI.Screens
             var textGo = new GameObject("GoldText", typeof(RectTransform), typeof(LayoutElement));
             textGo.transform.SetParent(goldGo.transform, false);
             var textLE = textGo.GetComponent<LayoutElement>();
-            // Original: preferredWidth=90, preferredHeight=16, fontSize=10 — × 1.8.
-            textLE.preferredWidth = 162f; textLE.preferredHeight = 28.8f;
+            // Tightened text width so the icon+number pair packs more compactly and the HLG's
+            // MiddleCenter alignment puts the visible content centered over GOLD_X. Original 162
+            // (= 90 × 1.8) left way too much empty space on the right of "230". 80 fits up to ~6
+            // digits at fontSize 18.
+            textLE.preferredWidth = 80f; textLE.preferredHeight = 28.8f;
             _goldAmountText = textGo.AddComponent<TextMeshProUGUI>();
             _goldAmountText.fontSize = 18f;
             _goldAmountText.color = INK_GOLD;
-            _goldAmountText.alignment = TextAlignmentOptions.MidlineLeft;
+            // Centered alignment inside the text widget so "230" reads as a tight unit next to the
+            // coin icon instead of hugging the left edge with empty space trailing right.
+            _goldAmountText.alignment = TextAlignmentOptions.Midline;
             _goldAmountText.fontStyle = FontStyles.Bold;
             _goldAmountText.textWrappingMode = TextWrappingModes.NoWrap;
             _goldAmountText.raycastTarget = false;
