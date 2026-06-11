@@ -337,7 +337,14 @@
       "Bash(powershell -Command \"if \\(Get-Process Unity -ErrorAction SilentlyContinue\\) { 'Unity RUNNING' } else { 'Unity idle' }\")",
       "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-snownorm-fix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\" -MaxWaitSeconds 900)",
       "PowerShell($vh = Get-Process -Name valheim -ErrorAction SilentlyContinue; if \\($vh\\) { \"VALHEIM RUNNING \\(pid $\\($vh.Id\\)\\) — deploy copy will fail on file lock\" } else { \"Valheim not running — deploy OK\" })",
-      "Bash(grep -iE \"\\\\.shader$\")"
+      "Bash(grep -iE \"\\\\.shader$\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-lava-rewire\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\" -MaxWaitSeconds 900)",
+      "Bash(grep -nA14 \"void ApplyFiresHeightmapTuning\" \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresTossinShade/FiresTossinShade/FiresAdminTerrain.cs\")",
+      "Bash(tail -3 heightmap-build.log)",
+      "Bash(powershell -Command \"if \\(Get-Process Unity -ErrorAction SilentlyContinue\\) { exit 0 } else { exit 1 }\")",
+      "Bash(powershell -Command \"if \\(Get-Process Unity -ErrorAction SilentlyContinue\\) { 'still RUNNING' } else { 'done/idle' }\")",
+      "Bash(grep -oE '\\\\{\"type\":\"[A-Za-z]+\",\"unknown\":[a-z]+\\\\}' MineRock_Gold_BF/prefab.json)",
+      "Bash(grep -oE '\"mesh\":\"[^\"]*\"|\\\\{\"type\":\"ItemDrop\"[^}]*\\\\}|\\\\{\"type\":\"[A-Za-z]+\",\"unknown\":[a-z]+\\\\}' Item_GoldOre_BF/prefab.json)"
     ]
   }
 }

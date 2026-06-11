@@ -149,6 +149,41 @@ namespace FiresRPGmaker.Modules.Marketplace
             return "Helmet";
         }
 
+        /// <summary>Dumps a profile as Slot|Prefab|Currency|Price lines (one per option).</summary>
+        public static string Serialize(IReadOnlyList<TransmogOption> options)
+        {
+            if (options == null || options.Count == 0) return "";
+            var sb = new System.Text.StringBuilder();
+            foreach (var o in options)
+                sb.AppendLine($"{o.Slot}|{o.Prefab}|{o.PricePrefab}|{o.PriceAmount}");
+            return sb.ToString().TrimEnd();
+        }
+
+        public static IReadOnlyList<TransmogOption> GetProfileOptions(string profile)
+        {
+            EnsureLoaded();
+            if (string.IsNullOrEmpty(profile)) return new List<TransmogOption>();
+            return _byProfile.TryGetValue(profile.ToLowerInvariant(), out var pool) ? pool : new List<TransmogOption>();
+        }
+
+        public static void SaveProfile(string name, string bodyText)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            try
+            {
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                string content = $"[{name.Trim()}]" + System.Environment.NewLine + (bodyText ?? "").Trim() + System.Environment.NewLine;
+                string safe = System.Text.RegularExpressions.Regex.Replace(name, "[^a-zA-Z0-9_-]", "_");
+                string file = Path.Combine(folder, safe + ".cfg");
+                File.WriteAllText(file, content);
+                _initialized = false;
+                EnsureLoaded();
+                Debug.Log($"[TransmogProfileManager] Saved transmog profile '{name}' -> {file}");
+            }
+            catch (System.Exception ex) { Debug.LogError("[TransmogProfileManager] SaveProfile failed: " + ex.Message); }
+        }
+
         private static void WriteExampleProfile(string folder)
         {
             var path = Path.Combine(folder, "example.cfg");

@@ -117,6 +117,37 @@ namespace FiresRPGmaker.Modules.Marketplace
             }
         }
 
+        /// <summary>Dumps a profile to the line-format the config UI editor consumes — `interest=` line
+        /// followed by `CurrencyPrefab:maxBalance` lines. Round-trips through <see cref="LoadOne"/>.</summary>
+        public static string Serialize(BankerProfile profile)
+        {
+            if (profile == null) return "";
+            var sb = new System.Text.StringBuilder();
+            if (profile.InterestPerMinute != 0f) sb.AppendLine($"interest={profile.InterestPerMinute}");
+            foreach (var kv in profile.CurrencyLimits) sb.AppendLine($"{kv.Key}:{kv.Value}");
+            return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>Admin save: writes a profile to BepInEx/config/FiresRPGmaker/Bankers/&lt;name&gt;.cfg with
+        /// the given body text, then reloads all profiles so the new content is live.</summary>
+        public static void SaveProfile(string name, string bodyText)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            try
+            {
+                var folder = GetProfileFolder();
+                if (!System.IO.Directory.Exists(folder)) System.IO.Directory.CreateDirectory(folder);
+                string content = $"[{name.Trim()}]" + System.Environment.NewLine + (bodyText ?? "").Trim() + System.Environment.NewLine;
+                string safe = System.Text.RegularExpressions.Regex.Replace(name, "[^a-zA-Z0-9_-]", "_");
+                string file = System.IO.Path.Combine(folder, safe + ".cfg");
+                System.IO.File.WriteAllText(file, content);
+                _initialized = false;
+                EnsureLoaded();
+                Debug.Log($"[BankerProfileManager] Saved banker profile '{name}' -> {file}");
+            }
+            catch (System.Exception ex) { Debug.LogError("[BankerProfileManager] SaveProfile failed: " + ex.Message); }
+        }
+
         private static void WriteExampleProfile(string folder)
         {
             var path = Path.Combine(folder, "example.cfg");

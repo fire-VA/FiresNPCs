@@ -129,6 +129,36 @@ namespace FiresRPGmaker.Modules.Marketplace
                 _profiles[fileBasename] = firstProfile;
         }
 
+        /// <summary>Dumps a profile to KG-format header + entries body. Round-trips through LoadOne.</summary>
+        public static string Serialize(GamblerProfile profile)
+        {
+            if (profile == null) return "";
+            var sb = new System.Text.StringBuilder();
+            sb.Append(profile.RequiredItem.Prefab).Append(',').Append(SerializeRange(profile.RequiredItem));
+            foreach (var r in profile.Rewards) sb.Append(',').Append(r.Prefab).Append(',').Append(SerializeRange(r));
+            return sb.ToString();
+        }
+        private static string SerializeRange(GamblerItemEntry e) => e.Min == e.Max ? e.Min.ToString() : $"{e.Min}-{e.Max}";
+
+        public static void SaveProfile(string name, int maxRolls, string bodyText)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            try
+            {
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                string header = maxRolls > 1 ? $"[{name.Trim()}={maxRolls}]" : $"[{name.Trim()}]";
+                string content = header + System.Environment.NewLine + (bodyText ?? "").Trim() + System.Environment.NewLine;
+                string safe = System.Text.RegularExpressions.Regex.Replace(name, "[^a-zA-Z0-9_-]", "_");
+                string file = Path.Combine(folder, safe + ".cfg");
+                File.WriteAllText(file, content);
+                _initialized = false;
+                EnsureLoaded();
+                Debug.Log($"[GamblerProfileManager] Saved gambler profile '{name}' (maxRolls={maxRolls}) -> {file}");
+            }
+            catch (System.Exception ex) { Debug.LogError("[GamblerProfileManager] SaveProfile failed: " + ex.Message); }
+        }
+
         private static void WriteExampleProfile(string folder)
         {
             var path = Path.Combine(folder, "example.cfg");

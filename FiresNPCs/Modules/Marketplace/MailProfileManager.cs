@@ -133,6 +133,47 @@ namespace FiresRPGmaker.Modules.Marketplace
             if (pool.Count > 0 && !_byProfile.ContainsKey(key)) _byProfile[key] = pool;
         }
 
+        /// <summary>Dumps a profile's mail entries to the pipe-separated row format the editor consumes.</summary>
+        public static string Serialize(IReadOnlyList<MailEntry> entries)
+        {
+            if (entries == null || entries.Count == 0) return "";
+            var sb = new System.Text.StringBuilder();
+            foreach (var e in entries)
+            {
+                sb.Append(e.SenderName).Append('|').Append(e.DateString).Append('|')
+                  .Append(e.Subject).Append('|').Append(e.Body);
+                if (e.Attachments != null && e.Attachments.Count > 0)
+                {
+                    sb.Append('|');
+                    for (int i = 0; i < e.Attachments.Count; i++)
+                    {
+                        if (i > 0) sb.Append(';');
+                        sb.Append(e.Attachments[i].Prefab).Append(':').Append(e.Attachments[i].Count);
+                    }
+                }
+                sb.AppendLine();
+            }
+            return sb.ToString().TrimEnd();
+        }
+
+        public static void SaveProfile(string name, string bodyText)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            try
+            {
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                string content = $"[{name.Trim()}]" + System.Environment.NewLine + (bodyText ?? "").Trim() + System.Environment.NewLine;
+                string safe = System.Text.RegularExpressions.Regex.Replace(name, "[^a-zA-Z0-9_-]", "_");
+                string file = Path.Combine(folder, safe + ".cfg");
+                File.WriteAllText(file, content);
+                _initialized = false;
+                EnsureLoaded();
+                Debug.Log($"[MailProfileManager] Saved mail profile '{name}' -> {file}");
+            }
+            catch (System.Exception ex) { Debug.LogError("[MailProfileManager] SaveProfile failed: " + ex.Message); }
+        }
+
         private static void WriteExampleProfile(string folder)
         {
             var path = Path.Combine(folder, "example.cfg");
