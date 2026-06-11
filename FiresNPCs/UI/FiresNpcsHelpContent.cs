@@ -37,9 +37,21 @@ namespace FiresRPGmaker.UI
 
             HelpRegistry.RegisterSection(ModId, "World", "NPC Types & Setup", 30, BuildNpcTypes);
             HelpRegistry.RegisterSection(ModId, "World", "Quests & Journal", 31, BuildQuestsAndJournal);
+            HelpRegistry.RegisterSection(ModId, "World", "Quest Types & Rewards", 31, BuildQuestTypesAndRewards);
+            HelpRegistry.RegisterSection(ModId, "World", "Chain Quests & Lifecycle Events", 31, BuildChainAndLifecycle);
             HelpRegistry.RegisterSection(ModId, "World", "Dialogue System", 32, BuildDialogueSystem);
+            HelpRegistry.RegisterSection(ModId, "World", "Dialogue Conditions Reference", 32, BuildDialogueConditionsReference);
             HelpRegistry.RegisterSection(ModId, "World", "Territories", 33, BuildTerritories);
             HelpRegistry.RegisterSection(ModId, "World", "Compendium", 34, BuildCompendium);
+
+            // Marketplace family — all of this landed in the FiresRPGmaker → Marketplace drop-in refactor
+            // and previously had ZERO help coverage.
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Trader Setup & Use", 25, BuildTraderSetup);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Trader Config Format", 25, BuildTraderConfigFormat, adminOnly: true);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Marketplace Listings (Buy/Sell)", 26, BuildMarketplaceListings);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Banker", 27, BuildBanker);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Transmog", 28, BuildTransmog);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Public API Surface", 29, BuildMarketplaceAPI, adminOnly: true);
 
             HelpRegistry.RegisterSection(ModId, "Interface", "Globe HUD Overlay", 40, BuildGlobeHud);
             HelpRegistry.RegisterSection(ModId, "Interface", "UI Customization", 41, BuildUICustomization);
@@ -58,6 +70,7 @@ namespace FiresRPGmaker.UI
             HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Companion Admin Commands", 71, BuildCompanionAdminCommands, adminOnly: true);
             HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Compendium Admin Commands", 72, BuildCompendiumAdminCommands, adminOnly: true);
             HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "FX Testing Commands", 73, BuildFxTestingCommands, adminOnly: true);
+            HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Parity Test Commands (firesrpg_test)", 74, BuildParityTestCommands, adminOnly: true);
         }
 
         private static bool IsCurrentPlayerAdmin()
@@ -1328,6 +1341,357 @@ namespace FiresRPGmaker.UI
 
             w.SubHeader("Common FX Names");
             w.CodeBlock("vfx_FireHit\nvfx_IceHit\nvfx_LightningHit\nfx_Guardian_Activate\nvfx_Potion_health_medium");
+        }
+
+        // ── Trader / Marketplace family ──────────────────────────────────────
+
+        private static void BuildTraderSetup(HelpContentWriter w)
+        {
+            w.Header("Trader Setup & Use");
+            w.Paragraph("Traders are NPCs that exchange items for currency (or other items). The player-facing UI " +
+                "is a two-page open book with synced columns: Icons / Items / Buy / Amount / Sell / Stock / Restock.");
+            w.Divider();
+
+            w.SubHeader("Player Flow");
+            w.Bullet("Press E to interact with a trader NPC.");
+            w.Bullet("Use the Search bar at the top to filter the trade list.");
+            w.Bullet("Click x1 / x5 / x10 / x100 to set the quantity multiplier for every row.");
+            w.Bullet("Type a number into a row's Amount field to override that row's qty.");
+            w.Bullet("Click the Buy price to purchase, or the Sell price to sell. A confirmation prompt appears.");
+            w.Bullet("The right page header shows your gold balance (left) and the trader's gold pool (right).");
+            w.Divider();
+
+            w.SubHeader("Stock & Restock");
+            w.Bullet("Stock column shows how many of an item the trader will sell before it runs out (∞ = unlimited).");
+            w.Bullet("Restock shows the cooldown until that item replenishes.");
+            w.Bullet("If a trader has a MaxGold pool, selling drains the pool — Sell greys out when empty until the next gold restock cycle.");
+            w.Divider();
+
+            w.SubHeader("Admin Setup");
+            w.Bullet("Hammer an NPC → choose Trader Npc tab.");
+            w.Bullet("Type a profile name in the input field, or pick one from the Saved Profiles dropdown.");
+            w.Bullet("Enter one trade per line in the trades box (see Trader Config Format).");
+            w.Bullet("Click Apply — the profile is written to disk and the NPC is committed as a Trader.");
+        }
+
+        private static void BuildTraderConfigFormat(HelpContentWriter w)
+        {
+            w.Header("Trader Config Format");
+            w.Paragraph("Trader profiles live in:");
+            w.CodeBlock("BepInEx/config/FiresRPGmaker/Traders/");
+            w.Paragraph("Each .cfg file holds one or more [Profile] headers followed by trade lines.");
+            w.Divider();
+
+            w.SubHeader("Profile Header");
+            w.CodeBlock("[ProfileName, Stock=10, Restock=1800, MaxGold=5000, GoldRestock=3600]");
+            w.Bullet("Stock= — default stock for trades that don't override it (-1 = unlimited)");
+            w.Bullet("Restock= — default restock cooldown seconds (0 = no restock)");
+            w.Bullet("MaxGold= — trader's gold pool cap. NPC drains it on player sales (-1 = unlimited, default)");
+            w.Bullet("GoldRestock= — seconds between auto-refills of the gold pool (0 = no refill)");
+            w.Divider();
+
+            w.SubHeader("Trade Line — Legacy (4-5 values)");
+            w.CodeBlock("cost, costAmount, reward, rewardAmount [, level]");
+            w.Paragraph("Example: 'Coins, 100, SwordIron, 1' means player pays 100 Coins and receives 1 SwordIron (a Buy trade). " +
+                "Swap order to make it a Sell trade: 'SwordIron, 1, Coins, 100' means player gives 1 SwordIron and receives 100 Coins.");
+            w.Divider();
+
+            w.SubHeader("Trade Line — Multi-item Exchange");
+            w.CodeBlock("cost1,amt[,lvl], cost2,amt[,lvl], ... = reward1,amt[,lvl], reward2,amt[,lvl], ...");
+            w.Paragraph("The = separator lets a single trade exchange multiple cost items for multiple reward items.");
+            w.Divider();
+
+            w.SubHeader("Per-trade Stock & Restock");
+            w.Paragraph("Append Key=Value tokens to ANY trade line — they override the profile-header defaults:");
+            w.CodeBlock("Coins, 200, BronzeNails, 50, Stock=30, Restock=600\n" +
+                "TrophyTroll, 1, Coins, 250, Stock=3");
+            w.Bullet("Stock= on the trade line — caps THIS trade only");
+            w.Bullet("Restock= on the trade line — overrides THIS trade's restock cooldown");
+            w.Bullet("Order doesn't matter; can appear before or after the level token.");
+            w.Divider();
+
+            w.SubHeader("Buy/Sell Pairing in the UI");
+            w.Paragraph("If you write both a Buy trade and a Sell trade for the same item, the UI MERGES them into one row " +
+                "showing both prices side-by-side. Example to fully spec an item:");
+            w.CodeBlock("Coins, 500, ArmorBronzeChest, 1\n" +
+                "ArmorBronzeChest, 1, Coins, 250");
+            w.Paragraph("→ One row shows: Buy 500, Sell 250.");
+            w.Divider();
+
+            w.SubHeader("Complete Example");
+            w.CodeBlock("[BlackForestArmorer, Stock=10, Restock=1800, MaxGold=5000, GoldRestock=3600]\n" +
+                "Coins, 500, ArmorBronzeChest, 1\n" +
+                "ArmorBronzeChest, 1, Coins, 250\n" +
+                "Coins, 200, BronzeNails, 50, Stock=30, Restock=600\n" +
+                "Iron, 5, Coins, 1000\n" +
+                "TrophyTroll, 1, Coins, 250, Stock=3");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin: Resolution Order");
+                w.Paragraph("Stock & Restock values resolve highest-priority first:");
+                w.Bullet("1. Per-trade Key=Value on the line (Stock=, Restock=)");
+                w.Bullet("2. Profile header default (Stock=, Restock=)");
+                w.Bullet("3. Fallback (Stock=-1 unlimited, Restock=0 no auto-restock)");
+                w.Paragraph("MaxGold and GoldRestock ONLY make sense at the profile header — per-trade gold pools aren't supported.");
+                w.AdminDivider();
+                w.AdminHeader("Admin: KG Compatibility");
+                w.Paragraph("Standard KG-Marketplace trader .cfg files load directly. Stock/Restock/MaxGold/GoldRestock are extensions; " +
+                    "leaving them off makes the profile behave like a vanilla KG trader (unlimited stock, unlimited gold).");
+            }
+        }
+
+        private static void BuildMarketplaceListings(HelpContentWriter w)
+        {
+            w.Header("Marketplace Listings (Buy/Sell)");
+            w.Paragraph("The Marketplace UI is KG-parity: three tabs (Buy / Sell / MyListings) with category filter " +
+                "(All / Weapons / Armor / Consumable / Tools / Resources), search bar, sortable columns, and tile-density cycle.");
+            w.Divider();
+
+            w.SubHeader("Tabs");
+            w.Bullet("Buy — listings posted by other players, filtered by category and search");
+            w.Bullet("Sell — items in YOUR inventory eligible to list (set price + currency)");
+            w.Bullet("My Listings — listings YOU've posted");
+            w.Divider();
+
+            w.SubHeader("Sort & Tile Cycle");
+            w.Bullet("Click a column header (Item / Qty / Price / Seller) to sort by it");
+            w.Bullet("Re-click the same header to toggle ↑ / ↓");
+            w.Bullet("Click 'Tiles' top-right to cycle Compact (24 rows) / Normal (14) / Large (8)");
+            w.Divider();
+
+            w.SubHeader("Currency Dropdown");
+            w.Paragraph("On the Sell tab, the Currency dropdown lists every currency name accepted by any loaded Banker profile " +
+                "(plus 'Coins' as a baseline). So your trader can list items in Ruby, SilverNecklace, Amber, etc. if a banker supports them.");
+            w.Divider();
+
+            w.SubHeader("Config Files");
+            w.CodeBlock("BepInEx/config/FiresRPGmaker/Marketplace/<profile>.cfg");
+            w.Paragraph("Sample-listing format: Currency,Price,ItemPrefab,Count,SellerName per line.");
+        }
+
+        private static void BuildBanker(HelpContentWriter w)
+        {
+            w.Header("Banker");
+            w.Paragraph("Banker NPCs hold currency on your behalf. Each banker profile defines which currencies it accepts, " +
+                "the maximum balance per currency, and an optional passive interest rate.");
+            w.Divider();
+
+            w.SubHeader("Player Use");
+            w.Bullet("Deposit currency → it's removed from your inventory and tracked on your vault data");
+            w.Bullet("Withdraw — items come back into your inventory");
+            w.Bullet("Interest accrues passively while you're online (configured in seconds per minute)");
+            w.Divider();
+
+            w.SubHeader("Config Format");
+            w.CodeBlock("BepInEx/config/FiresRPGmaker/Bankers/<name>.cfg\n\n" +
+                "[profilename]\n" +
+                "interest=0.05\n" +
+                "Coins:1000000\n" +
+                "SilverNecklace:200\n" +
+                "Ruby:50\n" +
+                "Amber:500");
+            w.Bullet("interest= — percent per real-world minute (0.05 = 0.05% per minute)");
+            w.Bullet("CurrencyPrefab:maxBalance — one per line");
+            w.Divider();
+
+            w.SubHeader("Example Auto-seeded");
+            w.Paragraph("First time the Banker tab opens, an example.cfg is dropped into the Bankers/ folder so you have something to test with.");
+        }
+
+        private static void BuildTransmog(HelpContentWriter w)
+        {
+            w.Header("Transmog");
+            w.Paragraph("Transmog overrides the VISUAL appearance of an equipped item while preserving its " +
+                "underlying stats, set bonus, status effects, durability, and armor value.");
+            w.Divider();
+
+            w.SubHeader("Player Flow");
+            w.Bullet("Visit a Transmog NPC, click an item in 'Your Items' (left pane).");
+            w.Bullet("The right pane filters to transmog options matching that item's slot.");
+            w.Bullet("Click an option → cost is consumed → visual swap is applied immediately.");
+            w.Bullet("Inventory slots holding a transmog'd item show a cyan 'T' badge in the corner.");
+            w.Bullet("Click Reverse Transmog (bottom-left) to clear the visual override.");
+            w.Divider();
+
+            w.SubHeader("What Persists");
+            w.Bullet("Stats (armor, weapon damage, etc.) come from the ORIGINAL item, never the transmog");
+            w.Bullet("Set bonuses key off the original item's set name");
+            w.Bullet("Status effects (like Wolf armor's frost resist) come from the original");
+            w.Bullet("Durability ticks down on the original — transmog doesn't wear");
+            w.Bullet("Inventory icon shows the original item — only the on-character render swaps");
+            w.Divider();
+
+            w.SubHeader("Config Format");
+            w.CodeBlock("BepInEx/config/FiresRPGmaker/Transmogrifications/<name>.cfg\n\n" +
+                "[example]\n" +
+                "Helmet|HelmetIron|Coins|150\n" +
+                "Chest|ArmorBronzeChest|Coins|100\n" +
+                "Legs|ArmorIronLegs|Coins|200\n" +
+                "Cape|CapeOdin|Coins|350");
+            w.Bullet("Pipe-separated: Slot | prefab | pricePrefab | priceAmount");
+            w.Bullet("Slot values: Helmet | Chest | Legs | Cape (also OneHandedWeapon, TwoHandedWeapon, Bow, Tool, Shield, Shoulder, Utility)");
+            w.Bullet("KG comma format is also auto-recognized: 'prefab, currency, price, ignoreCategory'");
+        }
+
+        private static void BuildMarketplaceAPI(HelpContentWriter w)
+        {
+            w.Header("Public API Surface");
+            w.Paragraph("Other mods can reflect on these static APIs by name. Drop-in compatibility with the " +
+                "KG-Marketplace API surface so 3rd-party mods that target KG also work with FiresRPGmaker.");
+            w.Divider();
+
+            w.SubHeader("API.ClientSide (assembly-qualified: 'API.ClientSide, FiresRPGmaker')");
+            w.Bullet("FillingTerritoryData (static bool) — author-time write gate");
+            w.Bullet("ResetTraderItems() — refresh trader inventory cache");
+            w.Bullet("OpenQuestJournal() — open the player's journal UI");
+            w.Bullet("IsPlayerInsideTerritory(out string name, out int flags, out int additional)");
+            w.Bullet("IsObjectInsideTerritoryWithFlag(Vector3, int flag, out string, out int, out int)");
+            w.Bullet("IsObjectInsideTerritoryWithFlag_Additional(Vector3, int flag, out string, out int, out int)");
+            w.Divider();
+
+            w.SubHeader("ZDO Extension Methods");
+            w.Paragraph("Mirror KG's KG-prefixed NPC ZDO setter/getter pairs — same key names so KG-aware mods read/write the same data:");
+            w.Bullet("SET_NPC_Type / GET_NPC_Type — KGmarketNPC enum");
+            w.Bullet("SET_NPC_Profile / GET_NPC_Profile, SET_NPC_Model, SET_NPC_Name, SET_NPC_Dialogue");
+            w.Bullet("33 NPC field extensions total — see Modules/Marketplace/API_ClientSide.cs");
+        }
+
+        // ── Quests: types/rewards/lifecycle ─────────────────────────────────
+
+        private static void BuildQuestTypesAndRewards(HelpContentWriter w)
+        {
+            w.Header("Quest Types & Rewards");
+            w.Paragraph("All 7 KG-parity quest types are wired. Each one watches a different in-game event and " +
+                "increments the player's Progress when the event matches the quest target.");
+            w.Divider();
+
+            w.SubHeader("Quest Types");
+            w.Bullet("Kill — target prefab is a creature; fires on death (Character.OnDeath)");
+            w.Bullet("Collect — fires when an item enters the inventory (Player.OnInventoryChanged)");
+            w.Bullet("Harvest — fires on Pickable.RPC_Pick (berries, mushrooms, flowers)");
+            w.Bullet("Craft — fires on InventoryGui.DoCrafting completion");
+            w.Bullet("Build — fires on Player.PlacePiece success");
+            w.Bullet("Talk — fires when player completes dialogue with the target NPC name");
+            w.Bullet("Move — distance check every 3 seconds vs target stored as 'x,y,z' coordinates (10m radius = hit)");
+            w.Divider();
+
+            w.SubHeader("Reward Types (12 KG-parity dispatchers)");
+            w.Bullet("Item — bank into player's BankItems queue");
+            w.Bullet("RandomItem — Target = comma/semicolon pool, picks one uniformly at random");
+            w.Bullet("Skill — set the player's skill level to Amount");
+            w.Bullet("Skill_EXP — raise the named skill by Amount XP");
+            w.Bullet("Pet — spawn a Tameable creature already tamed");
+            w.Bullet("SetCustomValue / AddCustomValue — write to player.m_customData[key]");
+            w.Bullet("GuildAddLevel — placeholder (Guild leveling not yet implemented)");
+            w.Bullet("EpicMMO_EXP, Cozyheim_EXP, Battlepass_EXP, RustyClasses_EXP — mod-bridge stubs (log a warning until partner mods wire in)");
+            w.Divider();
+
+            w.SubHeader("Reward Config Example");
+            w.CodeBlock("[QuestId]\n" +
+                "QuestType = Kill\n" +
+                "QuestTarget = Boar, 10\n" +
+                "QuestReward = Item: Coins, 50 | Skill_EXP: Clubs, 25 | RandomItem: BoarMeat;Feathers, 5");
+        }
+
+        private static void BuildChainAndLifecycle(HelpContentWriter w)
+        {
+            w.Header("Chain Quests & Lifecycle Events");
+            w.Paragraph("KG-parity follow-up quests and event hooks. Use TransferComplition to auto-accept a follow-up " +
+                "when a quest completes, and LifecycleEvents to fire dialogue commands at key moments.");
+            w.Divider();
+
+            w.SubHeader("TransferComplition (Chain Quests)");
+            w.CodeBlock("[QuestA]\n" +
+                "QuestType = Kill\n" +
+                "QuestTarget = Greyling, 5\n" +
+                "TransferComplition = QuestB\n" +
+                "TransferComplitionText = Good work — see me for the next task.");
+            w.Paragraph("When QuestA auto-completes, QuestB is auto-accepted for the same player (skips if already active). " +
+                "TransferComplitionText shows in a center message.");
+            w.Divider();
+
+            w.SubHeader("Lifecycle Events");
+            w.Paragraph("Each quest can attach commands (the same syntax dialogue options use) to lifecycle moments:");
+            w.Bullet("OnAcceptQuest — fires when the quest is accepted");
+            w.Bullet("OnCancelQuest — fires when the player cancels a quest");
+            w.Bullet("OnCompleteQuest — fires on auto-complete (before TransferComplition)");
+            w.Bullet("OnQuestTimeout — fires when a quest's time limit expires");
+            w.Bullet("OnDeath — fires for every active quest the player has when they die");
+            w.Divider();
+
+            w.SubHeader("Lifecycle Config Example");
+            w.CodeBlock("[QuestId]\n" +
+                "QuestType = Kill\n" +
+                "QuestTarget = Boar, 5\n" +
+                "OnAcceptQuest = giveitem Coins 10 | message Good luck!\n" +
+                "OnCompleteQuest = playsound Horn1 | message Well done.");
+            w.Paragraph("Commands run through DialogueCommandEngine.ExecuteAll — full dialogue command surface available.");
+        }
+
+        // ── Dialogue conditions reference ────────────────────────────────────
+
+        private static void BuildDialogueConditionsReference(HelpContentWriter w)
+        {
+            w.Header("Dialogue Conditions Reference");
+            w.Paragraph("Conditions are filters that gate dialogue options. They run case-insensitively. " +
+                "Prefix any condition with Not- to invert it (e.g. NotHasItem). " +
+                "Multiple conditions on one option are AND-ed; multiple groups (pipe-separated) are OR-ed.");
+            w.Divider();
+
+            w.SubHeader("Player State Conditions");
+            w.Bullet("HasItem <prefab> [amount] — player has at least N of an item");
+            w.Bullet("HasCompletedQuest <questId> — player completed the quest at least once");
+            w.Bullet("HasActiveQuest <questId> — quest is in the player's active list");
+            w.Bullet("KilledMonster <prefab> [count] — player's kill tally");
+            w.Bullet("PlayerLevelMore <level> — vanilla character level");
+            w.Bullet("PlayerSkillMore <skill> <level> — skill level check");
+            w.Bullet("IsVIP — player is admin (uses configSync.IsAdmin)");
+            w.Bullet("IronGateStatMore <statId> <amount> — checks the player's PlayerStats record");
+            w.Bullet("PlayerHasAllCustomDataKeys <k1,k2,...> — all keys exist on player.m_customData");
+            w.Bullet("PlayerHasOneOfCustomDataKeys <k1,k2,...> — at least one key exists");
+            w.Divider();
+
+            w.SubHeader("Achievement / Guild Conditions");
+            w.Bullet("HasAchievement <id> — leaderboard achievement check");
+            w.Bullet("HasAchievementScore <amount> — total achievement score gate");
+            w.Bullet("HasGuild — player is in any guild");
+            w.Bullet("HasGuildWithName <name> — specific guild name");
+            w.Bullet("GuildLevelMore <level> — stubbed (Guilds module doesn't yet track level)");
+            w.Bullet("GuildHasAchievement <id> — stubbed (Guilds module doesn't yet track achievements)");
+            w.Divider();
+
+            w.SubHeader("Environment / NPC / Mod Conditions");
+            w.Bullet("ModInstalled <pluginGuid> — checks the BepInEx plugin registry");
+            w.Bullet("NpcNameEquals <name> — current dialogue NPC has this name");
+            w.Bullet("NpcModelEquals <modelPrefab> — current NPC's model override matches");
+        }
+
+        // ── Test commands ───────────────────────────────────────────────────
+
+        private static void BuildParityTestCommands(HelpContentWriter w)
+        {
+            w.Header("Parity Test Commands");
+            w.Paragraph("The firesrpg_test family exercises every KG-parity pathway end-to-end and reports PASS/FAIL " +
+                "per subsystem. Useful for verifying a fresh install or diagnosing a regression.");
+            w.Divider();
+
+            w.SubHeader("Master Sanity Check");
+            w.Bullet("firesrpg_test sanity — runs every parity pathway: 7 quest types, 11 reward dispatchers, TransferComplition chain, 5 lifecycle events, API.ClientSide, 17 territory patches, 12 dialogue conditions, Marketplace v3. Prints PASS/FAIL summary. Self-cleaning.");
+            w.Divider();
+
+            w.SubHeader("Targeted Probes");
+            w.Bullet("firesrpg_test help — full subverb list");
+            w.Bullet("firesrpg_test quest_progress <type> <prefab> [amt] — fire a quest progress event");
+            w.Bullet("firesrpg_test quest_reward <type> <target> [amt] [level] — grant one reward via QuestRewardDispatcher");
+            w.Bullet("firesrpg_test quest_accept <questId> — add quest + fire OnAcceptQuest");
+            w.Bullet("firesrpg_test quest_complete <questId> — complete + grants rewards + chain");
+            w.Bullet("firesrpg_test quest_list — print your active + completed quests");
+            w.Bullet("firesrpg_test lifecycle <questId> <event> — fire one lifecycle event manually");
+            w.Bullet("firesrpg_test api — dump API.ClientSide output for the player's position");
+            w.Bullet("firesrpg_test territory_flag <flagName> — report which territory has the named flag at your position");
+            w.Bullet("firesrpg_test marketplace [profile] — open the Marketplace UI panel directly");
         }
     }
 }

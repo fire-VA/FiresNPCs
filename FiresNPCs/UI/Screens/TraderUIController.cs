@@ -54,9 +54,9 @@ namespace FiresRPGmaker.UI.Screens
         // saved JSON had column.Y = -50.274 with no header strip; my panel adds a strip above the
         // book which shifts everything down — and the captured row-1 position ended up one painted
         // line too low. Compensate by lifting the column origin.
-        // Drop the column origin by ~4 panel-units so row text sits ON the painted line instead of
-        // hugging its top edge. 25.2 - 4 = 21.2.
-        private const float ROW_TOP_NUDGE = 21.2f;
+        // Drop the column origin by ~8 panel-units so row text sits ON the painted line instead of
+        // hugging its top edge. 25.2 - 8 = 17.2.
+        private const float ROW_TOP_NUDGE = 17.2f;
         private const float BODY_CENTER_Y = -50.274f + BOOK_Y_OFFSET + ROW_TOP_NUDGE;
         private const float BODY_HEIGHT   = 520.416f;
 
@@ -84,12 +84,10 @@ namespace FiresRPGmaker.UI.Screens
         // Our book is shifted down 30 (BOOK_Y_OFFSET) so to land at the same visual position relative
         // to the book artwork: 278.33 + BOOK_Y_OFFSET = 248.33.
         private const float OVERLAY_Y    = 248.33f;
-        private const float SHOP_NAME_X  = -193.400f;        // centered over Items column (left page)
-        // The right page header band now hosts TWO gold widgets — player's gold over the Buy/Amount
-        // area, trader's gold over the Stock/Restock area. The two ravens flanking the right page
-        // naturally bookend them.
-        private const float PLAYER_GOLD_X = 120f;
-        private const float TRADER_GOLD_X = 365f;
+        // Left page header: trader name + their gold pool centered between the page ravens.
+        private const float TRADER_HEADER_X = -193.400f;
+        // Right page header: "your gold" + player balance centered between the right page ravens.
+        private const float PLAYER_HEADER_X =  242.856f;
 
         // Row sizing pulled verbatim from FiresVAngarde TraderUIController constants:
         //   ROW_HEIGHT=14, ICON_SIZE=14, ROW_SPACING=0, FONT_SIZE=11, FONT_SIZE_SMALL=7
@@ -170,10 +168,10 @@ namespace FiresRPGmaker.UI.Screens
         private readonly List<ScrollRect> _columnScrollRects = new List<ScrollRect>();
         private readonly List<GameObject> _rows = new List<GameObject>();
 
-        // Top overlay widgets
-        private TextMeshProUGUI _shopNameText;
-        private TextMeshProUGUI _playerGoldText;
+        // Top overlay widgets — left page = trader name + gold pool, right page = "your gold" + player balance
+        private TextMeshProUGUI _traderNameLabel;
         private TextMeshProUGUI _traderGoldText;
+        private TextMeshProUGUI _playerGoldText;
         private TMP_InputField _searchInput;
         private string _searchLower = "";
         private int _modifier = 1;
@@ -399,55 +397,60 @@ namespace FiresRPGmaker.UI.Screens
 
         private void BuildTopOverlay()
         {
-            // Shop name — italic serif, overlaid above the Item column header on the LEFT page.
-            var shopGo = new GameObject("ShopName", typeof(RectTransform));
-            shopGo.transform.SetParent(_panelRoot.transform, false);
-            var srt = (RectTransform)shopGo.transform;
-            srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 0.5f);
-            srt.pivot = new Vector2(0.5f, 0.5f);
-            srt.anchoredPosition = new Vector2(SHOP_NAME_X, OVERLAY_Y);
-            // Original: sizeDelta = (180, 18), fontSize = 11 — × 1.8.
-            srt.sizeDelta = new Vector2(324f, 32.4f);
-            _shopNameText = shopGo.AddComponent<TextMeshProUGUI>();
-            _shopNameText.fontSize = 19.8f;
-            _shopNameText.color = INK_DARK;
-            _shopNameText.alignment = TextAlignmentOptions.Center;
-            _shopNameText.fontStyle = FontStyles.Italic | FontStyles.Bold;
-            _shopNameText.textWrappingMode = TextWrappingModes.NoWrap;
-            _shopNameText.raycastTarget = false;
-            ApplyFont(_shopNameText);
-
-            // Two side-by-side gold displays — player's gold (left half of right page header) and
-            // trader's gold (right half). Each is a tight icon+number pair so they read as compact units.
-            _playerGoldText = BuildGoldWidget("PlayerGoldDisplay", PLAYER_GOLD_X);
-            _traderGoldText = BuildGoldWidget("TraderGoldDisplay", TRADER_GOLD_X);
+            // LEFT page header: <Trader Name> 🪙 <traderGold>
+            (_traderNameLabel, _traderGoldText) =
+                BuildLabelIconAmountWidget("TraderHeader", TRADER_HEADER_X, italicLabel: true);
+            // RIGHT page header: your gold 🪙 <playerGold>
+            (var youLabel, _playerGoldText) =
+                BuildLabelIconAmountWidget("PlayerHeader", PLAYER_HEADER_X, italicLabel: false);
+            youLabel.text = "your gold";
         }
 
-        /// <summary>Builds a single coin-icon + number widget for the right-page header. Returns the
-        /// TMP_Text component so callers can update the number. Coin icon and number are packed tight
-        /// (spacing 2px) so the pair reads as one unit centered on <paramref name="xPos"/>.</summary>
-        private TextMeshProUGUI BuildGoldWidget(string name, float xPos)
+        /// <summary>Builds a tight 3-child row: text label + coin icon + amount text. All three packed
+        /// flush together via HLG with <c>childControlWidth=true</c> so each child's intrinsic
+        /// preferred width is honored (no fixed-width reserve creating dead space between icon and
+        /// number). Returns (labelText, amountText) so callers can populate them.</summary>
+        private (TextMeshProUGUI label, TextMeshProUGUI amount) BuildLabelIconAmountWidget(
+            string name, float xPos, bool italicLabel)
         {
-            var goldGo = new GameObject(name, typeof(RectTransform));
-            goldGo.transform.SetParent(_panelRoot.transform, false);
-            var grt = (RectTransform)goldGo.transform;
-            grt.anchorMin = grt.anchorMax = new Vector2(0.5f, 0.5f);
-            grt.pivot = new Vector2(0.5f, 0.5f);
-            grt.anchoredPosition = new Vector2(xPos, OVERLAY_Y);
-            // Container: icon(21.6) + spacing(2) + text(56) = 79.6 visible, plus a hair of breathing
-            // room. The HLG centers this content on xPos.
-            grt.sizeDelta = new Vector2(85f, 32.4f);
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(_panelRoot.transform, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(xPos, OVERLAY_Y);
+            // Wide enough container that the HLG can comfortably fit "Nanna the White 🪙 99,999"
+            // without clipping; ContentSizeFitter on the container would also work but HLG centers
+            // its content within whatever width the container has, so a fixed comfortable width is
+            // simpler.
+            rt.sizeDelta = new Vector2(380f, 32.4f);
 
-            var hlg = goldGo.AddComponent<HorizontalLayoutGroup>();
-            hlg.spacing = 2f;
+            // childControlWidth=true → HLG reads each child's preferred width (including TMP_Text's
+            // intrinsic preferredWidth) and SETS its rect width to that. So the amount widget shrinks
+            // to fit "350" instead of reserving a fixed 56px slot that leaves a gap.
+            var hlg = go.AddComponent<HorizontalLayoutGroup>();
+            hlg.spacing = 4f;
             hlg.childAlignment = TextAnchor.MiddleCenter;
             hlg.childForceExpandWidth = false; hlg.childForceExpandHeight = false;
-            hlg.childControlWidth = false; hlg.childControlHeight = false;
+            hlg.childControlWidth = true;     hlg.childControlHeight = false;
 
+            // Label (trader name or "your gold")
+            var labelGo = new GameObject("Label", typeof(RectTransform));
+            labelGo.transform.SetParent(go.transform, false);
+            var label = labelGo.AddComponent<TextMeshProUGUI>();
+            label.fontSize = 19.8f;
+            label.color = INK_DARK;
+            label.alignment = TextAlignmentOptions.MidlineRight;
+            label.fontStyle = italicLabel ? (FontStyles.Italic | FontStyles.Bold) : FontStyles.Italic;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+            label.raycastTarget = false;
+            ApplyFont(label);
+            label.text = "";
+
+            // Coin icon (uses an explicit LayoutElement.preferredWidth so the icon fits HLG's
+            // childControlWidth = true policy without being shrunk by ContentSizeFitter on text).
             var iconGo = new GameObject("CoinIcon", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
-            iconGo.transform.SetParent(goldGo.transform, false);
-            var iconRT = (RectTransform)iconGo.transform;
-            iconRT.sizeDelta = new Vector2(21.6f, 21.6f);
+            iconGo.transform.SetParent(go.transform, false);
             var iconLE = iconGo.GetComponent<LayoutElement>();
             iconLE.preferredWidth = 21.6f; iconLE.preferredHeight = 21.6f;
             var iconImg = iconGo.GetComponent<Image>();
@@ -459,20 +462,21 @@ namespace FiresRPGmaker.UI.Screens
                 if (coinDrop?.m_itemData != null) iconImg.sprite = coinDrop.m_itemData.GetIcon();
             }
 
-            var textGo = new GameObject("GoldText", typeof(RectTransform), typeof(LayoutElement));
-            textGo.transform.SetParent(goldGo.transform, false);
-            var textLE = textGo.GetComponent<LayoutElement>();
-            textLE.preferredWidth = 56f; textLE.preferredHeight = 28.8f;
-            var t = textGo.AddComponent<TextMeshProUGUI>();
-            t.fontSize = 18f;
-            t.color = INK_GOLD;
-            t.alignment = TextAlignmentOptions.Midline;
-            t.fontStyle = FontStyles.Bold;
-            t.textWrappingMode = TextWrappingModes.NoWrap;
-            t.raycastTarget = false;
-            ApplyFont(t);
-            t.text = "0";
-            return t;
+            // Amount — TMP_Text's intrinsic preferredWidth gets read by HLG via ILayoutElement so
+            // this rect tightens to the actual rendered digit width. No LayoutElement override.
+            var amountGo = new GameObject("Amount", typeof(RectTransform));
+            amountGo.transform.SetParent(go.transform, false);
+            var amount = amountGo.AddComponent<TextMeshProUGUI>();
+            amount.fontSize = 19.8f;
+            amount.color = INK_GOLD;
+            amount.alignment = TextAlignmentOptions.MidlineLeft;
+            amount.fontStyle = FontStyles.Bold;
+            amount.textWrappingMode = TextWrappingModes.NoWrap;
+            amount.raycastTarget = false;
+            ApplyFont(amount);
+            amount.text = "0";
+
+            return (label, amount);
         }
 
         #endregion
@@ -720,7 +724,8 @@ namespace FiresRPGmaker.UI.Screens
 
         private void PopulateUI(string shopName)
         {
-            _shopNameText.text = shopName ?? _currentProfile?.Name ?? "Shop";
+            if (_traderNameLabel != null)
+                _traderNameLabel.text = shopName ?? _currentProfile?.Name ?? "Trader";
             // Tick the trader-gold restock timer before drawing rows so the affordability checks see
             // the refreshed pool. No-op if the profile didn't configure MaxGold/GoldRestock.
             if (_currentNpc != null && _currentProfile != null)
