@@ -298,6 +298,12 @@ namespace FiresRPGmaker.UI.Screens
 
             scroll.content = crt; scroll.viewport = vrt;
             scroll.horizontal = false; scroll.vertical = true;
+            scroll.scrollSensitivity = 30f;
+
+            // Add a vertical scrollbar so the user can scroll through 60+ profiles.
+            var scrollbar = FiresCore.UI.UIBuilderHelper.CreateVerticalScrollbar(template.transform, 10f);
+            scroll.verticalScrollbar = scrollbar;
+            scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
 
             dd.template = trt;
             dd.captionText = label;

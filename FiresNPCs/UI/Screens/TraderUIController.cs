@@ -54,7 +54,9 @@ namespace FiresRPGmaker.UI.Screens
         // saved JSON had column.Y = -50.274 with no header strip; my panel adds a strip above the
         // book which shifts everything down — and the captured row-1 position ended up one painted
         // line too low. Compensate by lifting the column origin.
-        private const float ROW_TOP_NUDGE = 25.2f;
+        // Drop the column origin by ~4 panel-units so row text sits ON the painted line instead of
+        // hugging its top edge. 25.2 - 4 = 21.2.
+        private const float ROW_TOP_NUDGE = 21.2f;
         private const float BODY_CENTER_Y = -50.274f + BOOK_Y_OFFSET + ROW_TOP_NUDGE;
         private const float BODY_HEIGHT   = 520.416f;
 
@@ -83,7 +85,11 @@ namespace FiresRPGmaker.UI.Screens
         // to the book artwork: 278.33 + BOOK_Y_OFFSET = 248.33.
         private const float OVERLAY_Y    = 248.33f;
         private const float SHOP_NAME_X  = -193.400f;        // centered over Items column (left page)
-        private const float GOLD_X       =  242.856f;        // centered over SellPrice column (right page)
+        // The right page header band now hosts TWO gold widgets — player's gold over the Buy/Amount
+        // area, trader's gold over the Stock/Restock area. The two ravens flanking the right page
+        // naturally bookend them.
+        private const float PLAYER_GOLD_X = 120f;
+        private const float TRADER_GOLD_X = 365f;
 
         // Row sizing pulled verbatim from FiresVAngarde TraderUIController constants:
         //   ROW_HEIGHT=14, ICON_SIZE=14, ROW_SPACING=0, FONT_SIZE=11, FONT_SIZE_SMALL=7
@@ -96,7 +102,10 @@ namespace FiresRPGmaker.UI.Screens
         private const float ROW_SPACING = 0f;                // original had no gap
         private const float FONT_SIZE = 19.8f;               // 11 × 1.8
         private const float FONT_SIZE_SMALL = 12.6f;         // 7 × 1.8
-        private const float SCROLL_SENSITIVITY = 40f;
+        // 10× the prior 40f — the original code had `private const float SCROLL_SENSITIVITY = 30f;`
+        // but that mapped to a localScale=1.8 panel, so on our 1.0-scale 1440 panel it scrolled at a
+        // crawl. 400 keeps the trade list responsive even with 60+ rows.
+        private const float SCROLL_SENSITIVITY = 400f;
 
         // KG modifier values.
         private static readonly int[] ModifierValues = { 1, 5, 10, 100 };
@@ -163,7 +172,8 @@ namespace FiresRPGmaker.UI.Screens
 
         // Top overlay widgets
         private TextMeshProUGUI _shopNameText;
-        private TextMeshProUGUI _goldAmountText;
+        private TextMeshProUGUI _playerGoldText;
+        private TextMeshProUGUI _traderGoldText;
         private TMP_InputField _searchInput;
         private string _searchLower = "";
         private int _modifier = 1;
@@ -407,30 +417,35 @@ namespace FiresRPGmaker.UI.Screens
             _shopNameText.raycastTarget = false;
             ApplyFont(_shopNameText);
 
-            // Gold display — coin icon + balance, overlaid above the right page header band.
-            var goldGo = new GameObject("GoldDisplay", typeof(RectTransform));
+            // Two side-by-side gold displays — player's gold (left half of right page header) and
+            // trader's gold (right half). Each is a tight icon+number pair so they read as compact units.
+            _playerGoldText = BuildGoldWidget("PlayerGoldDisplay", PLAYER_GOLD_X);
+            _traderGoldText = BuildGoldWidget("TraderGoldDisplay", TRADER_GOLD_X);
+        }
+
+        /// <summary>Builds a single coin-icon + number widget for the right-page header. Returns the
+        /// TMP_Text component so callers can update the number. Coin icon and number are packed tight
+        /// (spacing 2px) so the pair reads as one unit centered on <paramref name="xPos"/>.</summary>
+        private TextMeshProUGUI BuildGoldWidget(string name, float xPos)
+        {
+            var goldGo = new GameObject(name, typeof(RectTransform));
             goldGo.transform.SetParent(_panelRoot.transform, false);
             var grt = (RectTransform)goldGo.transform;
             grt.anchorMin = grt.anchorMax = new Vector2(0.5f, 0.5f);
             grt.pivot = new Vector2(0.5f, 0.5f);
-            grt.anchoredPosition = new Vector2(GOLD_X, OVERLAY_Y);
-            // Container width = icon(21.6) + spacing(6) + text(80) + breathing room = ~120. The
-            // HorizontalLayoutGroup with MiddleCenter alignment centers this content on GOLD_X so
-            // the visible coin+number pair actually lines up with the Sell column center.
-            grt.sizeDelta = new Vector2(120f, 32.4f);
+            grt.anchoredPosition = new Vector2(xPos, OVERLAY_Y);
+            // Container: icon(21.6) + spacing(2) + text(56) = 79.6 visible, plus a hair of breathing
+            // room. The HLG centers this content on xPos.
+            grt.sizeDelta = new Vector2(85f, 32.4f);
 
             var hlg = goldGo.AddComponent<HorizontalLayoutGroup>();
-            hlg.spacing = 6f;
+            hlg.spacing = 2f;
             hlg.childAlignment = TextAnchor.MiddleCenter;
             hlg.childForceExpandWidth = false; hlg.childForceExpandHeight = false;
             hlg.childControlWidth = false; hlg.childControlHeight = false;
 
             var iconGo = new GameObject("CoinIcon", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             iconGo.transform.SetParent(goldGo.transform, false);
-            // Original FiresVAngarde set BOTH iconRT.sizeDelta AND LayoutElement.preferredW/H. My
-            // previous version only set the LayoutElement — and because the HLG runs with
-            // childControlWidth=false the icon never got resized. Setting sizeDelta explicitly here
-            // matches the original exactly: 12 × 1.8 = 21.6 effective.
             var iconRT = (RectTransform)iconGo.transform;
             iconRT.sizeDelta = new Vector2(21.6f, 21.6f);
             var iconLE = iconGo.GetComponent<LayoutElement>();
@@ -447,22 +462,17 @@ namespace FiresRPGmaker.UI.Screens
             var textGo = new GameObject("GoldText", typeof(RectTransform), typeof(LayoutElement));
             textGo.transform.SetParent(goldGo.transform, false);
             var textLE = textGo.GetComponent<LayoutElement>();
-            // Tightened text width so the icon+number pair packs more compactly and the HLG's
-            // MiddleCenter alignment puts the visible content centered over GOLD_X. Original 162
-            // (= 90 × 1.8) left way too much empty space on the right of "230". 80 fits up to ~6
-            // digits at fontSize 18.
-            textLE.preferredWidth = 80f; textLE.preferredHeight = 28.8f;
-            _goldAmountText = textGo.AddComponent<TextMeshProUGUI>();
-            _goldAmountText.fontSize = 18f;
-            _goldAmountText.color = INK_GOLD;
-            // Centered alignment inside the text widget so "230" reads as a tight unit next to the
-            // coin icon instead of hugging the left edge with empty space trailing right.
-            _goldAmountText.alignment = TextAlignmentOptions.Midline;
-            _goldAmountText.fontStyle = FontStyles.Bold;
-            _goldAmountText.textWrappingMode = TextWrappingModes.NoWrap;
-            _goldAmountText.raycastTarget = false;
-            ApplyFont(_goldAmountText);
-            _goldAmountText.text = "0";
+            textLE.preferredWidth = 56f; textLE.preferredHeight = 28.8f;
+            var t = textGo.AddComponent<TextMeshProUGUI>();
+            t.fontSize = 18f;
+            t.color = INK_GOLD;
+            t.alignment = TextAlignmentOptions.Midline;
+            t.fontStyle = FontStyles.Bold;
+            t.textWrappingMode = TextWrappingModes.NoWrap;
+            t.raycastTarget = false;
+            ApplyFont(t);
+            t.text = "0";
+            return t;
         }
 
         #endregion
@@ -711,6 +721,10 @@ namespace FiresRPGmaker.UI.Screens
         private void PopulateUI(string shopName)
         {
             _shopNameText.text = shopName ?? _currentProfile?.Name ?? "Shop";
+            // Tick the trader-gold restock timer before drawing rows so the affordability checks see
+            // the refreshed pool. No-op if the profile didn't configure MaxGold/GoldRestock.
+            if (_currentNpc != null && _currentProfile != null)
+                _currentNpc.TickTraderGoldRestock(_currentProfile.MaxGold, _currentProfile.GoldRestockSeconds);
             PopulateUIRows();
             RefreshGoldDisplay();
         }
@@ -1038,9 +1052,19 @@ namespace FiresRPGmaker.UI.Screens
 
         private void RefreshGoldDisplay()
         {
-            if (_goldAmountText == null) return;
-            int coins = CountPlayerItems("Coins", 0);
-            _goldAmountText.text = coins.ToString("N0");
+            if (_playerGoldText != null)
+                _playerGoldText.text = CountPlayerItems("Coins", 0).ToString("N0");
+            if (_traderGoldText != null && _currentProfile != null)
+            {
+                int max = _currentProfile.MaxGold;
+                if (max < 0) _traderGoldText.text = "∞";
+                else
+                {
+                    int current = _currentNpc != null ? _currentNpc.GetTraderGold(max) : max;
+                    _traderGoldText.text = current.ToString("N0");
+                }
+            }
+            else if (_traderGoldText != null) _traderGoldText.text = "—";
         }
 
         private void RefreshOwnedCounts()
@@ -1067,6 +1091,17 @@ namespace FiresRPGmaker.UI.Screens
             if (trade == null || trade.Stock == 0) return false;
             foreach (var cost in trade.CostItems)
                 if (CountPlayerItems(cost.PrefabName, cost.Level) < cost.Amount * multiplier) return false;
+            // SELL-side gate: trader needs enough gold in its pool to pay out the reward currency.
+            // BUY-side trades cost the player items only; trader gold doesn't gate them.
+            if (_currentNpc != null && _currentProfile != null && _currentProfile.MaxGold >= 0)
+            {
+                foreach (var reward in trade.RewardItems)
+                {
+                    if (!IsCurrencyStack(reward)) continue;
+                    int payout = reward.Amount * multiplier;
+                    if (_currentNpc.GetTraderGold(_currentProfile.MaxGold) < payout) return false;
+                }
+            }
             return true;
         }
 
@@ -1086,6 +1121,16 @@ namespace FiresRPGmaker.UI.Screens
                 GivePlayerItems(player, reward.PrefabName, reward.Amount * qty, reward.Level);
 
             if (trade.Stock > 0) trade.Stock = Mathf.Max(0, trade.Stock - qty);
+
+            // Drain trader gold when paying out for a player's sale (reward = Coins).
+            if (_currentNpc != null && _currentProfile != null && _currentProfile.MaxGold >= 0)
+            {
+                foreach (var reward in trade.RewardItems)
+                {
+                    if (!IsCurrencyStack(reward)) continue;
+                    _currentNpc.SpendTraderGold(reward.Amount * qty, _currentProfile.MaxGold);
+                }
+            }
 
             OnAmountChanged(pair, qty);
             RefreshGoldDisplay();

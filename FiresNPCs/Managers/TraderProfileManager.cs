@@ -53,6 +53,15 @@ namespace FiresRPGmaker.Managers
 
         /// <summary>Default restock interval in seconds for all trades in this profile. 0 = no restock.</summary>
         public int DefaultRestockSeconds { get; set; } = 0;
+
+        /// <summary>Per-NPC trader gold pool cap. -1 = unlimited (trader can always pay out). Header
+        /// key: <c>MaxGold=</c>. Current pool is tracked per-NPC on its ZDO so two NPCs sharing the
+        /// same profile each have their own balance.</summary>
+        public int MaxGold { get; set; } = -1;
+
+        /// <summary>Seconds between trader-gold restocks (refills the pool back to MaxGold). 0 = no
+        /// auto-restock. Header key: <c>GoldRestock=</c>.</summary>
+        public int GoldRestockSeconds { get; set; } = 0;
     }
 
     /// <summary>
@@ -278,6 +287,8 @@ namespace FiresRPGmaker.Managers
                 {
                     if (existing.DefaultStock != -1) header += $",Stock={existing.DefaultStock}";
                     if (existing.DefaultRestockSeconds != 0) header += $",Restock={existing.DefaultRestockSeconds}";
+                    if (existing.MaxGold != -1) header += $",MaxGold={existing.MaxGold}";
+                    if (existing.GoldRestockSeconds != 0) header += $",GoldRestock={existing.GoldRestockSeconds}";
                 }
                 string content = $"[{header}]\n{(tradesText ?? "").Trim()}\n";
                 string file = Path.Combine(TraderProfilesFolder, MakeSafeFileName(name) + ".cfg");
@@ -325,11 +336,13 @@ namespace FiresRPGmaker.Managers
 
                     int defaultStock = -1;
                     int defaultRestock = 0;
+                    int maxGold = -1;
+                    int goldRestock = 0;
 
                     // Parse optional key=value pairs from the header
                     for (int i = 1; i < headerParts.Length; i++)
                     {
-                        ParseKeyValue(headerParts[i].Trim(), ref defaultStock, ref defaultRestock);
+                        ParseHeaderKeyValue(headerParts[i].Trim(), ref defaultStock, ref defaultRestock, ref maxGold, ref goldRestock);
                     }
 
                     if (_profiles.TryGetValue(profileName, out var existing))
@@ -341,6 +354,8 @@ namespace FiresRPGmaker.Managers
                         // Update defaults if re-declared
                         if (defaultStock != -1) currentProfile.DefaultStock = defaultStock;
                         if (defaultRestock != 0) currentProfile.DefaultRestockSeconds = defaultRestock;
+                        if (maxGold != -1) currentProfile.MaxGold = maxGold;
+                        if (goldRestock != 0) currentProfile.GoldRestockSeconds = goldRestock;
                     }
                     else
                     {
@@ -349,7 +364,9 @@ namespace FiresRPGmaker.Managers
                             Name = profileName,
                             SourceFile = sourceName,
                             DefaultStock = defaultStock,
-                            DefaultRestockSeconds = defaultRestock
+                            DefaultRestockSeconds = defaultRestock,
+                            MaxGold = maxGold,
+                            GoldRestockSeconds = goldRestock,
                         };
                         _profiles[profileName] = currentProfile;
                     }
@@ -379,22 +396,28 @@ namespace FiresRPGmaker.Managers
         /// </summary>
         private static void ParseKeyValue(string token, ref int stock, ref int restock)
         {
-            if (string.IsNullOrEmpty(token)) return;
+            int dummyMaxGold = -1, dummyGoldRestock = 0;
+            ParseHeaderKeyValue(token, ref stock, ref restock, ref dummyMaxGold, ref dummyGoldRestock);
+        }
 
+        /// <summary>Header variant — also recognises <c>MaxGold=</c> and <c>GoldRestock=</c>, which only
+        /// make sense at the profile header (per-trade rows don't carry their own gold pool).</summary>
+        private static void ParseHeaderKeyValue(string token, ref int stock, ref int restock, ref int maxGold, ref int goldRestock)
+        {
+            if (string.IsNullOrEmpty(token)) return;
             var eqIdx = token.IndexOf('=');
             if (eqIdx <= 0) return;
-
             string key = token.Substring(0, eqIdx).Trim();
             string val = token.Substring(eqIdx + 1).Trim();
 
             if (key.Equals("Stock", StringComparison.OrdinalIgnoreCase))
-            {
-                if (int.TryParse(val, out int s)) stock = s;
-            }
+            { if (int.TryParse(val, out int s)) stock = s; }
             else if (key.Equals("Restock", StringComparison.OrdinalIgnoreCase))
-            {
-                if (int.TryParse(val, out int r)) restock = r;
-            }
+            { if (int.TryParse(val, out int r)) restock = r; }
+            else if (key.Equals("MaxGold", StringComparison.OrdinalIgnoreCase))
+            { if (int.TryParse(val, out int g)) maxGold = g; }
+            else if (key.Equals("GoldRestock", StringComparison.OrdinalIgnoreCase))
+            { if (int.TryParse(val, out int gr)) goldRestock = gr; }
         }
 
         /// <summary>

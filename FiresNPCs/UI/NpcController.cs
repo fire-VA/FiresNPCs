@@ -677,6 +677,55 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             Debug.Log($"[NpcController] Saved to ZDO - Name: {npcProfileName}, Type: {npcType}");
         }
 
+        // ─── Per-NPC trader gold pool (used by TraderUIController) ───
+        // The gold pool is keyed on each NPC's ZDO so two NPCs sharing the same trader profile
+        // each have their own balance. Float for "last restock" lets us compare against ZNet.GetTime().
+
+        /// <summary>Current trader gold pool — what this NPC has available to pay out for player sells.
+        /// Returns int.MaxValue when MaxGold is -1 (unlimited).</summary>
+        public int GetTraderGold(int maxGoldFallback)
+        {
+            if (maxGoldFallback < 0) return int.MaxValue;
+            var zdo = _nview?.GetZDO();
+            if (zdo == null) return maxGoldFallback;
+            // First read returns 0 by default — only fall back to MaxGold if the ZDO has never been seeded.
+            if (!zdo.GetBool("npc_trader_gold_init"))
+            {
+                zdo.Set("npc_trader_gold", maxGoldFallback);
+                zdo.Set("npc_trader_gold_init", true);
+                return maxGoldFallback;
+            }
+            return zdo.GetInt("npc_trader_gold", maxGoldFallback);
+        }
+
+        /// <summary>Decrement the gold pool when the NPC pays out a player's sale. Persists to ZDO.</summary>
+        public void SpendTraderGold(int amount, int maxGold)
+        {
+            if (amount <= 0 || maxGold < 0) return;
+            var zdo = _nview?.GetZDO();
+            if (zdo == null) return;
+            int current = GetTraderGold(maxGold);
+            int next = UnityEngine.Mathf.Max(0, current - amount);
+            zdo.Set("npc_trader_gold", next);
+        }
+
+        /// <summary>Auto-restock pass — if <paramref name="restockSeconds"/> have elapsed since the last
+        /// restock, refill the pool to MaxGold. Idempotent; safe to call every UI open.</summary>
+        public void TickTraderGoldRestock(int maxGold, int restockSeconds)
+        {
+            if (maxGold < 0 || restockSeconds <= 0) return;
+            var zdo = _nview?.GetZDO();
+            if (zdo == null) return;
+            long nowTicks = ZNet.instance != null ? ZNet.instance.GetTime().Ticks : System.DateTime.UtcNow.Ticks;
+            long lastTicks = zdo.GetLong("npc_trader_gold_restock_ticks", 0L);
+            if (lastTicks == 0L) { zdo.Set("npc_trader_gold_restock_ticks", nowTicks); return; }
+            double elapsedSec = new System.TimeSpan(nowTicks - lastTicks).TotalSeconds;
+            if (elapsedSec < restockSeconds) return;
+            zdo.Set("npc_trader_gold", maxGold);
+            zdo.Set("npc_trader_gold_init", true);
+            zdo.Set("npc_trader_gold_restock_ticks", nowTicks);
+        }
+
         #endregion
 
         #region Model Override
