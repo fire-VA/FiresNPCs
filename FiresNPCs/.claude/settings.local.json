@@ -336,7 +336,8 @@
       "Bash(xargs echo \"folders:\")",
       "Bash(powershell -Command \"if \\(Get-Process Unity -ErrorAction SilentlyContinue\\) { 'Unity RUNNING' } else { 'Unity idle' }\")",
       "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"heightmap-snownorm-fix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\heightmap-build.log\" -MaxWaitSeconds 900)",
-      "PowerShell($vh = Get-Process -Name valheim -ErrorAction SilentlyContinue; if \\($vh\\) { \"VALHEIM RUNNING \\(pid $\\($vh.Id\\)\\) — deploy copy will fail on file lock\" } else { \"Valheim not running — deploy OK\" })"
+      "PowerShell($vh = Get-Process -Name valheim -ErrorAction SilentlyContinue; if \\($vh\\) { \"VALHEIM RUNNING \\(pid $\\($vh.Id\\)\\) — deploy copy will fail on file lock\" } else { \"Valheim not running — deploy OK\" })",
+      "Bash(grep -iE \"\\\\.shader$\")"
     ]
   }
 }

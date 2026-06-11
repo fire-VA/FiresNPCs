@@ -311,9 +311,26 @@ namespace FiresRPGmaker.UI
             Button applyButton = applyGo != null ? applyGo.GetComponent<Button>() : null;
 
             controller.WireFromCodegen(screenGo, applyButton);
+            ClearSecondTabRow(screenGo);
 
             Debug.Log($"[CodegenUIWiring] InfoNpcScreen wired via WireFromCodegen");
             return controller;
+        }
+
+        /// <summary>The codegen layout for Quest / Info / DialogueEditor screens was baked when the
+        /// panel only had ONE tab row. The Marketplace family added a second row of tabs (Market /
+        /// Mail / Transmog) underneath, and the baked content rects now overlap that second row.
+        /// Push each screen's top inset DOWN by ~60px so its content lands below BOTH tab rows.</summary>
+        private static void ClearSecondTabRow(GameObject screenGo)
+        {
+            if (screenGo == null) return;
+            var rt = screenGo.GetComponent<RectTransform>();
+            if (rt == null) return;
+            // Make the top inset at least 190px from the panel top (was -130 = 130px on baked rects).
+            // Negative offsetMax.y INCREASES the inset, so we take the more-negative of the two values.
+            var offMax = rt.offsetMax;
+            offMax.y = Mathf.Min(offMax.y, -190f);
+            rt.offsetMax = offMax;
         }
 
         /// <summary>
@@ -370,6 +387,7 @@ namespace FiresRPGmaker.UI
 
             var controller = screenGo.AddComponent<DialogueEditorScreenController>();
             controller.WireFromCodegen(screenGo);
+            ClearSecondTabRow(screenGo);
 
             Debug.Log("[CodegenUIWiring] DialogueEditorScreen wired via WireFromCodegen");
             return controller;
@@ -390,6 +408,7 @@ namespace FiresRPGmaker.UI
 
             var controller = screenGo.AddComponent<QuestConfigScreenController>();
             controller.WireFromCodegen(screenGo, applyButton);
+            ClearSecondTabRow(screenGo);
 
             Debug.Log("[CodegenUIWiring] QuestConfigScreen wired via WireFromCodegen");
             return controller;
@@ -424,7 +443,7 @@ namespace FiresRPGmaker.UI
             var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
             CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
                      fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
-                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -130f));
+                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -190f));
 
             var applyGo = new GameObject("TraderApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);
@@ -459,7 +478,7 @@ namespace FiresRPGmaker.UI
             var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
             CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
                      fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
-                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -130f));
+                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -190f));
 
             var applyGo = new GameObject("BankerApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);
@@ -499,7 +518,7 @@ namespace FiresRPGmaker.UI
             var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
             CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
                      fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
-                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -130f));
+                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -190f));
 
             var applyGo = new GameObject(applyName, typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);

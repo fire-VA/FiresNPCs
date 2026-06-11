@@ -164,7 +164,10 @@ namespace FiresRPGmaker.UI.Screens
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             var tmp = go.AddComponent<TextMeshProUGUI>();
             tmp.font = TMP_Settings.defaultFontAsset;
-            tmp.text = text; tmp.fontSize = size; tmp.alignment = align; tmp.color = new Color(0.96f, 0.91f, 0.76f);
+            // INK_BLACK + Bold so the hint text reads on parchment — was a tan that disappeared.
+            tmp.text = text; tmp.fontSize = size; tmp.alignment = align;
+            tmp.color = new Color(0.10f, 0.07f, 0.04f, 1f);
+            tmp.fontStyle = FontStyles.Bold;
             tmp.enableWordWrapping = true;
             return tmp;
         }
