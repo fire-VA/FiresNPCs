@@ -245,13 +245,15 @@ namespace FiresRPGmaker.UI.Screens
             template.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.98f);
 
             var scroll = template.AddComponent<ScrollRect>();
-            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(Mask));
+            // Viewport uses RectMask2D (rect-based clip) instead of Mask+Image — Mask needs a Graphic
+            // with valid stencil mesh, and the alpha-0 sprite-null Image pattern used by Unity's default
+            // template can fail to write the stencil on some setups (the same root cause that nuked
+            // BasePlayerModulePanel.MakeVerticalScroll's row visibility). RectMask2D needs no Graphic.
+            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
             viewport.transform.SetParent(template.transform, false);
             var vrt = viewport.GetComponent<RectTransform>();
             vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
             vrt.offsetMin = Vector2.zero; vrt.offsetMax = Vector2.zero;
-            viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.0f);
-            viewport.GetComponent<Mask>().showMaskGraphic = false;
 
             var content = new GameObject("Content", typeof(RectTransform));
             content.transform.SetParent(viewport.transform, false);
@@ -311,9 +313,14 @@ namespace FiresRPGmaker.UI.Screens
         /// its caption when no profile is selected. Selecting it is a no-op (see OnSavedProfileSelected).</summary>
         private void RefreshSavedProfilesDropdown(string currentName)
         {
-            if (_savedProfilesDropdown == null) return;
+            if (_savedProfilesDropdown == null)
+            {
+                Debug.LogWarning("[TraderConfig] RefreshSavedProfilesDropdown: dropdown is null (BuildForm may not have run yet)");
+                return;
+            }
             TraderProfileManager.Initialize();
             var profileNames = TraderProfileManager.GetAllProfileNames().OrderBy(n => n).ToList();
+            Debug.Log($"[TraderConfig] RefreshSavedProfilesDropdown: {profileNames.Count} profile(s) on disk");
             var options = new System.Collections.Generic.List<TMP_Dropdown.OptionData>();
             options.Add(new TMP_Dropdown.OptionData("Saved Profiles"));
             foreach (var name in profileNames) options.Add(new TMP_Dropdown.OptionData(name));
