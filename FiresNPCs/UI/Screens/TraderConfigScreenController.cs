@@ -56,7 +56,7 @@ namespace FiresRPGmaker.UI.Screens
             _profileInput = CreateInput(rt, 0.02f, 0.64f, 0.76f, 0.83f, false);
             _profileInput.onEndEdit.AddListener(LoadProfileTrades);
 
-            _savedProfilesDropdown = BuildSavedProfilesDropdown(rt, 0.66f, 0.98f, 0.76f, 0.83f);
+            _savedProfilesDropdown = SavedProfilesDropdown.Build(rt, 0.66f, 0.98f, 0.76f, 0.83f, OnSavedProfilePicked);
 
             CreateLabel(rt, "Trades  -  one per line:   cost, amount, reward, amount[, level]", 0.71f, 0.755f, 14f, TextAlignmentOptions.Left);
             _tradesInput = CreateInput(rt, 0.02f, 0.98f, 0.20f, 0.705f, true);
@@ -195,160 +195,22 @@ namespace FiresRPGmaker.UI.Screens
 
         // --- Saved Profiles dropdown ---
         //
-        // Standalone TMP_Dropdown — its first option is "Saved Profiles" (acts as a header so the
-        // user can see what the dropdown is for at a glance), and the remaining options are every
-        // profile name returned by TraderProfileManager. Selecting one writes its name into the
-        // profile input and loads its trades, same as if the user had typed the name. Dropdown
-        // pattern mirrors MarketplacePlayerPanel.BuildCurrencyDropdown so we have one shape of
-        // dropdown across the project, not several.
-
-        private TMP_Dropdown BuildSavedProfilesDropdown(RectTransform parent, float xMin, float xMax, float yMin, float yMax)
-        {
-            var go = new GameObject("SavedProfilesDropdown", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(xMin, yMin); rt.anchorMax = new Vector2(xMax, yMax);
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            go.GetComponent<Image>().color = new Color(0.12f, 0.10f, 0.07f, 0.92f);
-
-            var dd = go.AddComponent<TMP_Dropdown>();
-
-            // Caption label (shows the current selection / header on the closed dropdown).
-            var labelGo = new GameObject("Label", typeof(RectTransform));
-            labelGo.transform.SetParent(go.transform, false);
-            var lrt = labelGo.GetComponent<RectTransform>();
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = new Vector2(10f, 2f); lrt.offsetMax = new Vector2(-22f, -2f);
-            var label = labelGo.AddComponent<TextMeshProUGUI>();
-            label.font = TMP_Settings.defaultFontAsset;
-            label.fontSize = 14f; label.color = new Color(0.96f, 0.91f, 0.76f);
-            label.alignment = TextAlignmentOptions.MidlineLeft;
-
-            // Arrow indicator (small chevron on the right).
-            var arrowGo = new GameObject("Arrow", typeof(RectTransform));
-            arrowGo.transform.SetParent(go.transform, false);
-            var art = arrowGo.GetComponent<RectTransform>();
-            art.anchorMin = new Vector2(1f, 0.5f); art.anchorMax = new Vector2(1f, 0.5f);
-            art.pivot = new Vector2(1f, 0.5f);
-            art.sizeDelta = new Vector2(20f, 20f); art.anchoredPosition = new Vector2(-4f, 0f);
-            var arrowText = arrowGo.AddComponent<TextMeshProUGUI>();
-            arrowText.font = TMP_Settings.defaultFontAsset;
-            arrowText.text = "v"; arrowText.fontSize = 16f; arrowText.alignment = TextAlignmentOptions.Center;
-            arrowText.color = new Color(1f, 0.85f, 0.55f);
-
-            // Template (the popup panel that appears when the dropdown is opened).
-            var template = new GameObject("Template", typeof(RectTransform), typeof(Image));
-            template.transform.SetParent(go.transform, false);
-            var trt = template.GetComponent<RectTransform>();
-            trt.anchorMin = new Vector2(0f, 0f); trt.anchorMax = new Vector2(1f, 0f); trt.pivot = new Vector2(0.5f, 1f);
-            trt.sizeDelta = new Vector2(0f, 220f); trt.anchoredPosition = new Vector2(0f, -2f);
-            template.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.98f);
-
-            var scroll = template.AddComponent<ScrollRect>();
-            // Viewport uses RectMask2D (rect-based clip) instead of Mask+Image — Mask needs a Graphic
-            // with valid stencil mesh, and the alpha-0 sprite-null Image pattern used by Unity's default
-            // template can fail to write the stencil on some setups (the same root cause that nuked
-            // BasePlayerModulePanel.MakeVerticalScroll's row visibility). RectMask2D needs no Graphic.
-            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
-            viewport.transform.SetParent(template.transform, false);
-            var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.offsetMin = Vector2.zero; vrt.offsetMax = Vector2.zero;
-
-            var content = new GameObject("Content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            var crt = content.GetComponent<RectTransform>();
-            crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f); crt.pivot = new Vector2(0.5f, 1f);
-            crt.sizeDelta = new Vector2(0f, 28f);
-
-            var item = new GameObject("Item", typeof(RectTransform), typeof(Toggle));
-            item.transform.SetParent(content.transform, false);
-            var irt = item.GetComponent<RectTransform>();
-            irt.anchorMin = new Vector2(0f, 0.5f); irt.anchorMax = new Vector2(1f, 0.5f);
-            irt.sizeDelta = new Vector2(0f, 26f);
-
-            var itemBg = new GameObject("Item Background", typeof(RectTransform), typeof(Image));
-            itemBg.transform.SetParent(item.transform, false);
-            var ibgRt = itemBg.GetComponent<RectTransform>();
-            ibgRt.anchorMin = Vector2.zero; ibgRt.anchorMax = Vector2.one;
-            ibgRt.offsetMin = Vector2.zero; ibgRt.offsetMax = Vector2.zero;
-            itemBg.GetComponent<Image>().color = new Color(0.18f, 0.14f, 0.09f, 0.95f);
-
-            var itemChecked = new GameObject("Item Checkmark", typeof(RectTransform), typeof(Image));
-            itemChecked.transform.SetParent(item.transform, false);
-            var icRt = itemChecked.GetComponent<RectTransform>();
-            icRt.anchorMin = new Vector2(0f, 0.5f); icRt.anchorMax = new Vector2(0f, 0.5f);
-            icRt.sizeDelta = new Vector2(18f, 18f); icRt.anchoredPosition = new Vector2(12f, 0f);
-            itemChecked.GetComponent<Image>().color = new Color(1f, 0.85f, 0.55f);
-
-            var itemLabelGo = new GameObject("Item Label", typeof(RectTransform));
-            itemLabelGo.transform.SetParent(item.transform, false);
-            var ilrt = itemLabelGo.GetComponent<RectTransform>();
-            ilrt.anchorMin = Vector2.zero; ilrt.anchorMax = Vector2.one;
-            ilrt.offsetMin = new Vector2(28f, 2f); ilrt.offsetMax = new Vector2(-4f, -2f);
-            var itemLabelText = itemLabelGo.AddComponent<TextMeshProUGUI>();
-            itemLabelText.font = TMP_Settings.defaultFontAsset;
-            itemLabelText.fontSize = 13f; itemLabelText.color = new Color(0.96f, 0.91f, 0.76f);
-            itemLabelText.alignment = TextAlignmentOptions.MidlineLeft;
-
-            var toggle = item.GetComponent<Toggle>();
-            toggle.targetGraphic = itemBg.GetComponent<Image>();
-            toggle.graphic = itemChecked.GetComponent<Image>();
-            toggle.isOn = true;
-
-            scroll.content = crt; scroll.viewport = vrt;
-            scroll.horizontal = false; scroll.vertical = true;
-            scroll.scrollSensitivity = 30f;
-
-            // Add a vertical scrollbar so the user can scroll through 60+ profiles.
-            var scrollbar = FiresCore.UI.UIBuilderHelper.CreateVerticalScrollbar(template.transform, 10f);
-            scroll.verticalScrollbar = scrollbar;
-            scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-
-            dd.template = trt;
-            dd.captionText = label;
-            dd.itemText = itemLabelText;
-            template.SetActive(false);
-
-            dd.onValueChanged.AddListener(OnSavedProfileSelected);
-            return dd;
-        }
+        // Dropdown construction lives in the shared SavedProfilesDropdown helper.
 
         /// <summary>Rebuilds the dropdown's option list from <see cref="TraderProfileManager"/>.
         /// First option is always the header "Saved Profiles" so the closed dropdown shows that as
         /// its caption when no profile is selected. Selecting it is a no-op (see OnSavedProfileSelected).</summary>
         private void RefreshSavedProfilesDropdown(string currentName)
         {
-            if (_savedProfilesDropdown == null)
-            {
-                Debug.LogWarning("[TraderConfig] RefreshSavedProfilesDropdown: dropdown is null (BuildForm may not have run yet)");
-                return;
-            }
             TraderProfileManager.Initialize();
-            var profileNames = TraderProfileManager.GetAllProfileNames().OrderBy(n => n).ToList();
-            Debug.Log($"[TraderConfig] RefreshSavedProfilesDropdown: {profileNames.Count} profile(s) on disk");
-            var options = new System.Collections.Generic.List<TMP_Dropdown.OptionData>();
-            options.Add(new TMP_Dropdown.OptionData("Saved Profiles"));
-            foreach (var name in profileNames) options.Add(new TMP_Dropdown.OptionData(name));
-            _savedProfilesDropdown.ClearOptions();
-            _savedProfilesDropdown.AddOptions(options);
-            _savedProfilesDropdown.SetValueWithoutNotify(0);
-            if (_savedProfilesDropdown.captionText != null) _savedProfilesDropdown.captionText.text = "Saved Profiles";
+            SavedProfilesDropdown.Refresh(_savedProfilesDropdown, TraderProfileManager.GetAllProfileNames());
         }
 
-        private void OnSavedProfileSelected(int idx)
+        private void OnSavedProfilePicked(string name)
         {
-            // Index 0 is the "Saved Profiles" header — ignore.
-            if (_savedProfilesDropdown == null || idx <= 0) return;
-            var opt = _savedProfilesDropdown.options[idx];
-            string name = opt?.text;
             if (string.IsNullOrEmpty(name)) return;
             if (_profileInput != null) _profileInput.SetTextWithoutNotify(name);
             LoadProfileTrades(name);
-            // Reset caption back to the header so the field doesn't permanently latch onto the picked
-            // profile (the typed input below it is the source of truth for what gets saved).
-            _savedProfilesDropdown.SetValueWithoutNotify(0);
-            if (_savedProfilesDropdown.captionText != null) _savedProfilesDropdown.captionText.text = "Saved Profiles";
         }
     }
 }

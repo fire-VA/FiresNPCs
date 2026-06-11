@@ -16,6 +16,7 @@ namespace FiresRPGmaker.UI.Screens
         private TMP_InputField _profileInput;
         private TMP_Text _statusText;
         private Button _applyButton;
+        private TMP_Dropdown _savedProfilesDropdown;
         private bool _built;
 
         public bool IsVisible => gameObject.activeSelf;
@@ -28,8 +29,9 @@ namespace FiresRPGmaker.UI.Screens
             _built = true;
             var rt = GetComponent<RectTransform>() ?? gameObject.AddComponent<RectTransform>();
 
-            CreateLabel(rt, "Banker Profile  (type an existing name to load it, or a new name to create)", 0.78f, 0.88f, 14f, TextAlignmentOptions.Left);
-            _profileInput = CreateInput(rt, 0.66f, 0.755f);
+            CreateLabel(rt, "Banker Profile  (apply existing or create new)", 0.78f, 0.88f, 14f, TextAlignmentOptions.Left);
+            _profileInput = CreateInput(rt, 0.02f, 0.64f, 0.66f, 0.755f);
+            _savedProfilesDropdown = SavedProfilesDropdown.Build(rt, 0.66f, 0.98f, 0.66f, 0.755f, OnSavedProfilePicked);
             CreateLabel(rt,
                 "v1 stub — sets npcType=Banker + saves the profile name to the NPC. The full deposit/withdraw " +
                 "UI + persistence ships in a follow-up alongside the LiteDB BankRepository wiring.",
@@ -44,9 +46,19 @@ namespace FiresRPGmaker.UI.Screens
         {
             _currentNpc = npc;
             if (_profileInput != null) _profileInput.SetTextWithoutNotify(npc?.bankerProfile ?? "");
+            // Refresh the saved-profiles dropdown so newly-saved profiles show up.
+            Modules.Marketplace.BankerProfileManager.EnsureLoaded();
+            SavedProfilesDropdown.Refresh(_savedProfilesDropdown, Modules.Marketplace.BankerProfileManager.AllProfileNames);
             SetStatus(string.IsNullOrEmpty(npc?.bankerProfile) ? "No banker profile set." : $"Loaded '{npc.bankerProfile}'.");
             gameObject.SetActive(true);
             if (_applyButton != null) _applyButton.gameObject.SetActive(true);
+        }
+
+        private void OnSavedProfilePicked(string name)
+        {
+            if (string.IsNullOrEmpty(name) || _profileInput == null) return;
+            _profileInput.SetTextWithoutNotify(name);
+            SetStatus($"Loaded '{name}' — click Apply to assign this NPC.");
         }
 
         public void Hide()
@@ -66,6 +78,9 @@ namespace FiresRPGmaker.UI.Screens
             _currentNpc.npcType = global::FiresCore.Npc.NpcType.Banker;
             _currentNpc.SaveToZDO();
             SetStatus($"Saved '{name}' and assigned this NPC as Banker.");
+            // Refresh dropdown — a brand-new profile name may have been created.
+            Modules.Marketplace.BankerProfileManager.EnsureLoaded();
+            SavedProfilesDropdown.Refresh(_savedProfilesDropdown, Modules.Marketplace.BankerProfileManager.AllProfileNames);
             Debug.Log($"[BankerConfig] Apply: npc={_currentNpc.GetDisplayName()} → bankerProfile='{name}', npcType=Banker");
         }
 
@@ -85,12 +100,12 @@ namespace FiresRPGmaker.UI.Screens
             return tmp;
         }
 
-        private TMP_InputField CreateInput(RectTransform parent, float yMin, float yMax)
+        private TMP_InputField CreateInput(RectTransform parent, float xMin, float xMax, float yMin, float yMax)
         {
             var go = new GameObject("BankerProfileInput", typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.02f, yMin); rt.anchorMax = new Vector2(0.98f, yMax);
+            rt.anchorMin = new Vector2(xMin, yMin); rt.anchorMax = new Vector2(xMax, yMax);
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             go.GetComponent<Image>().color = new Color(0.12f, 0.10f, 0.07f, 0.92f);
 

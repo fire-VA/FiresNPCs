@@ -322,6 +322,7 @@
     <Compile Include="Modules\Marketplace\TransmogState.cs" />
     <Compile Include="Modules\Marketplace\TransmogInventoryMarker.cs" />
     <Compile Include="UI\Screens\TraderConfigScreenController.cs" />
+    <Compile Include="UI\Screens\SavedProfilesDropdown.cs" />
     <Compile Include="UI\Screens\InfoNpcPlayerPanel.cs" />
     <Compile Include="UI\Screens\InfoNpcScreenController.cs" />
     <Compile Include="UI\Screens\QuestConfigScreenController.cs" />

@@ -25,6 +25,7 @@ namespace FiresRPGmaker.UI.Screens
         private TMP_InputField _profileInput;
         private TMP_Text _statusText;
         private Button _applyButton;
+        private TMP_Dropdown _savedProfilesDropdown;
         private bool _built;
 
         public bool IsVisible => gameObject.activeSelf;
@@ -42,8 +43,9 @@ namespace FiresRPGmaker.UI.Screens
             _built = true;
             var rt = GetComponent<RectTransform>() ?? gameObject.AddComponent<RectTransform>();
 
-            CreateLabel(rt, _moduleLabel + " Profile  (type an existing name to load it, or a new name to create)", 0.78f, 0.88f, 14f, TextAlignmentOptions.Left);
-            _profileInput = CreateInput(rt, 0.66f, 0.755f);
+            CreateLabel(rt, _moduleLabel + " Profile  (apply existing or create new)", 0.78f, 0.88f, 14f, TextAlignmentOptions.Left);
+            _profileInput = CreateInput(rt, 0.02f, 0.64f, 0.66f, 0.755f);
+            _savedProfilesDropdown = SavedProfilesDropdown.Build(rt, 0.66f, 0.98f, 0.66f, 0.755f, OnSavedProfilePicked);
             CreateLabel(rt,
                 "v1 stub - sets npcType=" + _moduleType + " + saves the profile name to the NPC. The full " +
                 _moduleLabel + " UI / config parser / persistence lands in a follow-up.",
@@ -59,11 +61,40 @@ namespace FiresRPGmaker.UI.Screens
             _currentNpc = npc;
             string current = (_profileField?.GetValue(npc) as string) ?? "";
             if (_profileInput != null) _profileInput.SetTextWithoutNotify(current);
-            string loaded = GetLoadedProfileNames();
-            string head = string.IsNullOrEmpty(current) ? "No " + _moduleLabel.ToLowerInvariant() + " profile set." : "Loaded '" + current + "'.";
-            SetStatus(head + (string.IsNullOrEmpty(loaded) ? "" : "  -  Loaded profiles: " + loaded));
+            SavedProfilesDropdown.Refresh(_savedProfilesDropdown, GetProfileNameSequence());
+            SetStatus(string.IsNullOrEmpty(current)
+                ? "No " + _moduleLabel.ToLowerInvariant() + " profile set."
+                : "Loaded '" + current + "'.");
             gameObject.SetActive(true);
             if (_applyButton != null) _applyButton.gameObject.SetActive(true);
+        }
+
+        private void OnSavedProfilePicked(string name)
+        {
+            if (string.IsNullOrEmpty(name) || _profileInput == null) return;
+            _profileInput.SetTextWithoutNotify(name);
+            SetStatus($"Loaded '{name}' - click Apply to assign this NPC.");
+        }
+
+        /// <summary>Returns the IEnumerable of profile names for the current module type. Replaces the old
+        /// GetLoadedProfileNames() that returned a comma-joined string; the dropdown needs the raw sequence.</summary>
+        private System.Collections.Generic.IEnumerable<string> GetProfileNameSequence()
+        {
+            try
+            {
+                return _moduleType switch
+                {
+                    NpcType.Banker      => Modules.Marketplace.BankerProfileManager.AllProfileNames,
+                    NpcType.Gambler     => Modules.Marketplace.GamblerProfileManager.AllProfileNames,
+                    NpcType.Marketplace => GetMarketplaceProfileNames(),
+                    NpcType.Achievement => GetAchievementProfileNames(),
+                    NpcType.Leaderboard => GetLeaderboardProfileNames(),
+                    NpcType.Mail        => GetMailProfileNames(),
+                    NpcType.Transmog    => GetTransmogProfileNames(),
+                    _ => null,
+                };
+            }
+            catch { return null; }
         }
 
         /// <summary>Comma-joined list of profile names currently loaded by the relevant manager (admin hint).</summary>
@@ -117,6 +148,8 @@ namespace FiresRPGmaker.UI.Screens
             _currentNpc.npcType = _moduleType;
             _currentNpc.SaveToZDO();
             SetStatus("Saved '" + name + "' and assigned this NPC as " + _moduleLabel + ".");
+            // Refresh dropdown so a freshly-created profile shows up.
+            SavedProfilesDropdown.Refresh(_savedProfilesDropdown, GetProfileNameSequence());
             Debug.Log("[" + _moduleLabel + "Config] Apply: npc=" + _currentNpc.GetDisplayName() + " -> " + _profileFieldName + "='" + name + "', npcType=" + _moduleType);
         }
 
@@ -136,12 +169,12 @@ namespace FiresRPGmaker.UI.Screens
             return tmp;
         }
 
-        private TMP_InputField CreateInput(RectTransform parent, float yMin, float yMax)
+        private TMP_InputField CreateInput(RectTransform parent, float xMin, float xMax, float yMin, float yMax)
         {
             var go = new GameObject(_moduleLabel + "ProfileInput", typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.02f, yMin); rt.anchorMax = new Vector2(0.98f, yMax);
+            rt.anchorMin = new Vector2(xMin, yMin); rt.anchorMax = new Vector2(xMax, yMax);
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             go.GetComponent<Image>().color = new Color(0.12f, 0.10f, 0.07f, 0.92f);
 
