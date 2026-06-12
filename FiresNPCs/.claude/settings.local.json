@@ -364,7 +364,9 @@
       "Bash(grep -ohiE layer=?-?[0-9]+ C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/Yoink/ScanMe/Prefabs/biomeflora/MineRock_Gold_BF/*.txt)",
       "Bash(powershell.exe -NoProfile -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,StartTime | Format-Table -Auto; if \\(-not \\(Get-Process Unity -ErrorAction SilentlyContinue\\)\\) { 'NO UNITY RUNNING' }\")",
       "Bash(sed -n '1,45p' \"/c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Run-HeadlessUnity.ps1\")",
-      "Bash(echo \"count: $\\(find \"/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles\" -ipath \"*FiresSteamyDumps*\" -iname \"prefab.json\")"
+      "Bash(echo \"count: $\\(find \"/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles\" -ipath \"*FiresSteamyDumps*\" -iname \"prefab.json\")",
+      "Bash(grep -oE '\"m_\\(stackMin|stackMax|weight\\)\": *[0-9.]+|\"\\\\$path\": *\"[^\"]*\"|\"\\\\$ref\": *\"[^\"]*\"|\"name\": *\"[^\"]*Ore[^\"]*\"' C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/Yoink/ScanMe/Prefabs/biomeflora/MineRock_Gold_BF/prefab.json)",
+      "Bash(grep -oE '\"\\\\$ref\":\"[A-Za-z_0-9]+\"' C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/Yoink/ScanMe/Prefabs/biomeflora/MineRock_Coal_BF/prefab.json)"
     ]
   }
 }
