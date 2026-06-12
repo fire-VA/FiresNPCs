@@ -470,15 +470,17 @@ namespace FiresRPGmaker.UI
 
         public static BankerConfigScreenController WireBankerConfigScreen(Transform panelRoot)
         {
-            // Banker screen + Apply button created programmatically (no baked banker screen yet). Rect mirrors
-            // the baked QuestConfigScreen so it lands in the same content area below the tabs.
+            // Banker screen + Apply button created programmatically (no baked banker screen yet). The screen
+            // rect is explicit (NOT copied from QuestConfigScreen) — QuestConfigScreen gets shrunk by
+            // ClearSecondTabRow to clear the 2-row tab bar, and the resulting short rect makes percent-anchored
+            // content land in the lower half of the panel. We anchor the rect from the bottom-of-tabs (160 below
+            // panel top) to just above the Apply button (95 above panel bottom).
             var screenGo = new GameObject("BankerConfigScreen", typeof(RectTransform));
             screenGo.transform.SetParent(panelRoot, false);
             var srt = screenGo.GetComponent<RectTransform>();
-            var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
-            CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
-                     fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
-                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -190f));
+            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.pivot = new Vector2(0.5f, 0.5f);
+            srt.offsetMin = new Vector2(20f, 95f);
+            srt.offsetMax = new Vector2(-20f, -160f);
 
             var applyGo = new GameObject("BankerApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);
@@ -512,13 +514,13 @@ namespace FiresRPGmaker.UI
             Transform panelRoot, FiresCore.Npc.NpcType type, string fieldName, string label,
             string screenName, string applyName)
         {
+            // Explicit rect (NOT copied from QuestConfigScreen) — same reasoning as WireBankerConfigScreen.
             var screenGo = new GameObject(screenName, typeof(RectTransform));
             screenGo.transform.SetParent(panelRoot, false);
             var srt = screenGo.GetComponent<RectTransform>();
-            var questScreen = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
-            CopyRect(questScreen != null ? questScreen.GetComponent<RectTransform>() : null, srt,
-                     fallbackMin: Vector2.zero, fallbackMax: Vector2.one,
-                     fallbackOffMin: new Vector2(20f, 70f), fallbackOffMax: new Vector2(-20f, -190f));
+            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.pivot = new Vector2(0.5f, 0.5f);
+            srt.offsetMin = new Vector2(20f, 95f);
+            srt.offsetMax = new Vector2(-20f, -160f);
 
             var applyGo = new GameObject(applyName, typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);

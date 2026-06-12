@@ -155,6 +155,24 @@ namespace FiresRPGmaker.UI.Screens
             return dd;
         }
 
+        /// <summary>Pixel-offset variant for screens that anchor their content to the TOP of the screen
+        /// rect with absolute pixel offsets (Banker/Gambler/Mail/Transmog/Marketplace). The dropdown
+        /// occupies the right band at fractional <paramref name="xMin"/> to a right inset of
+        /// <paramref name="rightPx"/>, top-anchored at <paramref name="topPx"/> with fixed
+        /// <paramref name="height"/>.</summary>
+        public static TMP_Dropdown BuildTopAnchored(
+            RectTransform parent,
+            float xMin, float rightPx, float topPx, float height,
+            Action<string> onSelect)
+        {
+            var dd = Build(parent, xMin, 1f, 0f, 1f, onSelect);
+            var rt = dd.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(xMin, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+            rt.offsetMin = new Vector2(0f, -(topPx + height));
+            rt.offsetMax = new Vector2(-rightPx, -topPx);
+            return dd;
+        }
+
         /// <summary>Rebuilds the option list. Pass the result of the host's GetAllProfileNames-style
         /// call. The first option is always the "Saved Profiles" header (index 0, no-op on selection).</summary>
         public static void Refresh(TMP_Dropdown dd, IEnumerable<string> profileNames)

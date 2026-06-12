@@ -892,6 +892,10 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
             // Create idle wander toggle if it doesn't exist
             Instance.CreateIdleWanderToggle();
 
+            // Tighten the DetailPanel grid so input rows don't poke into the tab bar at top
+            // and the idle-wander toggle sits visibly below Apply (not under the parchment border).
+            Instance.CompactDetailPanelLayout();
+
             // PERF: Configure admin mode BEFORE activating the panel so
             // PanelElementManager hides all quest/info/dialogue sub-trees first.
             // This prevents Unity from activating ~400 unnecessary elements.
@@ -1939,15 +1943,19 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
                  containerGO.transform.SetParent(detailPanel.transform, false);
                  _idleWanderToggleGO = containerGO;
 
+                 // Anchored to the TOP of DetailPanel so CompactDetailPanelLayout can drop it
+                 // immediately below the Apply button. The codegen anchored to the BOTTOM with y=8,
+                 // which put the toggle right where the parchment border ornament eats it.
                  var containerRect = containerGO.AddComponent<RectTransform>();
-                 containerRect.anchorMin = new Vector2(0.25f, 0f);
-                 containerRect.anchorMax = new Vector2(0.75f, 0f);
-                 containerRect.pivot = new Vector2(0.5f, 0f);
-                 containerRect.anchoredPosition = new Vector2(0f, 8f);
+                 containerRect.anchorMin = new Vector2(0.25f, 1f);
+                 containerRect.anchorMax = new Vector2(0.75f, 1f);
+                 containerRect.pivot = new Vector2(0.5f, 0.5f);
+                 containerRect.anchoredPosition = new Vector2(0f, -360f);
                  containerRect.sizeDelta = new Vector2(0f, 22f);
 
-                 // LayoutElement so it participates in the DetailPanel VLG
+                 // Disable any LayoutElement participation — CompactDetailPanelLayout places this manually.
                  var le = containerGO.AddComponent<LayoutElement>();
+                 le.ignoreLayout = true;
                  le.minHeight = 22f;
                  le.preferredHeight = 22f;
                  le.minWidth = 250f;
@@ -2041,6 +2049,83 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
              }
 
              #endregion
+
+        #region Detail Panel Compact Layout
+
+        /// <summary>
+        /// The codegen lays the NPC config form (NPC Name / Profile / Model Override inputs +
+        /// Dressing Room / Apply buttons) on a 64-tall grid that pokes into the tabs row at top
+        /// and places the idle-wander toggle right at the parchment border. We disable the VLG,
+        /// shrink each container to a compact height, and re-grid them with proper top clearance —
+        /// then drop the toggle right below Apply.
+        /// </summary>
+        private void CompactDetailPanelLayout()
+        {
+            if (detailPanel == null) return;
+            var dp = detailPanel.transform;
+
+            // VLG with childControlHeight=false still drives anchoredPosition.y from cumulative
+            // children, which clobbers our manual y values below. Same for ContentSizeFitter.
+            var vlg = detailPanel.GetComponent<VerticalLayoutGroup>();
+            if (vlg != null) vlg.enabled = false;
+            var csf = detailPanel.GetComponent<ContentSizeFitter>();
+            if (csf != null) csf.enabled = false;
+
+            const float TOP_PAD = 25f;             // gap between DetailPanel top and first container top edge
+            const float CONTAINER_H = 48f;         // shrunk from codegen 64 — input visual = 36px
+            const float STEP = CONTAINER_H + 12f;  // 12px gap between containers
+            const float APPLY_TO_TOGGLE_GAP = 8f;
+            const float TOGGLE_H = 22f;
+
+            string[] rowNames =
+            {
+                "Container_NameOverrideInput",
+                "Container_ProfileInput",
+                "Container_ModelOverrideInput",
+                "DressingRoom",
+                "ApplyButton",
+            };
+
+            float y = -TOP_PAD - CONTAINER_H * 0.5f;  // center of first container
+            float applyCenter = y;                    // overwritten when the Apply row lands
+            foreach (var n in rowNames)
+            {
+                var t = dp.Find(n);
+                if (t == null) continue;
+                var rt = t as RectTransform;
+                if (rt == null) continue;
+                rt.anchorMin = new Vector2(0f, 1f);
+                rt.anchorMax = new Vector2(0f, 1f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, y);
+                rt.sizeDelta = new Vector2(rt.sizeDelta.x, CONTAINER_H);
+
+                // Keep any LayoutElement consistent so a future VLG re-enable doesn't bounce the layout.
+                var le = t.GetComponent<LayoutElement>();
+                if (le != null) { le.preferredHeight = CONTAINER_H; le.minHeight = CONTAINER_H; }
+
+                if (n == "ApplyButton") applyCenter = y;
+                y -= STEP;
+            }
+
+            // Toggle center = Apply bottom edge - gap - half toggle height.
+            if (_idleWanderToggleGO != null)
+            {
+                float applyBottom = applyCenter - CONTAINER_H * 0.5f;
+                float toggleCenter = applyBottom - APPLY_TO_TOGGLE_GAP - TOGGLE_H * 0.5f;
+
+                var rt = _idleWanderToggleGO.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0.20f, 1f);
+                rt.anchorMax = new Vector2(0.80f, 1f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = new Vector2(0f, toggleCenter);
+                rt.sizeDelta = new Vector2(0f, TOGGLE_H);
+            }
+
+            Debug.Log($"[NpcMainPanelController] CompactDetailPanelLayout applied (containerH={CONTAINER_H}, step={STEP}, applyCenter={applyCenter})");
+        }
+
+        #endregion
 
         private void CreateDressingRoomButton()
          {

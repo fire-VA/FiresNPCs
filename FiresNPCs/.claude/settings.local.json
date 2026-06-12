@@ -344,7 +344,27 @@
       "Bash(powershell -Command \"if \\(Get-Process Unity -ErrorAction SilentlyContinue\\) { exit 0 } else { exit 1 }\")",
       "Bash(powershell -Command \"if \\(Get-Process Unity -ErrorAction SilentlyContinue\\) { 'still RUNNING' } else { 'done/idle' }\")",
       "Bash(grep -oE '\\\\{\"type\":\"[A-Za-z]+\",\"unknown\":[a-z]+\\\\}' MineRock_Gold_BF/prefab.json)",
-      "Bash(grep -oE '\"mesh\":\"[^\"]*\"|\\\\{\"type\":\"ItemDrop\"[^}]*\\\\}|\\\\{\"type\":\"[A-Za-z]+\",\"unknown\":[a-z]+\\\\}' Item_GoldOre_BF/prefab.json)"
+      "Bash(grep -oE '\"mesh\":\"[^\"]*\"|\\\\{\"type\":\"ItemDrop\"[^}]*\\\\}|\\\\{\"type\":\"[A-Za-z]+\",\"unknown\":[a-z]+\\\\}' Item_GoldOre_BF/prefab.json)",
+      "Bash(echo \"=== MineRock serialized fields ===\")",
+      "Bash(grep -nE 'public \\(class MineRock|[A-Za-z<>\\\\[\\\\]. ]+ m_[A-Za-z]+\\)' 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\assembly_valheim/MineRock.cs')",
+      "Bash(grep -iA6 \"MineRockArea\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"litparticles-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\litparticles-build.log\" -MaxWaitSeconds 900)",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"litparticles-fogfix\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\litparticles-build.log\" -MaxWaitSeconds 900)",
+      "Bash(awk '/\\(class|struct\\) DropData/{f=1} f{print NR\": \"$0} f&&/}/{c++; if\\(c>=1 && /^ ?}/\\) exit}' 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\assembly_valheim/DropTable.cs')",
+      "Bash(grep -nA1 \"configFiresHeightmapEnabled =\\\\|configFiresHeightmapLavaTint =\\\\|configFiresHeightmapLavaBrightness =\" Managers/ConfigManager.cs)",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"mist-knobs-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\litparticles-build.log\" -MaxWaitSeconds 900)",
+      "Bash(powershell -ExecutionPolicy Bypass -File Run-HeadlessUnity.ps1 -Label \"mist-knobs2-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\litparticles-build.log\" -MaxWaitSeconds 900)",
+      "Bash(cd \"/c/Users/travi/OneDrive/Desktop/valheimRip2\" && ls Tools/ 2>/dev/null | head -50; echo \"===ROOT BUILD SCRIPTS===\"; ls *.ps1 *.bat 2>/dev/null; echo \"===MSBUILD===\"; ls \"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" \"/c/Program Files \\(x86\\)/Microsoft Visual Studio/2019/\"*/MSBuild/Current/Bin/MSBuild.exe 2>/dev/null; echo \"===DEPLOY HINT===\"; grep -rl \"FiresSteamyDumps.dll\" /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/ 2>/dev/null | head)",
+      "Bash(grep -nE 'spriteMode|textureType|spriteImportMode' __TRACKED_VAR__/Textures/Icons/Gold_Icon.png.meta)",
+      "Read(//c/Program Files/Unity/Hub/Editor//**)",
+      "Read(//c/Program Files/Unity/Hub/Editor/**)",
+      "Bash(echo \"=== files in the dump ===\")",
+      "Bash(ls C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/Yoink/ScanMe/Prefabs/biomeflora/MineRock_Gold_BF)",
+      "Bash(echo \"=== layers used \\(from _hierarchy.txt if present\\) ===\")",
+      "Bash(grep -ohiE layer=?-?[0-9]+ C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/Yoink/ScanMe/Prefabs/biomeflora/MineRock_Gold_BF/*.txt)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,StartTime | Format-Table -Auto; if \\(-not \\(Get-Process Unity -ErrorAction SilentlyContinue\\)\\) { 'NO UNITY RUNNING' }\")",
+      "Bash(sed -n '1,45p' \"/c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Run-HeadlessUnity.ps1\")",
+      "Bash(echo \"count: $\\(find \"/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles\" -ipath \"*FiresSteamyDumps*\" -iname \"prefab.json\")"
     ]
   }
 }
