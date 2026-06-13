@@ -365,6 +365,9 @@
     <EmbeddedResource Include="Resources\va_background5.png">
       <LogicalName>FiresRPGmaker.Resources.va_background5.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Envelope.png">
+      <LogicalName>FiresRPGmaker.Resources.Envelope.png</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="npcdialogueuitest1.uitables.json">
       <LogicalName>FiresRPGmaker.BundledLayouts.npcdialogueuitest1.uitables.json</LogicalName>
     </EmbeddedResource>

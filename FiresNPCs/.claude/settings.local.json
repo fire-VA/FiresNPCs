@@ -374,7 +374,9 @@
       "Bash(wc -l /c/Users/travi/Downloads/screenlog-1781305796.log)",
       "Bash(echo \"=== last 60 lines ===\")",
       "Bash(tail -60 /c/Users/travi/Downloads/screenlog-1781305796.log)",
-      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\\\\projects\\\\\" | Select-Object Name)"
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\\\\projects\\\\\" | Select-Object Name)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" FiresUnifiedCore.sln /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:m)",
+      "PowerShell($msbuild = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msbuild \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\\\\FiresUnifiedCore.sln\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:m 2>&1 | Select-Object -Last 40)"
     ]
   }
 }

@@ -154,13 +154,15 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                                           new Vector2(0.30f, 0.74f), new Vector2(0.95f, 0.82f),
                                           singleLine: true);
 
-            // Message (multiline)
+            // Message (multiline) — input top clamped to 0.64 so it stays BELOW the label's bottom
+            // (0.66). The previous 0.72 made the input field occupy the same band as the "Message:"
+            // label, which got eaten by the dark input box.
             MakeLabel(_sendView.transform, "Message:",
                       new Vector2(0.05f, 0.66f), new Vector2(0.30f, 0.72f),
                       Vector2.zero, Vector2.zero,
                       size: 14f, color: new Color(1f, 0.85f, 0.55f));
             _sendMessage = BuildSendInput(_sendView.transform, "SendMessage",
-                                          new Vector2(0.05f, 0.18f), new Vector2(0.95f, 0.72f),
+                                          new Vector2(0.05f, 0.18f), new Vector2(0.95f, 0.64f),
                                           singleLine: false);
 
             // Send button
@@ -231,6 +233,70 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             img.color = active ? new Color(0.32f, 0.22f, 0.14f, 0.95f) : new Color(0.18f, 0.14f, 0.08f, 0.95f);
         }
 
+        // Envelope-stack constants — each mail is rendered as a full Envelope.png. Later siblings render
+        // on top, covering all but the top STRIP of the prior envelope, so the inbox looks like a fanned
+        // pile of letters. The LAST envelope is uncovered, so its full artwork (wax seal + stamps) shows.
+        private const float ENV_WIDTH  = 180f;
+        private const float ENV_HEIGHT = 200f;
+        private const float ENV_STRIP  = 40f;   // Y-step between successive envelopes = visible label band
+
+        private static Sprite _envelopeSprite;
+
+        /// <summary>Loads <c>Envelope.png</c> once and caches the Sprite. Same embedded-resource + reflection
+        /// path the trader book uses (UnityEngine.ImageConversion targets netstandard 2.1, our project is 2.0).
+        /// Returns null on missing/corrupt PNG — call-site falls back to a flat-color envelope rect.</summary>
+        private static Sprite LoadEnvelopeSprite()
+        {
+            if (_envelopeSprite != null) return _envelopeSprite;
+            try
+            {
+                byte[] data = null;
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                try
+                {
+                    using (var stream = asm.GetManifestResourceStream("FiresRPGmaker.Resources.Envelope.png"))
+                    {
+                        if (stream != null)
+                        {
+                            data = new byte[stream.Length];
+                            int off = 0, read;
+                            while ((read = stream.Read(data, off, data.Length - off)) > 0) off += read;
+                        }
+                    }
+                }
+                catch { /* fall through to disk fallback */ }
+
+                if (data == null)
+                {
+                    string asmPath = asm.Location;
+                    string pluginDir = System.IO.Path.GetDirectoryName(asmPath);
+                    string pngPath = System.IO.Path.Combine(pluginDir, "Envelope.png");
+                    if (!System.IO.File.Exists(pngPath))
+                    {
+                        Debug.LogWarning("[MailPlayerPanel] Envelope.png not embedded AND missing on disk at " + pngPath);
+                        return null;
+                    }
+                    data = System.IO.File.ReadAllBytes(pngPath);
+                }
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                bool loaded = false;
+                var imgConv = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                if (imgConv != null)
+                {
+                    var mi = imgConv.GetMethod("LoadImage", new[] { typeof(Texture2D), typeof(byte[]) });
+                    if (mi != null) loaded = (bool)mi.Invoke(null, new object[] { tex, data });
+                }
+                if (!loaded)
+                {
+                    Debug.LogWarning("[MailPlayerPanel] Envelope.png decode failed");
+                    return null;
+                }
+                _envelopeSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            }
+            catch (System.Exception ex) { Debug.LogError("[MailPlayerPanel] LoadEnvelopeSprite: " + ex.Message); }
+            return _envelopeSprite;
+        }
+
         private void RefreshInbox()
         {
             for (int i = _inboxContent.childCount - 1; i >= 0; i--)
@@ -241,40 +307,76 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             {
                 _detailSubject.text = "Inbox is empty.";
                 _detailFrom.text = ""; _detailDate.text = "";
-                _detailBody.text = "Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Mail\\ to seed sample messages.";
+                _detailBody.text = "Drop a .cfg into BepInEx\\config\\firesnpcs\\mail\\ to seed sample messages.";
                 ClearAttachments();
                 _statusText.text = "";
+                _inboxContent.sizeDelta = new Vector2(_inboxContent.sizeDelta.x, 0f);
                 return;
             }
-            foreach (var msg in inbox) BuildInboxRow(msg);
-            ReflowScroll(_inboxContent);
+
+            // Build envelopes in inbox order — Unity renders later siblings on TOP, which is exactly the
+            // fanned-stack we want (envelope[i+1] covers envelope[i]'s body, leaving only envelope[i]'s
+            // top strip visible). The last envelope has nothing above it, so it shows full size.
+            int n = inbox.Count;
+            for (int i = 0; i < n; i++) BuildEnvelopeInStack(inbox[i], i);
+
+            // Scroll content height = (N-1) strips + one full envelope at the bottom + a little breathing room.
+            float stackHeight = (n - 1) * ENV_STRIP + ENV_HEIGHT + 12f;
+            _inboxContent.sizeDelta = new Vector2(_inboxContent.sizeDelta.x, stackHeight);
+
             if (_selected == null) SelectMessage(inbox[0]);
             else SelectMessage(_selected);
         }
 
-        private void BuildInboxRow(MailEntry msg)
+        private void BuildEnvelopeInStack(MailEntry msg, int index)
         {
-            var rowGo = new GameObject("Mail_" + msg.Id, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            rowGo.transform.SetParent(_inboxContent, false);
-            rowGo.GetComponent<Image>().color = msg == _selected
-                ? new Color(0.32f, 0.22f, 0.10f, 0.95f)
-                : new Color(0.12f, 0.10f, 0.06f, 0.85f);
-            SetRowHeight(rowGo, 48f);
-            rowGo.GetComponent<Button>().onClick.AddListener(() => { SelectMessage(msg); Refresh(); });
+            var go = new GameObject("Mail_" + msg.Id, typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(_inboxContent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 1f); rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -(index * ENV_STRIP));
+            rt.sizeDelta = new Vector2(ENV_WIDTH, ENV_HEIGHT);
 
-            MakeLabel(rowGo.transform, msg.Subject,
-                      new Vector2(0.02f, 0.50f), new Vector2(0.98f, 1f),
+            var img = go.GetComponent<Image>();
+            var sprite = LoadEnvelopeSprite();
+            if (sprite != null)
+            {
+                img.sprite = sprite;
+                img.preserveAspect = false;
+                // Selected envelope = warmer cream; others render at the PNG's native tones.
+                img.color = (msg == _selected) ? new Color(1f, 0.92f, 0.78f) : Color.white;
+            }
+            else
+            {
+                img.color = (msg == _selected)
+                    ? new Color(0.40f, 0.30f, 0.18f, 0.95f)
+                    : new Color(0.20f, 0.15f, 0.08f, 0.90f);
+            }
+            img.raycastTarget = true;
+
+            var btn = go.GetComponent<Button>();
+            btn.targetGraphic = img;
+            btn.onClick.AddListener(() => { SelectMessage(msg); Refresh(); });
+
+            // Label band — the top ENV_STRIP px of the envelope (only portion visible when overlapped).
+            // Strip occupies normalised Y [stripBotFrac, 1.0] of the envelope rect.
+            float stripBotFrac = 1f - (ENV_STRIP / ENV_HEIGHT);
+            float stripMidFrac = stripBotFrac + (1f - stripBotFrac) * 0.55f;
+
+            MakeLabel(go.transform, msg.Subject,
+                      new Vector2(0.06f, stripMidFrac), new Vector2(0.94f, 0.98f),
                       Vector2.zero, Vector2.zero,
-                      size: 13f, color: new Color(0.96f, 0.91f, 0.76f));
-            MakeLabel(rowGo.transform, "From: " + msg.SenderName,
-                      new Vector2(0.02f, 0f), new Vector2(0.65f, 0.50f),
+                      size: 12f, color: new Color(0.15f, 0.10f, 0.04f));
+            MakeLabel(go.transform, msg.SenderName,
+                      new Vector2(0.06f, stripBotFrac + 0.02f), new Vector2(0.60f, stripMidFrac),
                       Vector2.zero, Vector2.zero,
-                      size: 11f, color: new Color(0.85f, 0.78f, 0.62f));
-            MakeLabel(rowGo.transform, msg.DateString,
-                      new Vector2(0.65f, 0f), new Vector2(0.98f, 0.50f),
+                      size: 10f, color: new Color(0.32f, 0.20f, 0.10f));
+            MakeLabel(go.transform, msg.DateString,
+                      new Vector2(0.60f, stripBotFrac + 0.02f), new Vector2(0.94f, stripMidFrac),
                       Vector2.zero, Vector2.zero,
-                      size: 11f, align: TextAlignmentOptions.MidlineRight,
-                      color: new Color(0.85f, 0.78f, 0.62f));
+                      size: 10f, align: TextAlignmentOptions.MidlineRight,
+                      color: new Color(0.32f, 0.20f, 0.10f));
         }
 
         private void SelectMessage(MailEntry msg)
