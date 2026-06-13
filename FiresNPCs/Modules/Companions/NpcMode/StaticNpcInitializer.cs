@@ -203,7 +203,15 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 companion.isTamed = true;
                 var npcController = GetComponent<NpcController>();
                 if (npcController != null && !string.IsNullOrEmpty(npcController.displayNameOverride))
+                {
                     companion.companionName = npcController.displayNameOverride;
+                    // Push the display name onto Character.m_name / Humanoid.m_name so the
+                    // EnemyHud floating label reads "Gunnar" instead of the bundle prefab
+                    // name "StaticNpc". Without this, only the hover prompt (which reads
+                    // GetHoverName → displayNameOverride) shows the right name; the floating
+                    // label above the NPC stays as whatever the prefab was baked with.
+                    companion.UpdateCharacterName(npcController.displayNameOverride);
+                }
             }
 
             // --- CompanionAI: put into stay mode at current position ---

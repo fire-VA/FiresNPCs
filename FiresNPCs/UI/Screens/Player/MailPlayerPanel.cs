@@ -46,9 +46,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private Button _sendButton;
         private TMP_Text _sendStatusText;
 
-        // Fan-stack tuning — must match the EnvelopeTemplate height in FiresMailBuilder. 200×0.20 = 40.
-        private const float ENV_HEIGHT = 200f;
-        private const float ENV_STRIP  = 40f;
+        // Fan-stack tuning — must match the EnvelopeTemplate height in the prefab. 200×0.20 = 40.
+        // The LAST envelope renders 25% taller (ENV_LAST_HEIGHT) so its proportions read as a real
+        // envelope sitting on the table, not a flat square.
+        private const float ENV_HEIGHT      = 200f;
+        private const float ENV_LAST_HEIGHT = 250f;
+        private const float ENV_STRIP       = 40f;
 
         public static void Show(string profileName, string npcDisplayName)
         {
@@ -152,9 +155,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _inboxView      = Find(root, "Background/ContentArea/InboxView");
             _sendView       = Find(root, "Background/ContentArea/SendView");
 
-            _envelopeStack    = Find(root, "Background/ContentArea/InboxView/EnvelopeStack")?.GetComponent<RectTransform>();
-            _envelopeTemplate = Find(root, "Background/ContentArea/InboxView/EnvelopeStack/EnvelopeTemplate");
+            // EnvelopeStack is parented to Background (sits BESIDE the parchment, not inside it).
+            _envelopeStack    = Find(root, "Background/EnvelopeStack")?.GetComponent<RectTransform>();
+            _envelopeTemplate = Find(root, "Background/EnvelopeStack/EnvelopeTemplate");
             if (_envelopeTemplate != null) _envelopeTemplate.SetActive(false);
+
+            // Subtitle (NPC name + profile) is irrelevant for Mail and was overlapping "Attachments".
+            if (_subtitleText != null) _subtitleText.gameObject.SetActive(false);
 
             _detailSubject     = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailSubject");
             _detailFrom        = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailFrom");
@@ -235,13 +242,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             // which is exactly the fan we want (envelope[i+1] covers envelope[i]'s body below its
             // top strip; the last envelope has nothing above it so it shows full size).
             int n = inbox.Count;
-            for (int i = 0; i < n; i++) BuildEnvelopeClone(inbox[i], i);
+            for (int i = 0; i < n; i++) BuildEnvelopeClone(inbox[i], i, isLast: i == n - 1);
 
             if (_selected == null) SelectMessage(inbox[0]);
             else                   SelectMessage(_selected);
         }
 
-        private void BuildEnvelopeClone(MailEntry msg, int index)
+        private void BuildEnvelopeClone(MailEntry msg, int index, bool isLast)
         {
             var clone = Object.Instantiate(_envelopeTemplate, _envelopeStack);
             clone.name = "Mail_" + msg.Id;
@@ -249,12 +256,14 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _envelopeClones.Add(clone);
 
             // Re-anchor cloned envelope to the top of EnvelopeStack and step down by ENV_STRIP per index.
+            // Last envelope renders 25% taller so its proportions read like a real envelope at rest.
             var rt = (RectTransform)clone.transform;
             rt.anchorMin = new Vector2(0.5f, 1f);
             rt.anchorMax = new Vector2(0.5f, 1f);
             rt.pivot     = new Vector2(0.5f, 1f);
             rt.anchoredPosition = new Vector2(0f, -(index * ENV_STRIP));
-            rt.sizeDelta = new Vector2(rt.sizeDelta.x > 0 ? rt.sizeDelta.x : 180f, ENV_HEIGHT);
+            float w = rt.sizeDelta.x > 0 ? rt.sizeDelta.x : 180f;
+            rt.sizeDelta = new Vector2(w, isLast ? ENV_LAST_HEIGHT : ENV_HEIGHT);
 
             // Selected envelope tints slightly warmer — others render at the sprite's native tones.
             var img = clone.GetComponent<Image>();

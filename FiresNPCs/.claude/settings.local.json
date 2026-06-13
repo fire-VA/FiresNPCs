@@ -384,7 +384,13 @@
       "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-prefab-patch\" -ExecuteMethod \"FiresMailPrefabPatcher.Patch\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-prefab-patch.log\")",
       "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-bundle-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-bundle-build.log\")",
       "Bash(cp -fv '/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/AssetBundles/firesnpcsui' '/c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/firesnpcsui')",
-      "Bash(rm -rf obj/Debug)"
+      "Bash(rm -rf obj/Debug)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-patch-v2\" -ExecuteMethod \"FiresMailPrefabPatcher.Patch\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-patch-v2.log\")",
+      "Bash(tasklist /FI \"IMAGENAME eq Unity.exe\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-patch-v3\" -ExecuteMethod \"FiresMailPrefabPatcher.Patch\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-patch-v3.log\")",
+      "Bash(cat C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs\\\\\\\\2d0752ea-4fd2-4e85-9342-57e97d4529be\\\\\\\\tasks\\\\\\\\bvucyhy32.output)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build-mail\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build-mail.log\")",
+      "Bash(powershell -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64 | Format-List\")"
     ]
   }
 }
