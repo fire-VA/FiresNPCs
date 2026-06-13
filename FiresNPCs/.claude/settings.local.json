@@ -393,7 +393,11 @@
       "Bash(powershell -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64 | Format-List\")",
       "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build-mail-v2\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build-mail-v2.log\")",
       "Bash(rm -f obj/Debug/FiresRPGmaker.csproj.CoreCompileInputs.cache)",
-      "Bash(awk '{print $9, \"  \\(\" $5 \" bytes\\)\"}')"
+      "Bash(awk '{print $9, \"  \\(\" $5 \" bytes\\)\"}')",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-patch-norescale\" -ExecuteMethod \"FiresMailPrefabPatcher.Patch\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-patch-norescale.log\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build-mail-v3\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build-mail-v3.log\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"ui-bake-all\" -ExecuteMethod \"UIPrefabBaker.BakeAll\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\ui-bake-all.log\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build-final\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build-final.log\")"
     ]
   }
 }
