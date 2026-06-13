@@ -376,7 +376,15 @@
       "Bash(tail -60 /c/Users/travi/Downloads/screenlog-1781305796.log)",
       "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\\\\projects\\\\\" | Select-Object Name)",
       "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" FiresUnifiedCore.sln /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:m)",
-      "PowerShell($msbuild = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msbuild \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\\\\FiresUnifiedCore.sln\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:m 2>&1 | Select-Object -Last 40)"
+      "PowerShell($msbuild = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msbuild \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\\\\FiresUnifiedCore.sln\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:m 2>&1 | Select-Object -Last 40)",
+      "Bash(xargs -I {} basename {} .prefab)",
+      "Bash(cmd \"/c findstr /m /c:\\\\\"FiresMailPanel\\\\\" \\\\\"C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\valheimRip2\\\\\\\\FiresNPCs\\\\\\\\FiresNPCs\\\\\\\\firesnpcsui\\\\\"\")",
+      "Bash(cd '/c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs' && ls firesnpcsui*)",
+      "PowerShell($src = \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\bin\\\\Release\\\\FiresRPGmaker.dll\"; $dst = \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\FiresRPGmaker\\\\FiresRPGmaker.dll\"; Copy-Item $src $dst -Force; $pdb = $src -replace '\\\\.dll$','.pdb'; if \\(Test-Path $pdb\\) { Copy-Item $pdb \\($dst -replace '\\\\.dll$','.pdb'\\) -Force }; Get-Item $dst | Format-List Name,LastWriteTime,Length)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-prefab-patch\" -ExecuteMethod \"FiresMailPrefabPatcher.Patch\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-prefab-patch.log\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-bundle-build\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-bundle-build.log\")",
+      "Bash(cp -fv '/c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/AssetBundles/firesnpcsui' '/c/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/firesnpcsui')",
+      "Bash(rm -rf obj/Debug)"
     ]
   }
 }

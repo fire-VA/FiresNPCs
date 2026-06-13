@@ -7,38 +7,48 @@ using UnityEngine.UI;
 namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
     /// <summary>
-    /// Player-facing Mail (CMS) — port of KG's CentralizedMailSystem_UI flow:
-    ///   • Tabs at top: Inbox / Send
-    ///   • Inbox: scrollable list (left) + selected mail preview (right) with attachments + Claim All
-    ///   • Send: form with To / Subject / Message + Send button. v1 stages the mail locally
-    ///     (writes to the player's "drafts" pool — wiring cross-player RPC follows the LiteDB MailRepository
-    ///     port, same shape as KG's RPC payload).
+    /// Player-facing Mail panel. Loads <c>FiresMailPanel.prefab</c> from the <c>firesnpcsui</c>
+    /// bundle (baked from Unity via <c>Valheim → Build Fires Mail prefab</c> + <c>Valheim → Build
+    /// AssetBundles</c>) and binds runtime behaviour to the named children documented in
+    /// FiresMailBuilder.cs.
+    ///
+    /// Inbox rendering: for each mail, clone <c>ContentArea/InboxView/EnvelopeStack/EnvelopeTemplate</c>
+    /// (a UI Image carrying Envelope.png) and position it at <c>y = -index × strip</c>. Later siblings
+    /// render on top so each prior envelope shows only its top label strip; the last envelope
+    /// renders in full so the wax seal + stamps anchor the bottom of the stack.
     /// </summary>
-    public class MailPlayerPanel : BasePlayerModulePanel
+    public class MailPlayerPanel : MonoBehaviour
     {
         private static MailPlayerPanel _instance;
-        protected override string PanelTitle => "Mail";
-        protected override Vector2 PanelSize => new Vector2(960f, 600f);
+        private static int _openCount;
+        public static bool AnyOpen => _openCount > 0;
+        private bool _opened;
 
-        private enum Tab { Inbox, Send }
-        private Tab _tab = Tab.Inbox;
+        private GameObject _canvasGo;
+        private GameObject _panelGo;
 
         private string _profileName;
         private MailEntry _selected;
+        private enum Tab { Inbox, Send }
+        private Tab _tab = Tab.Inbox;
 
-        // Inbox tab widgets
-        private GameObject _inboxView;
-        private RectTransform _inboxContent;
-        private TMP_Text _detailFrom, _detailSubject, _detailDate, _detailBody;
-        private RectTransform _attachmentList;
-        private TMP_Text _statusText;
-
-        // Send tab widgets
-        private GameObject _sendView;
+        // Bound prefab nodes.
+        private TMP_Text _titleText, _subtitleText;
+        private Button _closeButton;
+        private Button _tabInboxBtn, _tabSendBtn;
+        private GameObject _inboxView, _sendView;
+        private RectTransform _envelopeStack;
+        private GameObject _envelopeTemplate;
+        private TMP_Text _detailSubject, _detailFrom, _detailDate, _detailBody, _statusText;
+        private RectTransform _attachmentsContent;
+        private Button _claimAllButton;
         private TMP_InputField _sendTo, _sendSubject, _sendMessage;
+        private Button _sendButton;
         private TMP_Text _sendStatusText;
 
-        private Button _tabInboxBtn, _tabSendBtn;
+        // Fan-stack tuning — must match the EnvelopeTemplate height in FiresMailBuilder. 200×0.20 = 40.
+        private const float ENV_HEIGHT = 200f;
+        private const float ENV_STRIP  = 40f;
 
         public static void Show(string profileName, string npcDisplayName)
         {
@@ -51,179 +61,136 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _instance.Open(profileName, npcDisplayName);
         }
 
-        protected override void BuildContent(RectTransform contentArea)
+        private void Open(string profileName, string npcDisplayName)
         {
-            // Top tab strip
-            _tabInboxBtn = MakeButton(contentArea, "Inbox",
-                                      new Vector2(0f, 0.93f), new Vector2(0.18f, 1f),
-                                      new Vector2(8f, 0f), new Vector2(-4f, 0f),
-                                      bgColor: new Color(0.32f, 0.22f, 0.14f, 0.95f), fontSize: 14f);
-            _tabInboxBtn.onClick.AddListener(() => { _tab = Tab.Inbox; Refresh(); });
-            _tabSendBtn = MakeButton(contentArea, "Send",
-                                     new Vector2(0.18f, 0.93f), new Vector2(0.36f, 1f),
-                                     new Vector2(4f, 0f), new Vector2(-4f, 0f),
-                                     bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 14f);
-            _tabSendBtn.onClick.AddListener(() => { _tab = Tab.Send; Refresh(); });
-
-            BuildInboxView(contentArea);
-            BuildSendView(contentArea);
-        }
-
-        private void BuildInboxView(RectTransform contentArea)
-        {
-            _inboxView = new GameObject("InboxView", typeof(RectTransform));
-            _inboxView.transform.SetParent(contentArea, false);
-            var ivrt = _inboxView.GetComponent<RectTransform>();
-            ivrt.anchorMin = new Vector2(0f, 0f); ivrt.anchorMax = new Vector2(1f, 0.92f);
-            ivrt.offsetMin = Vector2.zero; ivrt.offsetMax = Vector2.zero;
-
-            MakeLabel(_inboxView.transform, "Inbox",
-                      new Vector2(0f, 0.93f), new Vector2(0.36f, 1f),
-                      new Vector2(8f, 0f), Vector2.zero,
-                      size: 14f, color: new Color(1f, 0.85f, 0.55f));
-            _inboxContent = MakeVerticalScroll(_inboxView.transform,
-                                               new Vector2(0f, 0.05f), new Vector2(0.36f, 0.92f),
-                                               Vector2.zero, Vector2.zero,
-                                               rowSpacing: 3f, scrollSensitivity: 100f);
-
-            MakePanel(_inboxView.transform, "DetailPane", new Color(0.10f, 0.08f, 0.05f, 0.85f),
-                      new Vector2(0.38f, 0.05f), new Vector2(1f, 0.92f), Vector2.zero, Vector2.zero);
-
-            _detailSubject = MakeLabel(_inboxView.transform, "Select a message",
-                                       new Vector2(0.40f, 0.84f), new Vector2(1f, 0.92f),
-                                       Vector2.zero, new Vector2(-8f, 0f),
-                                       size: 18f, color: new Color(1f, 0.85f, 0.55f));
-            _detailFrom = MakeLabel(_inboxView.transform, "",
-                                    new Vector2(0.40f, 0.77f), new Vector2(0.78f, 0.84f),
-                                    Vector2.zero, Vector2.zero, size: 13f);
-            _detailDate = MakeLabel(_inboxView.transform, "",
-                                    new Vector2(0.78f, 0.77f), new Vector2(1f, 0.84f),
-                                    Vector2.zero, new Vector2(-8f, 0f),
-                                    size: 13f, align: TextAlignmentOptions.MidlineRight,
-                                    color: new Color(0.85f, 0.78f, 0.62f));
-
-            _detailBody = MakeLabel(_inboxView.transform, "",
-                                    new Vector2(0.40f, 0.33f), new Vector2(1f, 0.76f),
-                                    Vector2.zero, new Vector2(-8f, 0f),
-                                    size: 13f, align: TextAlignmentOptions.TopLeft);
-
-            MakeLabel(_inboxView.transform, "Attachments",
-                      new Vector2(0.40f, 0.26f), new Vector2(1f, 0.33f),
-                      Vector2.zero, Vector2.zero,
-                      size: 13f, color: new Color(1f, 0.85f, 0.55f));
-            _attachmentList = MakeVerticalScroll(_inboxView.transform,
-                                                 new Vector2(0.40f, 0.09f), new Vector2(0.85f, 0.26f),
-                                                 Vector2.zero, Vector2.zero,
-                                                 rowSpacing: 2f, scrollSensitivity: 80f);
-
-            var claim = MakeButton(_inboxView.transform, "Claim All",
-                                   new Vector2(0.86f, 0.09f), new Vector2(1f, 0.26f),
-                                   Vector2.zero, new Vector2(-8f, 0f),
-                                   bgColor: new Color(0.22f, 0.42f, 0.22f, 0.95f), fontSize: 14f);
-            claim.onClick.AddListener(OnClaimClicked);
-
-            _statusText = MakeLabel(_inboxView.transform, "",
-                                    new Vector2(0.40f, 0f), new Vector2(1f, 0.08f),
-                                    Vector2.zero, new Vector2(-8f, 0f),
-                                    size: 12f, color: new Color(0.85f, 0.78f, 0.62f));
-        }
-
-        private void BuildSendView(RectTransform contentArea)
-        {
-            _sendView = new GameObject("SendView", typeof(RectTransform));
-            _sendView.transform.SetParent(contentArea, false);
-            var svrt = _sendView.GetComponent<RectTransform>();
-            svrt.anchorMin = new Vector2(0f, 0f); svrt.anchorMax = new Vector2(1f, 0.92f);
-            svrt.offsetMin = Vector2.zero; svrt.offsetMax = Vector2.zero;
-
-            // To
-            MakeLabel(_sendView.transform, "To (player name):",
-                      new Vector2(0.05f, 0.84f), new Vector2(0.30f, 0.92f),
-                      Vector2.zero, Vector2.zero,
-                      size: 14f, color: new Color(1f, 0.85f, 0.55f));
-            _sendTo = BuildSendInput(_sendView.transform, "SendTo",
-                                     new Vector2(0.30f, 0.84f), new Vector2(0.95f, 0.92f),
-                                     singleLine: true);
-
-            // Subject
-            MakeLabel(_sendView.transform, "Subject:",
-                      new Vector2(0.05f, 0.74f), new Vector2(0.30f, 0.82f),
-                      Vector2.zero, Vector2.zero,
-                      size: 14f, color: new Color(1f, 0.85f, 0.55f));
-            _sendSubject = BuildSendInput(_sendView.transform, "SendSubject",
-                                          new Vector2(0.30f, 0.74f), new Vector2(0.95f, 0.82f),
-                                          singleLine: true);
-
-            // Message (multiline) — input top clamped to 0.64 so it stays BELOW the label's bottom
-            // (0.66). The previous 0.72 made the input field occupy the same band as the "Message:"
-            // label, which got eaten by the dark input box.
-            MakeLabel(_sendView.transform, "Message:",
-                      new Vector2(0.05f, 0.66f), new Vector2(0.30f, 0.72f),
-                      Vector2.zero, Vector2.zero,
-                      size: 14f, color: new Color(1f, 0.85f, 0.55f));
-            _sendMessage = BuildSendInput(_sendView.transform, "SendMessage",
-                                          new Vector2(0.05f, 0.18f), new Vector2(0.95f, 0.64f),
-                                          singleLine: false);
-
-            // Send button
-            var sendBtn = MakeButton(_sendView.transform, "Send",
-                                     new Vector2(0.36f, 0.06f), new Vector2(0.64f, 0.16f),
-                                     Vector2.zero, Vector2.zero,
-                                     bgColor: new Color(0.22f, 0.42f, 0.22f, 0.95f), fontSize: 16f);
-            sendBtn.onClick.AddListener(OnSendClicked);
-
-            _sendStatusText = MakeLabel(_sendView.transform, "",
-                                        new Vector2(0.05f, 0f), new Vector2(0.95f, 0.06f),
-                                        Vector2.zero, Vector2.zero,
-                                        size: 12f, align: TextAlignmentOptions.Center,
-                                        color: new Color(0.85f, 0.78f, 0.62f));
-        }
-
-        private TMP_InputField BuildSendInput(Transform parent, string name,
-                                              Vector2 anchorMin, Vector2 anchorMax, bool singleLine)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
-            rt.offsetMin = new Vector2(4f, 4f); rt.offsetMax = new Vector2(-4f, -4f);
-            go.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.92f);
-
-            var input = go.AddComponent<TMP_InputField>();
-            var viewport = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
-            viewport.transform.SetParent(rt, false);
-            var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.offsetMin = new Vector2(8f, 4f); vrt.offsetMax = new Vector2(-8f, -4f);
-
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(vrt, false);
-            var trt = textGo.GetComponent<RectTransform>();
-            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
-            var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.fontSize = 14f; txt.color = new Color(0.96f, 0.91f, 0.76f);
-            txt.alignment = singleLine ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.TopLeft;
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(txt);
-
-            input.textViewport = vrt; input.textComponent = txt;
-            input.lineType = singleLine ? TMP_InputField.LineType.SingleLine : TMP_InputField.LineType.MultiLineNewline;
-            return input;
-        }
-
-        protected override void OnOpen(string profileName, string npcDisplayName)
-        {
+            if (!EnsureBuilt()) return;
             _profileName = profileName;
             _selected = null;
             _tab = Tab.Inbox;
+            if (_subtitleText != null)
+                _subtitleText.text = npcDisplayName + "  -  Profile: " + (string.IsNullOrEmpty(profileName) ? "<none>" : profileName);
+            _panelGo.SetActive(true);
             Refresh();
+            if (!_opened) { _opened = true; _openCount++; }
+            try { GUIManager.BlockInput(true); } catch { }
+            try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
         }
+
+        private void Close()
+        {
+            if (_panelGo != null) _panelGo.SetActive(false);
+            if (_opened) { _opened = false; _openCount = Mathf.Max(0, _openCount - 1); }
+            if (_openCount == 0) { try { GUIManager.BlockInput(false); } catch { } }
+        }
+
+        public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
+
+        private void Update()
+        {
+            if (!IsOpen) return;
+            if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+            if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
+            {
+                Cursor.visible = true;
+                Cursor.lockState = CursorLockMode.None;
+            }
+        }
+
+        /// <summary>Builds the canvas and instantiates the FiresMailPanel prefab from the
+        /// <c>firesnpcsui</c> bundle, then binds every runtime widget to its named child.
+        /// Returns false if the bundle is missing or the prefab isn't packed into it — caller
+        /// gates Open() on the result so the panel never half-builds.</summary>
+        private bool EnsureBuilt()
+        {
+            if (_panelGo != null) return true;
+
+            var bundle = FiresRPGmaker.uiBundle;
+            if (bundle == null) { Debug.LogError("[MailPlayerPanel] uiBundle is null — can't load FiresMailPanel.prefab"); return false; }
+
+            GameObject prefab = null;
+            foreach (var an in bundle.GetAllAssetNames())
+            {
+                if (an.EndsWith("/firesmailpanel.prefab", System.StringComparison.OrdinalIgnoreCase))
+                { prefab = bundle.LoadAsset<GameObject>(an); break; }
+            }
+            if (prefab == null)
+            {
+                Debug.LogError("[MailPlayerPanel] FiresMailPanel.prefab not in firesnpcsui bundle — rebuild the bundle from Unity (Valheim/Build AssetBundles).");
+                return false;
+            }
+
+            _canvasGo = new GameObject("MailCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            _canvasGo.transform.SetParent(transform, false);
+            var canvas = _canvasGo.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 220;
+            var scaler = _canvasGo.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            _panelGo = Object.Instantiate(prefab, _canvasGo.transform);
+            _panelGo.name = "FiresMailPanel";
+            _panelGo.SetActive(false);
+
+            BindAll();
+            WireListeners();
+            return true;
+        }
+
+        // ── prefab binding ────────────────────────────────────────────────────
+
+        private void BindAll()
+        {
+            var root = _panelGo.transform;
+            _titleText      = FindTmp(root, "Background/TitleBar/TitleText");
+            _subtitleText   = FindTmp(root, "Background/TitleBar/SubtitleText");
+            _closeButton    = FindBtn(root, "Background/TitleBar/CloseButton");
+            _tabInboxBtn    = FindBtn(root, "Background/TabInbox");
+            _tabSendBtn     = FindBtn(root, "Background/TabSend");
+
+            _inboxView      = Find(root, "Background/ContentArea/InboxView");
+            _sendView       = Find(root, "Background/ContentArea/SendView");
+
+            _envelopeStack    = Find(root, "Background/ContentArea/InboxView/EnvelopeStack")?.GetComponent<RectTransform>();
+            _envelopeTemplate = Find(root, "Background/ContentArea/InboxView/EnvelopeStack/EnvelopeTemplate");
+            if (_envelopeTemplate != null) _envelopeTemplate.SetActive(false);
+
+            _detailSubject     = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailSubject");
+            _detailFrom        = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailFrom");
+            _detailDate        = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailDate");
+            _detailBody        = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailBody");
+            _statusText        = FindTmp(root, "Background/ContentArea/InboxView/StatusText");
+            _claimAllButton    = FindBtn(root, "Background/ContentArea/InboxView/DetailPane/ClaimAllButton");
+            _attachmentsContent = Find(root, "Background/ContentArea/InboxView/DetailPane/AttachmentsScroll/Viewport/Content")?.GetComponent<RectTransform>();
+
+            _sendTo            = FindInput(root, "Background/ContentArea/SendView/SendTo");
+            _sendSubject       = FindInput(root, "Background/ContentArea/SendView/SendSubject");
+            _sendMessage       = FindInput(root, "Background/ContentArea/SendView/SendMessage");
+            _sendButton        = FindBtn(root, "Background/ContentArea/SendView/SendButton");
+            _sendStatusText    = FindTmp(root, "Background/ContentArea/SendView/SendStatusText");
+
+            if (_envelopeTemplate == null) Debug.LogWarning("[MailPlayerPanel] EnvelopeTemplate not found — rebake the prefab from Unity (Valheim/Build Fires Mail prefab).");
+            if (_titleText != null) _titleText.text = "Mail";
+        }
+
+        private void WireListeners()
+        {
+            if (_closeButton    != null) { _closeButton.onClick.RemoveAllListeners();    _closeButton.onClick.AddListener(Close); }
+            if (_tabInboxBtn    != null) { _tabInboxBtn.onClick.RemoveAllListeners();    _tabInboxBtn.onClick.AddListener(() => { _tab = Tab.Inbox; Refresh(); }); }
+            if (_tabSendBtn     != null) { _tabSendBtn.onClick.RemoveAllListeners();     _tabSendBtn.onClick.AddListener(() => { _tab = Tab.Send; Refresh(); }); }
+            if (_claimAllButton != null) { _claimAllButton.onClick.RemoveAllListeners(); _claimAllButton.onClick.AddListener(OnClaimClicked); }
+            if (_sendButton     != null) { _sendButton.onClick.RemoveAllListeners();     _sendButton.onClick.AddListener(OnSendClicked); }
+        }
+
+        // ── tab refresh ───────────────────────────────────────────────────────
 
         private void Refresh()
         {
             HighlightTab(_tabInboxBtn, _tab == Tab.Inbox);
-            HighlightTab(_tabSendBtn, _tab == Tab.Send);
-            _inboxView.SetActive(_tab == Tab.Inbox);
-            _sendView.SetActive(_tab == Tab.Send);
+            HighlightTab(_tabSendBtn,  _tab == Tab.Send);
+            if (_inboxView != null) _inboxView.SetActive(_tab == Tab.Inbox);
+            if (_sendView  != null) _sendView.SetActive(_tab == Tab.Send);
             if (_tab == Tab.Inbox) RefreshInbox();
         }
 
@@ -233,187 +200,131 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             img.color = active ? new Color(0.32f, 0.22f, 0.14f, 0.95f) : new Color(0.18f, 0.14f, 0.08f, 0.95f);
         }
 
-        // Envelope-stack constants — each mail is rendered as a full Envelope.png. Later siblings render
-        // on top, covering all but the top STRIP of the prior envelope, so the inbox looks like a fanned
-        // pile of letters. The LAST envelope is uncovered, so its full artwork (wax seal + stamps) shows.
-        private const float ENV_WIDTH  = 180f;
-        private const float ENV_HEIGHT = 200f;
-        private const float ENV_STRIP  = 40f;   // Y-step between successive envelopes = visible label band
+        // ── envelope fan-stack ────────────────────────────────────────────────
 
-        private static Sprite _envelopeSprite;
-
-        /// <summary>Loads <c>Envelope.png</c> once and caches the Sprite. Same embedded-resource + reflection
-        /// path the trader book uses (UnityEngine.ImageConversion targets netstandard 2.1, our project is 2.0).
-        /// Returns null on missing/corrupt PNG — call-site falls back to a flat-color envelope rect.</summary>
-        private static Sprite LoadEnvelopeSprite()
-        {
-            if (_envelopeSprite != null) return _envelopeSprite;
-            try
-            {
-                byte[] data = null;
-                var asm = System.Reflection.Assembly.GetExecutingAssembly();
-                try
-                {
-                    using (var stream = asm.GetManifestResourceStream("FiresRPGmaker.Resources.Envelope.png"))
-                    {
-                        if (stream != null)
-                        {
-                            data = new byte[stream.Length];
-                            int off = 0, read;
-                            while ((read = stream.Read(data, off, data.Length - off)) > 0) off += read;
-                        }
-                    }
-                }
-                catch { /* fall through to disk fallback */ }
-
-                if (data == null)
-                {
-                    string asmPath = asm.Location;
-                    string pluginDir = System.IO.Path.GetDirectoryName(asmPath);
-                    string pngPath = System.IO.Path.Combine(pluginDir, "Envelope.png");
-                    if (!System.IO.File.Exists(pngPath))
-                    {
-                        Debug.LogWarning("[MailPlayerPanel] Envelope.png not embedded AND missing on disk at " + pngPath);
-                        return null;
-                    }
-                    data = System.IO.File.ReadAllBytes(pngPath);
-                }
-                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
-                bool loaded = false;
-                var imgConv = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
-                if (imgConv != null)
-                {
-                    var mi = imgConv.GetMethod("LoadImage", new[] { typeof(Texture2D), typeof(byte[]) });
-                    if (mi != null) loaded = (bool)mi.Invoke(null, new object[] { tex, data });
-                }
-                if (!loaded)
-                {
-                    Debug.LogWarning("[MailPlayerPanel] Envelope.png decode failed");
-                    return null;
-                }
-                _envelopeSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
-            }
-            catch (System.Exception ex) { Debug.LogError("[MailPlayerPanel] LoadEnvelopeSprite: " + ex.Message); }
-            return _envelopeSprite;
-        }
+        private readonly List<GameObject> _envelopeClones = new List<GameObject>();
 
         private void RefreshInbox()
         {
-            for (int i = _inboxContent.childCount - 1; i >= 0; i--)
-                Destroy(_inboxContent.GetChild(i).gameObject);
+            // Tear down previous clones (NOT the hidden template itself).
+            for (int i = _envelopeClones.Count - 1; i >= 0; i--)
+            {
+                if (_envelopeClones[i] != null) Destroy(_envelopeClones[i]);
+            }
+            _envelopeClones.Clear();
 
             var inbox = MailProfileManager.GetMail(_profileName);
             if (inbox.Count == 0)
             {
-                _detailSubject.text = "Inbox is empty.";
-                _detailFrom.text = ""; _detailDate.text = "";
-                _detailBody.text = "Drop a .cfg into BepInEx\\config\\firesnpcs\\mail\\ to seed sample messages.";
+                if (_detailSubject != null) _detailSubject.text = "Inbox is empty.";
+                if (_detailFrom    != null) _detailFrom.text = "";
+                if (_detailDate    != null) _detailDate.text = "";
+                if (_detailBody    != null) _detailBody.text = "Drop a .cfg into BepInEx\\config\\firesnpcs\\mail\\ to seed sample messages.";
                 ClearAttachments();
-                _statusText.text = "";
-                _inboxContent.sizeDelta = new Vector2(_inboxContent.sizeDelta.x, 0f);
+                if (_statusText != null) _statusText.text = "";
                 return;
             }
 
-            // Build envelopes in inbox order — Unity renders later siblings on TOP, which is exactly the
-            // fanned-stack we want (envelope[i+1] covers envelope[i]'s body, leaving only envelope[i]'s
-            // top strip visible). The last envelope has nothing above it, so it shows full size.
-            int n = inbox.Count;
-            for (int i = 0; i < n; i++) BuildEnvelopeInStack(inbox[i], i);
+            if (_envelopeTemplate == null || _envelopeStack == null)
+            {
+                Debug.LogWarning("[MailPlayerPanel] No EnvelopeTemplate or EnvelopeStack — bake the prefab + rebuild the bundle.");
+                return;
+            }
 
-            // Scroll content height = (N-1) strips + one full envelope at the bottom + a little breathing room.
-            float stackHeight = (n - 1) * ENV_STRIP + ENV_HEIGHT + 12f;
-            _inboxContent.sizeDelta = new Vector2(_inboxContent.sizeDelta.x, stackHeight);
+            // Clone the template once per mail. Sibling order = ASC so later siblings render ON TOP,
+            // which is exactly the fan we want (envelope[i+1] covers envelope[i]'s body below its
+            // top strip; the last envelope has nothing above it so it shows full size).
+            int n = inbox.Count;
+            for (int i = 0; i < n; i++) BuildEnvelopeClone(inbox[i], i);
 
             if (_selected == null) SelectMessage(inbox[0]);
-            else SelectMessage(_selected);
+            else                   SelectMessage(_selected);
         }
 
-        private void BuildEnvelopeInStack(MailEntry msg, int index)
+        private void BuildEnvelopeClone(MailEntry msg, int index)
         {
-            var go = new GameObject("Mail_" + msg.Id, typeof(RectTransform), typeof(Image), typeof(Button));
-            go.transform.SetParent(_inboxContent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.5f, 1f); rt.anchorMax = new Vector2(0.5f, 1f);
-            rt.pivot = new Vector2(0.5f, 1f);
+            var clone = Object.Instantiate(_envelopeTemplate, _envelopeStack);
+            clone.name = "Mail_" + msg.Id;
+            clone.SetActive(true);
+            _envelopeClones.Add(clone);
+
+            // Re-anchor cloned envelope to the top of EnvelopeStack and step down by ENV_STRIP per index.
+            var rt = (RectTransform)clone.transform;
+            rt.anchorMin = new Vector2(0.5f, 1f);
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot     = new Vector2(0.5f, 1f);
             rt.anchoredPosition = new Vector2(0f, -(index * ENV_STRIP));
-            rt.sizeDelta = new Vector2(ENV_WIDTH, ENV_HEIGHT);
+            rt.sizeDelta = new Vector2(rt.sizeDelta.x > 0 ? rt.sizeDelta.x : 180f, ENV_HEIGHT);
 
-            var img = go.GetComponent<Image>();
-            var sprite = LoadEnvelopeSprite();
-            if (sprite != null)
-            {
-                img.sprite = sprite;
-                img.preserveAspect = false;
-                // Selected envelope = warmer cream; others render at the PNG's native tones.
-                img.color = (msg == _selected) ? new Color(1f, 0.92f, 0.78f) : Color.white;
-            }
-            else
-            {
-                img.color = (msg == _selected)
-                    ? new Color(0.40f, 0.30f, 0.18f, 0.95f)
-                    : new Color(0.20f, 0.15f, 0.08f, 0.90f);
-            }
-            img.raycastTarget = true;
+            // Selected envelope tints slightly warmer — others render at the sprite's native tones.
+            var img = clone.GetComponent<Image>();
+            if (img != null) img.color = (msg == _selected) ? new Color(1f, 0.92f, 0.78f) : Color.white;
 
-            var btn = go.GetComponent<Button>();
+            var subject = FindTmp(clone.transform, "SubjectText");
+            var sender  = FindTmp(clone.transform, "SenderText");
+            var date    = FindTmp(clone.transform, "DateText");
+            if (subject != null) subject.text = msg.Subject;
+            if (sender  != null) sender.text  = msg.SenderName;
+            if (date    != null) date.text    = msg.DateString;
+
+            var btn = clone.GetComponent<Button>() ?? clone.AddComponent<Button>();
             btn.targetGraphic = img;
+            btn.onClick.RemoveAllListeners();
             btn.onClick.AddListener(() => { SelectMessage(msg); Refresh(); });
-
-            // Label band — the top ENV_STRIP px of the envelope (only portion visible when overlapped).
-            // Strip occupies normalised Y [stripBotFrac, 1.0] of the envelope rect.
-            float stripBotFrac = 1f - (ENV_STRIP / ENV_HEIGHT);
-            float stripMidFrac = stripBotFrac + (1f - stripBotFrac) * 0.55f;
-
-            MakeLabel(go.transform, msg.Subject,
-                      new Vector2(0.06f, stripMidFrac), new Vector2(0.94f, 0.98f),
-                      Vector2.zero, Vector2.zero,
-                      size: 12f, color: new Color(0.15f, 0.10f, 0.04f));
-            MakeLabel(go.transform, msg.SenderName,
-                      new Vector2(0.06f, stripBotFrac + 0.02f), new Vector2(0.60f, stripMidFrac),
-                      Vector2.zero, Vector2.zero,
-                      size: 10f, color: new Color(0.32f, 0.20f, 0.10f));
-            MakeLabel(go.transform, msg.DateString,
-                      new Vector2(0.60f, stripBotFrac + 0.02f), new Vector2(0.94f, stripMidFrac),
-                      Vector2.zero, Vector2.zero,
-                      size: 10f, align: TextAlignmentOptions.MidlineRight,
-                      color: new Color(0.32f, 0.20f, 0.10f));
         }
 
         private void SelectMessage(MailEntry msg)
         {
             _selected = msg;
-            _detailSubject.text = msg.Subject;
-            _detailFrom.text = "From: " + msg.SenderName;
-            _detailDate.text = msg.DateString;
-            _detailBody.text = msg.Body;
+            if (_detailSubject != null) _detailSubject.text = msg.Subject;
+            if (_detailFrom    != null) _detailFrom.text    = "From: " + msg.SenderName;
+            if (_detailDate    != null) _detailDate.text    = msg.DateString;
+            if (_detailBody    != null) _detailBody.text    = msg.Body;
             ClearAttachments();
             foreach (var att in msg.Attachments) BuildAttachmentRow(att);
-            ReflowScroll(_attachmentList);
-            _statusText.text = msg.Attachments.Count + " attachment(s)";
+            if (_statusText != null) _statusText.text = msg.Attachments.Count + " attachment(s)";
         }
+
+        // ── attachments ───────────────────────────────────────────────────────
 
         private void ClearAttachments()
         {
-            for (int i = _attachmentList.childCount - 1; i >= 0; i--)
-                Destroy(_attachmentList.GetChild(i).gameObject);
+            if (_attachmentsContent == null) return;
+            for (int i = _attachmentsContent.childCount - 1; i >= 0; i--)
+                Destroy(_attachmentsContent.GetChild(i).gameObject);
         }
 
         private void BuildAttachmentRow(MailAttachment att)
         {
-            var rowGo = new GameObject("Att_" + att.Prefab, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-            rowGo.transform.SetParent(_attachmentList, false);
-            rowGo.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            SetRowHeight(rowGo, 24f);
-            MakeLabel(rowGo.transform, att.Prefab + "  x" + att.Count,
-                      new Vector2(0f, 0f), new Vector2(1f, 1f),
-                      new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                      size: 12f);
+            if (_attachmentsContent == null) return;
+            var rowGo = new GameObject("Att_" + att.Prefab, typeof(RectTransform), typeof(Image));
+            rowGo.transform.SetParent(_attachmentsContent, false);
+            var rt = (RectTransform)rowGo.transform;
+            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+            rt.sizeDelta = new Vector2(0f, 24f);
+            rt.anchoredPosition = new Vector2(0f, -(_attachmentsContent.childCount - 1) * 26f);
+            rowGo.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.65f);
+
+            var labelGo = new GameObject("Label", typeof(RectTransform));
+            labelGo.transform.SetParent(rowGo.transform, false);
+            var lrt = labelGo.GetComponent<RectTransform>();
+            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+            lrt.offsetMin = new Vector2(8f, 0f); lrt.offsetMax = new Vector2(-8f, 0f);
+            var tmp = labelGo.AddComponent<TextMeshProUGUI>();
+            tmp.text = att.Prefab + "  x" + att.Count;
+            tmp.fontSize = 12f; tmp.color = new Color(0.96f, 0.91f, 0.76f);
+            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+
+            // Grow Content height so scrolling works.
+            _attachmentsContent.sizeDelta = new Vector2(_attachmentsContent.sizeDelta.x, _attachmentsContent.childCount * 26f);
         }
+
+        // ── actions ───────────────────────────────────────────────────────────
 
         private void OnClaimClicked()
         {
-            if (_selected == null) { _statusText.text = "Select a message first."; return; }
-            if (_selected.Attachments.Count == 0) { _statusText.text = "No attachments on this mail."; return; }
+            if (_selected == null) { if (_statusText != null) _statusText.text = "Select a message first."; return; }
+            if (_selected.Attachments.Count == 0) { if (_statusText != null) _statusText.text = "No attachments on this mail."; return; }
             var player = Player.m_localPlayer; if (player == null) return;
             var inv = player.GetInventory();
             int granted = 0;
@@ -433,19 +344,17 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
             _selected.Attachments.Clear();
             ClearAttachments();
-            _statusText.text = "Claimed " + granted + " attachment(s).";
+            if (_statusText != null) _statusText.text = "Claimed " + granted + " attachment(s).";
         }
 
         private void OnSendClicked()
         {
-            string to = _sendTo?.text?.Trim() ?? "";
+            string to   = _sendTo?.text?.Trim() ?? "";
             string subj = _sendSubject?.text?.Trim() ?? "";
             string body = _sendMessage?.text?.Trim() ?? "";
-            if (string.IsNullOrEmpty(to))    { _sendStatusText.text = "Enter a recipient name."; return; }
-            if (string.IsNullOrEmpty(subj))  { _sendStatusText.text = "Enter a subject.";        return; }
-            if (string.IsNullOrEmpty(body))  { _sendStatusText.text = "Enter a message body.";   return; }
-            // v1: stage the mail under the recipient's profile (acts like a local-only inbox).
-            // Wires to the LiteDB MailRepository RPC in a follow-up — same payload shape as KG's CMS.
+            if (string.IsNullOrEmpty(to))   { if (_sendStatusText != null) _sendStatusText.text = "Enter a recipient name."; return; }
+            if (string.IsNullOrEmpty(subj)) { if (_sendStatusText != null) _sendStatusText.text = "Enter a subject.";        return; }
+            if (string.IsNullOrEmpty(body)) { if (_sendStatusText != null) _sendStatusText.text = "Enter a message body.";   return; }
             MailProfileManager.AppendLocalMail(to.ToLowerInvariant(), new MailEntry
             {
                 Id = MailProfileManager.NextLocalId(),
@@ -455,8 +364,35 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 Body = body,
                 Attachments = new List<MailAttachment>(),
             });
-            _sendStatusText.text = "Sent to '" + to + "' (local-only until cross-player wiring lands).";
-            _sendTo.text = ""; _sendSubject.text = ""; _sendMessage.text = "";
+            if (_sendStatusText != null) _sendStatusText.text = "Sent to '" + to + "' (local-only until cross-player wiring lands).";
+            if (_sendTo      != null) _sendTo.text = "";
+            if (_sendSubject != null) _sendSubject.text = "";
+            if (_sendMessage != null) _sendMessage.text = "";
+        }
+
+        // ── tiny Find helpers ─────────────────────────────────────────────────
+
+        private static GameObject Find(Transform root, string path)
+        {
+            var t = root.Find(path); return t != null ? t.gameObject : FindRecursive(root, GetLast(path));
+        }
+        private static TMP_Text       FindTmp  (Transform root, string path) { var go = Find(root, path); return go != null ? go.GetComponent<TMP_Text>() : null; }
+        private static Button         FindBtn  (Transform root, string path) { var go = Find(root, path); return go != null ? go.GetComponent<Button>()  : null; }
+        private static TMP_InputField FindInput(Transform root, string path) { var go = Find(root, path); return go != null ? go.GetComponent<TMP_InputField>() : null; }
+
+        private static string GetLast(string path)
+        {
+            int slash = path.LastIndexOf('/'); return slash < 0 ? path : path.Substring(slash + 1);
+        }
+        private static GameObject FindRecursive(Transform root, string name)
+        {
+            if (root.name == name) return root.gameObject;
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var got = FindRecursive(root.GetChild(i), name);
+                if (got != null) return got;
+            }
+            return null;
         }
     }
 }
