@@ -29,6 +29,20 @@ namespace FiresRPGmaker
             if (_registered) return;
             _registered = true;
 
+            // mail_reset — wipes the in-memory mail cache + re-reads .cfg from disk so claimed
+            // attachments come back. Use during testing when iterating on the Mail UI.
+            new Terminal.ConsoleCommand("mail_reset",
+                "reload Mail profiles from disk (re-fills claimed attachments) — for Mail UI testing",
+                args =>
+                {
+                    try
+                    {
+                        global::FiresRPGmaker.Modules.Marketplace.MailProfileManager.ReloadAll();
+                        args.Context.AddString("[mail_reset] reloaded mail profiles — re-open the Mail UI to see fresh attachments.");
+                    }
+                    catch (Exception ex) { args.Context.AddString("[mail_reset] threw: " + ex.Message); }
+                });
+
             new Terminal.ConsoleCommand("firesrpg_test",
                 "subcommand-driven parity test surface — run 'firesrpg_test help' for the full list",
                 args =>

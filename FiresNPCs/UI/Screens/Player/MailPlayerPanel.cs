@@ -46,12 +46,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private Button _sendButton;
         private TMP_Text _sendStatusText;
 
-        // Fan-stack tuning — must match the EnvelopeTemplate height in the prefab. 200×0.20 = 40.
+        // Fan-stack tuning — must match the EnvelopeTemplate height in the prefab. 240 × 0.18 ≈ 43.
         // The LAST envelope renders 25% taller (ENV_LAST_HEIGHT) so its proportions read as a real
         // envelope sitting on the table, not a flat square.
-        private const float ENV_HEIGHT      = 200f;
-        private const float ENV_LAST_HEIGHT = 250f;
-        private const float ENV_STRIP       = 40f;
+        private const float ENV_HEIGHT      = 240f;
+        private const float ENV_LAST_HEIGHT = 300f;
+        private const float ENV_STRIP       = 43f;
 
         public static void Show(string profileName, string npcDisplayName)
         {
@@ -163,13 +163,24 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             // Subtitle (NPC name + profile) is irrelevant for Mail and was overlapping "Attachments".
             if (_subtitleText != null) _subtitleText.gameObject.SetActive(false);
 
-            _detailSubject     = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailSubject");
-            _detailFrom        = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailFrom");
-            _detailDate        = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailDate");
-            _detailBody        = FindTmp(root, "Background/ContentArea/InboxView/DetailPane/DetailBody");
-            _statusText        = FindTmp(root, "Background/ContentArea/InboxView/StatusText");
-            _claimAllButton    = FindBtn(root, "Background/ContentArea/InboxView/DetailPane/ClaimAllButton");
-            _attachmentsContent = Find(root, "Background/ContentArea/InboxView/DetailPane/AttachmentsScroll/Viewport/Content")?.GetComponent<RectTransform>();
+            // Use recursive-by-name (these are uniquely-named nodes) since the user hand-moved several
+            // of them out of DetailPane up to InboxView level — fully-qualified paths would miss.
+            _detailSubject     = FindTmp(root, "DetailSubject");
+            _detailFrom        = FindTmp(root, "DetailFrom");
+            _detailDate        = FindTmp(root, "DetailDate");
+            _detailBody        = FindTmp(root, "DetailBody");
+            _statusText        = FindTmp(root, "StatusText");
+            _claimAllButton    = FindBtn(root, "ClaimAllButton");
+
+            // AttachmentsScroll/Viewport/Content — find the scroll by name first, then drill into its
+            // own Viewport/Content so we don't accidentally bind to the InboxScroll's Content node
+            // (which is no longer used but still in the prefab).
+            var attachScroll = Find(root, "AttachmentsScroll");
+            if (attachScroll != null)
+            {
+                var viewport = attachScroll.transform.Find("Viewport");
+                if (viewport != null) _attachmentsContent = viewport.Find("Content") as RectTransform;
+            }
 
             _sendTo            = FindInput(root, "Background/ContentArea/SendView/SendTo");
             _sendSubject       = FindInput(root, "Background/ContentArea/SendView/SendSubject");

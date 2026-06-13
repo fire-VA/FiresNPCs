@@ -390,7 +390,10 @@
       "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"mail-patch-v3\" -ExecuteMethod \"FiresMailPrefabPatcher.Patch\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\mail-patch-v3.log\")",
       "Bash(cat C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs\\\\\\\\2d0752ea-4fd2-4e85-9342-57e97d4529be\\\\\\\\tasks\\\\\\\\bvucyhy32.output)",
       "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build-mail\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build-mail.log\")",
-      "Bash(powershell -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64 | Format-List\")"
+      "Bash(powershell -Command \"Get-Process Unity -ErrorAction SilentlyContinue | Select-Object Id,WorkingSet64 | Format-List\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-build-mail-v2\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-build-mail-v2.log\")",
+      "Bash(rm -f obj/Debug/FiresRPGmaker.csproj.CoreCompileInputs.cache)",
+      "Bash(awk '{print $9, \"  \\(\" $5 \" bytes\\)\"}')"
     ]
   }
 }

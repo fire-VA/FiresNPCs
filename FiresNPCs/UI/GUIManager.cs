@@ -397,6 +397,13 @@ public static bool IsCustomPanelOpen()
     if (Screens.PlayerPanels.BasePlayerModulePanel.AnyOpen)
         return true;
 
+    // Mail panel was rewritten to load from prefab + no longer extends BasePlayerModulePanel —
+    // it owns its own static AnyOpen flag that needs an independent check here, otherwise
+    // PlayerInputPatches / Hud see "no custom panel open" while the mail UI is up and let the
+    // camera keep tracking the cursor + show NPC hover names.
+    if (Screens.PlayerPanels.MailPlayerPanel.AnyOpen)
+        return true;
+
     // Check Help panel
     if (FiresCore.Help.HelpPanel.Instance != null &&
         FiresCore.Help.HelpPanel.Instance.IsVisible)
