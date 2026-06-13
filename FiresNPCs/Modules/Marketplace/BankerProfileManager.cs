@@ -39,7 +39,9 @@ namespace FiresRPGmaker.Modules.Marketplace
             return p;
         }
 
-        public static IReadOnlyCollection<string> AllProfileNames => _profiles.Keys;
+        // Auto-load on read so the saved-profiles dropdown sees the on-disk profiles the first time
+        // a config screen opens (without forcing every caller to remember EnsureLoaded).
+        public static IReadOnlyCollection<string> AllProfileNames { get { EnsureLoaded(); return _profiles.Keys; } }
 
         /// <summary>Union of every currency name accepted by ANY loaded Banker profile. Used as the
         /// authoritative "possible currencies" list for the Marketplace Sell-tab currency dropdown

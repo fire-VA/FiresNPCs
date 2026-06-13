@@ -367,7 +367,14 @@
       "Bash(echo \"count: $\\(find \"/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles\" -ipath \"*FiresSteamyDumps*\" -iname \"prefab.json\")",
       "Bash(grep -oE '\"m_\\(stackMin|stackMax|weight\\)\": *[0-9.]+|\"\\\\$path\": *\"[^\"]*\"|\"\\\\$ref\": *\"[^\"]*\"|\"name\": *\"[^\"]*Ore[^\"]*\"' C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/Yoink/ScanMe/Prefabs/biomeflora/MineRock_Gold_BF/prefab.json)",
       "Bash(grep -oE '\"\\\\$ref\":\"[A-Za-z_0-9]+\"' C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/config/FiresRPGmaker/Yoink/ScanMe/Prefabs/biomeflora/MineRock_Coal_BF/prefab.json)",
-      "Bash(grep -v \"\\\\.meta$\")"
+      "Bash(grep -v \"\\\\.meta$\")",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\" -Recurse -Include \"*.cs\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\" -Recurse -Include \"FiresCompanions.dll\" -ErrorAction SilentlyContinue | Select-Object FullName, LastWriteTime, @{N='AgeMin';E={[math]::Round\\(\\(\\(Get-Date\\)-$_.LastWriteTime\\).TotalMinutes,1\\)}} | Format-List)",
+      "Bash(echo \"=== total lines ===\")",
+      "Bash(wc -l /c/Users/travi/Downloads/screenlog-1781305796.log)",
+      "Bash(echo \"=== last 60 lines ===\")",
+      "Bash(tail -60 /c/Users/travi/Downloads/screenlog-1781305796.log)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\\\\projects\\\\\" | Select-Object Name)"
     ]
   }
 }

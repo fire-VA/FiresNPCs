@@ -478,9 +478,12 @@ namespace FiresRPGmaker.UI
             var screenGo = new GameObject("BankerConfigScreen", typeof(RectTransform));
             screenGo.transform.SetParent(panelRoot, false);
             var srt = screenGo.GetComponent<RectTransform>();
+            // Side insets pull the rect away from the parchment border (the painted ornament occupies
+            // ~50px on each side); SIDE_PAD inside the controller adds another 32 so the form text sits
+            // well inside the content area, not running into the celtic knot pattern.
             srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.pivot = new Vector2(0.5f, 0.5f);
-            srt.offsetMin = new Vector2(20f, 95f);
-            srt.offsetMax = new Vector2(-20f, -160f);
+            srt.offsetMin = new Vector2(50f, 95f);
+            srt.offsetMax = new Vector2(-50f, -160f);
 
             var applyGo = new GameObject("BankerApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);
@@ -519,8 +522,8 @@ namespace FiresRPGmaker.UI
             screenGo.transform.SetParent(panelRoot, false);
             var srt = screenGo.GetComponent<RectTransform>();
             srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.pivot = new Vector2(0.5f, 0.5f);
-            srt.offsetMin = new Vector2(20f, 95f);
-            srt.offsetMax = new Vector2(-20f, -160f);
+            srt.offsetMin = new Vector2(50f, 95f);
+            srt.offsetMax = new Vector2(-50f, -160f);
 
             var applyGo = new GameObject(applyName, typeof(RectTransform), typeof(Image), typeof(Button));
             applyGo.transform.SetParent(panelRoot, false);

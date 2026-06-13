@@ -31,7 +31,9 @@ namespace FiresRPGmaker.UI.Screens
         private const float SECTION_GAP      = 8f;
         private const float STATUS_H         = 24f;
         private const float SCROLLBAR_W      = 14f;
-        private const float SIDE_PAD         = 12f;
+        // Side padding pulls every form element away from the parchment's painted border so labels
+        // and the textarea don't run into the ornament. 12 was too tight; 32 reads cleanly.
+        private const float SIDE_PAD         = 32f;
 
         private const float Y_PROFILE_LABEL  = TOP_PAD;
         private const float Y_PROFILE_ROW    = Y_PROFILE_LABEL + LABEL_H + ROW_GAP;

@@ -39,7 +39,9 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static readonly Dictionary<string, GamblerProfile> _profiles = new();
         private static bool _initialized;
 
-        public static IReadOnlyCollection<string> AllProfileNames => _profiles.Keys;
+        // Auto-load on read so the saved-profiles dropdown sees the on-disk profiles the first time
+        // a config screen opens (without forcing every caller to remember EnsureLoaded).
+        public static IReadOnlyCollection<string> AllProfileNames { get { EnsureLoaded(); return _profiles.Keys; } }
 
         public static GamblerProfile GetProfile(string name)
         {
@@ -61,10 +63,10 @@ namespace FiresRPGmaker.Modules.Marketplace
             _profiles.Clear();
             var folder = GetProfileFolder();
             if (!Directory.Exists(folder))
-            {
                 try { Directory.CreateDirectory(folder); } catch { }
-                WriteExampleProfile(folder);
-            }
+            // Always seed example.cfg if missing — the previous gate only fired when the folder didn't
+            // exist, leaving empty pre-created folders unseeded (the same bug the Banker manager hit).
+            WriteExampleProfile(folder);
             foreach (var file in Directory.GetFiles(folder, "*.cfg", SearchOption.AllDirectories))
             {
                 try { LoadOne(file); }
