@@ -188,6 +188,19 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _sendButton        = FindBtn(root, "Background/ContentArea/SendView/SendButton");
             _sendStatusText    = FindTmp(root, "Background/ContentArea/SendView/SendStatusText");
 
+            // The "Inbox" header is now rendered as the TOP envelope tab inside the stack (see
+            // BuildHeaderTab), so the separate floating InboxLabel text + the envelope-behind-label
+            // image are redundant. Blank the label's TEXT (keep its GameObject active — the stack is
+            // its child and would vanish if we disabled it) and hide the InboxEnvelopeTab image.
+            var inboxLabel = Find(root, "InboxLabel");
+            if (inboxLabel != null)
+            {
+                var lt = inboxLabel.GetComponent<TMP_Text>();
+                if (lt != null) lt.text = "";
+            }
+            var inboxTab = Find(root, "InboxEnvelopeTab");
+            if (inboxTab != null) inboxTab.SetActive(false);
+
             if (_envelopeTemplate == null) Debug.LogWarning("[MailPlayerPanel] EnvelopeTemplate not found — rebake the prefab from Unity (Valheim/Build Fires Mail prefab).");
             if (_titleText != null) _titleText.text = "Mail";
         }
@@ -249,14 +262,63 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 return;
             }
 
-            // Clone the template once per mail. Sibling order = ASC so later siblings render ON TOP,
-            // which is exactly the fan we want (envelope[i+1] covers envelope[i]'s body below its
-            // top strip; the last envelope has nothing above it so it shows full size).
+            // Index 0 of the stack is a static "Inbox" header tab (non-clickable). The real mail
+            // starts at index 1 and fans down below it. Sibling order = ASC so later siblings render
+            // ON TOP — each envelope covers the one above it below its top strip; the last has nothing
+            // above it so it shows full size.
+            BuildHeaderTab();
             int n = inbox.Count;
-            for (int i = 0; i < n; i++) BuildEnvelopeClone(inbox[i], i, isLast: i == n - 1);
+            for (int i = 0; i < n; i++) BuildEnvelopeClone(inbox[i], i + 1, isLast: i == n - 1);
 
             if (_selected == null) SelectMessage(inbox[0]);
             else                   SelectMessage(_selected);
+        }
+
+        /// <summary>Builds the static "Inbox" tab as the top envelope (index 0) of the stack. Shows
+        /// only "Inbox" in its label strip, no sender/date, and has no Button — it's a pure header,
+        /// not selectable. The first real mail (index 1) covers everything below this tab's strip.</summary>
+        private void BuildHeaderTab()
+        {
+            var clone = Object.Instantiate(_envelopeTemplate, _envelopeStack);
+            clone.name = "InboxHeaderTab";
+            clone.SetActive(true);
+            _envelopeClones.Add(clone);
+
+            var rt = (RectTransform)clone.transform;
+            rt.anchorMin = new Vector2(0.5f, 1f);
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot     = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, 0f);   // index 0 — top of the stack
+            float w = rt.sizeDelta.x > 0 ? rt.sizeDelta.x : 180f;
+            rt.sizeDelta = new Vector2(w, ENV_HEIGHT);
+
+            var img = clone.GetComponent<Image>();
+            if (img != null) img.color = Color.white;
+            AddDepthShadow(clone);
+
+            var subject = FindTmp(clone.transform, "SubjectText");
+            var sender  = FindTmp(clone.transform, "SenderText");
+            var date    = FindTmp(clone.transform, "DateText");
+            if (subject != null) subject.text = "Inbox";
+            if (sender  != null) sender.text  = "";
+            if (date    != null) date.text    = "";
+
+            // Pure header — strip the Button the template carries so it can't be clicked/highlighted.
+            var btn = clone.GetComponent<Button>();
+            if (btn != null) Destroy(btn);
+        }
+
+        /// <summary>Adds a contact shadow to an envelope so the fan reads as stacked layers instead of a
+        /// flat sheet. The shadow is offset UPWARD a few px, so it peeks above this envelope's top edge
+        /// and lands on the envelope behind-and-above it — exactly where two stacked papers meet — making
+        /// each seam visibly darker. Soft (semi-transparent), follows the sprite alpha.</summary>
+        private static void AddDepthShadow(GameObject clone)
+        {
+            if (clone.GetComponent<Image>() == null) return;
+            var shadow = clone.GetComponent<Shadow>() ?? clone.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            shadow.effectDistance = new Vector2(1.5f, 5f);   // mostly up (seam), a touch right for body
+            shadow.useGraphicAlpha = true;
         }
 
         private void BuildEnvelopeClone(MailEntry msg, int index, bool isLast)
@@ -279,6 +341,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             // Selected envelope tints slightly warmer — others render at the sprite's native tones.
             var img = clone.GetComponent<Image>();
             if (img != null) img.color = (msg == _selected) ? new Color(1f, 0.92f, 0.78f) : Color.white;
+            AddDepthShadow(clone);   // contact shadow at the seam so the fan reads as stacked layers
 
             var subject = FindTmp(clone.transform, "SubjectText");
             var sender  = FindTmp(clone.transform, "SenderText");
