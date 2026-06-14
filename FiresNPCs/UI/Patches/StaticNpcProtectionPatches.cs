@@ -51,6 +51,19 @@ namespace FiresRPGmaker.UI.Patches
         }
     }
 
+    /// <summary>Server-start hook: loads the persisted pending-respawn store for the current world so
+    /// any respawns that were mid-window when the server last stopped resume their wall-clock timers,
+    /// even if no fresh static-NPC death happens this session.</summary>
+    [HarmonyPatch(typeof(ZNet), "Start")]
+    internal static class StaticNpc_RespawnStoreServerLoad
+    {
+        private static void Postfix()
+        {
+            try { global::FiresRPGmaker.Modules.Companions.NpcMode.StaticNpcRespawnManager.EnsureServerStarted(); }
+            catch (System.Exception ex) { Debug.LogError("[StaticNpc] respawn-store server load failed: " + ex.Message); }
+        }
+    }
+
     /// <summary>On a static NPC's death, snapshots it and schedules a respawn at its placed position.
     /// Runs only on the server (it owns the ownerless NPC ZDOs); returns true so vanilla death/destroy
     /// proceeds normally (the NPC really dies — it just comes back 60s later). Never fires while the
