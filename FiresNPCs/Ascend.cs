@@ -435,8 +435,9 @@ namespace FiresRPGmaker
                 VAItemManager.LoadItems("Assets/Custom/NPCs/", this);
                 VAPieceManager.LoadPieces("Assets/Custom/NPCs/", PluginName);
 
-     // Load companion prefabs (AI NPCs with MonsterAI)
-              CompanionPrefabManager.LoadCompanionPrefabs("Assets/Custom/NPCs/");
+     // Companion prefabs (CompanionNpc/BaseNpc/Wild) are owned by FiresCompanions now
+     // (they live in the firescompanions bundle and FiresCompanions loads + registers them).
+     // RPGMaker keeps only its own StaticNpc prefab (firesnpcs bundle) for static quest NPCs.
 
                 // Schedule the one-time shader/mesh prewarm pass for every
                 // loaded NPC prefab. Init() registers a PlayerSpawnGate
@@ -743,12 +744,9 @@ if (hashDict != null)
             AddItemsToObjectDB();
             AddPrefabsToZNetScene(ZNetScene.instance);
 
-            // Register companion prefabs with ZNetScene (AI NPCs).
-            // CompanionPrefabManager.LoadCompanionPrefabs already built the
-            // CompanionNpc_Wild variant alongside CompanionNpc / BaseNpc, so
-            // this single call registers all of them (regular companions and
-            // the wild variant) the same way: m_prefabs + m_namedPrefabs.
-            CompanionPrefabManager.RegisterWithZNetScene();
+            // Companion prefab ZNetScene registration removed — FiresCompanions owns the companion
+            // prefabs (firescompanions bundle). RPGMaker no longer registers them, which also resolves
+            // the prior double-registration when both mods were installed.
 
             // Validate quest rewards/targets against ZNetScene/ObjectDB now that all prefabs are registered.
             // This marks unavailable rewards (e.g. from removed mods) so the UI can grey them out.
@@ -1147,21 +1145,7 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
                     Debug.Log($"[FiresRPGmaker] Re-registered {FiresRPGmaker.itemPrefabs.Count} item prefabs to ZNetScene on Awake");
                 }
 
-                // Re-register companion (AI NPC) prefabs. Each ZNetScene.Awake
-                // hands us a fresh m_namedPrefabs dictionary; without this the
-                // CompanionNpc / CompanionNpc_Wild lookups ? and therefore
-                // wild-companion spawns, recruit/dismiss flows, and `spawn
-                // CompanionNpc` console use ? all break after world reload /
-                // re-login. The call is idempotent against an already-
-                // populated dictionary.
-                try
-                {
-                    FiresCore.Npc.CompanionPrefabManager.RegisterWithZNetScene();
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[FiresRPGmaker] CompanionPrefabManager.RegisterWithZNetScene failed in ZNetScene.Awake postfix: {ex.Message}");
-                }
+                // Companion prefab re-registration removed — FiresCompanions owns companion prefabs.
 
                 // Pre-register piece prefabs (wayshrines etc.) with ZNetScene
                 // BEFORE ZDOMan.Load runs and tries to spawn the persistent

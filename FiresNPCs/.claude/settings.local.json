@@ -428,7 +428,8 @@
       "Bash(f='/c/Users/travi/Downloads/VikingLands.Core-master \\(26\\)/VikingLands.Core-master/Features/TownPortal/TownPortalReturnStorage.cs' *)",
       "Bash(printf 's/\"Vous n.\\\\xef\\\\xbf\\\\xbdtes pas autoris\\\\xef\\\\xbf\\\\xbd \\\\xef\\\\xbf\\\\xbd utiliser ce portail\\\\\\\\.\"/TdvLoc.T\\(\"portal_use_denied\"\\)/\\\\n')",
       "Bash(LC_ALL=C sed -i -f /tmp/p.sed '/c/Users/travi/Downloads/VikingLands.Core-master \\(26\\)/VikingLands.Core-master/Features/PortalInstancing/PortalInstancingPatches.cs')",
-      "Bash(LC_ALL=C grep -rohE 'TdvLoc\\\\.[TF]\\\\\\(\"portal_[a-z_]+\"' __TRACKED_VAR__/CoordPortal __TRACKED_VAR__/TownPortal __TRACKED_VAR__/TownPortalAdmin __TRACKED_VAR__/PortalInstancing)"
+      "Bash(LC_ALL=C grep -rohE 'TdvLoc\\\\.[TF]\\\\\\(\"portal_[a-z_]+\"' __TRACKED_VAR__/CoordPortal __TRACKED_VAR__/TownPortal __TRACKED_VAR__/TownPortalAdmin __TRACKED_VAR__/PortalInstancing)",
+      "Bash(grep -vE \"//|///\")"
     ]
   }
 }
