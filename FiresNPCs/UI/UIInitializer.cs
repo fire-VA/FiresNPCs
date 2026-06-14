@@ -66,8 +66,7 @@ namespace FiresRPGmaker.UI
             // Initialize the Quest Journal hotkey handler
             QuestJournalHotkeyHandler.EnsureCreated();
 
-            // Initialize the Group HUD for companion stat bars
-            GroupHudController.Initialize();
+            // Group HUD (companion stat bars) removed — companion HUD belongs to FiresCompanions.
 
             // Initialize the Globe HUD overlay (Health/Eitr/Stamina/Adrenaline globes)
             // Only create if the user hasn't disabled it in the config.
@@ -96,7 +95,6 @@ namespace FiresRPGmaker.UI
 
             Step("destroy panel", () => { if (_panelInstance != null) { Object.Destroy(_panelInstance); _panelInstance = null; } });
             Step("GUIManager", () => GUIManager.Cleanup());
-            Step("GroupHud",   () => GroupHudController.Cleanup());
             Step("GlobeHud",   () => GlobeHudController.Cleanup());
             Step("HelpPanel",  () => FiresCore.Help.HelpPanel.Cleanup());
             Step("TraderUI",   () => TraderUIController.Cleanup());

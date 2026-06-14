@@ -131,9 +131,7 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Territories.TerritoryHudOverlay",
             "FiresRPGmaker.Modules.Territories.OutlineSurveyor",
             "FiresRPGmaker.Modules.Territories.Surveyor",
-            // UI (radial menu, inventory, initializer)
-            "FiresRPGmaker.UI.CompanionRadialMenuPatches",
-            "FiresRPGmaker.UI.CompanionRadialMenu",
+            // UI (inventory, initializer)
             "FiresRPGmaker.UI.UIInitializer",
             "FiresRPGmaker.UI.NpcHoverHudSuppressor+TestShowPatch",
             "FiresRPGmaker.UI.Patches.InventoryGuiPatches",
@@ -144,7 +142,6 @@ namespace FiresRPGmaker
             "FiresRPGmaker.UI.Patches.InventoryGui_SetupDragItem_Patch",
             "FiresCore.UI.UIOverrideInventoryPatches",
             // Companions (only client-only nested classes, server patches stay active)
-            "FiresRPGmaker.Modules.Companions.CompanionInventoryPatches",
             "FiresRPGmaker.Modules.Companions.CompanionPatches+CompanionClientPatches_FejdStartup",
             "FiresRPGmaker.Modules.Companions.CompanionPatches+CompanionClientPatches_EnemyHud",
             "FiresRPGmaker.Modules.Companions.CompanionPatches+ArcheryTarget_OnProjectileHit_Patch",

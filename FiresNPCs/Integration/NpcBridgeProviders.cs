@@ -60,29 +60,21 @@ namespace FiresRPGmaker.Integration
             };
             NpcModeBridge.TerritoryNameAt = pos => TerritorySyncedState.GetCurrent(pos)?.Name;
 
-            // companion UI screens
-            NpcUiBridge.ShowInventory = (npc, viewer) =>
-            {
-                var companion = npc.GetComponent<CompanionController>();
-                if (companion != null) CompanionInventoryScreen.Show(companion, viewer);
-            };
-            NpcUiBridge.InventoryOpenFor = npc =>
-            {
-                var companion = npc.GetComponent<CompanionController>();
-                return companion != null && CompanionInventoryScreen.IsOpenForCompanion(companion);
-            };
-            NpcUiBridge.StatsOpenFor = npc =>
-            {
-                var companion = npc.GetComponent<CompanionController>();
-                return companion != null && CompanionStatsScreen.IsOpenForCompanion(companion);
-            };
+            // Companion inventory/stats UI bridges removed (RPGMaker decouple) — companion gear/stat
+            // screens belong to FiresCompanions. Static NPCs use the Shift+E admin panel + Dressing
+            // Room, not these. Leaving the NpcUiBridge delegates unset (null-safe in Core).
 
-            // server-side companion store (Vault of Knowledge)
-            CompanionVaultBridge.IsAvailable = () => VaultOfKnowledge.Instance != null;
-            CompanionVaultBridge.GetCompanions = playerId =>
-                VaultOfKnowledge.Instance?.GetCompanions(playerId) ?? new List<CompanionSaveData>();
-            CompanionVaultBridge.SaveCompanion = (playerId, data) => VaultOfKnowledge.Instance?.SaveCompanion(playerId, data);
-            CompanionVaultBridge.RemoveCompanion = (playerId, id) => VaultOfKnowledge.Instance?.RemoveCompanion(playerId, id);
+            // COMPANION STORE DE-REGISTERED (RPGMaker decouple, 2026-06-14): FiresRPGmaker no longer
+            // registers its VaultOfKnowledge as the companion persistence provider. Companion ownership
+            // now lives entirely in FiresCompanions' kennel (the NpcDormancyBridge provider). While the
+            // RPGMaker vault registered CompanionVaultBridge.IsAvailable=true, Core's single restore
+            // engine preferred it and the kennel auto-deferred ("vault provider present"); removing the
+            // store delegates lets the kennel become the sole companion manager. The VaultOfKnowledge
+            // companion methods are now dead and get removed in the full companion-frontend strip.
+            //
+            // KEPT — these are store-AGNOSTIC engine signals the restore engine needs for EITHER store
+            // (config-sync gate + "player joined" trigger), not vault-store ops. RPGMaker owns the
+            // AnnouncePlayerInfo RPC that raises PlayerAnnouncedToServer, so these stay here.
             CompanionVaultBridge.RestoreReadyForPeer = ServerConfigFileWatcher.HasCompletedConfigSync;
             CompanionVaultBridge.ClearRestoreGate = ServerConfigFileWatcher.ClearConfigSyncComplete;
 

@@ -5,7 +5,6 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using FiresRPGmaker.Modules.Guilds;
-using FiresRPGmaker.Modules.Guilds.Companions;
 using FiresRPGmaker.Modules.Guilds.Core;
 using FiresRPGmaker.UI;
 
@@ -885,43 +884,10 @@ namespace FiresRPGmaker.Modules.Guilds.UI
 
         private void OpenTransferCompanionPicker(long newOwnerId, string newOwnerName)
         {
-            // Find a companion owned by the local player to transfer.
-            var local = Player.m_localPlayer;
-            if (local == null) return;
-
-            var companions = FiresCore.Npc.CompanionController.AllCompanions;
-            if (companions == null || companions.Count == 0)
-            {
-                MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "No companions to transfer.");
-                return;
-            }
-
-            // Filter to companions owned by local player.
-            var owned = new List<FiresCore.Npc.CompanionController>();
-            foreach (var c in companions)
-                if (c != null && c.IsOwner(local)) owned.Add(c);
-
-            if (owned.Count == 0)
-            {
-                MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "No companions to transfer.");
-                return;
-            }
-
-            // For simplicity: if only one companion, confirm immediately.
-            if (owned.Count == 1)
-            {
-                var comp = owned[0];
-                UnifiedPopup.Push(new YesNoPopup("Transfer Companion",
-                    $"Transfer {comp.GetDisplayName()} to {newOwnerName}?",
-                    yesCallback: () => CompanionOwnershipTransfer.TransferTo(comp,
-                        GuildAPI.GetAllGuilds() == null ? null : FindOnlinePlayer(newOwnerId)),
-                    noCallback: () => { },
-                    localizeText: false));
-                return;
-            }
-
+            // Companion ownership-transfer removed from RPGMaker (decouple) — companion management,
+            // including guild ownership transfer, lives in FiresCompanions now.
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
-                "Select companion to transfer from the roster screen.");
+                "Companion transfer is handled by the Companions mod.");
         }
 
         private static Player FindOnlinePlayer(long playerId)

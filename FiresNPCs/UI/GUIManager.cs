@@ -141,14 +141,8 @@ namespace FiresRPGmaker.UI
                 UIFontConfig.RefreshFontsInHierarchy(go);
                 refreshedCount++;
             });
-            
-            // Refresh Group HUD
-            if (GroupHudController.Instance != null)
-            {
-                UIFontConfig.RefreshFontsInHierarchy(GroupHudController.Instance.gameObject);
-                refreshedCount++;
-            }
-            
+
+
             // Refresh Dialogue UI panel
             if (global::FiresRPGmaker.Modules.Dialogues.DialogueUI.IsVisible)
             {
