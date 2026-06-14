@@ -91,6 +91,10 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<bool> configPersistentCompanions;
         public ConfigEntry<bool> configKeepZonesLoadedForOfflinePlayers;
 
+        // When true, hammer-placed static NPCs cannot be killed (immune to all damage). When false,
+        // they are killable and respawn at their placed position after 60s. Server-authoritative.
+        public ConfigEntry<bool> configStaticNpcInvulnerable;
+
 
 
         // ────── UI Fonts ──────
@@ -239,6 +243,12 @@ namespace FiresRPGmaker.Managers
                 "wandering) while their owner is logged out. Costs server memory and CPU proportional " +
                 "to total tamed-companion count. Disable for low-spec servers; companions still " +
                 "persist as dormant ZDOs and reanimate when somebody is nearby. [Synced with Server]");
+
+            configStaticNpcInvulnerable = config.Bind("Companions.StaticNpcs", "StaticNpcInvulnerable", false,
+                "When enabled, hammer-placed static NPCs are invulnerable — they cannot be killed by " +
+                "combat, the K/killall debug commands, or anything else. When disabled (default), static " +
+                "NPCs are killable and automatically respawn at their placed position after 60 seconds. " +
+                "Admin-controlled, server-authoritative. [Synced with Server]");
 
             // ────── UI Fonts ──────
             // Font options appear as dropdowns in config managers

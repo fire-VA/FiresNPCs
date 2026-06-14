@@ -301,6 +301,7 @@ namespace FiresRPGmaker
             // Only verbose logging and server authority (locking)
             configSync.AddLockingConfigEntry(cm.configServerAuthority);
             configSync.AddConfigEntry(cm.configVerboseLogging);
+            configSync.AddConfigEntry(cm.configStaticNpcInvulnerable);
             configSync.AddConfigEntry(cm.configAdminBypassTerritory);
             configSync.AddConfigEntry(cm.configTerritoryVisualizers);
             configSync.AddConfigEntry(cm.configTerritoryOverlay);

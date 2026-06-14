@@ -217,6 +217,7 @@
     <Compile Include="Modules\Chat\ChatChannelUI.cs" />
     <Compile Include="Modules\Chat\ChatPatches.cs" />
     <Compile Include="Modules\Companions\NpcMode\StaticNpcInitializer.cs" />
+    <Compile Include="Modules\Companions\NpcMode\StaticNpcRespawnManager.cs" />
     <Compile Include="Modules\Companions\UI\CompanionAttributeScreen.cs" />
     <Compile Include="Modules\Companions\CompanionInventoryPatches.cs" />
     <Compile Include="Integration\NpcBridgeProviders.cs" />
@@ -279,6 +280,7 @@
     <Compile Include="UI\PanelElementManager.cs" />
     <Compile Include="UI\Patches\InventoryGuiPatches.cs" />
     <Compile Include="UI\Patches\PlayerInputPatches.cs" />
+    <Compile Include="UI\Patches\StaticNpcProtectionPatches.cs" />
     <Compile Include="UI\Patches\UITooltipStyleOverride.cs" />
     <Compile Include="UI\PrefabFactory\UIPrefabFactoryCore.cs" />
     <Compile Include="UI\PrefabFactory\UIPrefabFactoryHelpers.cs" />
