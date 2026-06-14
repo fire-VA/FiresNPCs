@@ -435,7 +435,11 @@
       "PowerShell([System.IO.Directory]::GetDirectories\\(\"C:\\\\Users\\\\travi\\\\Downloads\\\\VikingLands.Core-master \\(26\\)\"\\))",
       "Bash(awk '{printf \"%.1f MB\\\\n\", $5/1048576}')",
       "Bash(cd /c)",
-      "Bash(powershell -Command ' *)"
+      "Bash(powershell -Command ' *)",
+      "PowerShell($p = \"$env:APPDATA\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\"; Write-Output \"=== r2modman profiles ===\"; if \\(Test-Path $p\\) { Get-ChildItem -Directory $p | Select-Object -ExpandProperty Name }; Write-Output \"=== any 'ragnar' dirs under Desktop\\\\valheimRip2 ===\"; Get-ChildItem -Directory \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'ragnar' } | Select-Object -ExpandProperty FullName; Write-Output \"=== any 'ragnar' profile path ===\"; if \\(Test-Path $p\\) { Get-ChildItem -Directory $p | Where-Object { $_.Name -match 'ragnar' } | Select-Object -ExpandProperty FullName })",
+      "Bash(awk '{print $5, $6, $7}')",
+      "PowerShell($ws = New-Object -ComObject WScript.Shell; $dirs = @\\(\"$env:USERPROFILE\\\\OneDrive\\\\Desktop\",\"$env:USERPROFILE\\\\Desktop\",\"$env:PUBLIC\\\\Desktop\"\\) | Sort-Object -Unique; foreach \\($d in $dirs\\) { if \\(-not \\(Test-Path $d\\)\\) { continue }; Write-Output \"=== $d ===\"; Get-ChildItem $d -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'ragnar|launch|server' } | ForEach-Object { Write-Output \\(\"FILE: \" + $_.Name\\); if \\($_.Extension -eq '.lnk'\\) { $s = $ws.CreateShortcut\\($_.FullName\\); Write-Output \\(\"   Target : \" + $s.TargetPath\\); Write-Output \\(\"   Args   : \" + $s.Arguments\\); Write-Output \\(\"   WorkDir: \" + $s.WorkingDirectory\\) } } })",
+      "Bash([ -f \"$cfg\" ])"
     ]
   }
 }
