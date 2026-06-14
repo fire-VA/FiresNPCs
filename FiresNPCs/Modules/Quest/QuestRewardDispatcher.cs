@@ -148,7 +148,11 @@ namespace FiresRPGmaker.Modules.Quest
         private static void SetCustomValue(Player player, string key, int value)
         {
             if (player == null || string.IsNullOrEmpty(key)) return;
-            try { player.m_customData[key] = value.ToString(); }
+            try
+            {
+                player.m_customData[key] = value.ToString();
+                RpgMakerApi.FireCustomValue(player.GetPlayerID(), key, value, "set");
+            }
             catch (Exception ex) { Debug.LogWarning("[QuestReward] SetCustomValue failed: " + ex.Message); }
         }
 
@@ -160,7 +164,9 @@ namespace FiresRPGmaker.Modules.Quest
             {
                 int current = 0;
                 if (player.m_customData.TryGetValue(key, out var raw)) int.TryParse(raw, out current);
-                player.m_customData[key] = (current + delta).ToString();
+                int updated = current + delta;
+                player.m_customData[key] = updated.ToString();
+                RpgMakerApi.FireCustomValue(player.GetPlayerID(), key, updated, "add");
             }
             catch (Exception ex) { Debug.LogWarning("[QuestReward] AddCustomValue failed: " + ex.Message); }
         }

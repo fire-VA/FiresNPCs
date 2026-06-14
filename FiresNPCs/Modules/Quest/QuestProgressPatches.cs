@@ -168,6 +168,10 @@ namespace FiresRPGmaker.Modules.Quest
                         FiresLogger.LogVerbose($"Processing kill: {killerInfo} (owner={playerId}), prefab={prefab}, target={target.name}, level={charLevel}, star={star}");
                     }
 
+                    // RPG Maker public API: surface the credited kill to external quest
+                    // consumers (VikingLands leaderboard/groups/boss compat, etc.).
+                    RpgMakerApi.FireQuestKill(playerId, prefab, 1);
+
                     // =========================================
                     // COMPANION KILL TRACKING
                     // Credit the kill to the companion's kill tracker

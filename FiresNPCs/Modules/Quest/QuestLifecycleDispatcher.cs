@@ -43,6 +43,7 @@ namespace FiresRPGmaker.Modules.Quest
         {
             if (def == null) return;
             Fire(def, EventOnComplete);
+            if (player != null) RpgMakerApi.FireQuestCompleted(player.GetPlayerID(), def.QuestId);
             // Chain-quest follow-up
             if (string.IsNullOrEmpty(def.TransferComplition)) return;
             var next = QuestManager.Instance?.GetQuestDefinition(def.TransferComplition);

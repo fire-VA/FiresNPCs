@@ -430,7 +430,12 @@
       "Bash(LC_ALL=C sed -i -f /tmp/p.sed '/c/Users/travi/Downloads/VikingLands.Core-master \\(26\\)/VikingLands.Core-master/Features/PortalInstancing/PortalInstancingPatches.cs')",
       "Bash(LC_ALL=C grep -rohE 'TdvLoc\\\\.[TF]\\\\\\(\"portal_[a-z_]+\"' __TRACKED_VAR__/CoordPortal __TRACKED_VAR__/TownPortal __TRACKED_VAR__/TownPortalAdmin __TRACKED_VAR__/PortalInstancing)",
       "Bash(grep -vE \"//|///\")",
-      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" VAGhettoNetworking.csproj /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /nologo /verbosity:minimal /clp:ErrorsOnly)"
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" VAGhettoNetworking.csproj /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /nologo /verbosity:minimal /clp:ErrorsOnly)",
+      "PowerShell($p = \"C:\\\\Users\\\\travi\\\\Downloads\\\\VikingLands.Core-master \\(26\\)\"; Test-Path $p; \\(Get-Item $p\\).FullName)",
+      "PowerShell([System.IO.Directory]::GetDirectories\\(\"C:\\\\Users\\\\travi\\\\Downloads\\\\VikingLands.Core-master \\(26\\)\"\\))",
+      "Bash(awk '{printf \"%.1f MB\\\\n\", $5/1048576}')",
+      "Bash(cd /c)",
+      "Bash(powershell -Command ' *)"
     ]
   }
 }

@@ -180,6 +180,7 @@
   <ItemGroup>
     <Compile Include="GlobalUsings.cs" />
     <Compile Include="Ascend.cs" />
+    <Compile Include="RpgMakerApi.cs" />
     <Compile Include="Modules\Party\PartyData.cs" />
     <Compile Include="Modules\Party\PartyManager.cs" />
     <Compile Include="Debug\DebugPrefabDumper.cs" />
