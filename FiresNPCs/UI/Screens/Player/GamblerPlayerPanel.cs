@@ -19,9 +19,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private static GamblerPlayerPanel _instance;
         protected override string PanelTitle => "Gambler";
         protected override Vector2 PanelSize => new Vector2(920f, 660f);
+        protected override string PrefabName => "FiresGamblerPanel.prefab";
 
         private const int CardCount = 18;
-        private const int Cols = 6;
 
         private enum Status { Idle, Shuffling, Done, Revealed }
         private Status _status = Status.Idle;
@@ -34,8 +34,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private TMP_Text _requiredText;        // "have / need"
         private TMP_Text _statusText;          // "ROLL to start" / "X rolls left"
         private RectTransform _grid;
+        private GameObject _cardTemplate;
         private Button _rollButton;
         private TMP_Text _rollButtonText;
+        private RectTransform _rewardScrollContent;
+        private GameObject _rewardRowTemplate;
         private readonly Card[] _cards = new Card[CardCount];
 
         private class Card { public GameObject Go; public Image Bg; public TMP_Text Face; public Button Btn; }
@@ -51,93 +54,48 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _instance.Open(profileName, npcDisplayName);
         }
 
-        protected override void BuildContent(RectTransform contentArea)
+        protected override void BindPrefab(GameObject root)
         {
-            // Description shows the chance list at idle, then "Choose Reward", then the "You won" list.
-            _descriptionText = MakeLabel(contentArea, "",
-                                         new Vector2(0f, 0.78f), new Vector2(0.62f, 0.93f),
-                                         new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                         size: 13f, align: TextAlignmentOptions.TopLeft);
+            var t = root.transform;
+            _descriptionText = FindTmp(t, "DescriptionText");
+            _requiredText    = FindTmp(t, "RequiredText");
+            _statusText      = FindTmp(t, "StatusText");
 
-            // Required-cost box (top-right of left half)
-            MakePanel(contentArea, "ReqBox", new Color(0.10f, 0.08f, 0.05f, 0.85f),
-                      new Vector2(0f, 0.92f), new Vector2(0.62f, 1f), Vector2.zero, Vector2.zero);
-            _requiredText = MakeLabel(contentArea, "Required: -",
-                                      new Vector2(0f, 0.92f), new Vector2(0.62f, 1f),
-                                      new Vector2(12f, 0f), new Vector2(-12f, 0f),
-                                      size: 14f, align: TextAlignmentOptions.MidlineLeft,
-                                      color: new Color(1f, 0.85f, 0.55f));
+            _grid         = FindRect(t, "GambleElements");
+            _cardTemplate = Find(t, "CardTemplate");
+            if (_cardTemplate != null) _cardTemplate.SetActive(false);
 
-            // 18-card grid (6x3) — left 62% of panel
-            _grid = MakeGrid(contentArea, new Vector2(0f, 0.16f), new Vector2(0.62f, 0.76f));
-            for (int i = 0; i < CardCount; i++) _cards[i] = BuildCard(_grid.transform, i);
+            _rollButton = FindBtn(t, "RollButton");
+            if (_rollButton != null)
+            {
+                _rollButton.onClick.RemoveAllListeners();
+                _rollButton.onClick.AddListener(OnRollClicked);
+                _rollButtonText = _rollButton.GetComponentInChildren<TMP_Text>();
+            }
 
-            // ROLL button along the bottom
-            _rollButton = MakeButton(contentArea, "ROLL",
-                                     new Vector2(0.05f, 0.04f), new Vector2(0.57f, 0.14f),
-                                     Vector2.zero, Vector2.zero,
-                                     bgColor: new Color(0.40f, 0.18f, 0.10f, 0.95f), fontSize: 20f);
-            _rollButton.onClick.AddListener(OnRollClicked);
-            _rollButtonText = _rollButton.GetComponentInChildren<TMP_Text>();
+            _rewardScrollContent = FindRect(t, "RewardScroll/Viewport/Content");
+            _rewardRowTemplate   = Find(t, "RewardRowTemplate");
+            if (_rewardRowTemplate != null) _rewardRowTemplate.SetActive(false);
+            EnsureReflowMeta(_rewardScrollContent, rowSpacing: 2f, padding: 6f);
 
-            // Rolls-remaining status under the button
-            _statusText = MakeLabel(contentArea, "",
-                                    new Vector2(0f, 0f), new Vector2(0.62f, 0.04f),
-                                    new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                    size: 13f, align: TextAlignmentOptions.MidlineLeft,
-                                    color: new Color(0.85f, 0.78f, 0.62f));
-
-            // Right-side static "Possible Rewards" pane (the chance list at idle, also useful while shuffled).
-            MakeLabel(contentArea, "Possible Rewards",
-                      new Vector2(0.64f, 0.92f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero,
-                      size: 15f, align: TextAlignmentOptions.MidlineLeft,
-                      color: new Color(1f, 0.85f, 0.55f));
-            var rewardScroll = MakeVerticalScroll(contentArea,
-                                                  new Vector2(0.64f, 0.02f), new Vector2(1f, 0.90f),
-                                                  Vector2.zero, Vector2.zero,
-                                                  rowSpacing: 2f, scrollSensitivity: 80f);
-            _rewardScrollContent = rewardScroll;
+            BuildCards();
         }
 
-        private RectTransform _rewardScrollContent;
-
-        private RectTransform MakeGrid(RectTransform parent, Vector2 anchorMin, Vector2 anchorMax)
+        /// <summary>Clones CardTemplate once per card slot into the grid (the GridLayoutGroup positions
+        /// them) and caches Bg/Face/Btn for the reveal animation.</summary>
+        private void BuildCards()
         {
-            var go = new GameObject("GambleElements", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            var grid = go.AddComponent<GridLayoutGroup>();
-            grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
-            grid.startAxis = GridLayoutGroup.Axis.Horizontal;
-            grid.childAlignment = TextAnchor.MiddleCenter;
-            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = Cols;
-            grid.spacing = new Vector2(6f, 6f);
-            grid.padding = new RectOffset(4, 4, 4, 4);
-            // Cell size chosen so 6 cols + spacing/padding fit the grid rect on a 920-wide panel.
-            grid.cellSize = new Vector2(82f, 110f);
-            return rt;
-        }
-
-        private Card BuildCard(Transform parent, int index)
-        {
-            var go = new GameObject("Card_" + index.ToString("00"),
-                typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            go.transform.SetParent(parent, false);
-            var card = new Card { Go = go };
-            card.Bg = go.GetComponent<Image>();
-            card.Bg.color = new Color(0.06f, 0.05f, 0.03f, 0.92f);
-            card.Btn = go.GetComponent<Button>();
-            card.Btn.onClick.AddListener(() => OnCardClicked(index));
-
-            card.Face = MakeLabel(go.transform, "?",
-                                  new Vector2(0f, 0f), new Vector2(1f, 1f),
-                                  new Vector2(4f, 4f), new Vector2(-4f, -4f),
-                                  size: 16f, align: TextAlignmentOptions.Center,
-                                  color: new Color(1f, 0.95f, 0.6f));
-            return card;
+            if (_cardTemplate == null || _grid == null) return;
+            for (int i = 0; i < CardCount; i++)
+            {
+                int idx = i;
+                var go = Instantiate(_cardTemplate, _grid);
+                go.name = "Card_" + i.ToString("00");
+                go.SetActive(true);
+                var card = new Card { Go = go, Bg = go.GetComponent<Image>(), Face = FindTmp(go.transform, "Face"), Btn = go.GetComponent<Button>() };
+                if (card.Btn != null) { card.Btn.onClick.RemoveAllListeners(); card.Btn.onClick.AddListener(() => OnCardClicked(idx)); }
+                _cards[i] = card;
+            }
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
@@ -206,25 +164,23 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private void RefreshStaticRewardScroll(GamblerProfile profile)
         {
+            if (_rewardScrollContent == null || _rewardRowTemplate == null) return;
             ClearRewardScroll();
             foreach (var item in profile.Rewards)
             {
-                var rowGo = new GameObject("Reward_" + item.Prefab, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-                rowGo.transform.SetParent(_rewardScrollContent, false);
-                rowGo.GetComponent<Image>().color = new Color(0.12f, 0.10f, 0.06f, 0.85f);
+                var rowGo = Instantiate(_rewardRowTemplate, _rewardScrollContent);
+                rowGo.name = "Reward_" + item.Prefab;
+                rowGo.SetActive(true);
                 SetRowHeight(rowGo, 24f);
-                MakeLabel(rowGo.transform, item.Prefab + "  x" + item.Min + (item.Min == item.Max ? "" : "-" + item.Max),
-                          new Vector2(0f, 0f), new Vector2(1f, 1f),
-                          new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                          size: 12f);
+                var lbl = FindTmp(rowGo.transform, "RewardLabel");
+                if (lbl != null) lbl.text = item.Prefab + "  x" + item.Min + (item.Min == item.Max ? "" : "-" + item.Max);
             }
             ReflowScroll(_rewardScrollContent);
         }
 
         private void ClearRewardScroll()
         {
-            for (int i = _rewardScrollContent.childCount - 1; i >= 0; i--)
-                Destroy(_rewardScrollContent.GetChild(i).gameObject);
+            ClearClones(_rewardScrollContent, _rewardRowTemplate);
         }
 
         private void ShowCardsBlank(GamblerProfile profile)

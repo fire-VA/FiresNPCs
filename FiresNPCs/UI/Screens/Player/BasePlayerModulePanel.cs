@@ -377,6 +377,23 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             content.sizeDelta = new Vector2(content.sizeDelta.x, y + padding);
         }
 
+        /// <summary>Destroys every child of a scroll Content except the hidden clone template(s) — the
+        /// standard teardown before a load-from-prefab panel re-clones its rows. Accepts more than one
+        /// template for panels whose scroll mixes row kinds (e.g. Transmog's type-header + option rows).</summary>
+        protected static void ClearClones(RectTransform content, params GameObject[] templates)
+        {
+            if (content == null) return;
+            for (int i = content.childCount - 1; i >= 0; i--)
+            {
+                var child = content.GetChild(i).gameObject;
+                bool isTemplate = false;
+                for (int j = 0; j < templates.Length; j++)
+                    if (child == templates[j]) { isTemplate = true; break; }
+                if (isTemplate) continue;
+                Destroy(child);
+            }
+        }
+
         /// <summary>Stamps the spacing/padding meta that <see cref="ReflowScroll"/> reads onto a
         /// prefab-supplied scroll Content node (the programmatic <see cref="MakeVerticalScroll"/> does
         /// this itself; load-from-prefab panels call this after binding their scroll Content).</summary>

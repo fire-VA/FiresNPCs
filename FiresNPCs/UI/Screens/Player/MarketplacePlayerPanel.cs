@@ -18,6 +18,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private static MarketplacePlayerPanel _instance;
         protected override string PanelTitle => "Marketplace";
         protected override Vector2 PanelSize => new Vector2(960f, 640f);
+        protected override string PrefabName => "FiresMarketplacePanel.prefab";
 
         private enum Tab { Buy, Sell, MyListings }
         private Tab _currentTab = Tab.Buy;
@@ -46,6 +47,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private string _profileName;
         private RectTransform _listingContent;
+        private GameObject _listingRowTemplate;
         private TMP_Text _statusText;
         private Button _buyTab, _sellTab, _myTab;
         private TMP_InputField _searchField;
@@ -76,323 +78,92 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _instance.Open(profileName, npcDisplayName);
         }
 
-        protected override void BuildContent(RectTransform contentArea)
+        protected override void BindPrefab(GameObject root)
         {
-            // Top tab strip
-            _buyTab = MakeTab(contentArea, "TabBuy", "Buy", 0.00f, 0.16f, Tab.Buy);
-            _sellTab = MakeTab(contentArea, "TabSell", "Sell", 0.17f, 0.33f, Tab.Sell);
-            _myTab  = MakeTab(contentArea, "TabMyListings", "My Listings", 0.34f, 0.55f, Tab.MyListings);
+            var t = root.transform;
 
-            // Search bar
-            MakeLabel(contentArea, "Search:",
-                      new Vector2(0.58f, 0.94f), new Vector2(0.68f, 1f),
-                      Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.MidlineRight);
-            BuildSearchField(contentArea);
+            _buyTab = FindBtn(t, "TabBuy");
+            _sellTab = FindBtn(t, "TabSell");
+            _myTab  = FindBtn(t, "TabMyListings");
+            WireTab(_buyTab, Tab.Buy);
+            WireTab(_sellTab, Tab.Sell);
+            WireTab(_myTab, Tab.MyListings);
 
-            // KG-style category strip just below the tabs (ALL / Weapons / Armor / Consumable / Tools / Resources).
-            string[] catNames = { "All", "Weapons", "Armor", "Consumable", "Tools", "Resources" };
-            for (int i = 0; i < catNames.Length; i++)
+            _searchField = FindInput(t, "SearchField");
+            if (_searchField != null) { _searchField.onValueChanged.RemoveAllListeners(); _searchField.onValueChanged.AddListener(_ => Refresh()); }
+
+            string[] cats = { "CatAll","CatWeapons","CatArmor","CatConsumable","CatTools","CatResources" };
+            for (int i = 0; i < cats.Length; i++)
             {
                 int idx = i;
-                float xMin = 0.02f + i * 0.155f;
-                float xMax = xMin + 0.145f;
-                var btn = MakeButton(contentArea, catNames[i],
-                                     new Vector2(xMin, 0.88f), new Vector2(xMax, 0.93f),
-                                     Vector2.zero, Vector2.zero,
-                                     bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 12f);
-                btn.name = "Cat" + catNames[i];
-                btn.onClick.AddListener(() => { _category = (MarketCategory)idx; _page = 0; _selected = null; HideConfirmPanel(); Refresh(); });
+                var btn = FindBtn(t, cats[i]);
                 _categoryButtons[i] = btn;
+                if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _category = (MarketCategory)idx; _page = 0; _selected = null; HideConfirmPanel(); Refresh(); }); }
             }
 
-            // Column header — KG-parity sort: clicking a column sets/toggles the sort mode (asc↔desc).
-            MakePanel(contentArea, "ColHeader", new Color(0.05f, 0.04f, 0.02f, 0.95f),
-                      new Vector2(0f, 0.82f), new Vector2(1f, 0.87f), Vector2.zero, Vector2.zero);
-            _hdrItem   = MakeSortHeader(contentArea, "Item",   SortBy.ItemName, new Vector2(0.02f, 0.82f), new Vector2(0.40f, 0.87f), TextAlignmentOptions.Left);
-            _hdrQty    = MakeSortHeader(contentArea, "Qty",    SortBy.Count,    new Vector2(0.42f, 0.82f), new Vector2(0.54f, 0.87f), TextAlignmentOptions.Center);
-            _hdrPrice  = MakeSortHeader(contentArea, "Price",  SortBy.Price,    new Vector2(0.56f, 0.82f), new Vector2(0.72f, 0.87f), TextAlignmentOptions.Center);
-            _hdrSeller = MakeSortHeader(contentArea, "Seller", SortBy.Seller,   new Vector2(0.74f, 0.82f), new Vector2(0.88f, 0.87f), TextAlignmentOptions.Left);
+            _hdrItem   = WireSortHeader(t, "SortItemName", SortBy.ItemName);
+            _hdrQty    = WireSortHeader(t, "SortCount",    SortBy.Count);
+            _hdrPrice  = WireSortHeader(t, "SortPrice",    SortBy.Price);
+            _hdrSeller = WireSortHeader(t, "SortSeller",   SortBy.Seller);
 
-            // Tile size cycle button — top-right of the header row.
-            _sizeCycleButton = MakeButton(contentArea, "Tiles",
-                                          new Vector2(0.89f, 0.82f), new Vector2(0.99f, 0.87f),
-                                          Vector2.zero, Vector2.zero,
-                                          bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 11f);
-            _sizeCycleButton.name = "SizeCycle";
-            _sizeCycleLabel = _sizeCycleButton.GetComponentInChildren<TMP_Text>();
-            _sizeCycleButton.onClick.AddListener(CycleTileSize);
+            _sizeCycleButton = FindBtn(t, "SizeCycle");
+            if (_sizeCycleButton != null) { _sizeCycleLabel = _sizeCycleButton.GetComponentInChildren<TMP_Text>(); _sizeCycleButton.onClick.RemoveAllListeners(); _sizeCycleButton.onClick.AddListener(CycleTileSize); }
 
-            _listingContent = MakeVerticalScroll(contentArea,
-                                                 new Vector2(0f, 0.27f), new Vector2(1f, 0.81f),
-                                                 Vector2.zero, Vector2.zero,
-                                                 rowSpacing: 2f, scrollSensitivity: 120f);
+            _listingContent     = FindRect(t, "ListingScroll/Viewport/Content");
+            _listingRowTemplate = Find(t, "ListingRowTemplate");
+            if (_listingRowTemplate != null) _listingRowTemplate.SetActive(false);
+            EnsureReflowMeta(_listingContent, rowSpacing: 2f, padding: 6f);
 
-            // Page navigation row just above the confirm strip
-            var pagePrev = MakeButton(contentArea, "<",
-                                      new Vector2(0.34f, 0.22f), new Vector2(0.40f, 0.27f),
-                                      Vector2.zero, Vector2.zero,
-                                      bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 14f);
-            pagePrev.name = "PageLeft";
-            pagePrev.onClick.AddListener(() => { if (_page > 0) { _page--; Refresh(); } });
-            _pageNumberText = MakeLabel(contentArea, "1 / 1",
-                                        new Vector2(0.40f, 0.22f), new Vector2(0.60f, 0.27f),
-                                        Vector2.zero, Vector2.zero,
-                                        size: 13f, align: TextAlignmentOptions.Center,
-                                        color: new Color(1f, 0.85f, 0.55f));
-            var pageNext = MakeButton(contentArea, ">",
-                                      new Vector2(0.60f, 0.22f), new Vector2(0.66f, 0.27f),
-                                      Vector2.zero, Vector2.zero,
-                                      bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 14f);
-            pageNext.name = "PageRight";
-            pageNext.onClick.AddListener(() => { if (_page + 1 < _maxPage) { _page++; Refresh(); } });
+            var pagePrev = FindBtn(t, "PageLeft");
+            if (pagePrev != null) { pagePrev.onClick.RemoveAllListeners(); pagePrev.onClick.AddListener(() => { if (_page > 0) { _page--; Refresh(); } }); }
+            _pageNumberText = FindTmp(t, "PageNumber");
+            var pageNext = FindBtn(t, "PageRight");
+            if (pageNext != null) { pageNext.onClick.RemoveAllListeners(); pageNext.onClick.AddListener(() => { if (_page + 1 < _maxPage) { _page++; Refresh(); } }); }
 
-            // AFTERPRESS confirm strip at the bottom — hidden until a row is selected.
-            BuildConfirmPanel(contentArea);
+            BindConfirmPanel(t);
 
-            _statusText = MakeLabel(contentArea, "",
-                                    new Vector2(0f, 0.00f), new Vector2(1f, 0.05f),
-                                    new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                    size: 12f, color: new Color(0.85f, 0.78f, 0.62f));
+            _statusText = FindTmp(t, "StatusText");
         }
 
-        private Button MakeTab(Transform parent, string name, string label, float xMin, float xMax, Tab id)
+        private void WireTab(Button btn, Tab id)
         {
-            var btn = MakeButton(parent, label,
-                                 new Vector2(xMin, 0.94f), new Vector2(xMax, 1f),
-                                 Vector2.zero, Vector2.zero,
-                                 bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 14f);
-            btn.name = name;
+            if (btn == null) return;
+            btn.onClick.RemoveAllListeners();
             btn.onClick.AddListener(() => { _currentTab = id; _selected = null; HideConfirmPanel(); Refresh(); });
-            return btn;
         }
 
-        private void BuildSearchField(Transform parent)
+        private TMP_Text WireSortHeader(Transform root, string node, SortBy mode)
         {
-            var go = new GameObject("SearchField", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.68f, 0.94f); rt.anchorMax = new Vector2(1f, 1f);
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            go.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.92f);
-
-            var input = go.AddComponent<TMP_InputField>();
-            var viewport = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
-            viewport.transform.SetParent(rt, false);
-            var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.offsetMin = new Vector2(8f, 4f); vrt.offsetMax = new Vector2(-8f, -4f);
-
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(vrt, false);
-            var trt = textGo.GetComponent<RectTransform>();
-            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
-            var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.fontSize = 14f; txt.color = new Color(0.96f, 0.91f, 0.76f);
-            txt.alignment = TextAlignmentOptions.Left;
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(txt);
-
-            input.textViewport = vrt; input.textComponent = txt;
-            input.lineType = TMP_InputField.LineType.SingleLine;
-            input.onValueChanged.AddListener(_ => Refresh());
-            _searchField = input;
+            var btn = FindBtn(root, node);
+            if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => ChangeSortBy(mode)); }
+            return FindTmp(root, node + "/Text");
         }
 
-        private void BuildConfirmPanel(RectTransform contentArea)
+        private void BindConfirmPanel(Transform root)
         {
-            _confirmPanel = new GameObject("ConfirmPanel", typeof(RectTransform), typeof(Image));
-            _confirmPanel.transform.SetParent(contentArea, false);
-            var rt = _confirmPanel.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0f, 0.06f); rt.anchorMax = new Vector2(1f, 0.21f);
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            _confirmPanel.GetComponent<Image>().color = new Color(0.12f, 0.10f, 0.06f, 0.95f);
+            _confirmPanel          = Find(root, "ConfirmPanel");
+            _confirmItemName       = FindTmp(root, "ConfirmItemName");
+            _confirmQuantity       = FindInput(root, "QuantityInput");
+            _confirmPriceLabel     = FindTmp(root, "ConfirmPriceLabel");
+            _confirmPrice          = FindInput(root, "PriceInput");
+            _currencyDropdownLabel = FindTmp(root, "CurrencyDropdownLabel");
+            var ddGo = Find(root, "CurrencyDropdown");
+            _currencyDropdown      = ddGo != null ? ddGo.GetComponent<TMP_Dropdown>() : null;
+            _confirmTotal          = FindTmp(root, "ConfirmTotal");
 
-            _confirmItemName = MakeLabel(_confirmPanel.transform, "",
-                                         new Vector2(0f, 0.55f), new Vector2(0.40f, 1f),
-                                         new Vector2(12f, 0f), new Vector2(-4f, 0f),
-                                         size: 14f, color: new Color(1f, 0.85f, 0.55f));
+            _confirmActionButton = FindBtn(root, "ConfirmActionButton");
+            if (_confirmActionButton != null)
+            {
+                _confirmActionLabel = _confirmActionButton.GetComponentInChildren<TMP_Text>();
+                _confirmActionButton.onClick.RemoveAllListeners();
+                _confirmActionButton.onClick.AddListener(OnConfirmClicked);
+            }
 
-            // Quantity input
-            MakeLabel(_confirmPanel.transform, "Quantity:",
-                      new Vector2(0f, 0f), new Vector2(0.12f, 0.55f),
-                      new Vector2(12f, 0f), Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.MidlineRight);
-            _confirmQuantity = BuildConfirmInput(_confirmPanel.transform, "QuantityInput",
-                                                 new Vector2(0.12f, 0.10f), new Vector2(0.24f, 0.50f));
+            if (_confirmQuantity != null) { _confirmQuantity.onValueChanged.RemoveAllListeners(); _confirmQuantity.onValueChanged.AddListener(_ => UpdateConfirmTotal()); }
+            if (_confirmPrice != null)    { _confirmPrice.onValueChanged.RemoveAllListeners();    _confirmPrice.onValueChanged.AddListener(_ => UpdateConfirmTotal()); }
+            if (_currencyDropdown != null){ _currencyDropdown.onValueChanged.RemoveAllListeners(); _currencyDropdown.onValueChanged.AddListener(_ => UpdateConfirmTotal()); }
 
-            // Price input (sell-only)
-            _confirmPriceLabel = MakeLabel(_confirmPanel.transform, "Price:",
-                      new Vector2(0.26f, 0f), new Vector2(0.36f, 0.55f),
-                      Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.MidlineRight);
-            _confirmPrice = BuildConfirmInput(_confirmPanel.transform, "PriceInput",
-                                              new Vector2(0.36f, 0.10f), new Vector2(0.48f, 0.50f));
-
-            // Currency dropdown (sell-only). On Buy/MyListings we re-use the listing's stored Currency.
-            _currencyDropdownLabel = MakeLabel(_confirmPanel.transform, "Currency:",
-                      new Vector2(0.49f, 0f), new Vector2(0.60f, 0.55f),
-                      Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.MidlineRight);
-            _currencyDropdown = BuildCurrencyDropdown(_confirmPanel.transform,
-                                                     new Vector2(0.60f, 0.10f), new Vector2(0.74f, 0.50f));
-
-            // Total summary
-            _confirmTotal = MakeLabel(_confirmPanel.transform, "",
-                                      new Vector2(0.76f, 0f), new Vector2(0.99f, 0.55f),
-                                      new Vector2(8f, 0f), new Vector2(-4f, 0f),
-                                      size: 12f, align: TextAlignmentOptions.MidlineLeft,
-                                      color: new Color(0.85f, 0.78f, 0.62f));
-
-            // Action button
-            _confirmActionButton = MakeButton(_confirmPanel.transform, "Confirm",
-                                              new Vector2(0.80f, 0.10f), new Vector2(0.98f, 0.90f),
-                                              Vector2.zero, Vector2.zero,
-                                              bgColor: new Color(0.22f, 0.42f, 0.22f, 0.95f), fontSize: 14f);
-            _confirmActionLabel = _confirmActionButton.GetComponentInChildren<TMP_Text>();
-            _confirmActionButton.onClick.AddListener(OnConfirmClicked);
-
-            _confirmQuantity.onValueChanged.AddListener(_ => UpdateConfirmTotal());
-            _confirmPrice.onValueChanged.AddListener(_ => UpdateConfirmTotal());
-            _currencyDropdown.onValueChanged.AddListener(_ => UpdateConfirmTotal());
-            _confirmPanel.SetActive(false);
-        }
-
-        /// <summary>Builds a TMP_Dropdown with the union of all loaded Banker profile currencies. KG sources
-        /// this from <c>_possibleCurrencies</c> global config; we union per-profile <see cref="BankerProfile.CurrencyLimits"/>
-        /// so the seller can list in any currency at least one bank accepts (plus "Coins" baseline).</summary>
-        private TMP_Dropdown BuildCurrencyDropdown(Transform parent, Vector2 anchorMin, Vector2 anchorMax)
-        {
-            var go = new GameObject("CurrencyDropdown", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            go.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.92f);
-
-            var dropdown = go.AddComponent<TMP_Dropdown>();
-
-            // Label child (shows the current selection)
-            var labelGo = new GameObject("Label", typeof(RectTransform));
-            labelGo.transform.SetParent(go.transform, false);
-            var lrt = labelGo.GetComponent<RectTransform>();
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = new Vector2(8f, 2f); lrt.offsetMax = new Vector2(-20f, -2f);
-            var label = labelGo.AddComponent<TextMeshProUGUI>();
-            label.fontSize = 12f; label.color = new Color(0.96f, 0.91f, 0.76f);
-            label.alignment = TextAlignmentOptions.MidlineLeft;
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(label);
-
-            // Arrow indicator
-            var arrowGo = new GameObject("Arrow", typeof(RectTransform));
-            arrowGo.transform.SetParent(go.transform, false);
-            var art = arrowGo.GetComponent<RectTransform>();
-            art.anchorMin = new Vector2(1f, 0.5f); art.anchorMax = new Vector2(1f, 0.5f);
-            art.pivot = new Vector2(1f, 0.5f);
-            art.sizeDelta = new Vector2(20f, 20f); art.anchoredPosition = new Vector2(-4f, 0f);
-            var arrowText = arrowGo.AddComponent<TextMeshProUGUI>();
-            arrowText.text = "v"; arrowText.fontSize = 14f; arrowText.alignment = TextAlignmentOptions.Center;
-            arrowText.color = new Color(1f, 0.85f, 0.55f);
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(arrowText);
-
-            // Template (the dropdown options popup)
-            var template = new GameObject("Template", typeof(RectTransform), typeof(Image));
-            template.transform.SetParent(go.transform, false);
-            var trt = template.GetComponent<RectTransform>();
-            trt.anchorMin = new Vector2(0f, 0f); trt.anchorMax = new Vector2(1f, 0f); trt.pivot = new Vector2(0.5f, 1f);
-            trt.sizeDelta = new Vector2(0f, 140f); trt.anchoredPosition = new Vector2(0f, -2f);
-            template.GetComponent<Image>().color = new Color(0.12f, 0.10f, 0.06f, 0.98f);
-
-            // Scroll inside template
-            var scroll = template.AddComponent<ScrollRect>();
-            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(Mask));
-            viewport.transform.SetParent(template.transform, false);
-            var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.offsetMin = Vector2.zero; vrt.offsetMax = Vector2.zero;
-            viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.0f);
-            viewport.GetComponent<Mask>().showMaskGraphic = false;
-
-            var content = new GameObject("Content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            var crt = content.GetComponent<RectTransform>();
-            crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f); crt.pivot = new Vector2(0.5f, 1f);
-            crt.sizeDelta = new Vector2(0f, 28f);
-
-            var item = new GameObject("Item", typeof(RectTransform), typeof(Toggle));
-            item.transform.SetParent(content.transform, false);
-            var irt = item.GetComponent<RectTransform>();
-            irt.anchorMin = new Vector2(0f, 0.5f); irt.anchorMax = new Vector2(1f, 0.5f);
-            irt.sizeDelta = new Vector2(0f, 26f);
-
-            var itemBg = new GameObject("Item Background", typeof(RectTransform), typeof(Image));
-            itemBg.transform.SetParent(item.transform, false);
-            var ibgRt = itemBg.GetComponent<RectTransform>();
-            ibgRt.anchorMin = Vector2.zero; ibgRt.anchorMax = Vector2.one;
-            ibgRt.offsetMin = Vector2.zero; ibgRt.offsetMax = Vector2.zero;
-            itemBg.GetComponent<Image>().color = new Color(0.20f, 0.16f, 0.10f, 0.95f);
-
-            var itemChecked = new GameObject("Item Checkmark", typeof(RectTransform), typeof(Image));
-            itemChecked.transform.SetParent(item.transform, false);
-            var icRt = itemChecked.GetComponent<RectTransform>();
-            icRt.anchorMin = new Vector2(0f, 0.5f); icRt.anchorMax = new Vector2(0f, 0.5f);
-            icRt.sizeDelta = new Vector2(20f, 20f); icRt.anchoredPosition = new Vector2(12f, 0f);
-            itemChecked.GetComponent<Image>().color = new Color(1f, 0.85f, 0.55f);
-
-            var itemLabel = new GameObject("Item Label", typeof(RectTransform));
-            itemLabel.transform.SetParent(item.transform, false);
-            var ilrt = itemLabel.GetComponent<RectTransform>();
-            ilrt.anchorMin = Vector2.zero; ilrt.anchorMax = Vector2.one;
-            ilrt.offsetMin = new Vector2(28f, 2f); ilrt.offsetMax = new Vector2(-4f, -2f);
-            var itemLabelText = itemLabel.AddComponent<TextMeshProUGUI>();
-            itemLabelText.fontSize = 12f; itemLabelText.color = new Color(0.96f, 0.91f, 0.76f);
-            itemLabelText.alignment = TextAlignmentOptions.MidlineLeft;
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(itemLabelText);
-
-            var toggle = item.GetComponent<Toggle>();
-            toggle.targetGraphic = itemBg.GetComponent<Image>();
-            toggle.graphic = itemChecked.GetComponent<Image>();
-            toggle.isOn = true;
-
-            scroll.content = crt; scroll.viewport = vrt;
-            scroll.horizontal = false; scroll.vertical = true;
-
-            dropdown.template = trt;
-            dropdown.captionText = label;
-            dropdown.itemText = itemLabelText;
-            template.SetActive(false);
-
-            return dropdown;
-        }
-
-        private TMP_InputField BuildConfirmInput(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            go.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.92f);
-
-            var input = go.AddComponent<TMP_InputField>();
-            var viewport = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
-            viewport.transform.SetParent(rt, false);
-            var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.offsetMin = new Vector2(6f, 2f); vrt.offsetMax = new Vector2(-6f, -2f);
-
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(vrt, false);
-            var trt = textGo.GetComponent<RectTransform>();
-            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
-            var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.fontSize = 13f; txt.color = new Color(0.96f, 0.91f, 0.76f);
-            txt.alignment = TextAlignmentOptions.Center;
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(txt);
-
-            input.textViewport = vrt; input.textComponent = txt;
-            input.lineType = TMP_InputField.LineType.SingleLine;
-            input.contentType = TMP_InputField.ContentType.IntegerNumber;
-            return input;
+            if (_confirmPanel != null) _confirmPanel.SetActive(false);
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
@@ -406,12 +177,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private void Refresh()
         {
+            if (_listingContent == null || _listingRowTemplate == null) return;
             HighlightTab(_buyTab, _currentTab == Tab.Buy);
             HighlightTab(_sellTab, _currentTab == Tab.Sell);
             HighlightTab(_myTab,  _currentTab == Tab.MyListings);
 
-            for (int i = _listingContent.childCount - 1; i >= 0; i--)
-                Destroy(_listingContent.GetChild(i).gameObject);
+            ClearClones(_listingContent, _listingRowTemplate);
 
             string filter = _searchField?.text?.Trim().ToLowerInvariant() ?? "";
             IReadOnlyList<MarketplaceListing> rows = _currentTab switch
@@ -454,24 +225,29 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private void BuildRow(MarketplaceListing l)
         {
-            var rowGo = new GameObject("Listing_" + l.ItemPrefab, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            rowGo.transform.SetParent(_listingContent, false);
-            rowGo.GetComponent<Image>().color = l == _selected
-                ? new Color(0.32f, 0.22f, 0.14f, 0.95f)
-                : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var rowGo = Instantiate(_listingRowTemplate, _listingContent);
+            rowGo.name = "Listing_" + l.ItemPrefab;
+            rowGo.SetActive(true);
             SetRowHeight(rowGo, RowHeightPx);
-            rowGo.GetComponent<Button>().onClick.AddListener(() =>
-            {
-                _selected = l;
-                ShowConfirmPanelFor(l);
-                Refresh();
-            });
+
+            var img = rowGo.GetComponent<Image>();
+            if (img != null) img.color = l == _selected ? new Color(0.32f, 0.22f, 0.14f, 0.95f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var btn = rowGo.GetComponent<Button>();
+            if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _selected = l; ShowConfirmPanelFor(l); Refresh(); }); }
 
             float fs = RowFontSize;
-            MakeLabel(rowGo.transform, l.ItemPrefab,           new Vector2(0.02f, 0f), new Vector2(0.40f, 1f), Vector2.zero, Vector2.zero, size: fs);
-            MakeLabel(rowGo.transform, l.Count.ToString(),      new Vector2(0.42f, 0f), new Vector2(0.54f, 1f), Vector2.zero, Vector2.zero, size: fs, align: TextAlignmentOptions.Center);
-            MakeLabel(rowGo.transform, l.Price + " " + l.Currency, new Vector2(0.56f, 0f), new Vector2(0.72f, 1f), Vector2.zero, Vector2.zero, size: fs, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(rowGo.transform, l.SellerName,            new Vector2(0.74f, 0f), new Vector2(0.99f, 1f), Vector2.zero, Vector2.zero, size: fs);
+            SetCell(rowGo, "ItemLabel",   l.ItemPrefab, fs);
+            SetCell(rowGo, "QtyLabel",    l.Count.ToString(), fs);
+            SetCell(rowGo, "PriceLabel",  l.Price + " " + l.Currency, fs);
+            SetCell(rowGo, "SellerLabel", l.SellerName, fs);
+        }
+
+        private static void SetCell(GameObject row, string node, string text, float fontSize)
+        {
+            var t = FindTmp(row.transform, node);
+            if (t == null) return;
+            t.text = text;
+            t.fontSize = fontSize;
         }
 
         // ─── confirm panel (KG's AFTERPRESS) ───
@@ -625,25 +401,6 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         }
 
         // ─── KG-parity sort + size cycle ─────────────────────────────────
-
-        /// <summary>Builds a column-header that acts as a sort toggle. Visual: glyph (⇧/⇩) gets
-        /// appended to the active column's label so the player can read the current sort at a glance.</summary>
-        private TMP_Text MakeSortHeader(Transform parent, string label, SortBy mode, Vector2 anchorMin, Vector2 anchorMax, TextAlignmentOptions align)
-        {
-            var btn = MakeButton(parent, label,
-                                 anchorMin, anchorMax,
-                                 Vector2.zero, Vector2.zero,
-                                 bgColor: new Color(0f, 0f, 0f, 0f), fontSize: 13f);
-            btn.name = "Sort" + mode;
-            var txt = btn.GetComponentInChildren<TMP_Text>();
-            if (txt != null)
-            {
-                txt.color = new Color(1f, 0.85f, 0.55f);
-                txt.alignment = align;
-            }
-            btn.onClick.AddListener(() => ChangeSortBy(mode));
-            return txt;
-        }
 
         private void ChangeSortBy(SortBy mode)
         {

@@ -454,7 +454,9 @@
       "Bash(cp C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/AssetBundles/vaitems_gnarly __TRACKED_VAR__/vaitems_gnarly)",
       "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_fir_lods.py\")",
       "Bash([ -f \"$VSWHERE\" ])",
-      "Bash('/c/Program Files \\(x86\\)/Microsoft Visual Studio/Installer/vswhere.exe' -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\\\\**\\\\Bin\\\\MSBuild.exe')"
+      "Bash('/c/Program Files \\(x86\\)/Microsoft Visual Studio/Installer/vswhere.exe' -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\\\\**\\\\Bin\\\\MSBuild.exe')",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/travi/OneDrive/Desktop/valheimRip2/VAassets/VAassets/VAassets.csproj\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /t:Rebuild /v:minimal /clp:ErrorsOnly)",
+      "Bash(awk '{print $5, $6, $7, $8, $9}')"
     ]
   }
 }

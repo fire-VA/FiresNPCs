@@ -16,6 +16,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private static LeaderboardPlayerPanel _instance;
         protected override string PanelTitle => "Leaderboard";
         protected override Vector2 PanelSize => new Vector2(880f, 600f);
+        protected override string PrefabName => "FiresLeaderboardPanel.prefab";
 
         public enum InnerTab { Stats, Achievements }
 
@@ -24,19 +25,24 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private InnerTab _tab = InnerTab.Stats;
         private string _sortBy = "KilledCreatures";
 
-        // Stats tab widgets
+        // Stats tab widgets (bound from prefab)
+        private GameObject _statsView;
         private RectTransform _statsRowContent;
-        private GameObject _statsHeader;
-        private GameObject _statsSortBar;
+        private GameObject _statRowTemplate;
         private TMP_Text _summaryText;
 
-        // Achievement tab widgets
+        // Achievement tab widgets (bound from prefab)
+        private GameObject _achView;
         private RectTransform _achRowContent;
-        private GameObject _achHeader;
+        private GameObject _achRowTemplate;
         private TMP_Text _achSummary;
 
         private Button _tabBtnStats;
         private Button _tabBtnAch;
+
+        // Row-cell node names inside StatRowTemplate, parallel to StatsCols / the vals[] order.
+        private static readonly string[] CellNodes =
+            { "RankLabel","PlayerLabel","KillsLabel","PvPLabel","BuiltLabel","CraftLabel","DiedLabel","MapLabel" };
 
         public static void Show(string leaderboardProfile, string npcDisplayName, InnerTab startTab = InnerTab.Stats, string achievementProfile = null)
         {
@@ -55,114 +61,41 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             DontDestroyOnLoad(go);
         }
 
-        protected override void BuildContent(RectTransform contentArea)
+        protected override void BindPrefab(GameObject root)
         {
-            _summaryText = MakeLabel(contentArea, "",
-                                     new Vector2(0f, 0.94f), new Vector2(1f, 1f),
-                                     new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                     size: 14f, color: new Color(1f, 0.85f, 0.55f));
+            var t = root.transform;
+            _summaryText = FindTmp(t, "SummaryText");
 
-            // Inner tabs
-            _tabBtnStats = MakeButton(contentArea, "Leaderboard",
-                                      new Vector2(0f, 0.86f), new Vector2(0.22f, 0.93f),
-                                      Vector2.zero, Vector2.zero,
-                                      bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 14f);
-            _tabBtnStats.onClick.AddListener(() => { _tab = InnerTab.Stats; Refresh(); });
+            _tabBtnStats = FindBtn(t, "TabStats");
+            _tabBtnAch   = FindBtn(t, "TabAch");
+            if (_tabBtnStats != null) { _tabBtnStats.onClick.RemoveAllListeners(); _tabBtnStats.onClick.AddListener(() => { _tab = InnerTab.Stats; Refresh(); }); }
+            if (_tabBtnAch   != null) { _tabBtnAch.onClick.RemoveAllListeners();   _tabBtnAch.onClick.AddListener(() => { _tab = InnerTab.Achievements; Refresh(); }); }
 
-            _tabBtnAch = MakeButton(contentArea, "Achievements",
-                                    new Vector2(0.23f, 0.86f), new Vector2(0.46f, 0.93f),
-                                    Vector2.zero, Vector2.zero,
-                                    bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 14f);
-            _tabBtnAch.onClick.AddListener(() => { _tab = InnerTab.Achievements; Refresh(); });
+            _statsView       = Find(t, "StatsView");
+            _statsRowContent = FindRect(t, "StatsScroll/Viewport/Content");
+            _statRowTemplate = Find(t, "StatRowTemplate");
+            if (_statRowTemplate != null) _statRowTemplate.SetActive(false);
+            EnsureReflowMeta(_statsRowContent, rowSpacing: 2f, padding: 6f);
 
-            BuildStatsView(contentArea);
-            BuildAchievementsView(contentArea);
+            _achView       = Find(t, "AchView");
+            _achSummary    = FindTmp(t, "AchSummary");
+            _achRowContent = FindRect(t, "AchScroll/Viewport/Content");
+            _achRowTemplate = Find(t, "AchRowTemplate");
+            if (_achRowTemplate != null) _achRowTemplate.SetActive(false);
+            EnsureReflowMeta(_achRowContent, rowSpacing: 3f, padding: 6f);
+
+            WireSort(t, "SortKills",    "KilledCreatures");
+            WireSort(t, "SortPvP",      "KilledPlayers");
+            WireSort(t, "SortBuilt",    "BuiltStructures");
+            WireSort(t, "SortCrafted",  "ItemsCrafted");
+            WireSort(t, "SortDeaths",   "Died");
+            WireSort(t, "SortExplored", "MapExplored");
         }
 
-        private void BuildStatsView(RectTransform contentArea)
+        private void WireSort(Transform root, string node, string sortKey)
         {
-            // Sort-by buttons
-            _statsSortBar = new GameObject("StatsSortBar", typeof(RectTransform));
-            _statsSortBar.transform.SetParent(contentArea, false);
-            var sbrt = _statsSortBar.GetComponent<RectTransform>();
-            sbrt.anchorMin = new Vector2(0f, 0.78f); sbrt.anchorMax = new Vector2(1f, 0.85f);
-            sbrt.offsetMin = Vector2.zero; sbrt.offsetMax = Vector2.zero;
-            string[] sorts =   { "Kills", "PvP", "Built", "Crafted", "Deaths", "Explored" };
-            string[] sortKeys = { "KilledCreatures", "KilledPlayers", "BuiltStructures", "ItemsCrafted", "Died", "MapExplored" };
-            for (int i = 0; i < sorts.Length; i++)
-            {
-                float xMin = 0.00f + i * 0.165f;
-                float xMax = xMin + 0.155f;
-                int idx = i;
-                var btn = MakeButton(_statsSortBar.transform, sorts[i],
-                                     new Vector2(xMin, 0f), new Vector2(xMax, 1f),
-                                     Vector2.zero, Vector2.zero,
-                                     bgColor: new Color(0.18f, 0.14f, 0.08f, 0.95f), fontSize: 12f);
-                btn.onClick.AddListener(() => { _sortBy = sortKeys[idx]; Refresh(); });
-            }
-
-            // Column header
-            _statsHeader = new GameObject("StatsHeader", typeof(RectTransform), typeof(Image));
-            _statsHeader.transform.SetParent(contentArea, false);
-            var shrt = _statsHeader.GetComponent<RectTransform>();
-            shrt.anchorMin = new Vector2(0f, 0.71f); shrt.anchorMax = new Vector2(1f, 0.77f);
-            shrt.offsetMin = Vector2.zero; shrt.offsetMax = Vector2.zero;
-            _statsHeader.GetComponent<Image>().color = new Color(0.05f, 0.04f, 0.02f, 0.95f);
-            BuildStatsHeaderLabels(_statsHeader.transform);
-
-            _statsRowContent = MakeVerticalScroll(contentArea,
-                                                  new Vector2(0f, 0f), new Vector2(1f, 0.70f),
-                                                  Vector2.zero, Vector2.zero,
-                                                  rowSpacing: 2f, scrollSensitivity: 120f);
-        }
-
-        // Stats columns: widened + no-wrap so headers don't line-break ("Crafte d" / "Death s" / "Explor e").
-        private static readonly (string Label, float xMin, float xMax, TextAlignmentOptions align)[] StatsCols =
-        {
-            ("#",       0.00f, 0.05f, TextAlignmentOptions.Center),
-            ("Player",  0.06f, 0.30f, TextAlignmentOptions.MidlineLeft),
-            ("Kills",   0.31f, 0.43f, TextAlignmentOptions.Center),
-            ("PvP",     0.44f, 0.52f, TextAlignmentOptions.Center),
-            ("Built",   0.53f, 0.64f, TextAlignmentOptions.Center),
-            ("Craft",   0.65f, 0.75f, TextAlignmentOptions.Center),
-            ("Died",    0.76f, 0.84f, TextAlignmentOptions.Center),
-            ("Map%",    0.85f, 0.99f, TextAlignmentOptions.Center),
-        };
-
-        private void BuildStatsHeaderLabels(Transform parent)
-        {
-            foreach (var c in StatsCols)
-            {
-                var t = MakeLabel(parent, c.Label,
-                                  new Vector2(c.xMin, 0f), new Vector2(c.xMax, 1f),
-                                  Vector2.zero, Vector2.zero,
-                                  size: 13f, align: c.align, color: new Color(1f, 0.85f, 0.55f));
-                t.enableWordWrapping = false;
-                t.overflowMode = TextOverflowModes.Truncate;
-            }
-        }
-
-        private void BuildAchievementsView(RectTransform contentArea)
-        {
-            _achSummary = MakeLabel(contentArea, "",
-                                    new Vector2(0f, 0.78f), new Vector2(1f, 0.85f),
-                                    new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                    size: 13f, color: new Color(0.96f, 0.91f, 0.76f));
-
-            _achHeader = new GameObject("AchHeader", typeof(RectTransform), typeof(Image));
-            _achHeader.transform.SetParent(contentArea, false);
-            var arh = _achHeader.GetComponent<RectTransform>();
-            arh.anchorMin = new Vector2(0f, 0.71f); arh.anchorMax = new Vector2(1f, 0.77f);
-            arh.offsetMin = Vector2.zero; arh.offsetMax = Vector2.zero;
-            _achHeader.GetComponent<Image>().color = new Color(0.05f, 0.04f, 0.02f, 0.95f);
-            MakeLabel(_achHeader.transform, "Achievement", new Vector2(0.02f, 0f), new Vector2(0.50f, 1f), Vector2.zero, Vector2.zero, size: 13f, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(_achHeader.transform, "Progress",    new Vector2(0.52f, 0f), new Vector2(0.78f, 1f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(_achHeader.transform, "Score",       new Vector2(0.80f, 0f), new Vector2(1f,    1f), Vector2.zero, Vector2.zero, size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-
-            _achRowContent = MakeVerticalScroll(contentArea,
-                                                new Vector2(0f, 0f), new Vector2(1f, 0.70f),
-                                                Vector2.zero, Vector2.zero,
-                                                rowSpacing: 3f, scrollSensitivity: 120f);
+            var btn = FindBtn(root, node);
+            if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _sortBy = sortKey; Refresh(); }); }
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
@@ -177,13 +110,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             HighlightTab(_tabBtnAch, _tab == InnerTab.Achievements);
 
             bool isStats = (_tab == InnerTab.Stats);
-            _statsSortBar.SetActive(isStats);
-            _statsHeader.SetActive(isStats);
-            (_statsRowContent.parent.parent.gameObject).SetActive(isStats); // ScrollView root
-            _achHeader.SetActive(!isStats);
-            _achSummary.gameObject.SetActive(!isStats);
-            (_achRowContent.parent.parent.gameObject).SetActive(!isStats);
-            _summaryText.gameObject.SetActive(isStats);
+            if (_statsView != null) _statsView.SetActive(isStats);
+            if (_achView   != null) _achView.SetActive(!isStats);
+            if (_summaryText != null) _summaryText.gameObject.SetActive(isStats);
 
             if (isStats) RefreshStats(); else RefreshAchievements();
         }
@@ -199,8 +128,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private void RefreshStats()
         {
-            for (int i = _statsRowContent.childCount - 1; i >= 0; i--)
-                Destroy(_statsRowContent.GetChild(i).gameObject);
+            if (_statsRowContent == null || _statRowTemplate == null) return;
+            ClearClones(_statsRowContent, _statRowTemplate);
 
             var sample = LeaderboardProfileManager.GetSampleEntries(_leaderboardProfile);
             var entries = new List<LeaderboardEntry>(sample);
@@ -241,13 +170,15 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private void BuildStatRow(int rank, LeaderboardEntry e, bool isMe)
         {
-            var rowGo = new GameObject("LBRow_" + rank, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-            rowGo.transform.SetParent(_statsRowContent, false);
-            rowGo.GetComponent<Image>().color = isMe
-                ? new Color(0.32f, 0.22f, 0.10f, 0.95f)
-                : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var rowGo = Instantiate(_statRowTemplate, _statsRowContent);
+            rowGo.name = "LBRow_" + rank;
+            rowGo.SetActive(true);
             SetRowHeight(rowGo, 26f);
+
+            var img = rowGo.GetComponent<Image>();
+            if (img != null) img.color = isMe ? new Color(0.32f, 0.22f, 0.10f, 0.95f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
             var nameColor = isMe ? new Color(1f, 0.95f, 0.55f) : new Color(0.96f, 0.91f, 0.76f);
+
             string[] vals = {
                 rank.ToString(),
                 e.PlayerName,
@@ -258,21 +189,19 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 e.Died.ToString(),
                 (e.MapExplored * 100f).ToString("0") + "%",
             };
-            for (int i = 0; i < StatsCols.Length; i++)
+            for (int i = 0; i < CellNodes.Length; i++)
             {
-                var c = StatsCols[i];
-                var t = MakeLabel(rowGo.transform, vals[i],
-                                  new Vector2(c.xMin, 0f), new Vector2(c.xMax, 1f),
-                                  Vector2.zero, Vector2.zero,
-                                  size: 13f, align: c.align, color: nameColor);
-                t.enableWordWrapping = false; t.overflowMode = TextOverflowModes.Truncate;
+                var t = FindTmp(rowGo.transform, CellNodes[i]);
+                if (t == null) continue;
+                t.text = vals[i];
+                t.color = nameColor;
             }
         }
 
         private void RefreshAchievements()
         {
-            for (int i = _achRowContent.childCount - 1; i >= 0; i--)
-                Destroy(_achRowContent.GetChild(i).gameObject);
+            if (_achRowContent == null || _achRowTemplate == null) return;
+            ClearClones(_achRowContent, _achRowTemplate);
 
             var defs = AchievementProfileManager.GetAchievements(_achievementProfile);
             if (defs == null || defs.Count == 0)
@@ -296,34 +225,33 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private void BuildAchRow(AchievementDef def, int progress, bool done)
         {
-            var rowGo = new GameObject("Ach_" + def.Id, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-            rowGo.transform.SetParent(_achRowContent, false);
-            rowGo.GetComponent<Image>().color = done
-                ? new Color(0.12f, 0.20f, 0.10f, 0.92f)
-                : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var rowGo = Instantiate(_achRowTemplate, _achRowContent);
+            rowGo.name = "Ach_" + def.Id;
+            rowGo.SetActive(true);
             SetRowHeight(rowGo, 56f);
 
-            MakeLabel(rowGo.transform, (done ? "[X] " : "[  ] ") + def.Name,
-                      new Vector2(0.02f, 0.55f), new Vector2(0.50f, 0.95f), Vector2.zero, Vector2.zero,
-                      size: 14f, color: done ? new Color(0.70f, 1f, 0.70f) : new Color(0.96f, 0.91f, 0.76f));
-            MakeLabel(rowGo.transform, def.Description,
-                      new Vector2(0.02f, 0.05f), new Vector2(0.50f, 0.50f), Vector2.zero, Vector2.zero,
-                      size: 11f, color: new Color(0.78f, 0.72f, 0.60f));
+            var img = rowGo.GetComponent<Image>();
+            if (img != null) img.color = done ? new Color(0.12f, 0.20f, 0.10f, 0.92f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+
+            var nameLabel = FindTmp(rowGo.transform, "NameLabel");
+            if (nameLabel != null) { nameLabel.text = (done ? "[X] " : "[  ] ") + def.Name; nameLabel.color = done ? new Color(0.70f, 1f, 0.70f) : new Color(0.96f, 0.91f, 0.76f); }
+            var descLabel = FindTmp(rowGo.transform, "DescLabel");
+            if (descLabel != null) descLabel.text = def.Description;
 
             float pct = def.MinAmount <= 0 ? 0f : Mathf.Clamp01((float)progress / def.MinAmount);
-            MakePanel(rowGo.transform, "BarBg", new Color(0.04f, 0.03f, 0.02f, 0.95f),
-                      new Vector2(0.52f, 0.30f), new Vector2(0.78f, 0.70f), Vector2.zero, Vector2.zero);
-            MakePanel(rowGo.transform, "BarFill",
-                      done ? new Color(0.35f, 0.75f, 0.30f, 0.95f) : new Color(0.55f, 0.40f, 0.20f, 0.95f),
-                      new Vector2(0.52f, 0.30f), new Vector2(0.52f + (0.78f - 0.52f) * pct, 0.70f),
-                      Vector2.zero, Vector2.zero);
-            MakeLabel(rowGo.transform, progress + "/" + def.MinAmount,
-                      new Vector2(0.52f, 0.30f), new Vector2(0.78f, 0.70f), Vector2.zero, Vector2.zero,
-                      size: 12f, align: TextAlignmentOptions.Center);
+            var barFill = FindRect(rowGo.transform, "BarFill");
+            if (barFill != null)
+            {
+                barFill.anchorMin = new Vector2(0f, barFill.anchorMin.y);
+                barFill.anchorMax = new Vector2(pct, barFill.anchorMax.y);
+                var fillImg = barFill.GetComponent<Image>();
+                if (fillImg != null) fillImg.color = done ? new Color(0.35f, 0.75f, 0.30f, 0.95f) : new Color(0.55f, 0.40f, 0.20f, 0.95f);
+            }
+            var progressLabel = FindTmp(rowGo.transform, "ProgressLabel");
+            if (progressLabel != null) progressLabel.text = progress + "/" + def.MinAmount;
 
-            MakeLabel(rowGo.transform, def.Score.ToString(),
-                      new Vector2(0.80f, 0.30f), new Vector2(1f, 0.70f), Vector2.zero, Vector2.zero,
-                      size: 16f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
+            var scoreLabel = FindTmp(rowGo.transform, "ScoreLabel");
+            if (scoreLabel != null) scoreLabel.text = def.Score.ToString();
         }
     }
 }

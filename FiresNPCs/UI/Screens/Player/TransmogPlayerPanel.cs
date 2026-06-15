@@ -21,10 +21,15 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private static TransmogPlayerPanel _instance;
         protected override string PanelTitle => "Transmog";
         protected override Vector2 PanelSize => new Vector2(960f, 600f);
+        protected override string PrefabName => "FiresTransmogPanel.prefab";
 
         private string _profileName;
         private RectTransform _inventoryContent;
+        private GameObject _invRowTemplate;
+        private GameObject _invEmptyLabel;
         private RectTransform _availableContent;
+        private GameObject _typeHeaderTemplate;
+        private GameObject _availRowTemplate;
         private TMP_Text _selectedNameText;
         private TMP_Text _statusText;
         private Button _reverseButton;
@@ -41,61 +46,28 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _instance.Open(profileName, npcDisplayName);
         }
 
-        protected override void BuildContent(RectTransform contentArea)
+        protected override void BindPrefab(GameObject root)
         {
-            // ── LEFT (40%): "Your Items" inventory list + selected display + Reverse button ──
-            MakeLabel(contentArea, "Your Items (transmoggable)",
-                      new Vector2(0f, 0.93f), new Vector2(0.42f, 1f),
-                      new Vector2(12f, 0f), Vector2.zero,
-                      size: 14f, color: new Color(1f, 0.85f, 0.55f));
+            var t = root.transform;
+            _inventoryContent  = FindRect(t, "InvScroll/Viewport/Content");
+            _invRowTemplate    = Find(t, "InvRowTemplate");
+            if (_invRowTemplate != null) _invRowTemplate.SetActive(false);
+            EnsureReflowMeta(_inventoryContent, rowSpacing: 2f, padding: 6f);
+            _invEmptyLabel = Find(t, "InvEmptyLabel");
+            if (_invEmptyLabel != null) _invEmptyLabel.SetActive(false);
 
-            _inventoryContent = MakeVerticalScroll(contentArea,
-                                                   new Vector2(0f, 0.24f), new Vector2(0.42f, 0.92f),
-                                                   new Vector2(12f, 0f), new Vector2(-4f, 0f),
-                                                   rowSpacing: 2f, scrollSensitivity: 120f);
+            _selectedNameText = FindTmp(t, "SelectedNameText");
+            _reverseButton = FindBtn(t, "ReverseButton");
+            if (_reverseButton != null) { _reverseButton.onClick.RemoveAllListeners(); _reverseButton.onClick.AddListener(OnReverseClicked); }
 
-            // Selected item box
-            MakePanel(contentArea, "ChoosenItem", new Color(0.10f, 0.08f, 0.05f, 0.92f),
-                      new Vector2(0f, 0.10f), new Vector2(0.42f, 0.22f),
-                      new Vector2(12f, 0f), new Vector2(-4f, 0f));
-            MakeLabel(contentArea, "Selected:",
-                      new Vector2(0f, 0.16f), new Vector2(0.42f, 0.22f),
-                      new Vector2(20f, 0f), new Vector2(-12f, 0f),
-                      size: 12f, color: new Color(0.96f, 0.91f, 0.76f));
-            _selectedNameText = MakeLabel(contentArea, "(none)",
-                                          new Vector2(0f, 0.10f), new Vector2(0.42f, 0.16f),
-                                          new Vector2(20f, 0f), new Vector2(-12f, 0f),
-                                          size: 16f, color: new Color(1f, 0.85f, 0.55f));
+            _availableContent   = FindRect(t, "AvailScroll/Viewport/Content");
+            _typeHeaderTemplate = Find(t, "TypeHeaderTemplate");
+            _availRowTemplate   = Find(t, "AvailRowTemplate");
+            if (_typeHeaderTemplate != null) _typeHeaderTemplate.SetActive(false);
+            if (_availRowTemplate != null) _availRowTemplate.SetActive(false);
+            EnsureReflowMeta(_availableContent, rowSpacing: 2f, padding: 6f);
 
-            // Reverse button (clears the transmog override on the selected item)
-            _reverseButton = MakeButton(contentArea, "Reverse Transmog",
-                                        new Vector2(0f, 0.02f), new Vector2(0.42f, 0.09f),
-                                        new Vector2(12f, 0f), new Vector2(-4f, 0f),
-                                        bgColor: new Color(0.40f, 0.18f, 0.10f, 0.95f), fontSize: 13f);
-            _reverseButton.onClick.AddListener(OnReverseClicked);
-
-            // ── RIGHT (58%): Available transmogs grouped by item type ──
-            MakeLabel(contentArea, "Available Transmogs",
-                      new Vector2(0.44f, 0.93f), new Vector2(1f, 1f),
-                      new Vector2(4f, 0f), new Vector2(-12f, 0f),
-                      size: 14f, color: new Color(1f, 0.85f, 0.55f));
-
-            var hdr = MakePanel(contentArea, "ColHeader", new Color(0.05f, 0.04f, 0.02f, 0.95f),
-                                new Vector2(0.44f, 0.86f), new Vector2(1f, 0.92f),
-                                new Vector2(4f, 0f), new Vector2(-12f, 0f));
-            MakeLabel(contentArea, "Appearance", new Vector2(0.45f, 0.86f), new Vector2(0.66f, 0.92f), Vector2.zero, Vector2.zero, size: 12f, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Price",      new Vector2(0.66f, 0.86f), new Vector2(0.88f, 0.92f), Vector2.zero, Vector2.zero, size: 12f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "",           new Vector2(0.88f, 0.86f), new Vector2(0.99f, 0.92f), Vector2.zero, Vector2.zero, size: 12f, color: new Color(1f, 0.85f, 0.55f));
-
-            _availableContent = MakeVerticalScroll(contentArea,
-                                                   new Vector2(0.44f, 0.08f), new Vector2(1f, 0.85f),
-                                                   new Vector2(4f, 0f), new Vector2(-12f, 0f),
-                                                   rowSpacing: 2f, scrollSensitivity: 120f);
-
-            _statusText = MakeLabel(contentArea, "",
-                                    new Vector2(0.44f, 0f), new Vector2(1f, 0.06f),
-                                    new Vector2(4f, 0f), new Vector2(-12f, 0f),
-                                    size: 12f, color: new Color(0.85f, 0.78f, 0.62f));
+            _statusText = FindTmp(t, "StatusText");
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
@@ -115,13 +87,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private void RefreshInventory()
         {
-            for (int i = _inventoryContent.childCount - 1; i >= 0; i--)
-                Destroy(_inventoryContent.GetChild(i).gameObject);
+            if (_inventoryContent == null || _invRowTemplate == null) return;
+            ClearClones(_inventoryContent, _invRowTemplate);
 
             var player = Player.m_localPlayer;
             if (player == null)
             {
-                _selectedNameText.text = "(no player)";
+                if (_selectedNameText != null) _selectedNameText.text = "(no player)";
                 return;
             }
             string playerName = player.GetPlayerName();
@@ -133,13 +105,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 .ThenBy(it => it.m_shared.m_name)
                 .ToList();
 
+            if (_invEmptyLabel != null) _invEmptyLabel.SetActive(items.Count == 0);
             if (items.Count == 0)
             {
-                MakeLabel(_inventoryContent, "(no transmoggable items in inventory)",
-                          new Vector2(0f, 0f), new Vector2(1f, 1f),
-                          new Vector2(8f, 8f), new Vector2(-8f, -8f),
-                          size: 12f, align: TextAlignmentOptions.Center,
-                          color: new Color(0.65f, 0.60f, 0.50f));
                 ReflowScroll(_inventoryContent);
                 return;
             }
@@ -151,13 +119,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 string sn = Localization.instance != null
                     ? Localization.instance.Localize(_selectedItem.m_shared.m_name)
                     : _selectedItem.m_shared.m_name;
-                _selectedNameText.text = sn + "  (" + _selectedItem.m_shared.m_itemType + ")";
-                _reverseButton.interactable = TransmogState.HasTransmog(playerName, _selectedItem.m_dropPrefab.name);
+                if (_selectedNameText != null) _selectedNameText.text = sn + "  (" + _selectedItem.m_shared.m_itemType + ")";
+                if (_reverseButton != null) _reverseButton.interactable = TransmogState.HasTransmog(playerName, _selectedItem.m_dropPrefab.name);
             }
             else
             {
-                _selectedNameText.text = "(none selected)";
-                _reverseButton.interactable = false;
+                if (_selectedNameText != null) _selectedNameText.text = "(none selected)";
+                if (_reverseButton != null) _reverseButton.interactable = false;
             }
         }
 
@@ -167,44 +135,31 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             bool hasTransmog = TransmogState.HasTransmog(playerName, baseName);
             bool isSelected = _selectedItem == item;
 
-            var rowGo = new GameObject("Inv_" + baseName, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            rowGo.transform.SetParent(_inventoryContent, false);
-            rowGo.GetComponent<Image>().color = isSelected
-                ? new Color(0.10f, 0.45f, 0.10f, 0.95f)
-                : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var rowGo = Instantiate(_invRowTemplate, _inventoryContent);
+            rowGo.name = "Inv_" + baseName;
+            rowGo.SetActive(true);
             SetRowHeight(rowGo, 28f);
-            rowGo.GetComponent<Button>().onClick.AddListener(() =>
-            {
-                _selectedItem = _selectedItem == item ? null : item;
-                Refresh();
-            });
+            var img = rowGo.GetComponent<Image>();
+            if (img != null) img.color = isSelected ? new Color(0.10f, 0.45f, 0.10f, 0.95f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var btn = rowGo.GetComponent<Button>();
+            if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _selectedItem = _selectedItem == item ? null : item; Refresh(); }); }
 
-            // KG colors transmogged items in red, untransmogged in white.
-            var nameColor = hasTransmog
-                ? new Color(1f, 0.31f, 0.31f)
-                : new Color(0.96f, 0.91f, 0.76f);
-            // m_shared.m_name is a $localization key — resolve through Valheim's Localization service so
-            // the player sees "Leather Chestpiece" instead of "$item_chest_leather".
-            string displayName = Localization.instance != null
-                ? Localization.instance.Localize(item.m_shared.m_name)
-                : item.m_shared.m_name;
-            MakeLabel(rowGo.transform, displayName,
-                      new Vector2(0.02f, 0f), new Vector2(0.85f, 1f),
-                      Vector2.zero, Vector2.zero,
-                      size: 13f, color: nameColor);
-            MakeLabel(rowGo.transform, "x" + item.m_stack,
-                      new Vector2(0.85f, 0f), new Vector2(0.99f, 1f),
-                      Vector2.zero, Vector2.zero,
-                      size: 12f, align: TextAlignmentOptions.MidlineRight,
-                      color: new Color(0.85f, 0.78f, 0.62f));
+            // KG colors transmogged items in red, untransmogged in white. m_shared.m_name is a $localization
+            // key — resolve through Valheim's Localization service for a readable name.
+            var nameColor = hasTransmog ? new Color(1f, 0.31f, 0.31f) : new Color(0.96f, 0.91f, 0.76f);
+            string displayName = Localization.instance != null ? Localization.instance.Localize(item.m_shared.m_name) : item.m_shared.m_name;
+            var nameLabel = FindTmp(rowGo.transform, "NameLabel");
+            if (nameLabel != null) { nameLabel.text = displayName; nameLabel.color = nameColor; }
+            var qtyLabel = FindTmp(rowGo.transform, "QtyLabel");
+            if (qtyLabel != null) qtyLabel.text = "x" + item.m_stack;
         }
 
         // ─── RIGHT pane ───
 
         private void RefreshAvailable()
         {
-            for (int i = _availableContent.childCount - 1; i >= 0; i--)
-                Destroy(_availableContent.GetChild(i).gameObject);
+            if (_availableContent == null || _typeHeaderTemplate == null || _availRowTemplate == null) return;
+            ClearClones(_availableContent, _typeHeaderTemplate, _availRowTemplate);
 
             // No selection → show all transmogs (header per type) without Apply buttons.
             // Selection → show only matching-type transmogs with Apply buttons.
@@ -213,7 +168,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var pool = TransmogProfileManager.GetAllForProfile(_profileName);
             if (pool == null || pool.Count == 0)
             {
-                _statusText.text = "No transmogs loaded for profile '" + _profileName + "'. Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Transmogrifications\\ and run firesnpcs_reload transmog.";
+                if (_statusText != null) _statusText.text = "No transmogs loaded for profile '" + _profileName + "'. Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Transmogrifications\\ and run firesnpcs_reload transmog.";
                 ReflowScroll(_availableContent);
                 return;
             }
@@ -236,46 +191,43 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 }
             }
             ReflowScroll(_availableContent);
-            _statusText.text = (_selectedItem == null)
+            if (_statusText != null) _statusText.text = (_selectedItem == null)
                 ? "Click an inventory item to filter + apply transmogs."
                 : "Type: " + targetType + " — " + shownCount + " option(s)";
         }
 
         private void BuildTypeHeaderRow(string typeName)
         {
-            var rowGo = new GameObject("TypeHdr_" + typeName, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-            rowGo.transform.SetParent(_availableContent, false);
-            var color = TransmogState.TypeColors.TryGetValue(typeName, out var c) ? c : Color.gray;
-            rowGo.GetComponent<Image>().color = new Color(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, 0.95f);
+            var rowGo = Instantiate(_typeHeaderTemplate, _availableContent);
+            rowGo.name = "TypeHdr_" + typeName;
+            rowGo.SetActive(true);
             SetRowHeight(rowGo, 22f);
-            MakeLabel(rowGo.transform, typeName,
-                      new Vector2(0f, 0f), new Vector2(1f, 1f),
-                      new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                      size: 12f, align: TextAlignmentOptions.MidlineLeft,
-                      color: new Color(1f, 1f, 1f));
+            var color = TransmogState.TypeColors.TryGetValue(typeName, out var c) ? c : Color.gray;
+            var img = rowGo.GetComponent<Image>();
+            if (img != null) img.color = new Color(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, 0.95f);
+            var label = FindTmp(rowGo.transform, "TypeLabel");
+            if (label != null) label.text = typeName;
         }
 
         private void BuildAvailableRow(TransmogOption t, bool actionable)
         {
-            var rowGo = new GameObject("Trans_" + t.Prefab, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-            rowGo.transform.SetParent(_availableContent, false);
-            rowGo.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var rowGo = Instantiate(_availRowTemplate, _availableContent);
+            rowGo.name = "Trans_" + t.Prefab;
+            rowGo.SetActive(true);
             SetRowHeight(rowGo, 26f);
 
-            MakeLabel(rowGo.transform, t.Prefab,
-                      new Vector2(0.02f, 0f), new Vector2(0.55f, 1f), Vector2.zero, Vector2.zero, size: 13f);
-            MakeLabel(rowGo.transform, t.PricePrefab + " x" + t.PriceAmount,
-                      new Vector2(0.56f, 0f), new Vector2(0.85f, 1f), Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.Center,
-                      color: new Color(1f, 0.85f, 0.55f));
+            var nameLabel = FindTmp(rowGo.transform, "NameLabel");
+            if (nameLabel != null) nameLabel.text = t.Prefab;
+            var priceLabel = FindTmp(rowGo.transform, "PriceLabel");
+            if (priceLabel != null) priceLabel.text = t.PricePrefab + " x" + t.PriceAmount;
 
-            if (!actionable) return;
-
-            var applyBtn = MakeButton(rowGo.transform, "Apply",
-                                      new Vector2(0.86f, 0.12f), new Vector2(0.99f, 0.88f),
-                                      Vector2.zero, Vector2.zero,
-                                      bgColor: new Color(0.22f, 0.42f, 0.22f, 0.95f), fontSize: 12f);
-            applyBtn.onClick.AddListener(() => OnApplyClicked(t));
+            // The Apply button only acts when the row's type matches the selected item; otherwise hide it.
+            var applyBtn = FindBtn(rowGo.transform, "ApplyButton");
+            if (applyBtn != null)
+            {
+                applyBtn.gameObject.SetActive(actionable);
+                if (actionable) { applyBtn.onClick.RemoveAllListeners(); applyBtn.onClick.AddListener(() => OnApplyClicked(t)); }
+            }
         }
 
         // ─── actions ───
