@@ -32,7 +32,19 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected abstract string PanelTitle { get; }
         protected virtual Vector2 PanelSize => new Vector2(720f, 520f);
 
-        protected abstract void BuildContent(RectTransform contentArea);
+        /// <summary>When set, <see cref="EnsureBuilt"/> instantiates this prefab from the
+        /// <c>firesnpcsui</c> bundle instead of building the shell + content programmatically. The
+        /// prefab is the single source of truth for layout (edit it in Unity, rebake the bundle).
+        /// Returns null for the legacy programmatic panels that haven't been converted.</summary>
+        protected virtual string PrefabName => null;
+
+        /// <summary>Called after the prefab instantiates + the shared shell widgets (SubtitleText,
+        /// CloseButton) are bound/wired. Panels bind their own named children + clone row templates here.</summary>
+        protected virtual void BindPrefab(GameObject panelRoot) { }
+
+        // Programmatic content builder — only used by panels that DON'T set PrefabName. Converted
+        // panels (load-from-prefab) leave this empty and do their wiring in BindPrefab instead.
+        protected virtual void BuildContent(RectTransform contentArea) { }
         protected virtual void OnOpen(string profileName, string npcDisplayName) { }
 
         public void Open(string profileName, string npcDisplayName)
@@ -88,17 +100,47 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         {
             if (_built) return;
             _built = true;
+            if (!string.IsNullOrEmpty(PrefabName) && TryBuildFromPrefab()) return;
             BuildShell();
             BuildContent(_contentArea);
         }
 
-        // Re-apply Valheim font lazily after the build pass so every child Text/TMP picks it up.
-        private void EnsureValheimFont()
+        /// <summary>Instantiates <see cref="PrefabName"/> from the firesnpcsui bundle under a fresh
+        /// canvas, binds + wires the shared shell widgets (SubtitleText, CloseButton), then hands off
+        /// to <see cref="BindPrefab"/>. Returns false if the bundle/prefab is missing so the caller
+        /// can fall back to the programmatic shell.</summary>
+        private bool TryBuildFromPrefab()
         {
-            try { if (_panelGo != null) GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
+            var bundle = FiresRPGmaker.uiBundle;
+            if (bundle == null) { Debug.LogError("[" + PanelTitle + "Panel] uiBundle is null — can't load " + PrefabName); return false; }
+
+            GameObject prefab = null;
+            string want = "/" + PrefabName.ToLowerInvariant();
+            foreach (var an in bundle.GetAllAssetNames())
+                if (an.EndsWith(want, System.StringComparison.OrdinalIgnoreCase)) { prefab = bundle.LoadAsset<GameObject>(an); break; }
+            if (prefab == null)
+            {
+                Debug.LogError("[" + PanelTitle + "Panel] " + PrefabName + " not in firesnpcsui bundle — rebuild the bundle from Unity (Valheim/Build AssetBundles).");
+                return false;
+            }
+
+            BuildCanvas();
+            _panelGo = Object.Instantiate(prefab, _canvasGo.transform);
+            _panelGo.name = PanelTitle + "Panel";
+            _panelGo.SetActive(false);
+
+            var root = _panelGo.transform;
+            _subtitleText = FindTmp(root, "SubtitleText");
+            var close = FindBtn(root, "CloseButton");
+            if (close != null) { close.onClick.RemoveAllListeners(); close.onClick.AddListener(Close); }
+
+            BindPrefab(_panelGo);
+            return true;
         }
 
-        private void BuildShell()
+        /// <summary>Creates the ScreenSpaceOverlay canvas that hosts either the prefab or the
+        /// programmatic shell. Shared by both build paths.</summary>
+        private void BuildCanvas()
         {
             _canvasGo = new GameObject(PanelTitle + "Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             _canvasGo.transform.SetParent(transform, false);
@@ -109,6 +151,17 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
+        }
+
+        // Re-apply Valheim font lazily after the build pass so every child Text/TMP picks it up.
+        private void EnsureValheimFont()
+        {
+            try { if (_panelGo != null) GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
+        }
+
+        private void BuildShell()
+        {
+            BuildCanvas();
 
             _panelGo = new GameObject(PanelTitle + "Panel", typeof(RectTransform), typeof(Image));
             _panelGo.transform.SetParent(_canvasGo.transform, false);
@@ -322,6 +375,50 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 y += h + spacing;
             }
             content.sizeDelta = new Vector2(content.sizeDelta.x, y + padding);
+        }
+
+        /// <summary>Stamps the spacing/padding meta that <see cref="ReflowScroll"/> reads onto a
+        /// prefab-supplied scroll Content node (the programmatic <see cref="MakeVerticalScroll"/> does
+        /// this itself; load-from-prefab panels call this after binding their scroll Content).</summary>
+        protected static void EnsureReflowMeta(RectTransform content, float rowSpacing, float padding)
+        {
+            if (content == null) return;
+            var meta = content.GetComponent<LayoutElement>() ?? content.gameObject.AddComponent<LayoutElement>();
+            meta.minHeight = padding * 2f;
+            meta.preferredHeight = rowSpacing; // re-purposed as "row spacing" by ReflowScroll
+            meta.flexibleHeight = padding;     // re-purposed as "padding"
+        }
+
+        // ---- prefab node lookup (shared by every load-from-prefab panel) ----
+        //
+        // Find() tries the exact child path first, then falls back to a recursive search by leaf name.
+        // The recursive fallback lets panels keep binding a node by its unique name even after it's been
+        // hand-moved to a different parent in Unity — the same resilience MailPlayerPanel relies on.
+
+        protected static GameObject Find(Transform root, string path)
+        {
+            var t = root.Find(path);
+            return t != null ? t.gameObject : FindRecursive(root, GetLastSegment(path));
+        }
+        protected static TMP_Text       FindTmp  (Transform root, string path) { var go = Find(root, path); return go != null ? go.GetComponent<TMP_Text>() : null; }
+        protected static Button         FindBtn  (Transform root, string path) { var go = Find(root, path); return go != null ? go.GetComponent<Button>()  : null; }
+        protected static TMP_InputField FindInput(Transform root, string path) { var go = Find(root, path); return go != null ? go.GetComponent<TMP_InputField>() : null; }
+        protected static RectTransform  FindRect (Transform root, string path) { var go = Find(root, path); return go != null ? go.GetComponent<RectTransform>() : null; }
+
+        private static string GetLastSegment(string path)
+        {
+            int slash = path.LastIndexOf('/');
+            return slash < 0 ? path : path.Substring(slash + 1);
+        }
+        private static GameObject FindRecursive(Transform root, string name)
+        {
+            if (root.name == name) return root.gameObject;
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var got = FindRecursive(root.GetChild(i), name);
+                if (got != null) return got;
+            }
+            return null;
         }
     }
 }

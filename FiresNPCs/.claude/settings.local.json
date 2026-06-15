@@ -446,7 +446,15 @@
       "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/realistic-fir-trees-pack-lods-gameready/textures/*.png C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Fir/Textures/)",
       "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/gnarly-trees/source/gnarlytrees.fbx C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Gnarly/source/)",
       "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/gnarly-trees/textures/*.png C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Gnarly/Textures/)",
-      "Bash(plug=\"C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/VerdantsAscentAssets\" *)"
+      "Bash(plug=\"C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/VerdantsAscentAssets\" *)",
+      "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_fir_inspect.py\")",
+      "Bash(rm -f /c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/.fires-headless.lock /c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Temp/UnityLockfile)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"ui-bake-refresh\" -ExecuteMethod \"UIPrefabBaker.BakeAll\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\ui-bake-refresh.log\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"bundle-ui-refresh\" -ExecuteMethod \"CreateAssetBundles.BuildAllAssetBundles\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\bundle-ui-refresh.log\")",
+      "Bash(cp C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/AssetBundles/vaitems_gnarly __TRACKED_VAR__/vaitems_gnarly)",
+      "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_fir_lods.py\")",
+      "Bash([ -f \"$VSWHERE\" ])",
+      "Bash('/c/Program Files \\(x86\\)/Microsoft Visual Studio/Installer/vswhere.exe' -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\\\\**\\\\Bin\\\\MSBuild.exe')"
     ]
   }
 }

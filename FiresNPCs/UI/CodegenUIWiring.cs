@@ -331,13 +331,10 @@ namespace FiresRPGmaker.UI
         /// dense forms — with the top fields clear of the tabs and the bottom inside the parchment.</summary>
         private static void ClearSecondTabRow(GameObject screenGo)
         {
-            if (screenGo == null) return;
-            var rt = screenGo.GetComponent<RectTransform>();
-            if (rt == null) return;
-            rt.anchorMin = new Vector2(0.04f, 0.02f);
-            rt.anchorMax = new Vector2(0.96f, 0.77f);
-            rt.offsetMin = new Vector2(16f, 10f);
-            rt.offsetMax = new Vector2(-18f, -8f);
+            // NO-OP: the screen's anchors/offsets now come straight from the baked prefab so they can be
+            // laid out in Unity. The runtime no longer re-anchors these screens (every prior attempt to
+            // do it in code over- or under-corrected). Adjust QuestConfigScreen / InfoNpcScreen /
+            // DialogueEditorScreen rects in the prefab and rebuild the bundle.
         }
 
         /// <summary>

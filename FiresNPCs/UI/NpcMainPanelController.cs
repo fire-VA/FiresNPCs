@@ -1897,12 +1897,11 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
       // DO NOT reset anchoredPosition here - let LoadPanelPosition() handle it
          // rectTransform.anchoredPosition = Vector2.zero;
 
- // Force a larger base panel than the baked 570x650. The Quest/Info/Dialogue config forms are
- // dense (~16 stacked fields incl. a description textarea + two event boxes) and didn't fit the
- // small baked panel once the Marketplace tab row landed — content overlapped the tabs and spilled
- // off the parchment. A taller panel gives the content real room; the Size button (S/M/L) still
- // scales the whole thing down for smaller screens.
- rectTransform.sizeDelta = new Vector2(640f, 940f);
+ // Panel size comes from the baked prefab now (adjust it in Unity on FiresRPGmaker_NpcPanel) — the
+ // runtime no longer forces a size. Only fall back to a sane default if the prefab somehow loaded
+ // with a degenerate (near-zero) rect.
+ if (rectTransform.sizeDelta.x < 100 || rectTransform.sizeDelta.y < 100)
+     rectTransform.sizeDelta = new Vector2(570f, 650f);
 
     var canvasGroup = GetComponent<CanvasGroup>();
     if (canvasGroup == null)

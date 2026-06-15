@@ -20,9 +20,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private static BankerPlayerPanel _instance;
         protected override string PanelTitle => "Banker";
         protected override Vector2 PanelSize => new Vector2(820f, 560f);
+        protected override string PrefabName => "FiresBankerPanel.prefab";
 
         private string _profileName;
         private RectTransform _rowContent;
+        private GameObject _rowTemplate;
         private TMP_Text _profileSummary;
         private TMP_Text _statusText;
         private float _refreshTimer;
@@ -43,48 +45,18 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _instance.Open(profileName, npcDisplayName);
         }
 
-        protected override void BuildContent(RectTransform contentArea)
+        protected override void BindPrefab(GameObject root)
         {
-            _profileSummary = MakeLabel(contentArea, "",
-                                        new Vector2(0f, 0.93f), new Vector2(0.70f, 1f),
-                                        new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                        size: 13f, color: new Color(0.85f, 0.78f, 0.62f));
+            var t = root.transform;
+            _profileSummary = FindTmp(t, "ProfileSummary");
+            _statusText     = FindTmp(t, "StatusText");
+            _rowContent     = FindRect(t, "ScrollView/Viewport/Content");
+            _rowTemplate    = Find(t, "RowTemplate");
+            if (_rowTemplate != null) _rowTemplate.SetActive(false);
+            EnsureReflowMeta(_rowContent, rowSpacing: 3f, padding: 6f);
 
-            // Master "Deposit All" button — sweeps inventory for every accepted currency.
-            var depositAllBtn = MakeButton(contentArea, "Deposit All",
-                                           new Vector2(0.72f, 0.93f), new Vector2(1f, 1f),
-                                           new Vector2(4f, 0f), new Vector2(-8f, 0f),
-                                           bgColor: new Color(0.22f, 0.42f, 0.22f, 0.95f), fontSize: 14f);
-            depositAllBtn.onClick.AddListener(OnDepositAllClicked);
-
-            // Column header
-            MakePanel(contentArea, "ColHeader", new Color(0.05f, 0.04f, 0.02f, 0.95f),
-                      new Vector2(0f, 0.85f), new Vector2(1f, 0.92f), Vector2.zero, Vector2.zero);
-            MakeLabel(contentArea, "Currency",
-                      new Vector2(0.02f, 0.85f), new Vector2(0.28f, 0.92f), Vector2.zero, Vector2.zero,
-                      size: 13f, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Inventory",
-                      new Vector2(0.29f, 0.85f), new Vector2(0.42f, 0.92f), Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Bank",
-                      new Vector2(0.43f, 0.85f), new Vector2(0.55f, 0.92f), Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Amount",
-                      new Vector2(0.56f, 0.85f), new Vector2(0.78f, 0.92f), Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-            MakeLabel(contentArea, "Actions",
-                      new Vector2(0.79f, 0.85f), new Vector2(1f, 0.92f), Vector2.zero, Vector2.zero,
-                      size: 13f, align: TextAlignmentOptions.Center, color: new Color(1f, 0.85f, 0.55f));
-
-            _rowContent = MakeVerticalScroll(contentArea,
-                                             new Vector2(0f, 0.06f), new Vector2(1f, 0.84f),
-                                             Vector2.zero, Vector2.zero,
-                                             rowSpacing: 3f, scrollSensitivity: 120f);
-
-            _statusText = MakeLabel(contentArea, "",
-                                    new Vector2(0f, 0f), new Vector2(1f, 0.05f),
-                                    new Vector2(8f, 0f), new Vector2(-8f, 0f),
-                                    size: 12f, color: new Color(0.85f, 0.78f, 0.62f));
+            var depositAll = FindBtn(t, "DepositAllButton");
+            if (depositAll != null) { depositAll.onClick.RemoveAllListeners(); depositAll.onClick.AddListener(OnDepositAllClicked); }
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
@@ -114,20 +86,27 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         /// the row set isn't built yet. NOT called on the periodic tick (that would flash the buttons).</summary>
         private void RebuildRows()
         {
+            if (_rowContent == null || _rowTemplate == null) return;
             for (int i = _rowContent.childCount - 1; i >= 0; i--)
-                Destroy(_rowContent.GetChild(i).gameObject);
+            {
+                var child = _rowContent.GetChild(i).gameObject;
+                if (child == _rowTemplate) continue; // never destroy the hidden clone template
+                Destroy(child);
+            }
             _rows.Clear();
 
             var profile = BankerProfileManager.GetProfile(_profileName);
             if (profile == null)
             {
-                _profileSummary.text = "Profile '" + _profileName + "' not loaded.";
+                if (_profileSummary != null) _profileSummary.text = "Profile '" + _profileName + "' not loaded.";
                 string loaded = string.Join(", ", BankerProfileManager.AllProfileNames);
-                _statusText.text = (string.IsNullOrEmpty(loaded) ? "No profiles loaded yet. " : "Loaded profiles: " + loaded + ". ")
-                                 + "Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Bankers\\ and run firesnpcs_reload banker.";
+                if (_statusText != null)
+                    _statusText.text = (string.IsNullOrEmpty(loaded) ? "No profiles loaded yet. " : "Loaded profiles: " + loaded + ". ")
+                                     + "Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Bankers\\ and run firesnpcs_reload banker.";
                 return;
             }
-            _profileSummary.text = "Interest: " + profile.InterestPerMinute.ToString("0.##") + "% / min  -  " + profile.CurrencyLimits.Count + " accepted currency(ies)";
+            if (_profileSummary != null)
+                _profileSummary.text = "Interest: " + profile.InterestPerMinute.ToString("0.##") + "% / min  -  " + profile.CurrencyLimits.Count + " accepted currency(ies)";
             string playerName = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : "?";
 
             foreach (var kv in profile.CurrencyLimits)
@@ -151,77 +130,36 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
         }
 
+        /// <summary>Clones the prefab's hidden RowTemplate for one accepted currency and binds its named
+        /// children (CurrencyLabel/InventoryLabel/BankLabel/AmountField/AddButton/SubButton). The row's
+        /// look — colors, column widths, button sizes — lives entirely in the prefab and is edited in Unity.</summary>
         private void BuildRow(string currency, string playerName, int limit)
         {
-            var rowGo = new GameObject("Curr_" + currency, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-            rowGo.transform.SetParent(_rowContent, false);
-            rowGo.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            var rowGo = Instantiate(_rowTemplate, _rowContent);
+            rowGo.name = "Curr_" + currency;
+            rowGo.SetActive(true);
             SetRowHeight(rowGo, 40f);
 
             int balance = BankerBalanceStore.Get(playerName, currency);
             int inventory = CountInInventory(currency);
 
-            MakeLabel(rowGo.transform, currency,
-                      new Vector2(0.02f, 0f), new Vector2(0.28f, 1f), Vector2.zero, Vector2.zero, size: 14f);
-            var invLabel = MakeLabel(rowGo.transform, inventory.ToString("N0"),
-                      new Vector2(0.29f, 0f), new Vector2(0.42f, 1f), Vector2.zero, Vector2.zero,
-                      size: 14f, align: TextAlignmentOptions.Center);
-            var bankLabel = MakeLabel(rowGo.transform, balance.ToString("N0") + " / " + limit.ToString("N0"),
-                      new Vector2(0.43f, 0f), new Vector2(0.55f, 1f), Vector2.zero, Vector2.zero,
-                      size: 14f, align: TextAlignmentOptions.Center,
-                      color: new Color(1f, 0.85f, 0.55f));
+            var currLabel = FindTmp(rowGo.transform, "CurrencyLabel");
+            var invLabel  = FindTmp(rowGo.transform, "InventoryLabel");
+            var bankLabel = FindTmp(rowGo.transform, "BankLabel");
+            if (currLabel != null) currLabel.text = currency;
+            if (invLabel  != null) invLabel.text  = inventory.ToString("N0");
+            if (bankLabel != null) bankLabel.text = balance.ToString("N0") + " / " + limit.ToString("N0");
 
             // Cache the live-value labels so the periodic tick updates them in place (no rebuild → no flash).
             _rows[currency] = new RowRefs { Inventory = invLabel, Bank = bankLabel, Limit = limit };
 
-            // Per-row amount input (replaces my old global "select then type" flow).
-            var input = BuildAmountInput(rowGo.transform,
-                                         new Vector2(0.56f, 0.12f), new Vector2(0.78f, 0.88f));
-            // + (deposit) button
-            var addBtn = MakeButton(rowGo.transform, "+",
-                                    new Vector2(0.79f, 0.12f), new Vector2(0.88f, 0.88f),
-                                    new Vector2(4f, 0f), new Vector2(-2f, 0f),
-                                    bgColor: new Color(0.22f, 0.42f, 0.22f, 0.95f), fontSize: 16f);
-            addBtn.onClick.AddListener(() => OnRowDeposit(currency, input, limit));
-            // - (withdraw) button
-            var subBtn = MakeButton(rowGo.transform, "-",
-                                    new Vector2(0.88f, 0.12f), new Vector2(0.99f, 0.88f),
-                                    new Vector2(2f, 0f), new Vector2(-4f, 0f),
-                                    bgColor: new Color(0.42f, 0.30f, 0.15f, 0.95f), fontSize: 16f);
-            subBtn.onClick.AddListener(() => OnRowWithdraw(currency, input));
-        }
+            var input = FindInput(rowGo.transform, "AmountField");
+            if (input != null) input.text = "";
 
-        private TMP_InputField BuildAmountInput(Transform parent, Vector2 anchorMin, Vector2 anchorMax)
-        {
-            var go = new GameObject("AmountField", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax;
-            rt.offsetMin = new Vector2(4f, 0f); rt.offsetMax = new Vector2(-4f, 0f);
-            go.GetComponent<Image>().color = new Color(0.10f, 0.08f, 0.05f, 0.92f);
-
-            var input = go.AddComponent<TMP_InputField>();
-            var viewport = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
-            viewport.transform.SetParent(rt, false);
-            var vrt = viewport.GetComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.offsetMin = new Vector2(8f, 4f); vrt.offsetMax = new Vector2(-8f, -4f);
-
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(vrt, false);
-            var trt = textGo.GetComponent<RectTransform>();
-            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
-            trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
-            var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.fontSize = 14f; txt.color = new Color(0.96f, 0.91f, 0.76f);
-            txt.alignment = TextAlignmentOptions.Center;
-            FiresCore.UI.UIBuilderHelper.ApplyValheimFont(txt);
-
-            input.textViewport = vrt; input.textComponent = txt;
-            input.lineType = TMP_InputField.LineType.SingleLine;
-            input.contentType = TMP_InputField.ContentType.IntegerNumber;
-            input.text = "";
-            return input;
+            var addBtn = FindBtn(rowGo.transform, "AddButton");
+            if (addBtn != null) { addBtn.onClick.RemoveAllListeners(); addBtn.onClick.AddListener(() => OnRowDeposit(currency, input, limit)); }
+            var subBtn = FindBtn(rowGo.transform, "SubButton");
+            if (subBtn != null) { subBtn.onClick.RemoveAllListeners(); subBtn.onClick.AddListener(() => OnRowWithdraw(currency, input)); }
         }
 
         private void OnRowDeposit(string currency, TMP_InputField input, int limit)
