@@ -445,7 +445,8 @@
       "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/realistic-fir-trees-pack-lods-gameready/source/*.fbx C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Fir/source/)",
       "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/realistic-fir-trees-pack-lods-gameready/textures/*.png C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Fir/Textures/)",
       "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/gnarly-trees/source/gnarlytrees.fbx C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Gnarly/source/)",
-      "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/gnarly-trees/textures/*.png C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Gnarly/Textures/)"
+      "Bash(cp C:/Users/travi/OneDrive/Desktop/UnityModelZips/Trees/gnarly-trees/textures/*.png C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/ImportedTrees/Gnarly/Textures/)",
+      "Bash(plug=\"C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/VerdantsAscentAssets\" *)"
     ]
   }
 }

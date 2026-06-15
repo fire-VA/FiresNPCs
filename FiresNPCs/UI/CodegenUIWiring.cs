@@ -317,19 +317,27 @@ namespace FiresRPGmaker.UI
             return controller;
         }
 
-        /// <summary>NO-OP (was: push the screen's top inset down to clear a 2nd tab row).
+        /// <summary>Re-seats a baked config screen (Quest / Info / DialogueEditor) so it sits cleanly
+        /// BELOW the tab band, filling the now-taller panel.
         ///
-        /// The original assumption was wrong: the Marketplace tabs do NOT add a second row of height.
-        /// <see cref="NpcMainPanelController.EnsureTabsBarGrid"/> re-arranges all 11 tabs as a 6×2
-        /// GridLayoutGroup INSIDE TabsBar's existing footprint (the cells just get shorter:
-        /// h = (tabsBar.height - padding) / 2). The two rows occupy the SAME vertical space the single
-        /// row did, so the content below never needed to move. The old -190 push shoved each screen
-        /// ~168px down — leaving a big empty gap under the tabs and spilling the bottom of the form off
-        /// the parchment. Leaving the baked rects at their original (correct) offsets fixes that.</summary>
+        /// TabsBar occupies <c>anchorMin.y 0.78 → anchorMax.y 0.85</c>. The baked content rects had
+        /// their TOP at <c>anchorMax.y 0.87</c> — i.e. ABOVE the tabs — so the rect overlapped the whole
+        /// tab band. With a single tab row that was invisible (the lower half of the band was empty), but
+        /// the Marketplace 2nd row filled that half and the top fields started colliding with it. (My
+        /// earlier −190 pixel push over-corrected the other way and spilled the form off the bottom.)
+        ///
+        /// Fix: anchor the rect TOP just below the tabs (0.77 &lt; 0.78) and extend it down near the
+        /// bottom. On the enlarged 640×940 panel that yields a ~690px tall content band — enough for the
+        /// dense forms — with the top fields clear of the tabs and the bottom inside the parchment.</summary>
         private static void ClearSecondTabRow(GameObject screenGo)
         {
-            // Intentionally does nothing — see summary. Kept (and still called) so the wiring sites
-            // don't need to change, and so the rationale stays documented at the call point.
+            if (screenGo == null) return;
+            var rt = screenGo.GetComponent<RectTransform>();
+            if (rt == null) return;
+            rt.anchorMin = new Vector2(0.04f, 0.02f);
+            rt.anchorMax = new Vector2(0.96f, 0.77f);
+            rt.offsetMin = new Vector2(16f, 10f);
+            rt.offsetMax = new Vector2(-18f, -8f);
         }
 
         /// <summary>
