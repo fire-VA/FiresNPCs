@@ -317,20 +317,19 @@ namespace FiresRPGmaker.UI
             return controller;
         }
 
-        /// <summary>The codegen layout for Quest / Info / DialogueEditor screens was baked when the
-        /// panel only had ONE tab row. The Marketplace family added a second row of tabs (Market /
-        /// Mail / Transmog) underneath, and the baked content rects now overlap that second row.
-        /// Push each screen's top inset DOWN by ~60px so its content lands below BOTH tab rows.</summary>
+        /// <summary>NO-OP (was: push the screen's top inset down to clear a 2nd tab row).
+        ///
+        /// The original assumption was wrong: the Marketplace tabs do NOT add a second row of height.
+        /// <see cref="NpcMainPanelController.EnsureTabsBarGrid"/> re-arranges all 11 tabs as a 6×2
+        /// GridLayoutGroup INSIDE TabsBar's existing footprint (the cells just get shorter:
+        /// h = (tabsBar.height - padding) / 2). The two rows occupy the SAME vertical space the single
+        /// row did, so the content below never needed to move. The old -190 push shoved each screen
+        /// ~168px down — leaving a big empty gap under the tabs and spilling the bottom of the form off
+        /// the parchment. Leaving the baked rects at their original (correct) offsets fixes that.</summary>
         private static void ClearSecondTabRow(GameObject screenGo)
         {
-            if (screenGo == null) return;
-            var rt = screenGo.GetComponent<RectTransform>();
-            if (rt == null) return;
-            // Make the top inset at least 190px from the panel top (was -130 = 130px on baked rects).
-            // Negative offsetMax.y INCREASES the inset, so we take the more-negative of the two values.
-            var offMax = rt.offsetMax;
-            offMax.y = Mathf.Min(offMax.y, -190f);
-            rt.offsetMax = offMax;
+            // Intentionally does nothing — see summary. Kept (and still called) so the wiring sites
+            // don't need to change, and so the rationale stays documented at the call point.
         }
 
         /// <summary>
