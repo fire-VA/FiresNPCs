@@ -58,6 +58,14 @@ namespace FiresRPGmaker.Modules.Guilds
             if (_uiInitialized) return;
             _uiInitialized = true;
 
+            // VikingLands.Core (TDV) owns guilds — don't stand up our guild UI (screen + G hotkey) or
+            // chat channel; they'd duplicate TDV's. Our guild-dependent features read TDV via RpgMakerApi.
+            if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+            {
+                Debug.Log($"{LogPrefix} Client UI SKIPPED — VikingLands.Core owns guilds.");
+                return;
+            }
+
             try
             {
                 GuildChatChannel.Initialize();

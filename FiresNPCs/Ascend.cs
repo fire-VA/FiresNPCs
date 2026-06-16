@@ -235,7 +235,13 @@ namespace FiresRPGmaker
             // at FinishInit time.
             try
             {
-                if (ZRoutedRpc.instance != null)
+                if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                {
+                    // VikingLands.Core (TDV) owns guilds — stand ours down. Our guild-dependent
+                    // features (chat / dialogue conditions / territory) read TDV via RpgMakerApi.
+                    Debug.Log("[FiresRPGmaker] GuildModule.Initialize SKIPPED — VikingLands.Core owns guilds.");
+                }
+                else if (ZRoutedRpc.instance != null)
                 {
                     GuildModule.Initialize();
                 }
@@ -276,6 +282,7 @@ namespace FiresRPGmaker
             {
                 try
                 {
+                    if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present) return; // TDV owns guilds
                     GuildModule.Initialize();
                 }
                 catch (Exception ex)
@@ -866,7 +873,9 @@ if (hashDict != null)
                 if (ZRoutedRpc.instance != null)
                 {
                     AbilityRPCManager.Initialize();
-                    global::FiresRPGmaker.Modules.Party.PartyManager.Initialize();
+                    // VikingLands.Core (TDV) owns groups — skip our Party when it's present.
+                    if (!global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                        global::FiresRPGmaker.Modules.Party.PartyManager.Initialize();
                 }
                 else
                 {
@@ -910,7 +919,8 @@ if (hashDict != null)
                 try
                 {
                     AbilityRPCManager.Initialize();
-                    global::FiresRPGmaker.Modules.Party.PartyManager.Initialize();
+                    if (!global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                        global::FiresRPGmaker.Modules.Party.PartyManager.Initialize();
                     Debug.Log($"{PluginName}: Ability RPC manager initialized (deferred)");
                 }
                 catch (Exception ex)

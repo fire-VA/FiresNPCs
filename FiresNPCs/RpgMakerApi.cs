@@ -68,5 +68,69 @@ namespace FiresRPGmaker
             try { handler(playerId, key, newValue, op); }
             catch (Exception ex) { Debug.LogWarning("[RpgMakerApi] OnCustomValue subscriber threw: " + ex.Message); }
         }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // Social authority hand-off (groups + guilds).
+        //
+        // When a full social mod (e.g. VikingLands.Core / TDV) is installed it owns the
+        // authoritative group + guild membership. It registers its query methods here, and
+        // RPG Maker routes its own group/guild-dependent features — guild chat, dialogue guild
+        // conditions, territory OnlyForGuild — through these instead of its own half-built
+        // systems. Registration mirrors FiresCompanions' CompanionAllyApi.SetAllyResolver:
+        // the external mod resolves this type by name and calls the Set* methods (the delegates
+        // use only framework + long/string types so they marshal cleanly across the boundary).
+        // ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>External "are these two players in the same group" resolver. (playerIdA, playerIdB)</summary>
+        public static Func<long, long, bool> GroupResolver;
+        public static void SetGroupResolver(Func<long, long, bool> resolver) => GroupResolver = resolver;
+
+        /// <summary>True once an external mod owns group membership.</summary>
+        public static bool GroupsOwnedExternally => GroupResolver != null;
+
+        public static bool AreGrouped(long playerA, long playerB)
+        {
+            var h = GroupResolver;
+            if (h == null) return false;
+            try { return h(playerA, playerB); } catch { return false; }
+        }
+
+        /// <summary>External "are these two players in the same guild" resolver. (playerIdA, playerIdB)</summary>
+        public static Func<long, long, bool> GuildResolver;
+        public static void SetGuildResolver(Func<long, long, bool> resolver) => GuildResolver = resolver;
+
+        /// <summary>External provider for the local player's guild name (null/empty when not in a guild).</summary>
+        public static Func<string> LocalGuildNameProvider;
+        public static void SetLocalGuildNameProvider(Func<string> provider) => LocalGuildNameProvider = provider;
+
+        /// <summary>External sink for sending a guild chat message from RPG Maker's /clan channel.</summary>
+        public static Action<string> GuildChatSender;
+        public static void SetGuildChatSender(Action<string> sender) => GuildChatSender = sender;
+
+        /// <summary>True once an external mod owns guild membership (drives RPG Maker's guild-dependent features).</summary>
+        public static bool GuildsOwnedExternally => GuildResolver != null || LocalGuildNameProvider != null;
+
+        public static bool AreGuilded(long playerA, long playerB)
+        {
+            var h = GuildResolver;
+            if (h == null) return false;
+            try { return h(playerA, playerB); } catch { return false; }
+        }
+
+        /// <summary>The local player's guild name per the external provider, or null when not in a guild / no provider.</summary>
+        public static string LocalGuildName()
+        {
+            var h = LocalGuildNameProvider;
+            if (h == null) return null;
+            try { var n = h(); return string.IsNullOrEmpty(n) ? null : n; } catch { return null; }
+        }
+
+        /// <summary>Routes a guild chat message to the external owner. Returns false (caller handles) when none registered.</summary>
+        public static bool SendGuildChat(string text)
+        {
+            var h = GuildChatSender;
+            if (h == null) return false;
+            try { h(text); return true; } catch { return false; }
+        }
     }
 }

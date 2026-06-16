@@ -44,6 +44,11 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "[optional profile name] - opens the Leaderboard panel on the Stats tab",
                 args =>
                 {
+                    if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                    {
+                        args.Context?.AddString("Leaderboard is handled by VikingLands.Core — open it with its leaderboard hotkey (default L).");
+                        return;
+                    }
                     string profile = args.Length > 1 ? args[1] : "example";
                     global::FiresRPGmaker.UI.Screens.PlayerPanels.LeaderboardPlayerPanel.Show(
                         profile, "Leaderboard",
@@ -53,6 +58,11 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "[optional profile name] - opens the Leaderboard panel on the Achievements tab",
                 args =>
                 {
+                    if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                    {
+                        args.Context?.AddString("Achievements are handled by VikingLands.Core.");
+                        return;
+                    }
                     string profile = args.Length > 1 ? args[1] : "example";
                     global::FiresRPGmaker.UI.Screens.PlayerPanels.AchievementPlayerPanel.Show(profile, "Achievements");
                 });

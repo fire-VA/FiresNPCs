@@ -207,6 +207,7 @@
     <Compile Include="Modules\Chat\ChatMediaEmbedManager.cs" />
     <Compile Include="Modules\Chat\GifDecoder.cs" />
     <Compile Include="Modules\Compat\BalrondAmazingNatureCompat.cs" />
+    <Compile Include="Modules\Compat\VikingCoreCompat.cs" />
     <Compile Include="Modules\Dialogues\EwpDataBridge.cs" />
     <Compile Include="Modules\Progression\PrivateKeyManager.cs" />
     <Compile Include="Modules\Progression\ProgressionConfig.cs" />

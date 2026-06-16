@@ -61,11 +61,14 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 try
                 {
-                    var ownGuild = global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild();
-                    if (ownGuild != null && string.Equals(ownGuild.Name, t.OnlyForGuild, StringComparison.OrdinalIgnoreCase))
+                    // VikingLands.Core owns guilds → use its membership; otherwise our own GuildAPI.
+                    string ownGuildName = global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally
+                        ? global::FiresRPGmaker.RpgMakerApi.LocalGuildName()
+                        : global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild()?.Name;
+                    if (ownGuildName != null && string.Equals(ownGuildName, t.OnlyForGuild, StringComparison.OrdinalIgnoreCase))
                         return true;
                 }
-                catch { /* GuildAPI not loaded — skip */ }
+                catch { /* guild source not loaded — skip */ }
             }
             // OnlyForFaction — placeholder until we ship our Faction module. If a faction registry is
             // present in the future we resolve it here; for now treat as "permission denied unless other

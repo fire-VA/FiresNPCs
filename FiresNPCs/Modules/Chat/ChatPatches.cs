@@ -75,10 +75,17 @@ namespace FiresRPGmaker.Modules.ChatSystem
                     return false;
 
                 case ChatChannelManager.Channel.Clan:
-                    // Guild chat — route through GuildAPI. The receiving
-                    // OnGuildChatReceived handler in GuildChatChannel renders
-                    // the message back into the vanilla chat window.
-                    if (global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild() == null)
+                    // Guild chat. When an external mod (VikingLands.Core) owns guilds, route through it;
+                    // otherwise use our own GuildAPI (the OnGuildChatReceived handler in GuildChatChannel
+                    // renders the message back into the vanilla chat window).
+                    if (global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally)
+                    {
+                        if (global::FiresRPGmaker.RpgMakerApi.LocalGuildName() == null)
+                            MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "You are not in a guild.");
+                        else if (!global::FiresRPGmaker.RpgMakerApi.SendGuildChat(text))
+                            MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Guild chat unavailable.");
+                    }
+                    else if (global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild() == null)
                     {
                         MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
                             "You are not in a guild.");

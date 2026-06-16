@@ -261,8 +261,10 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             try
             {
-                var g = GuildAPI.GetOwnGuild();
-                bool hasGuild = g != null;
+                // VikingLands.Core owns guilds → ask it; otherwise our own GuildAPI.
+                bool hasGuild = global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally
+                    ? global::FiresRPGmaker.RpgMakerApi.LocalGuildName() != null
+                    : GuildAPI.GetOwnGuild() != null;
                 return hasGuild != invert ? ConditionResult.Pass() : ConditionResult.Fail(invert ? "Must not be in a guild" : "Must be in a guild");
             }
             catch { return ConditionResult.Pass(); }
@@ -274,8 +276,10 @@ namespace FiresRPGmaker.Modules.Dialogues
             string target = parts[1].Trim();
             try
             {
-                var g = GuildAPI.GetOwnGuild();
-                bool match = g != null && string.Equals(g.Name, target, StringComparison.OrdinalIgnoreCase);
+                string guildName = global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally
+                    ? global::FiresRPGmaker.RpgMakerApi.LocalGuildName()
+                    : GuildAPI.GetOwnGuild()?.Name;
+                bool match = guildName != null && string.Equals(guildName, target, StringComparison.OrdinalIgnoreCase);
                 return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Need to be in guild '{target}'");
             }
             catch { return ConditionResult.Pass(); }
