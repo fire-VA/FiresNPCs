@@ -78,13 +78,27 @@ namespace FiresRPGmaker.Modules.Guilds
         public static IReadOnlyList<GuildData> GetAllGuilds()
             => GuildSyncManager.GetAllGuilds();
 
-        /// <summary>Returns the guild the given player belongs to, or null.</summary>
+        /// <summary>Returns the guild the given player belongs to, or null. When an external owner
+        /// (VikingLands.Core) holds guilds, answers from it: the local player's guild becomes a TDV-backed
+        /// proxy, and any player TDV reports as a guildmate maps to that same proxy.</summary>
         public static GuildData GetPlayerGuild(long playerId)
-            => GuildSyncManager.GetPlayerGuild(playerId);
+        {
+            if (global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally)
+            {
+                var local = Player.m_localPlayer;
+                long localId = local != null ? local.GetPlayerID() : 0L;
+                if (playerId == localId || (localId != 0L && global::FiresRPGmaker.RpgMakerApi.AreGuilded(localId, playerId)))
+                    return BuildExternalGuildProxy();
+                return null; // a non-guildmate's own guild isn't fully known to us through TDV
+            }
+            return GuildSyncManager.GetPlayerGuild(playerId);
+        }
 
         /// <summary>Returns the local player's guild, or null.</summary>
         public static GuildData GetOwnGuild()
         {
+            if (global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally)
+                return BuildExternalGuildProxy();
             var local = Player.m_localPlayer;
             return local == null ? null : GetPlayerGuild(local.GetPlayerID());
         }
@@ -92,9 +106,37 @@ namespace FiresRPGmaker.Modules.Guilds
         /// <summary>Returns true if the two players are in the same guild.</summary>
         public static bool AreGuildmates(long playerA, long playerB)
         {
+            if (global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally)
+                return global::FiresRPGmaker.RpgMakerApi.AreGuilded(playerA, playerB);
             var guildA = GetPlayerGuild(playerA);
             if (guildA == null) return false;
             return guildA.IsMember(playerB);
+        }
+
+        /// <summary>Builds a lightweight <see cref="GuildData"/> for the local player's guild from the
+        /// external owner's data (VikingLands.Core), so RPG Maker's guild queries return the real guild +
+        /// members instead of 0. Returns null when the local player isn't in an external guild.</summary>
+        private static GuildData BuildExternalGuildProxy()
+        {
+            string name = global::FiresRPGmaker.RpgMakerApi.LocalGuildName();
+            if (string.IsNullOrEmpty(name)) return null;
+
+            long leaderId = global::FiresRPGmaker.RpgMakerApi.LocalGuildLeaderId();
+            var guild = new GuildData { GuildId = name, Name = name, LeaderPlayerId = leaderId };
+
+            var ids = global::FiresRPGmaker.RpgMakerApi.LocalGuildMemberIds();
+            var names = global::FiresRPGmaker.RpgMakerApi.LocalGuildMemberNames();
+            for (int i = 0; i < ids.Length; i++)
+            {
+                string mn = (names != null && i < names.Length) ? names[i] : "";
+                guild.Members.Add(new GuildMember
+                {
+                    PlayerId = ids[i],
+                    PlayerName = mn,
+                    Rank = ids[i] == leaderId ? GuildRank.Leader : GuildRank.Member,
+                });
+            }
+            return guild;
         }
 
         /// <summary>

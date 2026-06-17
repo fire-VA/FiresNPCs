@@ -677,6 +677,31 @@ if (hashDict != null)
             }
         }
 
+        /// <summary>
+        /// Diagnostic for the TDV (VikingLands.Core) guild hand-off: polls the GuildAPI proxy until the
+        /// external owner resolves the local player's guild, then logs it once. TDV resolves the local
+        /// guild a few seconds after spawn (server round-trip), so a one-shot read at spawn would sample
+        /// before it arrives. Only started when VikingLands.Core owns guilds.
+        /// </summary>
+        private IEnumerator LogTdvGuildWhenResolved()
+        {
+            const float TimeoutSeconds = 20f;
+            const float PollSeconds = 2f;
+            float waited = 0f;
+            while (waited < TimeoutSeconds)
+            {
+                var g = global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild();
+                if (g != null)
+                {
+                    Debug.Log($"[FiresRPGmaker] TDV owns guilds - local guild '{g.Name}' resolved via TDV with {g.Members.Count} member(s).");
+                    yield break;
+                }
+                yield return new WaitForSeconds(PollSeconds);
+                waited += PollSeconds;
+            }
+            Debug.Log("[FiresRPGmaker] TDV owns guilds - local player still resolves to NO guild after 20s (GetOwnGuild=null). If you ARE in a TDV guild, TDV's local-guild sync isn't reaching the client.");
+        }
+
         private IEnumerator WaitForZNetReady()
         {
             Debug.Log($"{PluginName}: Waiting for ZNetScene & ObjectDB...");
@@ -731,10 +756,23 @@ if (hashDict != null)
                                // request fire exactly when the ID is real â€” RetryGuildSync
                                // below is now only a fallback for genuine packet drops, not
                                // a "spin until the player is ready" loop.
-                               FiresCore.Lifecycle.PlayerSpawnGate.RunWhenLocalReady(
-                                   60f,
-                                   _ => global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.RequestSync());
-                               StartCoroutine(RetryGuildSync());
+                               // Guilds: only sync/retry when RPG Maker owns them. When VikingLands.Core
+                               // (TDV) is present it owns guild membership, so requesting our own sync just
+                               // produced the misleading "RequestSync ... 0 guild(s)" spam. When deferring,
+                               // log what TDV actually resolves so the hand-off is verifiable in the log.
+                               if (!global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                               {
+                                   FiresCore.Lifecycle.PlayerSpawnGate.RunWhenLocalReady(
+                                       60f,
+                                       _ => global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.RequestSync());
+                                   StartCoroutine(RetryGuildSync());
+                               }
+                               else
+                               {
+                                   // TDV resolves the local guild a few seconds after spawn (server round-trip),
+                                   // so poll rather than sample one frame too early.
+                                   StartCoroutine(LogTdvGuildWhenResolved());
+                               }
                              }
 
             // Register debug commands now that everything is ready

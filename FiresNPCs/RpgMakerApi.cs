@@ -132,5 +132,42 @@ namespace FiresRPGmaker
             if (h == null) return false;
             try { h(text); return true; } catch { return false; }
         }
+
+        // ── Richer local-guild providers ───────────────────────────────────────────
+        // Let RPG Maker rebuild a lightweight guild object backed by the external owner so its OWN guild
+        // queries (GetOwnGuild / AreGuildmates / friendly-fire gates) recognize the external guild instead
+        // of reporting 0/none. Marshalled as framework types (long/string arrays) across the reflection
+        // boundary. All resolve to the LOCAL player's guild — remote-guild membership is answered by
+        // AreGuilded(a,b).
+
+        /// <summary>Leader's player id of the local player's guild (0 when none).</summary>
+        public static Func<long> LocalGuildLeaderIdProvider;
+        public static void SetLocalGuildLeaderId(Func<long> provider) => LocalGuildLeaderIdProvider = provider;
+        public static long LocalGuildLeaderId()
+        {
+            var h = LocalGuildLeaderIdProvider;
+            if (h == null) return 0L;
+            try { return h(); } catch { return 0L; }
+        }
+
+        /// <summary>Player ids of the local player's guild members (empty when none).</summary>
+        public static Func<long[]> LocalGuildMemberIdsProvider;
+        public static void SetLocalGuildMemberIds(Func<long[]> provider) => LocalGuildMemberIdsProvider = provider;
+        public static long[] LocalGuildMemberIds()
+        {
+            var h = LocalGuildMemberIdsProvider;
+            if (h == null) return System.Array.Empty<long>();
+            try { return h() ?? System.Array.Empty<long>(); } catch { return System.Array.Empty<long>(); }
+        }
+
+        /// <summary>Names of the local player's guild members, index-aligned with <see cref="LocalGuildMemberIds"/>.</summary>
+        public static Func<string[]> LocalGuildMemberNamesProvider;
+        public static void SetLocalGuildMemberNames(Func<string[]> provider) => LocalGuildMemberNamesProvider = provider;
+        public static string[] LocalGuildMemberNames()
+        {
+            var h = LocalGuildMemberNamesProvider;
+            if (h == null) return System.Array.Empty<string>();
+            try { return h() ?? System.Array.Empty<string>(); } catch { return System.Array.Empty<string>(); }
+        }
     }
 }
