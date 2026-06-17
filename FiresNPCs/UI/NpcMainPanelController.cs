@@ -166,13 +166,17 @@ namespace FiresRPGmaker.UI
             grid.childAlignment = TextAnchor.UpperCenter;
             grid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
             grid.constraintCount = 6;
+            // Spacing matches the completecompanionsui prefab spacing pass (FiresNpcPanelSpacing) so the
+            // in-game tab strip reproduces the baked design instead of overriding it with tighter values.
+            const float tabSpacingX = 12f;  // gap between tab columns (was 4)
+            const float tabSpacingY = 8f;   // gap between the two tab rows (was 4)
             grid.padding = new RectOffset(4, 4, 2, 2);
-            grid.spacing = new Vector2(4f, 4f);
+            grid.spacing = new Vector2(tabSpacingX, tabSpacingY);
 
             // Cell size = fit 6 columns x 2 rows into TabsBar minus padding/spacing.
             UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(tbrt);
-            float w = Mathf.Max(60f, (tbrt.rect.width  - 8f - 5 * 4f) / 6f);
-            float h = Mathf.Max(22f, (tbrt.rect.height - 4f - 1 * 4f) / 2f);
+            float w = Mathf.Max(54f, (tbrt.rect.width  - 8f - 5 * tabSpacingX) / 6f);
+            float h = Mathf.Max(22f, (tbrt.rect.height - 4f - 1 * tabSpacingY) / 2f);
             grid.cellSize = new Vector2(w, h);
             UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(tbrt);
         }
@@ -2071,9 +2075,14 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
             var csf = detailPanel.GetComponent<ContentSizeFitter>();
             if (csf != null) csf.enabled = false;
 
-            const float TOP_PAD = 25f;             // gap between DetailPanel top and first container top edge
-            const float CONTAINER_H = 48f;         // shrunk from codegen 64 — input visual = 36px
-            const float STEP = CONTAINER_H + 12f;  // 12px gap between containers
+            // Numbers match the completecompanionsui prefab spacing pass (FiresNpcPanelSpacing) so the
+            // in-game detail layout reproduces the baked design instead of overriding it.
+            const float TOP_PAD = 24f;                  // gap between DetailPanel top and first section top edge
+            const float CONTAINER_H = 62f;              // section box height (label band + input)
+            const float SECTION_GAP = 22f;              // gap between sections
+            const float STEP = CONTAINER_H + SECTION_GAP;
+            const float LABEL_H = 22f;                  // label band at the top of each input section
+            const float LABEL_GAP = 4f;                 // gap between the label band and the input box
             const float APPLY_TO_TOGGLE_GAP = 8f;
             const float TOGGLE_H = 22f;
 
@@ -2123,6 +2132,38 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
             }
 
             Debug.Log($"[NpcMainPanelController] CompactDetailPanelLayout applied (containerH={CONTAINER_H}, step={STEP}, applyCenter={applyCenter})");
+        }
+
+        /// <summary>Mirrors the completecompanionsui prefab spacing pass (FiresNpcPanelSpacing): re-anchors a
+        /// section's Label to a fixed band at the top and its input box to fill below, so the oversized baked
+        /// label no longer overlaps the input. Runtime equivalent of that pass's InputSections block, so the
+        /// fix holds in-game without depending on a bundle re-bake.</summary>
+        private void ApplyInputSectionLabelLayout(RectTransform container, float labelH, float labelGap)
+        {
+            if (container == null) return;
+
+            var label = container.Find("Label") as RectTransform;
+            RectTransform input = null;
+            for (int i = 0; i < container.childCount; i++)
+            {
+                var ch = container.GetChild(i) as RectTransform;
+                if (ch != null && ch.name.StartsWith("Transparent")) { input = ch; break; }
+            }
+
+            if (label != null)
+            {
+                label.anchorMin = new Vector2(0f, 1f); label.anchorMax = new Vector2(1f, 1f); label.pivot = new Vector2(0.5f, 1f);
+                label.offsetMin = new Vector2(2f, -labelH);
+                label.offsetMax = new Vector2(-2f, 0f);
+                foreach (var t in label.GetComponentsInChildren<TMP_Text>(true)) t.alignment = TextAlignmentOptions.Bottom;
+            }
+
+            if (input != null)
+            {
+                input.anchorMin = new Vector2(0f, 0f); input.anchorMax = new Vector2(1f, 1f); input.pivot = new Vector2(0.5f, 0.5f);
+                input.offsetMin = new Vector2(0f, 0f);
+                input.offsetMax = new Vector2(0f, -(labelH + labelGap));
+            }
         }
 
         #endregion
