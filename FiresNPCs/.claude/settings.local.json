@@ -514,7 +514,8 @@
       "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_willow.py\" -- FiresWillow)",
       "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_ref_row.py\" -- ref_krumpwillow ref_zenwillow)",
       "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_willow_slice.py\" -- ref_krumpwillow 20)",
-      "PowerShell(dotnet build \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\VikingLands.Core\\\\VikingLands.Core.csproj\" -c Debug -p:UseSharedCompilation=false -nodeReuse:false -m:1 -clp:ErrorsOnly; \"EXITCODE=$LASTEXITCODE\")"
+      "PowerShell(dotnet build \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\VikingLands.Core\\\\VikingLands.Core.csproj\" -c Debug -p:UseSharedCompilation=false -nodeReuse:false -m:1 -clp:ErrorsOnly; \"EXITCODE=$LASTEXITCODE\")",
+      "Bash(ls -la /c/Users/travi/AppData/LocalLow/IronGate/Valheim/Player.log)"
     ]
   }
 }
