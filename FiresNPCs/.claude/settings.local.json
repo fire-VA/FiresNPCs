@@ -544,7 +544,9 @@
       "Bash(awk '/^\\\\[/{h=$0; getline t; if\\(t==\"Sailing\"||t==\"Multi\"||t==\"Farming\"||t==\"Crafting\"||t==\"Building\"||t==\"Exploration\"\\){print \"LINE \"NR-1\": \"h\" -> \"t}}' 'C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Valheim dedicated server\\\\BepInEx\\\\config\\\\Marketplace\\\\Configs\\\\LeaderboardAchievements\\\\VerdantsAscent_Leaderboards.cfg')",
       "Bash(grep -E '^[0-9]+, [0-9]+, [0-9]+$' 'C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Valheim dedicated server\\\\BepInEx\\\\config\\\\Marketplace\\\\Configs\\\\LeaderboardAchievements\\\\VerdantsAscent_Leaderboards.cfg')",
       "Bash(find \"C:/Users/travi/AppData/Roaming/r2modmanPlus-local\" \"C:/Program Files \\(x86\\)/Steam\" \"C:/Users/travi/OneDrive/Desktop\" -iname \"*.cfg\" \\\\\\( -ipath \"*achievement*\" -o -iname \"*verdant*\" -o -iname \"*autogen*\" \\\\\\) 2>/dev/null | head -40)",
-      "Bash([ -f \"$f\" ])"
+      "Bash([ -f \"$f\" ])",
+      "Bash(grep -i \"\\\\.cs$\")",
+      "Bash(echo \"=== file last modified ===\")"
     ]
   }
 }
