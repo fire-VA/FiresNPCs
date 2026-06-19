@@ -18,12 +18,25 @@ namespace FiresRPGmaker.Modules.Marketplace
     /// One gambler profile = one currency to pay + N reward items + max rolls per spin.
     /// Mirrors KG's <c>Gambler_DataTypes.BigData</c>.
     /// </summary>
+    /// <summary>The gambling mini-games a profile can offer. Keys match the player-panel tabs.</summary>
+    public static class GamblerGames
+    {
+        public const string Cards = "cards";
+        public const string Bones = "bones";
+        public const string Runes = "runes";
+        public const string Wheel = "wheel";
+        public static readonly string[] All = { Cards, Bones, Runes, Wheel };
+        public static bool IsValid(string g) => System.Array.IndexOf(All, g) >= 0;
+    }
+
     public class GamblerProfile
     {
         public string Name;
         public int MaxRolls = 1;
         public GamblerItemEntry RequiredItem = new GamblerItemEntry();
         public List<GamblerItemEntry> Rewards = new List<GamblerItemEntry>();
+        // Games this profile offers (player-panel tabs). Absent "Games:" line => cards-only (vanilla compat).
+        public List<string> Games = new List<string> { GamblerGames.Cards };
     }
 
     /// <summary>
@@ -84,7 +97,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             // forcing a manual delete).
             string fileBasename = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             string firstHeader = null;
-            string key = fileBasename; int maxRolls = 1;
+            string key = fileBasename; int maxRolls = 1; List<string> currentGames = null;
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();
@@ -97,6 +110,16 @@ namespace FiresRPGmaker.Modules.Marketplace
                     key = eq[0].ToLowerInvariant();
                     if (firstHeader == null) firstHeader = key;
                     maxRolls = eq.Length > 1 && int.TryParse(eq[1], out var r) ? r : 1;
+                    currentGames = null;
+                    continue;
+                }
+
+                // Fires extension: "Games: cards, bones, wheel" picks which mini-games this profile offers.
+                var directive = line.Replace(" ", "").ToLowerInvariant();
+                if (directive.StartsWith("games:") || directive.StartsWith("games="))
+                {
+                    currentGames = ParseGames(line);
+                    if (_profiles.TryGetValue(key, out var existingForGames)) existingForGames.Games = currentGames;
                     continue;
                 }
 
@@ -121,6 +144,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 {
                     Name = key, MaxRolls = maxRolls,
                     RequiredItem = required, Rewards = items,
+                    Games = currentGames ?? new List<string> { GamblerGames.Cards },
                 };
             }
 
@@ -142,7 +166,36 @@ namespace FiresRPGmaker.Modules.Marketplace
         }
         private static string SerializeRange(GamblerItemEntry e) => e.Min == e.Max ? e.Min.ToString() : $"{e.Min}-{e.Max}";
 
-        public static void SaveProfile(string name, int maxRolls, string bodyText)
+        /// <summary>Parses a "Games: cards, bones, wheel" line into the validated game-key list (cards-only if empty/invalid).</summary>
+        private static List<string> ParseGames(string line)
+        {
+            int sep = line.IndexOfAny(new[] { ':', '=' });
+            string val = sep >= 0 ? line.Substring(sep + 1) : "";
+            var games = new List<string>();
+            foreach (var tok in val.Split(','))
+            {
+                var g = tok.Trim().ToLowerInvariant();
+                if (GamblerGames.IsValid(g) && !games.Contains(g)) games.Add(g);
+            }
+            if (games.Count == 0) games.Add(GamblerGames.Cards);
+            return games;
+        }
+
+        /// <summary>Normalizes a game-key list to the canonical "cards,bones,..." cfg value (cards-only fallback).</summary>
+        public static string SerializeGames(IEnumerable<string> games)
+        {
+            var valid = new List<string>();
+            if (games != null)
+                foreach (var g in games)
+                {
+                    var k = (g ?? "").ToLowerInvariant();
+                    if (GamblerGames.IsValid(k) && !valid.Contains(k)) valid.Add(k);
+                }
+            if (valid.Count == 0) valid.Add(GamblerGames.Cards);
+            return string.Join(",", valid);
+        }
+
+        public static void SaveProfile(string name, int maxRolls, string bodyText, IEnumerable<string> games = null)
         {
             if (string.IsNullOrWhiteSpace(name)) return;
             try
@@ -151,6 +204,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
                 string header = maxRolls > 1 ? $"[{name.Trim()}={maxRolls}]" : $"[{name.Trim()}]";
                 string content = header + System.Environment.NewLine + (bodyText ?? "").Trim() + System.Environment.NewLine;
+                if (games != null) content += "Games: " + SerializeGames(games) + System.Environment.NewLine;
                 string safe = System.Text.RegularExpressions.Regex.Replace(name, "[^a-zA-Z0-9_-]", "_");
                 string file = Path.Combine(folder, safe + ".cfg");
                 File.WriteAllText(file, content);

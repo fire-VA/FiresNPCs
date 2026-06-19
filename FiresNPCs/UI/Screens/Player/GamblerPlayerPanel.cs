@@ -7,12 +7,13 @@ using UnityEngine.UI;
 namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
     /// <summary>
-    /// Player-facing Gambler — direct port of KG's MarketplaceGamblerNewUI flow:
-    ///   Idle → ROLL pays the RequiredItem cost and shuffles cards.
-    ///   Done → player clicks MAXROLLS cards; each click reveals + grants its hidden reward.
-    ///   When the last roll is spent, every unrevealed card flips so the player sees what they missed.
-    /// Skips KG's CannonBall/Smoke/Ring sprite effects + audio cues (deferred until the prefab swap);
-    /// state machine + assignment logic match KG's Gambler_UI.cs.
+    /// Player-facing Gambler — a multi-mini-game "gambling den" over one shared draw (cost item, MAXROLLS
+    /// draws, weighted reward pool). The profile's Games list drives procedural tabs; each tab swaps the
+    /// center play-area:
+    ///   Cards  — DEAL assigns rewards to 18 tiles; player clicks MAXROLLS to reveal + claim.
+    ///   Bones / Runes / Wheel — one action (CAST/CAST/SPIN) draws MAXROLLS rewards and reveals them in
+    ///   per-game styled slots. (Bespoke dice-tumble / wheel-spin visuals are a later polish pass.)
+    /// Layout lives in FiresGamblerPanel.prefab (the den); this binds its named nodes.
     /// </summary>
     public class GamblerPlayerPanel : BasePlayerModulePanel
     {
@@ -23,25 +24,31 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         private const int CardCount = 18;
 
-        private enum Status { Idle, Shuffling, Done, Revealed }
-        private Status _status = Status.Idle;
-        private int _remainingRolls;
+        private string _profileName;
+        private string _activeGame = GamblerGames.Cards;
+
+        // ----- bound prefab nodes -----
+        private TMP_Text _descriptionText;     // odds strip / "you won"
+        private TMP_Text _requiredText;        // stake / have
+        private TMP_Text _statusText;          // picks-left / prompt
+        private RectTransform _grid;           // GambleElements — the play area (GridLayoutGroup)
+        private GameObject _cardTemplate;      // tile template cloned per slot
+        private Button _rollButton;
+        private TMP_Text _rollButtonText;
+        private RectTransform _tabBar;
+        private GameObject _tabTemplate;
+
+        // ----- cards state -----
+        private bool _dealt;
+        private int _remainingPicks;
         private readonly HashSet<int> _clicked = new();
         private readonly Dictionary<int, GamblerItemEntry> _assigned = new();
 
-        private string _profileName;
-        private TMP_Text _descriptionText;     // chance list / "Choose Reward" / "You won"
-        private TMP_Text _requiredText;        // "have / need"
-        private TMP_Text _statusText;          // "ROLL to start" / "X rolls left"
-        private RectTransform _grid;
-        private GameObject _cardTemplate;
-        private Button _rollButton;
-        private TMP_Text _rollButtonText;
-        private RectTransform _rewardScrollContent;
-        private GameObject _rewardRowTemplate;
-        private readonly Card[] _cards = new Card[CardCount];
+        // ----- live tiles + tabs -----
+        private readonly List<Tile> _tiles = new();
+        private readonly List<GameObject> _tabs = new();
 
-        private class Card { public GameObject Go; public Image Bg; public TMP_Text Face; public Button Btn; }
+        private class Tile { public GameObject Go; public Image Bg; public TMP_Text Face; public Button Btn; }
 
         public static void Show(string profileName, string npcDisplayName)
         {
@@ -69,155 +76,201 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_rollButton != null)
             {
                 _rollButton.onClick.RemoveAllListeners();
-                _rollButton.onClick.AddListener(OnRollClicked);
+                _rollButton.onClick.AddListener(OnActionClicked);
                 _rollButtonText = _rollButton.GetComponentInChildren<TMP_Text>();
             }
 
-            _rewardScrollContent = FindRect(t, "RewardScroll/Viewport/Content");
-            _rewardRowTemplate   = Find(t, "RewardRowTemplate");
-            if (_rewardRowTemplate != null) _rewardRowTemplate.SetActive(false);
-            EnsureReflowMeta(_rewardScrollContent, rowSpacing: 2f, padding: 6f);
-
-            BuildCards();
-        }
-
-        /// <summary>Clones CardTemplate once per card slot into the grid (the GridLayoutGroup positions
-        /// them) and caches Bg/Face/Btn for the reveal animation.</summary>
-        private void BuildCards()
-        {
-            if (_cardTemplate == null || _grid == null) return;
-            for (int i = 0; i < CardCount; i++)
-            {
-                int idx = i;
-                var go = Instantiate(_cardTemplate, _grid);
-                go.name = "Card_" + i.ToString("00");
-                go.SetActive(true);
-                var card = new Card { Go = go, Bg = go.GetComponent<Image>(), Face = FindTmp(go.transform, "Face"), Btn = go.GetComponent<Button>() };
-                if (card.Btn != null) { card.Btn.onClick.RemoveAllListeners(); card.Btn.onClick.AddListener(() => OnCardClicked(idx)); }
-                _cards[i] = card;
-            }
+            _tabBar = FindRect(t, "TabBar");
+            _tabTemplate = Find(t, "TabTemplate");
+            if (_tabTemplate != null) _tabTemplate.SetActive(false);
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
         {
             _profileName = profileName;
-            ResetToIdle();
+            var profile = GamblerProfileManager.GetProfile(profileName);
+            BuildTabs(profile);
+            string first = profile != null && profile.Games.Count > 0 ? profile.Games[0] : GamblerGames.Cards;
+            SelectGame(first);
+        }
+
+        // ----- tabs -----
+
+        private void BuildTabs(GamblerProfile profile)
+        {
+            foreach (var go in _tabs) if (go != null) Destroy(go);
+            _tabs.Clear();
+            if (_tabBar != null)
+                for (int i = _tabBar.childCount - 1; i >= 0; i--)
+                {
+                    var ch = _tabBar.GetChild(i).gameObject;
+                    if (ch != _tabTemplate) Destroy(ch);   // strip the prefab's static preview tabs
+                }
+
+            var games = profile != null && profile.Games.Count > 0 ? profile.Games : new List<string> { GamblerGames.Cards };
+            // A single-game gambler shows no tab bar — just that game.
+            if (_tabBar != null) _tabBar.gameObject.SetActive(games.Count > 1);
+            if (games.Count <= 1 || _tabBar == null || _tabTemplate == null) return;
+
+            foreach (var g in games)
+            {
+                var tab = Instantiate(_tabTemplate, _tabBar);
+                tab.name = g + "Tab";
+                tab.SetActive(true);
+                var lbl = FindTmp(tab.transform, "Label");
+                if (lbl != null) lbl.text = TabLabel(g);
+                var btn = tab.GetComponent<Button>();
+                string game = g;
+                if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => SelectGame(game)); }
+                _tabs.Add(tab);
+            }
+        }
+
+        private static string TabLabel(string g) =>
+            g == GamblerGames.Bones ? "BONES" : g == GamblerGames.Runes ? "RUNES" : g == GamblerGames.Wheel ? "WHEEL" : "CARDS";
+        private static string ActionLabel(string g) =>
+            g == GamblerGames.Bones ? "CAST" : g == GamblerGames.Runes ? "CAST" : g == GamblerGames.Wheel ? "SPIN" : "DEAL";
+
+        private void SelectGame(string game)
+        {
+            _activeGame = game;
+            foreach (var tab in _tabs)
+            {
+                bool on = tab.name == game + "Tab";
+                var img = tab.GetComponent<Image>();
+                if (img != null) img.color = on ? new Color(0.48f, 0.35f, 0.16f, 1f) : new Color(0.32f, 0.22f, 0.12f, 0.95f);
+                var lbl = FindTmp(tab.transform, "Label");
+                if (lbl != null) lbl.color = on ? new Color(0.96f, 0.91f, 0.74f) : new Color(0.79f, 0.71f, 0.54f);
+            }
+            ResetState();
             Refresh();
         }
+
+        // ----- shared refresh -----
 
         private void Refresh()
         {
             var profile = GamblerProfileManager.GetProfile(_profileName);
             if (profile == null)
             {
-                _descriptionText.text = "Profile '" + _profileName + "' not loaded.";
+                ClearTiles();
+                if (_descriptionText != null) _descriptionText.text = "Profile '" + _profileName + "' not loaded.";
+                if (_requiredText != null) _requiredText.text = "";
                 string loaded = string.Join(", ", GamblerProfileManager.AllProfileNames);
-                _requiredText.text = "";
-                _statusText.text = (string.IsNullOrEmpty(loaded) ? "No profiles loaded yet. " : "Loaded profiles: " + loaded + ". ")
-                                 + "Drop a .cfg into BepInEx\\config\\FiresRPGmaker\\Gamblers\\ and run firesnpcs_reload gambler.";
-                SetRollButton("ROLL", false);
-                HideAllCards();
-                ClearRewardScroll();
+                if (_statusText != null)
+                    _statusText.text = string.IsNullOrEmpty(loaded) ? "No profiles loaded." : "Loaded: " + loaded;
+                SetRollButton(ActionLabel(_activeGame), false);
                 return;
             }
 
-            RefreshRewardChanceList(profile);
-            RefreshRequiredText(profile);
-            RefreshStaticRewardScroll(profile);
+            RefreshOdds(profile);
+            RefreshStake(profile);
 
-            if (_status == Status.Idle)
+            int activeCount = _activeGame == GamblerGames.Cards
+                ? Mathf.Min(profile.Rewards.Count, CardCount)
+                : Mathf.Clamp(profile.MaxRolls, 1, Mathf.Max(1, profile.Rewards.Count));
+
+            BuildTiles(activeCount);
+            bool canPlay = CountInInventory(profile.RequiredItem.Prefab) >= profile.RequiredItem.Min;
+
+            if (_activeGame == GamblerGames.Cards && _dealt)
             {
-                _statusText.text = "Items per roll: " + profile.MaxRolls + ".";
-                bool canRoll = CountInInventory(profile.RequiredItem.Prefab) >= profile.RequiredItem.Min;
-                SetRollButton(canRoll ? "ROLL" : "Need more " + profile.RequiredItem.Prefab, canRoll);
-                ShowCardsBlank(profile);
-            }
-            else if (_status == Status.Done)
-            {
-                _statusText.text = "Choose a card. Rolls left: " + _remainingRolls;
+                _statusText.text = "Pick " + _remainingPicks + " card" + (_remainingPicks == 1 ? "" : "s");
                 SetRollButton("Pick a card", false);
+            }
+            else
+            {
+                _statusText.text = _activeGame == GamblerGames.Cards
+                    ? "Cards per deal: " + Mathf.Clamp(profile.MaxRolls, 1, activeCount)
+                    : ActionLabel(_activeGame) + " to play  (" + Mathf.Clamp(profile.MaxRolls, 1, activeCount) + ")";
+                SetRollButton(canPlay ? ActionLabel(_activeGame) : "Need more " + profile.RequiredItem.Prefab, canPlay);
             }
         }
 
-        private void RefreshRewardChanceList(GamblerProfile profile)
+        private void RefreshOdds(GamblerProfile profile)
         {
-            // KG's "$mpasn_gambleryouhaveachance" message: "You have a chance: <Item> x<Min>-<Max>".
-            var sb = new System.Text.StringBuilder("You have a chance to win:\n");
-            foreach (var it in profile.Rewards)
+            if (_descriptionText == null) return;
+            var sb = new System.Text.StringBuilder("You can win:  ");
+            for (int i = 0; i < profile.Rewards.Count; i++)
             {
-                sb.Append(it.Prefab);
-                sb.Append("  x");
-                sb.Append(it.Min);
-                if (it.Max != it.Min) { sb.Append('-'); sb.Append(it.Max); }
-                sb.Append('\n');
+                var it = profile.Rewards[i];
+                if (i > 0) sb.Append("  ·  ");
+                sb.Append(it.Prefab).Append(" x").Append(it.Min);
+                if (it.Max != it.Min) sb.Append('-').Append(it.Max);
             }
             _descriptionText.text = sb.ToString();
         }
 
-        private void RefreshRequiredText(GamblerProfile profile)
+        private void RefreshStake(GamblerProfile profile)
         {
+            if (_requiredText == null) return;
             int have = CountInInventory(profile.RequiredItem.Prefab);
             int need = profile.RequiredItem.Min;
-            string color = have >= need ? "#7CFC00" : "#FF6347";
-            _requiredText.text = "Required: <color=" + color + ">" + have + " / " + need + "</color>  " + profile.RequiredItem.Prefab;
+            string color = have >= need ? "#9CC24A" : "#FF6347";
+            _requiredText.text = "STAKE  " + need + " " + profile.RequiredItem.Prefab +
+                                 "   <color=" + color + ">(have " + have + ")</color>";
         }
 
-        private void RefreshStaticRewardScroll(GamblerProfile profile)
+        // ----- play-area tiles (shared by every game) -----
+
+        private void BuildTiles(int count)
         {
-            if (_rewardScrollContent == null || _rewardRowTemplate == null) return;
-            ClearRewardScroll();
-            foreach (var item in profile.Rewards)
+            ClearTiles();
+            if (_grid == null || _cardTemplate == null) return;
+            Color face = TileFace(_activeGame);
+            Color bg = TileBg(_activeGame);
+            for (int i = 0; i < count; i++)
             {
-                var rowGo = Instantiate(_rewardRowTemplate, _rewardScrollContent);
-                rowGo.name = "Reward_" + item.Prefab;
-                rowGo.SetActive(true);
-                SetRowHeight(rowGo, 24f);
-                var lbl = FindTmp(rowGo.transform, "RewardLabel");
-                if (lbl != null) lbl.text = item.Prefab + "  x" + item.Min + (item.Min == item.Max ? "" : "-" + item.Max);
-            }
-            ReflowScroll(_rewardScrollContent);
-        }
-
-        private void ClearRewardScroll()
-        {
-            ClearClones(_rewardScrollContent, _rewardRowTemplate);
-        }
-
-        private void ShowCardsBlank(GamblerProfile profile)
-        {
-            // Show only as many cards as the profile has rewards (KG's behaviour — max 18).
-            int activeCount = Mathf.Min(profile.Rewards.Count, CardCount);
-            for (int i = 0; i < CardCount; i++)
-            {
-                bool on = i < activeCount;
-                _cards[i].Go.SetActive(on);
-                _cards[i].Face.text = "?";
-                _cards[i].Face.color = new Color(1f, 0.95f, 0.6f);
-                _cards[i].Bg.color = new Color(0.06f, 0.05f, 0.03f, 0.92f);
+                int idx = i;
+                var go = Instantiate(_cardTemplate, _grid);
+                go.name = "Tile_" + i.ToString("00");
+                go.SetActive(true);
+                var tile = new Tile { Go = go, Bg = go.GetComponent<Image>(), Face = FindTmp(go.transform, "Face"), Btn = go.GetComponent<Button>() };
+                if (tile.Bg != null) tile.Bg.color = bg;
+                if (tile.Face != null) { tile.Face.text = "?"; tile.Face.color = face; }
+                if (tile.Btn != null)
+                {
+                    tile.Btn.onClick.RemoveAllListeners();
+                    bool interactive = _activeGame == GamblerGames.Cards;
+                    tile.Btn.interactable = interactive;
+                    if (interactive) tile.Btn.onClick.AddListener(() => OnCardClicked(idx));
+                }
+                _tiles.Add(tile);
             }
         }
 
-        private void HideAllCards()
+        private void ClearTiles()
         {
-            for (int i = 0; i < CardCount; i++) _cards[i].Go.SetActive(false);
+            foreach (var t in _tiles) if (t.Go != null) Destroy(t.Go);
+            _tiles.Clear();
         }
 
-        private void OnRollClicked()
+        private static Color TileBg(string g) =>
+            g == GamblerGames.Bones ? new Color(0.91f, 0.87f, 0.76f, 0.96f) :
+            g == GamblerGames.Runes ? new Color(0.49f, 0.46f, 0.40f, 0.96f) :
+            g == GamblerGames.Wheel ? new Color(0.50f, 0.34f, 0.12f, 0.96f) :
+                                      new Color(0.11f, 0.08f, 0.05f, 0.95f);
+        private static Color TileFace(string g) =>
+            g == GamblerGames.Bones ? new Color(0.18f, 0.14f, 0.10f) : new Color(0.96f, 0.91f, 0.74f);
+
+        // ----- action dispatch -----
+
+        private void OnActionClicked()
         {
-            if (_status != Status.Idle) return;
+            if (_activeGame == GamblerGames.Cards) OnDealClicked();
+            else OnAutoPlay();
+        }
+
+        // ----- Cards: deal then pick -----
+
+        private void OnDealClicked()
+        {
+            if (_dealt) return;
             var profile = GamblerProfileManager.GetProfile(_profileName);
             if (profile == null || profile.Rewards.Count == 0) return;
+            if (!PayCost(profile)) { Refresh(); return; }
 
-            var player = Player.m_localPlayer; if (player == null) return;
-            var inv = player.GetInventory();
-
-            int cost = profile.RequiredItem.Min;
-            if (CountInInventory(profile.RequiredItem.Prefab) < cost) { Refresh(); return; }
-            if (!ConsumeFromInventory(inv, profile.RequiredItem.Prefab, cost)) return;
-
-            // Assign each active card a UNIQUE reward (KG samples without replacement; if rewards <
-            // cards then KG repeats — we mirror that with cycle index).
-            int activeCount = Mathf.Min(profile.Rewards.Count, CardCount);
+            int activeCount = _tiles.Count;
             var remaining = new List<int>();
             for (int i = 0; i < profile.Rewards.Count; i++) remaining.Add(i);
             _assigned.Clear();
@@ -230,80 +283,104 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
 
             _clicked.Clear();
-            _remainingRolls = Mathf.Clamp(profile.MaxRolls, 1, activeCount);
-            _status = Status.Done;
-            _descriptionText.text = "<color=#7CFC00>Choose " + _remainingRolls + " card" + (_remainingRolls > 1 ? "s" : "") + " to reveal your reward.</color>";
-            RefreshRequiredText(profile);
-            ShowCardsBlank(profile);
-            _statusText.text = "Rolls left: " + _remainingRolls;
+            _remainingPicks = Mathf.Clamp(profile.MaxRolls, 1, activeCount);
+            _dealt = true;
+            _descriptionText.text = "<color=#9CC24A>Choose " + _remainingPicks + " card" + (_remainingPicks > 1 ? "s" : "") + " to reveal your reward.</color>";
+            RefreshStake(profile);
+            _statusText.text = "Picks left: " + _remainingPicks;
             SetRollButton("Pick a card", false);
         }
 
         private void OnCardClicked(int index)
         {
-            if (_status != Status.Done) return;
-            if (_remainingRolls <= 0) return;
-            if (_clicked.Contains(index)) return;
+            if (!_dealt || _remainingPicks <= 0 || _clicked.Contains(index)) return;
             var profile = GamblerProfileManager.GetProfile(_profileName);
-            if (profile == null) return;
-            if (!_assigned.TryGetValue(index, out var reward)) return;
+            if (profile == null || !_assigned.TryGetValue(index, out var reward) || index >= _tiles.Count) return;
 
             _clicked.Add(index);
-            _remainingRolls--;
+            _remainingPicks--;
+            RevealTile(index, reward, won: true);
+            GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), reward.Prefab, RollQty(reward));
+            AppendWon(reward.Prefab, RollQty(reward));
 
-            int qty = reward.Min == reward.Max ? reward.Min : Random.Range(reward.Min, reward.Max + 1);
-            _cards[index].Face.text = reward.Prefab + "\nx" + qty;
-            _cards[index].Face.color = new Color(0.70f, 1f, 0.70f);
-            _cards[index].Bg.color = new Color(0.10f, 0.18f, 0.08f, 0.92f);
-            GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), reward.Prefab, qty);
-
-            AppendWonLine(reward.Prefab, qty);
-
-            if (_remainingRolls <= 0)
+            if (_remainingPicks <= 0)
             {
-                // Reveal every unrevealed card so the player sees what they "missed", matching KG.
                 foreach (var kv in _assigned)
-                {
-                    if (_clicked.Contains(kv.Key)) continue;
-                    _cards[kv.Key].Face.text = kv.Value.Prefab + "\nx" + kv.Value.Min;
-                    _cards[kv.Key].Face.color = new Color(0.78f, 0.72f, 0.60f);
-                    _cards[kv.Key].Bg.color = new Color(0.08f, 0.06f, 0.04f, 0.92f);
-                }
-                ResetToIdleAfterRoll();
+                    if (!_clicked.Contains(kv.Key)) RevealTile(kv.Key, kv.Value, won: false);
+                EndRound(profile);
             }
-            else
-            {
-                _statusText.text = "Rolls left: " + _remainingRolls;
-            }
+            else _statusText.text = "Picks left: " + _remainingPicks;
         }
 
-        private void ResetToIdleAfterRoll()
+        // ----- Bones / Runes / Wheel: one action draws MAXROLLS rewards -----
+
+        private void OnAutoPlay()
         {
-            _status = Status.Idle;
             var profile = GamblerProfileManager.GetProfile(_profileName);
-            if (profile != null)
+            if (profile == null || profile.Rewards.Count == 0 || _tiles.Count == 0) return;
+            if (!PayCost(profile)) { Refresh(); return; }
+
+            _descriptionText.text = "<size=18>You won:</size>  ";
+            bool first = true;
+            for (int i = 0; i < _tiles.Count; i++)
             {
-                bool canRoll = CountInInventory(profile.RequiredItem.Prefab) >= profile.RequiredItem.Min;
-                SetRollButton(canRoll ? "ROLL AGAIN" : "Need more " + profile.RequiredItem.Prefab, canRoll);
-                RefreshRequiredText(profile);
+                var reward = DrawReward(profile);
+                int qty = RollQty(reward);
+                RevealTile(i, reward, won: true);
+                GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), reward.Prefab, qty);
+                if (!first) _descriptionText.text += ", ";
+                _descriptionText.text += "<color=#9CC24A>" + reward.Prefab + " x" + qty + "</color>";
+                first = false;
             }
-            _statusText.text = "Spin done. Click ROLL to play again.";
+            EndRound(profile);
         }
 
-        private void ResetToIdle()
+        private GamblerItemEntry DrawReward(GamblerProfile profile) => profile.Rewards[Random.Range(0, profile.Rewards.Count)];
+
+        // ----- shared helpers -----
+
+        private void RevealTile(int index, GamblerItemEntry reward, bool won)
         {
-            _status = Status.Idle;
-            _remainingRolls = 0;
-            _clicked.Clear();
-            _assigned.Clear();
+            if (index < 0 || index >= _tiles.Count) return;
+            var tile = _tiles[index];
+            if (tile.Face != null)
+            {
+                tile.Face.text = reward.Prefab + "\nx" + reward.Min;
+                tile.Face.color = won ? new Color(0.70f, 1f, 0.70f) : new Color(0.78f, 0.72f, 0.60f);
+                tile.Face.fontSize = 11f;
+            }
+            if (tile.Bg != null) tile.Bg.color = won ? new Color(0.10f, 0.18f, 0.08f, 0.95f) : new Color(0.08f, 0.06f, 0.04f, 0.92f);
+            if (tile.Btn != null) tile.Btn.interactable = false;
         }
 
-        private void AppendWonLine(string prefab, int qty)
+        private void EndRound(GamblerProfile profile)
         {
+            _dealt = false;
+            bool canPlay = CountInInventory(profile.RequiredItem.Prefab) >= profile.RequiredItem.Min;
+            string again = _activeGame == GamblerGames.Cards ? "DEAL AGAIN" : ActionLabel(_activeGame) + " AGAIN";
+            SetRollButton(canPlay ? again : "Need more " + profile.RequiredItem.Prefab, canPlay);
+            RefreshStake(profile);
+            _statusText.text = "Click " + (_activeGame == GamblerGames.Cards ? "DEAL" : ActionLabel(_activeGame)) + " to play again.";
+        }
+
+        private bool PayCost(GamblerProfile profile)
+        {
+            var player = Player.m_localPlayer;
+            if (player == null) return false;
+            int cost = profile.RequiredItem.Min;
+            if (CountInInventory(profile.RequiredItem.Prefab) < cost) return false;
+            return ConsumeFromInventory(player.GetInventory(), profile.RequiredItem.Prefab, cost);
+        }
+
+        private static int RollQty(GamblerItemEntry e) => e.Min == e.Max ? e.Min : Random.Range(e.Min, e.Max + 1);
+
+        private void AppendWon(string prefab, int qty)
+        {
+            if (_descriptionText == null) return;
             if (!_descriptionText.text.Contains("You won"))
-                _descriptionText.text = "<size=18>You won:</size>\n<color=#7CFC00>" + prefab + " x" + qty + "</color>";
+                _descriptionText.text = "<size=18>You won:</size>  <color=#9CC24A>" + prefab + " x" + qty + "</color>";
             else
-                _descriptionText.text += ", <color=#7CFC00>" + prefab + " x" + qty + "</color>";
+                _descriptionText.text += ", <color=#9CC24A>" + prefab + " x" + qty + "</color>";
         }
 
         private void SetRollButton(string text, bool enabled)
@@ -312,7 +389,15 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_rollButtonText != null) _rollButtonText.text = text;
         }
 
-        // ─── inventory helpers (same as KG.InstantiateItem) ───
+        private void ResetState()
+        {
+            _dealt = false;
+            _remainingPicks = 0;
+            _clicked.Clear();
+            _assigned.Clear();
+        }
+
+        // ----- inventory (unchanged from KG.InstantiateItem path) -----
 
         private static int CountInInventory(string prefab)
         {

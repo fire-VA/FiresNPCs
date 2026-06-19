@@ -515,7 +515,26 @@
       "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_ref_row.py\" -- ref_krumpwillow ref_zenwillow)",
       "Bash(\"/c/Program Files/Blender Foundation/Blender 5.1/blender.exe\" --background --python \"C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/gen_willow_slice.py\" -- ref_krumpwillow 20)",
       "PowerShell(dotnet build \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\VikingLands.Core\\\\VikingLands.Core.csproj\" -c Debug -p:UseSharedCompilation=false -nodeReuse:false -m:1 -clp:ErrorsOnly; \"EXITCODE=$LASTEXITCODE\")",
-      "Bash(ls -la /c/Users/travi/AppData/LocalLow/IronGate/Valheim/Player.log)"
+      "Bash(ls -la /c/Users/travi/AppData/LocalLow/IronGate/Valheim/Player.log)",
+      "WebFetch(domain:thunderstore.io)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\travi\\\\Downloads\" -File | Where-Object { $_.Name -match 'gambler' -or \\($_.Extension -in '.png','.jpg','.jpeg','.webp' -and $_.LastWriteTime -gt \\(Get-Date\\).AddDays\\(-3\\)\\) } | Sort-Object LastWriteTime -Descending | Select-Object Name, @{n='KB';e={[int]\\($_.Length/1KB\\)}}, LastWriteTime | Format-Table -AutoSize)",
+      "PowerShell(& powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\Run-HeadlessUnity.ps1\" -Label \"book-realstubs\" -ExecuteMethod \"FiresNpcBookBuild.BuildAndRenderAll\" -LogFile \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\book-realstubs.log\")",
+      "Bash(grep -oiE '[A-Za-z]:[\\\\\\\\/][^\"]*?\\(VBNet|NetworkTweaks|BetterNetworking|netmods|rivals\\)[^\"]*?\\\\.dll' \"/c/Users/travi/.claude/projects/C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs/5de72477-bfe1-4ca9-bbfd-03628d31ce22.jsonl\")",
+      "Bash(grep -oiE '[A-Za-z]:[\\\\\\\\/][^\"]*?\\(VBNet|VitByr|netmods|rival|NetworkTweaks\\)[^\"\\\\\\\\]*' \"/c/Users/travi/.claude/projects/C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs/5de72477-bfe1-4ca9-bbfd-03628d31ce22.jsonl\")",
+      "Bash(powershell.exe -NoProfile -Command \"if \\(Get-Process valheim,valheim_server -ErrorAction SilentlyContinue\\) { 'WARNING: valheim/valheim_server still running - close it before swapping' } else { 'no game running - safe to swap' }\")",
+      "Bash(awk '{print \"   \"$6\" \"$7\" \"$8\"  \"$NF}')",
+      "Bash(powershell.exe -NoProfile -Command \"if \\(Get-Process valheim,valheim_server -ErrorAction SilentlyContinue\\) { 'WARNING: game still running' } else { 'no game running - safe' }\")",
+      "Bash(awk '{print \"   DLL: \"$5\" \"$NF}')",
+      "Bash(awk '{print \" \"$6\" \"$7\" \"$8\" \"$NF}')",
+      "Bash(powershell.exe -NoProfile -Command \"if \\(Get-Process valheim,valheim_server -ErrorAction SilentlyContinue\\) { 'yes' } else { 'no' }\")",
+      "Bash([ -f \"$BEP/IsThisThingOn_Results_FGN-1.3.7.txt\" ])",
+      "Bash(mv '/c/Program Files \\(x86\\)/Steam/steamapps/common/Valheim dedicated server_newtestmods - Copy/BepInEx/IsThisThingOn_Results_FGN-1.3.7.txt' '/c/Program Files \\(x86\\)/Steam/steamapps/common/Valheim dedicated server_newtestmods - Copy/BepInEx/IsThisThingOn_Results_FGN_archived-pre-readouts.txt')",
+      "Bash(rm -f '/c/Program Files \\(x86\\)/Steam/steamapps/common/Valheim dedicated server_newtestmods - Copy/BepInEx/config/com.Fire.FiresGhettoNetworkMod.cfg' /c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/RagnarRepro/BepInEx/config/com.Fire.FiresGhettoNetworkMod.cfg)",
+      "Bash([ -f \"$DEDI_CFG\" ])",
+      "Bash([ -f \"$CLIENT_CFG\" ])",
+      "Bash(DEDI_CFG=\"/c/Program Files \\(x86\\)/Steam/steamapps/common/Valheim dedicated server_newtestmods - Copy/BepInEx/config/com.Fire.FiresGhettoNetworkMod.cfg\" *)"
     ]
   }
 }
