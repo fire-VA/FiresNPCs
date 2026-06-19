@@ -245,6 +245,20 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _tiles.Clear();
         }
 
+        // Reset existing tiles to face-down + re-apply interactability (clears the previous round before a new deal).
+        private void ResetTiles()
+        {
+            Color face = TileFace(_activeGame);
+            Color bg = TileBg(_activeGame);
+            bool interactive = _activeGame == GamblerGames.Cards;
+            foreach (var t in _tiles)
+            {
+                if (t.Face != null) { t.Face.text = "?"; t.Face.color = face; t.Face.fontSize = 22f; }
+                if (t.Bg != null) t.Bg.color = bg;
+                if (t.Btn != null) t.Btn.interactable = interactive;
+            }
+        }
+
         private static Color TileBg(string g) =>
             g == GamblerGames.Bones ? new Color(0.91f, 0.87f, 0.76f, 0.96f) :
             g == GamblerGames.Runes ? new Color(0.49f, 0.46f, 0.40f, 0.96f) :
@@ -269,6 +283,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var profile = GamblerProfileManager.GetProfile(_profileName);
             if (profile == null || profile.Rewards.Count == 0) return;
             if (!PayCost(profile)) { Refresh(); return; }
+            ResetTiles();
 
             int activeCount = _tiles.Count;
             var remaining = new List<int>();
@@ -285,7 +300,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _clicked.Clear();
             _remainingPicks = Mathf.Clamp(profile.MaxRolls, 1, activeCount);
             _dealt = true;
-            _descriptionText.text = "<color=#9CC24A>Choose " + _remainingPicks + " card" + (_remainingPicks > 1 ? "s" : "") + " to reveal your reward.</color>";
+            _descriptionText.text = "<color=#1f5c0f>Choose " + _remainingPicks + " card" + (_remainingPicks > 1 ? "s" : "") + " to reveal your reward.</color>";
             RefreshStake(profile);
             _statusText.text = "Picks left: " + _remainingPicks;
             SetRollButton("Pick a card", false);
@@ -303,12 +318,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), reward.Prefab, RollQty(reward));
             AppendWon(reward.Prefab, RollQty(reward));
 
-            if (_remainingPicks <= 0)
-            {
-                foreach (var kv in _assigned)
-                    if (!_clicked.Contains(kv.Key)) RevealTile(kv.Key, kv.Value, won: false);
-                EndRound(profile);
-            }
+            // Only the cards you pick reveal; the rest stay a mystery. Round ends when picks run out.
+            if (_remainingPicks <= 0) EndRound(profile);
             else _statusText.text = "Picks left: " + _remainingPicks;
         }
 
@@ -319,6 +330,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var profile = GamblerProfileManager.GetProfile(_profileName);
             if (profile == null || profile.Rewards.Count == 0 || _tiles.Count == 0) return;
             if (!PayCost(profile)) { Refresh(); return; }
+            ResetTiles();
 
             _descriptionText.text = "<size=18>You won:</size>  ";
             bool first = true;
@@ -329,7 +341,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 RevealTile(i, reward, won: true);
                 GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), reward.Prefab, qty);
                 if (!first) _descriptionText.text += ", ";
-                _descriptionText.text += "<color=#9CC24A>" + reward.Prefab + " x" + qty + "</color>";
+                _descriptionText.text += "<color=#1f5c0f>" + reward.Prefab + " x" + qty + "</color>";
                 first = false;
             }
             EndRound(profile);
@@ -356,6 +368,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private void EndRound(GamblerProfile profile)
         {
             _dealt = false;
+            foreach (var t in _tiles) if (t.Btn != null) t.Btn.interactable = false;
             bool canPlay = CountInInventory(profile.RequiredItem.Prefab) >= profile.RequiredItem.Min;
             string again = _activeGame == GamblerGames.Cards ? "DEAL AGAIN" : ActionLabel(_activeGame) + " AGAIN";
             SetRollButton(canPlay ? again : "Need more " + profile.RequiredItem.Prefab, canPlay);
@@ -378,9 +391,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         {
             if (_descriptionText == null) return;
             if (!_descriptionText.text.Contains("You won"))
-                _descriptionText.text = "<size=18>You won:</size>  <color=#9CC24A>" + prefab + " x" + qty + "</color>";
+                _descriptionText.text = "<size=18>You won:</size>  <color=#1f5c0f>" + prefab + " x" + qty + "</color>";
             else
-                _descriptionText.text += ", <color=#9CC24A>" + prefab + " x" + qty + "</color>";
+                _descriptionText.text += ", <color=#1f5c0f>" + prefab + " x" + qty + "</color>";
         }
 
         private void SetRollButton(string text, bool enabled)

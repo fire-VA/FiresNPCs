@@ -254,8 +254,11 @@ namespace FiresRPGmaker.Modules.Marketplace
             }
         }
 
-        // Pickable.Interact's return is m_useInteractAnimation (a static flag), NOT a did-pick signal — gate
-        // on a GetPicked() false->true transition captured across prefix/postfix.
+        // Pickable.Interact's return is m_useInteractAnimation (a static flag), NOT a did-pick signal. Credit a
+        // non-repeat interact with an UN-picked pickable (prefix __state == false) by the local player. We do
+        // NOT re-check GetPicked() afterward: on a dedicated server the pick RPC routes to the ZDO owner and
+        // m_picked flips a frame LATER, so a post-interact check would miss every client harvest. Optimistic
+        // (a contested pick can over-credit by 1 — fine for an achievement counter).
         [HarmonyPatch(typeof(Pickable), nameof(Pickable.Interact))]
         public static class Pickable_Interact_Patch
         {
@@ -266,11 +269,10 @@ namespace FiresRPGmaker.Modules.Marketplace
             [HarmonyPostfix]
             private static void Postfix(Pickable __instance, Humanoid character, bool repeat, bool __state)
             {
-                if (repeat || __state) return;                       // already picked before this interact
+                if (repeat || __state) return;                       // repeat-use, or already picked before this interact
                 if (__instance == null || character == null) return;
                 var lp = Player.m_localPlayer;
                 if (lp == null || character != (Humanoid)lp) return;
-                if (!__instance.GetPicked()) return;                 // only a fresh false->true pick counts
                 var s = LeaderboardTracker.Local;
                 string name = __instance.gameObject.name.Replace("(Clone)", "").Trim();
                 s.HarvestedByPrefab.TryGetValue(name, out var n); s.HarvestedByPrefab[name] = n + 1;
