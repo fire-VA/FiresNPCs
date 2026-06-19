@@ -91,6 +91,17 @@ namespace FiresRPGmaker.Modules.Marketplace
                     int reloaded = ReloadModule("all"); // triggers WriteExampleProfile for each missing example
                     args.Context.AddString("[firesnpcs] reset " + deleted + " example.cfg file(s), reloaded " + reloaded + " module(s).");
                 });
+
+            // Probe the LIVE world (creatures, pickables, build categories, skills) and write baseline
+            // AutoGen_*.cfg achievement files in the owner's tier style. Overwrites only AutoGen_* files.
+            new Terminal.ConsoleCommand("firesnpcs_gen_achievements",
+                "[optional profile name=server] - probe the live game (monsters/pickables/skills/build categories) + write baseline AutoGen_*.cfg achievements",
+                args =>
+                {
+                    string profile = args.Length > 1 ? args[1] : "server";
+                    string result = AchievementGenerator.Generate(profile, line => args.Context.AddString("[firesnpcs] " + line));
+                    args.Context.AddString("[firesnpcs] " + result);
+                });
         }
 
         // KG subfolder name -> our subfolder name (both relative to their respective config roots).

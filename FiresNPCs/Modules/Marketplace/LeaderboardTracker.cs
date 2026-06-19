@@ -28,6 +28,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             public readonly Dictionary<string, int> CraftedByPrefab = new();
             public readonly Dictionary<string, int> HarvestedByPrefab = new();
             public readonly Dictionary<string, int> KilledByCause = new();
+            public readonly Dictionary<string, int> BuiltByCategory = new();
         }
 
         private static readonly Dictionary<string, Stats> _byPlayer = new();
@@ -63,7 +64,9 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 "MonstersKilled" => string.IsNullOrEmpty(prefab) ? s.KilledCreatures : (s.KilledByPrefab.TryGetValue(prefab, out var v) ? v : 0),
                 "ItemsCrafted"   => string.IsNullOrEmpty(prefab) ? s.ItemsCrafted    : (s.CraftedByPrefab.TryGetValue(prefab, out var v) ? v : 0),
-                "StructuresBuilt"=> s.BuiltStructures,
+                "StructuresBuilt"=> string.IsNullOrEmpty(prefab) ? s.BuiltStructures
+                                     : (s.BuiltByCategory.TryGetValue(prefab, out var bc) ? bc : 0),
+                "SkillLevel"     => GetSkillLevel(playerName, prefab),
                 "Died"           => s.Died,
                 "KilledBy"       => string.IsNullOrEmpty(prefab) ? 0 : (s.KilledByCause.TryGetValue(prefab, out var v) ? v : 0),
                 "Explored"       => Mathf.RoundToInt(s.MapExplored * 100f),
@@ -71,6 +74,17 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "PlayersKilled"  => s.KilledPlayers,
                 _ => 0,
             };
+        }
+
+        // Live read — skills are already game-persisted; only the local player's are knowable client-side.
+        private static int GetSkillLevel(string playerName, string skillName)
+        {
+            var p = Player.m_localPlayer;
+            if (p == null || string.IsNullOrEmpty(skillName)) return 0;
+            if (p.GetPlayerName() != playerName) return 0;
+            if (!System.Enum.TryParse<Skills.SkillType>(skillName, true, out var type)) return 0;
+            var skills = p.GetSkills();
+            return skills == null ? 0 : Mathf.FloorToInt(skills.GetSkillLevel(type));
         }
 
         public static void NotifyChanged() => Save();
@@ -100,6 +114,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                         Died = int.Parse(parts[5]),
                         MapExplored = float.Parse(parts[6]),
                     };
+                    if (parts.Length > 7) DecodeDict(parts[7], s.HarvestedByPrefab);
+                    if (parts.Length > 8) DecodeDict(parts[8], s.BuiltByCategory);
                     _byPlayer[s.PlayerName] = s;
                 }
             }
@@ -112,16 +128,42 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var path = StorePath;
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
-                var lines = new List<string> { "# player,killedCreatures,killedPlayers,builtStructures,itemsCrafted,died,mapExplored" };
+                var lines = new List<string> { "# player,killedCreatures,killedPlayers,builtStructures,itemsCrafted,died,mapExplored,harvested,builtByCategory" };
                 foreach (var s in _byPlayer.Values)
                 {
                     lines.Add(string.Join(",",
                         s.PlayerName, s.KilledCreatures, s.KilledPlayers, s.BuiltStructures,
-                        s.ItemsCrafted, s.Died, s.MapExplored.ToString("0.####")));
+                        s.ItemsCrafted, s.Died, s.MapExplored.ToString("0.####"),
+                        EncodeDict(s.HarvestedByPrefab), EncodeDict(s.BuiltByCategory)));
                 }
                 File.WriteAllLines(path, lines);
             }
             catch (System.Exception ex) { Debug.LogError("[LeaderboardTracker] save: " + ex.Message); }
+        }
+
+        // Per-prefab/category dicts persist as key:count;key:count in one CSV column (keys sanitized of , ; :).
+        private static string EncodeDict(Dictionary<string, int> d)
+        {
+            if (d == null || d.Count == 0) return "";
+            var sb = new System.Text.StringBuilder();
+            foreach (var kv in d)
+            {
+                if (sb.Length > 0) sb.Append(';');
+                string k = kv.Key.Replace(",", "").Replace(";", "").Replace(":", "");
+                sb.Append(k).Append(':').Append(kv.Value);
+            }
+            return sb.ToString();
+        }
+
+        private static void DecodeDict(string s, Dictionary<string, int> d)
+        {
+            if (string.IsNullOrEmpty(s)) return;
+            foreach (var pair in s.Split(';'))
+            {
+                int c = pair.LastIndexOf(':');
+                if (c <= 0) continue;
+                if (int.TryParse(pair.Substring(c + 1), out var v)) d[pair.Substring(0, c)] = v;
+            }
         }
     }
 
@@ -181,9 +223,12 @@ namespace FiresRPGmaker.Modules.Marketplace
             [HarmonyPostfix]
             private static void Postfix(Piece __instance, long uid)
             {
-                if (Player.m_localPlayer == null) return;
+                if (Player.m_localPlayer == null || __instance == null) return;
                 if (uid != Player.m_localPlayer.GetPlayerID()) return;
-                LeaderboardTracker.Local.BuiltStructures++;
+                var s = LeaderboardTracker.Local;
+                s.BuiltStructures++;
+                string cat = __instance.m_category.ToString();
+                s.BuiltByCategory.TryGetValue(cat, out var n); s.BuiltByCategory[cat] = n + 1;
                 LeaderboardTracker.NotifyChanged();
             }
         }
@@ -205,6 +250,30 @@ namespace FiresRPGmaker.Modules.Marketplace
                     for (int i = 0; i < arr.Length; i++) if (arr[i]) explored++;
                 }
                 LeaderboardTracker.Local.MapExplored = total <= 0 ? 0f : (float)explored / total;
+                LeaderboardTracker.NotifyChanged();
+            }
+        }
+
+        // Pickable.Interact's return is m_useInteractAnimation (a static flag), NOT a did-pick signal — gate
+        // on a GetPicked() false->true transition captured across prefix/postfix.
+        [HarmonyPatch(typeof(Pickable), nameof(Pickable.Interact))]
+        public static class Pickable_Interact_Patch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(Pickable __instance, out bool __state)
+                => __state = __instance != null && __instance.GetPicked();
+
+            [HarmonyPostfix]
+            private static void Postfix(Pickable __instance, Humanoid character, bool repeat, bool __state)
+            {
+                if (repeat || __state) return;                       // already picked before this interact
+                if (__instance == null || character == null) return;
+                var lp = Player.m_localPlayer;
+                if (lp == null || character != (Humanoid)lp) return;
+                if (!__instance.GetPicked()) return;                 // only a fresh false->true pick counts
+                var s = LeaderboardTracker.Local;
+                string name = __instance.gameObject.name.Replace("(Clone)", "").Trim();
+                s.HarvestedByPrefab.TryGetValue(name, out var n); s.HarvestedByPrefab[name] = n + 1;
                 LeaderboardTracker.NotifyChanged();
             }
         }

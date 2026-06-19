@@ -11,7 +11,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         public int Id;
         public string Name;
         public string Description;
-        public string TriggerType; // MonstersKilled, ItemsCrafted, StructuresBuilt, Died, KilledBy, Explored, Harvested, PlayersKilled
+        public string TriggerType; // MonstersKilled, ItemsCrafted, StructuresBuilt, Died, KilledBy, Explored, Harvested, PlayersKilled, SkillLevel
         public string Prefab;
         public int MinAmount;
         public int Score;
@@ -84,8 +84,11 @@ namespace FiresRPGmaker.Modules.Marketplace
                 if (kgBlock.Count == 6 && !string.IsNullOrEmpty(kgHeader))
                 {
                     var prefabMin = kgBlock[3].Replace(" ", "").Split(',');
-                    string prefab = prefabMin.Length > 0 ? prefabMin[0] : "";
-                    int minAmt = prefabMin.Length > 1 && int.TryParse(prefabMin[1], out var m) ? m : 0;
+                    // Bare amount (Died/Explored/overall StructuresBuilt): a single pure-int token => no prefab,
+                    // that int IS the threshold. Otherwise "prefab,amount".
+                    string prefab; int minAmt;
+                    if (prefabMin.Length == 1 && int.TryParse(prefabMin[0], out var bare)) { prefab = ""; minAmt = bare; }
+                    else { prefab = prefabMin.Length > 0 ? prefabMin[0] : ""; minAmt = prefabMin.Length > 1 && int.TryParse(prefabMin[1], out var m) ? m : 0; }
                     int score = int.TryParse(kgBlock[5].Trim(), out var s) ? s : 0;
                     pool.Add(new AchievementDef
                     {
@@ -99,7 +102,10 @@ namespace FiresRPGmaker.Modules.Marketplace
                         MockProgress = 0,
                     });
                 }
-                kgBlock.Clear(); kgHeader = null;
+                // Keep kgHeader: a single [profile] header can hold MANY blank-separated 6-line blocks
+                // (the AutoGen_*.cfg shape). A new [header] line overwrites it; per-achievement-header files
+                // (the KG/VerdantsAscent shape) still load one-profile-per-achievement, unchanged.
+                kgBlock.Clear();
             }
 
             foreach (var raw in File.ReadAllLines(file))
@@ -152,7 +158,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 "# Example achievement profile. Drop in BepInEx\\config\\firesnpcs\\achievement\\<name>.cfg.",
                 "# Format: id|name|description|triggerType|prefab|minAmount|score",
-                "# triggerType: MonstersKilled, ItemsCrafted, StructuresBuilt, Died, KilledBy, Explored, Harvested, PlayersKilled",
+                "# triggerType: MonstersKilled, ItemsCrafted, StructuresBuilt, Died, KilledBy, Explored, Harvested, PlayersKilled, SkillLevel",
                 "",
                 "[example]",
                 "1|Greydwarf Bane|Slay 50 Greydwarves|MonstersKilled|Greydwarf|50|10",

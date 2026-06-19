@@ -306,6 +306,7 @@
     <Compile Include="Modules\Marketplace\GamblerProfileManager.cs" />
     <Compile Include="Modules\Marketplace\MarketplaceListingManager.cs" />
     <Compile Include="Modules\Marketplace\AchievementProfileManager.cs" />
+    <Compile Include="Modules\Marketplace\AchievementGenerator.cs" />
     <Compile Include="Modules\Marketplace\LeaderboardProfileManager.cs" />
     <Compile Include="Modules\Marketplace\MailProfileManager.cs" />
     <Compile Include="Modules\Marketplace\TransmogProfileManager.cs" />
