@@ -43,13 +43,11 @@ namespace FiresRPGmaker.UI
         private string _activeTab = "Dressing";
         private bool _built;
 
-        // The Dressing + Dialogue tabs HOST the existing working controllers (DressingRoomScreenController +
-        // DialogueEditorScreenController) inside the book, reusing their proven inventory grid / player-inventory
-        // open / drag-to-equip and the original movable, auto-sizing option-editor popup with RectMask2D dropdowns.
-        // The book's own reimplementations of those two screens are bypassed.
-        private RectTransform _hostArea;
+        // The Dressing tab WIRES the existing working DressingRoomScreenController onto the book's OWN parchment
+        // equipment grid via WireFromCodegen — keeping the new look while reusing the proven function (opens the
+        // player inventory + shows worn-gear icons + drag-to-equip). Dialogue keeps the book's new-look editor.
         private DressingRoomScreenController _dressingCtrl;
-        private DialogueEditorScreenController _dialogueCtrl;
+        private bool _dressingWired;
 
         public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
 
@@ -81,7 +79,6 @@ namespace FiresRPGmaker.UI
         public void Hide()
         {
             if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch { } }
-            if (_dialogueCtrl != null) { try { _dialogueCtrl.Hide(); } catch { } }
             if (_optionPopup != null) _optionPopup.gameObject.SetActive(false);
             _editingOptionIndex = -1;
             if (_panelGo != null) _panelGo.SetActive(false);
@@ -129,18 +126,6 @@ namespace FiresRPGmaker.UI
             WireToggleVisuals();
             WireDialogueExtras();
             NormalizeInteractive(_panelGo.transform);
-
-            // Host area (over the parchment content) where the working Dressing/Dialogue controllers mount.
-            var hostGo = new GameObject("BookHostArea", typeof(RectTransform));
-            hostGo.transform.SetParent(_panelGo.transform, false);
-            _hostArea = hostGo.GetComponent<RectTransform>();
-            _hostArea.anchorMin = new Vector2(0.25f, 0.31f);
-            _hostArea.anchorMax = new Vector2(0.758f, 0.705f);
-            _hostArea.offsetMin = Vector2.zero; _hostArea.offsetMax = Vector2.zero;
-            // Tabs + header + close stay clickable above a hosted screen.
-            _leftPage.SetAsLastSibling();
-            FindRec(_root, "CloseButton")?.SetAsLastSibling();
-
             _panelGo.SetActive(false);
             _built = true;
             Debug.Log("[NpcBookController] book loaded + wired");
@@ -185,7 +170,7 @@ namespace FiresRPGmaker.UI
             Hook("TransmogApply", SaveTransmog);
             Hook("MarketplaceApply", SaveMarketplace);
             Hook("MailApply", SaveMail);
-            Hook("ApplyLook", SaveDressing);
+            // Dressing Apply/ClearAll are owned by the wired DressingRoomScreenController, not the book.
             Hook("AddRewardButton", () => AddRewardRow(null));
             Hook("AddOfferingButton", () => AddOfferingRow(null));
             Hook("DlgSave", SaveDialogue);
@@ -208,49 +193,38 @@ namespace FiresRPGmaker.UI
             _activeTab = tab;
             bool dressing = (tab == "Dressing");
             bool dlg = (tab == "Dialogue");
-            bool hosted = dressing || dlg;   // these tabs are served by the hosted working controllers
             foreach (var t in Tabs)
             {
                 var screen = FindRec(_rightPage, "Screen_" + t);
-                if (screen != null) screen.gameObject.SetActive(!hosted && t == tab);
+                if (screen != null) screen.gameObject.SetActive(t == tab);
                 var img = FindRec(_leftPage, t + "Tab")?.GetComponent<Image>();
                 if (img != null) img.color = (t == tab) ? TAB_ON : TAB;
             }
-            // On hosted tabs the controller covers the pages, so hide the left-page setup; the book's own
-            // dialogue list is retired (the hosted dialogue editor has its own sidebar).
-            FindRec(_leftPage, "SetupGroup")?.gameObject.SetActive(!hosted);
-            FindRec(_leftPage, "DialogueListGroup")?.gameObject.SetActive(false);
-            if (_optionPopup != null) { _optionPopup.gameObject.SetActive(false); _editingOptionIndex = -1; }
-            ShowDressing(dressing);
-            ShowDialogue(dlg);
-            if (!hosted) PopulateActiveScreen();
+            // Dialogue takes both pages: hide the NPC setup, show the dialogue list on the left. Tabs stay pinned.
+            FindRec(_leftPage, "SetupGroup")?.gameObject.SetActive(!dlg);
+            FindRec(_leftPage, "DialogueListGroup")?.gameObject.SetActive(dlg);
+            if (!dlg && _optionPopup != null) { _optionPopup.gameObject.SetActive(false); _editingOptionIndex = -1; }
+            // Dressing tab: wire the working dressing logic onto the book's own parchment grid, then load gear +
+            // open the player inventory. Leaving the tab closes the inventory.
+            if (dressing) WireAndShowDressing();
+            else if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch { } }
+            if (!dressing) PopulateActiveScreen();
         }
 
-        // ── hosted working controllers (Dressing / Dialogue) ────────────────
-        private void ShowDressing(bool on)
+        // ── dressing: wire the working controller onto the book's parchment grid ─────────────
+        private void WireAndShowDressing()
         {
-            if (!on) { if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch { } } return; }
-            if (_hostArea == null) return;
-            if (_dressingCtrl == null)
+            var screen = FindRec(_rightPage, "Screen_Dressing")?.gameObject;
+            if (screen == null) return;
+            if (!_dressingWired)
             {
-                try { _dressingCtrl = DressingRoomScreenController.Create(_hostArea); }
-                catch (Exception ex) { Debug.LogError("[NpcBookController] create dressing screen: " + ex); return; }
+                _dressingCtrl = screen.GetComponent<DressingRoomScreenController>()
+                                ?? screen.AddComponent<DressingRoomScreenController>();
+                try { _dressingCtrl.WireFromCodegen(screen); _dressingWired = true; }
+                catch (Exception ex) { Debug.LogError("[NpcBookController] wire dressing: " + ex); return; }
             }
             try { _dressingCtrl.Show(_npc); }
             catch (Exception ex) { Debug.LogError("[NpcBookController] show dressing: " + ex); }
-        }
-
-        private void ShowDialogue(bool on)
-        {
-            if (!on) { if (_dialogueCtrl != null) { try { _dialogueCtrl.Hide(); } catch { } } return; }
-            if (_hostArea == null) return;
-            if (_dialogueCtrl == null)
-            {
-                try { _dialogueCtrl = DialogueEditorScreenController.Create(_hostArea); }
-                catch (Exception ex) { Debug.LogError("[NpcBookController] create dialogue screen: " + ex); return; }
-            }
-            try { _dialogueCtrl.Show(_npc); }
-            catch (Exception ex) { Debug.LogError("[NpcBookController] show dialogue: " + ex); }
         }
 
         private static string TabForType(NpcType t) => t switch
