@@ -1323,6 +1323,7 @@ _inputFields.Add(input);
             _lastHoveredSlot = null;
             _isDragging = false;
 
+            if (npc != null) npc.LoadFromZDO();   // ensure worn-gear fields are populated before reading
             LoadEquipmentFromNpc(npc);
   PopulateDropdowns(npc);
     RestoreFashionSelectionsFromNpc(npc);
@@ -1854,6 +1855,7 @@ if (itemDrop == null) return prefabName;
           _currentNpc.SetEquipmentData(_pendingEquipment);
            _currentNpc.ApplyVisualEquipment();
     _currentNpc.Invoke("ApplyVisualEquipment", 0.05f);
+    _currentNpc.SaveToZDO();   // persist the drop immediately so it survives close/reopen
         }
      catch (Exception ex)
       {
