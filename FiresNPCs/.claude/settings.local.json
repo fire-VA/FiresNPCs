@@ -555,7 +555,26 @@
       "Bash(sed -n 6,162p 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\PLANT_REFAB_CATALOG.md')",
       "Read(//tmp/**)",
       "Bash(grep -oiE '[a-z]:[\\\\\\\\/][^\"]{0,90}blender[^\"]{0,30}\\\\.exe' C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/.claude/settings.local.json)",
-      "Bash(REL=\"/c/Users/travi/OneDrive/Desktop/valheimRip2/NetBench/NetBench/bin/Release\" *)"
+      "Bash(REL=\"/c/Users/travi/OneDrive/Desktop/valheimRip2/NetBench/NetBench/bin/Release\" *)",
+      "Bash(ls *.ps1)",
+      "Bash(ls FiresNPCs/*.csproj)",
+      "Bash(ls -la FiresNPCs/firesnpcsui)",
+      "Bash(ls -la \"C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/AssetBundles/firesnpcsui\")",
+      "Bash([ ! -f \"$MSB\" ])",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/FiresRPGmaker.csproj\" /p:Configuration=Debug /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:minimal)",
+      "Bash(grep -i '.prefab$')",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/FiresRPGmaker.csproj\" -p:Configuration=Debug -p:UseSharedCompilation=false -nodeReuse:false -m:1 -v:minimal)",
+      "Bash(grep -E \"^\\(ReflowScroll|PoolContent|ScrollPool|NpcBookController|RewardPool|OfferingPool|DlgListPool|AddRewardRow\\)$\")",
+      "Bash([ -f \"$LOG\" ])",
+      "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\FiresPrefabPipeline.ps1\" gen -Script \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\gen_mushroom.py\" -GenArgs all 1> \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\batchgen_out.txt\")",
+      "Bash(grep -n \"RewardPool\" \"C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\NewProject2026\\\\\\\\Fires2026Project\\\\\\\\Assets\\\\\\\\Custom\\\\\\\\CompanionsUI\\\\\\\\npcbook.prefab\")",
+      "Bash(grep -n \"3199880882732488275\" \"C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\NewProject2026\\\\\\\\Fires2026Project\\\\\\\\Assets\\\\\\\\Custom\\\\\\\\CompanionsUI\\\\\\\\npcbook.prefab\")",
+      "Bash(grep -n \"4560234404429131989\" \"C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\NewProject2026\\\\\\\\Fires2026Project\\\\\\\\Assets\\\\\\\\Custom\\\\\\\\CompanionsUI\\\\\\\\npcbook.prefab\")",
+      "Bash(grep -n \"Find\\(\" \"C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\valheimRip2\\\\\\\\FiresNPCs\\\\\\\\FiresNPCs\\\\\\\\UI\\\\\\\\NpcBookController.cs\")",
+      "Bash(grep -n \"RewardRowTemplate\\\\|SetLayoutHeight\" \"C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\NewProject2026\\\\\\\\Fires2026Project\\\\\\\\Assets\\\\\\\\FiresUIBake\\\\\\\\Editor\\\\\\\\FiresNpcBookBuild.cs\")",
+      "Bash(grep -n \"assetBundleName\\\\|m_AssetBundleName\" \"C:\\\\\\\\Users\\\\\\\\travi\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\NewProject2026\\\\\\\\Fires2026Project\\\\\\\\Assets\\\\\\\\Custom\\\\\\\\CompanionsUI\\\\\\\\npcbook.prefab\")",
+      "Bash(ROOT=\"$HOME/AppData/Roaming/r2modmanPlus-local/Valheim\" *)",
+      "Bash(PL=\"C:/Users/travi/AppData/LocalLow/IronGate/Valheim/Player.log\" *)"
     ]
   }
 }
