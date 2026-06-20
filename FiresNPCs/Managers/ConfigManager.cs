@@ -71,6 +71,7 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<bool> configShowCompanionBillboard;
         public ConfigEntry<bool> configShowGroupHud;
         public ConfigEntry<bool> configUseGlobeHud;
+        public ConfigEntry<bool> configUseBookAdminUI;
 
         // Group HUD layout / position
         public ConfigEntry<int>   configGroupHudMaxRowsPerColumn;
@@ -185,6 +186,9 @@ namespace FiresRPGmaker.Managers
             configUseGlobeHud = config.Bind("UI", "UseGlobeHud", true,
                 "Enable the custom globe-style Health/Stamina/Eitr/Adrenaline HUD overlay. " +
                 "Set to false to hide the globe entirely and use the vanilla Valheim HUD bars instead.");
+            configUseBookAdminUI = config.Bind("UI", "UseBookAdminPanel", true,
+                "Use the new two-page parchment 'book' NPC admin config panel (structured per-module forms). " +
+                "When disabled, the legacy completecompanionsui admin panel is used instead.");
 
             // Group HUD layout — panel stretches to fit the actual group up to MaxRowsPerColumn,
             // then becomes scrollable. Columns 1 = single list, 2 = side-by-side.

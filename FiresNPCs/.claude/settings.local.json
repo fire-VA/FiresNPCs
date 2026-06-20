@@ -546,7 +546,8 @@
       "Bash(find \"C:/Users/travi/AppData/Roaming/r2modmanPlus-local\" \"C:/Program Files \\(x86\\)/Steam\" \"C:/Users/travi/OneDrive/Desktop\" -iname \"*.cfg\" \\\\\\( -ipath \"*achievement*\" -o -iname \"*verdant*\" -o -iname \"*autogen*\" \\\\\\) 2>/dev/null | head -40)",
       "Bash([ -f \"$f\" ])",
       "Bash(grep -i \"\\\\.cs$\")",
-      "Bash(echo \"=== file last modified ===\")"
+      "Bash(echo \"=== file last modified ===\")",
+      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\FiresRPGmaker.csproj\" /p:Configuration=Debug /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:minimal /nologo | Select-Object -Last 60)"
     ]
   }
 }

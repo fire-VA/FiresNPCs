@@ -368,6 +368,10 @@ public static bool IsCustomPanelOpen()
    NpcMainPanelController.Instance.gameObject.activeSelf)
             return true;
 
+    // Check the book NPC config panel (parchment admin UI)
+    if (NpcBookController.Instance != null && NpcBookController.Instance.IsOpen)
+        return true;
+
     // Check player info display panel
     if (Screens.InfoNpcPlayerPanel.IsVisible)
                return true;
@@ -416,6 +420,7 @@ return false;
   public static void CloseAllPanels()
      {
    NpcMainPanelController.Instance?.Hide();
+   NpcBookController.Instance?.Hide();
    Screens.InfoNpcPlayerPanel.Hide();
          QuestJournalController.Instance?.Hide();
          global::FiresRPGmaker.Modules.Dialogues.DialogueUI.Hide();

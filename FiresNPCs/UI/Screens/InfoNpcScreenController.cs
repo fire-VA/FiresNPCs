@@ -284,7 +284,7 @@ Debug.LogWarning($"[InfoNpcScreenController] Failed to sync: {ex.Message}");
        return GetProfileForName(profileName);
      }
 
-        private void SaveInfoProfile(string profileName, InfoProfile profile)
+        public static void SaveInfoProfile(string profileName, InfoProfile profile)
         {
           try
             {

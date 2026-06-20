@@ -499,7 +499,10 @@ if (_isFollowing && _followTarget == player)
             if (isAdmin && shiftHeld)
    {
  Debug.Log($"[NpcController] Admin config mode - opening panel");
-         NpcMainPanelController.ShowForNpc(this);
+                bool useBook = true;
+                try { useBook = ConfigManager.Instance?.configUseBookAdminUI?.Value ?? true; } catch { }
+                if (useBook) NpcBookController.ShowForNpc(this);
+                else NpcMainPanelController.ShowForNpc(this);
     return true;
    }
 

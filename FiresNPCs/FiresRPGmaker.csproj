@@ -266,6 +266,7 @@
     <Compile Include="UI\DialogueManager.cs" />
     <Compile Include="UI\GlobeHudController.cs" />
     <Compile Include="UI\GUIManager.cs" />
+    <Compile Include="UI\NpcBookController.cs" />
     <Compile Include="UI\NpcController.cs" />
     <Compile Include="UI\NpcHoverHudSuppressor.cs" />
     <Compile Include="UI\NpcMainPanelController.cs" />
