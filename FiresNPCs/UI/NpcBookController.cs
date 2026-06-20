@@ -31,7 +31,7 @@ namespace FiresRPGmaker.UI
         private static readonly string[] Tabs =
         { "Dressing", "Quest", "Trader", "Info", "Dialogue", "Banker", "Gambler", "Leaderboard", "Transmog", "Marketplace", "Mail" };
 
-        private static readonly Color TAB = new Color(0.42f, 0.30f, 0.13f, 0.42f);
+        private static readonly Color TAB = new Color(0.36f, 0.25f, 0.11f, 0.88f);
         private static readonly Color TAB_ON = new Color(0.62f, 0.45f, 0.16f, 0.92f);
 
         private GameObject _canvasGo;
@@ -72,6 +72,8 @@ namespace FiresRPGmaker.UI
 
         public void Hide()
         {
+            if (_optionPopup != null) _optionPopup.gameObject.SetActive(false);
+            _editingOptionIndex = -1;
             if (_panelGo != null) _panelGo.SetActive(false);
             _npc = null;
             try { if (!GUIManager.IsCustomPanelOpen()) GUIManager.BlockInput(false); } catch { }
@@ -111,9 +113,12 @@ namespace FiresRPGmaker.UI
             if (_leftPage == null || _rightPage == null)
             { Debug.LogError("[NpcBookController] book is missing LeftPage/RightPage — bad prefab"); return false; }
 
+            _optionPopup = FindRec(_root, "OptionPopup");
             WireTabs();
             WireButtons();
             WireToggleVisuals();
+            WireDialogueExtras();
+            NormalizeInteractive(_panelGo.transform);
             _panelGo.SetActive(false);
             _built = true;
             Debug.Log("[NpcBookController] book loaded + wired");
@@ -164,6 +169,14 @@ namespace FiresRPGmaker.UI
             Hook("DlgSave", SaveDialogue);
             Hook("DlgNew", NewDialogue);
             Hook("DlgDelete", DeleteDialogue);
+            Hook("DlgPreview", PreviewDialogue);
+            Hook("AddOptionButton", OnAddOption);
+            Hook("DoneButton", OnPopupDone);
+            Hook("CancelButton", OnPopupCancel);
+            Hook("AddTransitionButton", () => { ClonePopupRow("Transition", "TransitionRowTemplate"); StackPopupRows("Transition"); });
+            Hook("AddCommandButton", () => { var r = ClonePopupRow("Command", "CommandRowTemplate"); if (r != null) SetRowDropdown(r, "NameDropdown", CommandNames, ""); StackPopupRows("Command"); });
+            Hook("AddRandCmdButton", () => { var r = ClonePopupRow("RandCmd", "RandCmdRowTemplate"); if (r != null) { SetRowCell(r, "WeightCell", "1"); SetRowDropdown(r, "NameDropdown", CommandNames, ""); } StackPopupRows("RandCmd"); });
+            Hook("AddCondButton", () => { var r = ClonePopupRow("Cond", "CondRowTemplate"); if (r != null) { SetRowCell(r, "GroupCell", "0"); SetRowDropdown(r, "NameDropdown", ConditionNames, ""); } StackPopupRows("Cond"); });
         }
 
         // ── tab switching ────────────────────────────────────────────────────
@@ -178,6 +191,11 @@ namespace FiresRPGmaker.UI
                 var img = FindRec(_leftPage, t + "Tab")?.GetComponent<Image>();
                 if (img != null) img.color = (t == tab) ? TAB_ON : TAB;
             }
+            // Dialogue takes both pages: hide the NPC setup, show the dialogue list on the left. Tabs stay pinned.
+            bool dlg = (tab == "Dialogue");
+            FindRec(_leftPage, "SetupGroup")?.gameObject.SetActive(!dlg);
+            FindRec(_leftPage, "DialogueListGroup")?.gameObject.SetActive(dlg);
+            if (!dlg && _optionPopup != null) { _optionPopup.gameObject.SetActive(false); _editingOptionIndex = -1; }
             PopulateActiveScreen();
         }
 
@@ -205,7 +223,8 @@ namespace FiresRPGmaker.UI
                 string.IsNullOrEmpty(_npc.displayNameOverride) ? _npc.npcProfileName : _npc.displayNameOverride);
             SetInput(_leftPage, "Container_ProfileInput", _npc.npcProfileName);
             SetInput(_leftPage, "Container_ModelOverrideInput", _npc.modelOverride);
-            var idle = Tog(_leftPage, "AllowIdleWander_chk"); if (idle != null) idle.isOn = _npc.allowIdleWandering;
+            var idle = Tog(_leftPage, "AllowIdleWander_chk");
+            if (idle != null) idle.isOn = FiresCore.Bridge.NpcCompanionBridge.GetIdleWander(_npc.gameObject) ?? _npc.allowIdleWandering;
             var head = FindRec(_leftPage, "Header")?.GetComponent<TMP_Text>();
             if (head != null) head.text = "Configure NPC: " + (string.IsNullOrEmpty(_npc.displayNameOverride) ? _npc.npcProfileName : _npc.displayNameOverride);
         }
@@ -237,7 +256,14 @@ namespace FiresRPGmaker.UI
                 try { _npc.ApplyModelOverride(newModel); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] ApplyModel: " + ex.Message); }
             }
 
-            var idle = Tog(_leftPage, "AllowIdleWander_chk"); if (idle != null) _npc.allowIdleWandering = idle.isOn;
+            var idle = Tog(_leftPage, "AllowIdleWander_chk");
+            if (idle != null)
+            {
+                _npc.allowIdleWandering = idle.isOn;
+                // Saving the flag isn't enough — the companion mod constructs/toggles the actual wander
+                // behavior through this bridge (no-op if the companion mod isn't present).
+                try { FiresCore.Bridge.NpcCompanionBridge.RaiseApplyIdleWander(_npc.gameObject, idle.isOn); } catch { }
+            }
             _npc.SaveToZDO();
             PopulateLeft();
             Msg("NPC setup saved");
@@ -293,7 +319,7 @@ namespace FiresRPGmaker.UI
             try
             {
                 Directory.CreateDirectory(folder);
-                File.WriteAllText(Path.Combine(folder, SafeName(name) + ".cfg"), $"[{header}]\n{trades}\n");
+                File.WriteAllText(Path.Combine(folder, SafeFileName(name) + ".cfg"), $"[{header}]\n{trades}\n");
                 TraderProfileManager.Reset(); TraderProfileManager.Initialize();
             }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveTrader: " + ex.Message); Msg("Save failed (see log)"); return; }
@@ -320,9 +346,15 @@ namespace FiresRPGmaker.UI
             string interest = GetScreenInput("Banker", "Interest %/min_C")?.Trim();
             string cur = GetScreenInput("Banker", "Accepted_C")?.Trim();
             string max = GetScreenInput("Banker", "Max Deposit_C")?.Trim();
+            var existing = BankerProfileManager.GetProfile(name);
             var sb = new StringBuilder();
             if (!string.IsNullOrEmpty(interest)) sb.AppendLine("interest=" + interest);
             if (!string.IsNullOrEmpty(cur)) sb.AppendLine(cur + ":" + (string.IsNullOrEmpty(max) ? "1000000" : max));
+            // Preserve any other currencies the profile already accepts (the form edits one at a time).
+            if (existing != null)
+                foreach (var kv in existing.CurrencyLimits)
+                    if (!kv.Key.Equals(cur, StringComparison.OrdinalIgnoreCase))
+                        sb.AppendLine(kv.Key + ":" + kv.Value);
             BankerProfileManager.SaveProfile(name, sb.ToString().TrimEnd());
             _npc.bankerProfile = name; _npc.npcType = NpcType.Banker; _npc.SaveToZDO();
             Msg("Saved banker profile '" + name + "'");
@@ -443,21 +475,26 @@ namespace FiresRPGmaker.UI
             if (string.IsNullOrEmpty(profileName)) profileName = GetScreenInput("Quest", "Save To Profile_C")?.Trim();
             if (string.IsNullOrEmpty(profileName)) profileName = questId;
 
+            // KG cfg uses "Key = Value"; the loader only routes a block through the key-value parser when its
+            // first lines contain '=' (a ':'-delimited block is mis-detected as positional and corrupted).
             var sb = new StringBuilder();
             sb.AppendLine($"[{questId}]");
-            sb.AppendLine($"QuestType: {type}");
-            sb.AppendLine($"QuestName: {name}");
-            sb.AppendLine($"Description: {desc}");
-            string tline = $"{target},{amount}";
-            if (!string.IsNullOrEmpty(minLvl) && minLvl != "0") tline += $",{minLvl}";
-            sb.AppendLine($"QuestTarget: {tline}");
-            if (!string.IsNullOrEmpty(rewards)) sb.AppendLine($"QuestReward: {rewards}");
-            sb.AppendLine($"CooldownDays: {cooldown}");
-            sb.AppendLine($"TimeLimitMinutes: {timeLimit}");
-            if (!string.IsNullOrEmpty(required)) sb.AppendLine($"Requirement: {required}");
-            sb.AppendLine($"Autocomplete: {(autocomplete ? "true" : "false")}");
-            if (!string.IsNullOrEmpty(onStart)) sb.AppendLine($"OnAcceptQuest: {onStart}");
-            if (!string.IsNullOrEmpty(onComplete)) sb.AppendLine($"OnCompleteQuest: {onComplete}");
+            sb.AppendLine($"QuestType = {type}");
+            sb.AppendLine($"QuestName = {name}");
+            sb.AppendLine($"Description = {desc}");
+            if (!string.IsNullOrEmpty(target))
+            {
+                string tline = $"{target},{amount}";
+                if (!string.IsNullOrEmpty(minLvl) && minLvl != "0") tline += $",{minLvl}";
+                sb.AppendLine($"QuestTarget = {tline}");
+            }
+            if (!string.IsNullOrEmpty(rewards)) sb.AppendLine($"QuestReward = {rewards}");
+            sb.AppendLine($"CooldownDays = {cooldown}");
+            sb.AppendLine($"TimeLimitMinutes = {timeLimit}");
+            if (!string.IsNullOrEmpty(required)) sb.AppendLine($"Requirement = {required}");
+            sb.AppendLine($"Autocomplete = {(autocomplete ? "true" : "false")}");
+            if (!string.IsNullOrEmpty(onStart)) sb.AppendLine($"OnAcceptQuest = {onStart}");
+            if (!string.IsNullOrEmpty(onComplete)) sb.AppendLine($"OnCompleteQuest = {onComplete}");
 
             if (!WriteBlockInPlace(Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Quests", "QuestDatabase.cfg"),
                                    questId, sb.ToString())) { Msg("Quest save failed (see log)"); return; }
@@ -473,70 +510,348 @@ namespace FiresRPGmaker.UI
         }
 
         // ════════════════════════════ DIALOGUE ══════════════════════════════
+        // Full editor: left-page dialogue list, right-page node editor (UID/BG/NPC text + options list), and
+        // the option popup. The live model is _dlgOptions (RawPlayerOption objects loaded from the codex);
+        // Pass 1 edits the single-value option fields — the Commands/Conditions/Random lists are preserved
+        // untouched on each option (edited in Pass 2), so saving is never lossy.
+        private readonly List<RawPlayerOption> _dlgOptions = new List<RawPlayerOption>();
+        private string _dlgSelectedUid;
+        private int _editingOptionIndex = -1;
+        private Transform _optionPopup;
+        private static readonly string[] OptionTypeNames = { "Option", "Interaction", "InRange", "OutRange" };
+        // Ported verbatim from DialogueEditorScreenController (the command/condition dropdown vocabularies).
+        private static readonly string[] CommandNames =
+        {
+            "GiveItem", "RemoveItem", "GiveQuest", "RemoveQuest", "FinishQuest",
+            "Teleport", "Spawn", "SpawnRaw", "SpawnXYZ", "Damage", "Heal", "GiveBuff",
+            "AddPlayerKey", "RemovePlayerKey", "AddCustomPlayerKey", "RemoveCustomPlayerKey",
+            "PlayAnimation", "PlaySound", "ConsoleCommand", "AddPin", "PingMap", "OpenUI",
+            "EnterPassword", "SendWebhook"
+        };
+        private static readonly string[] ConditionNames =
+        {
+            "HasItem", "NotHasItem", "HasQuest", "NotHasQuest", "QuestFinished", "QuestNotFinished",
+            "QuestProgressDone", "QuestProgressNotDone", "HasPlayerKey", "NotHasPlayerKey",
+            "GlobalKey", "NotGlobalKey", "HasBuff", "NotHasBuff", "SkillMore", "SkillLess",
+            "CustomPlayerKeyMore", "CustomPlayerKeyLess", "HealthMore", "HealthLess",
+            "MaxHealthMore", "MaxHealthLess", "StaminaMore", "StaminaLess", "MaxStaminaMore",
+            "MaxStaminaLess", "EitrMore", "EitrLess", "MaxEitrMore", "MaxEitrLess"
+        };
+
+        // popup list machinery — FUC scroll pools ("<key>Pool" ScrollView inside the popup), rows cloned
+        // under the scroll Content + positioned by ReflowScroll (same pattern as the screen pools).
+        private Transform ClonePopupRow(string poolKey, string templateName)
+        {
+            var pool = FindRec(_optionPopup, poolKey + "Pool");
+            var tmpl = FindRec(pool, templateName)?.gameObject;
+            if (pool == null || tmpl == null) return null;
+            var content = PoolContent(pool);
+            var row = Instantiate(tmpl, content); row.name = "Row"; row.SetActive(true);
+            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); StackPopupRows(poolKey); });
+            return row.transform;
+        }
+        private void ClearPopupRows(string poolKey)
+        {
+            var content = PoolContent(FindRec(_optionPopup, poolKey + "Pool"));
+            if (content == null) return;
+            for (int i = content.childCount - 1; i >= 0; i--) { var c = content.GetChild(i); if (c.name == "Row") { c.gameObject.SetActive(false); Destroy(c.gameObject); } }
+        }
+        private void StackPopupRows(string poolKey)
+        {
+            ReflowScroll(PoolContent(FindRec(_optionPopup, poolKey + "Pool")));
+        }
+        private List<Transform> PopupRows(string poolKey)
+        {
+            var list = new List<Transform>();
+            var content = PoolContent(FindRec(_optionPopup, poolKey + "Pool"));
+            if (content == null) return list;
+            foreach (Transform c in content) if (c.name == "Row" && c.gameObject.activeSelf) list.Add(c);
+            return list;
+        }
+        private void SetRowDropdown(Transform row, string name, string[] options, string selected)
+        {
+            var dd = FindRec(row, name)?.GetComponent<TMP_Dropdown>();
+            if (dd == null) return;
+            dd.ClearOptions(); dd.AddOptions(new List<string>(options));
+            int idx = System.Array.FindIndex(options, x => string.Equals(x, selected, StringComparison.OrdinalIgnoreCase));
+            dd.value = idx >= 0 ? idx : 0;
+        }
+        private string GetRowDropdown(Transform row, string name)
+        {
+            var dd = FindRec(row, name)?.GetComponent<TMP_Dropdown>();
+            return (dd != null && dd.value >= 0 && dd.value < dd.options.Count) ? dd.options[dd.value].text : "";
+        }
+        // Split "Name,params" on the FIRST comma only (NO Replace(':',',') — that legacy line corrupted colons/URLs).
+        private static void SplitNameParams(string s, out string name, out string parms)
+        {
+            s = s ?? "";
+            int c = s.IndexOf(',');
+            if (c < 0) { name = s.Trim(); parms = ""; }
+            else { name = s.Substring(0, c).Trim(); parms = s.Substring(c + 1); }
+        }
+        private static string JoinNameParams(string name, string parms)
+            => string.IsNullOrEmpty(parms) ? name : name + "," + parms;
+
         private void PopulateDialogue()
         {
-            string uid = _npc.dialogueProfile;
             try { DialogueCodex.Init(); } catch { }
+            PopulateDialogueList();
+            SelectDialogue(_npc.dialogueProfile);
+        }
+
+        private void PopulateDialogueList()
+        {
+            var pool = FindRec(_leftPage, "DlgListPool");
+            var tmpl = FindRec(pool, "DlgListRowTemplate")?.gameObject;
+            if (pool == null || tmpl == null) return;
+            var content = PoolContent(pool);
+            for (int i = content.childCount - 1; i >= 0; i--) { var c = content.GetChild(i); if (c.name == "Row") { c.gameObject.SetActive(false); Destroy(c.gameObject); } }
+            string filter = (GetInput(_leftPage, "DlgSearchField") ?? "").Trim().ToLowerInvariant();
+            List<RawDialogue> all;
+            try { all = DialogueCodex.GetAll().Where(d => d != null && !string.IsNullOrEmpty(d.UID)).OrderBy(d => d.UID).ToList(); }
+            catch { all = new List<RawDialogue>(); }
+            foreach (var d in all)
+            {
+                if (filter.Length > 0 && !d.UID.ToLowerInvariant().Contains(filter)) continue;
+                string uid = d.UID;
+                var row = Instantiate(tmpl, content); row.name = "Row"; row.SetActive(true);
+                var uidLabel = FindRec(row.transform, "UidLabel")?.GetComponent<TMP_Text>(); if (uidLabel != null) uidLabel.text = uid;
+                HookRow(row.transform, "SelectButton", () => SelectDialogue(uid));
+                HookRow(row.transform, "DeleteRowButton", () => DeleteDialogueByUid(uid));
+                var selImg = FindRec(row.transform, "SelectButton")?.GetComponent<Image>();
+                if (selImg != null) selImg.color = (uid == _dlgSelectedUid) ? new Color(0.56f, 0.42f, 0.18f, 0.55f) : new Color(0.30f, 0.20f, 0.09f, 0.18f);
+            }
+            ReflowScroll(content);
+        }
+
+        private void SelectDialogue(string uid)
+        {
+            _dlgSelectedUid = string.IsNullOrEmpty(uid) ? null : uid;
             RawDialogue d = null;
             try { d = string.IsNullOrEmpty(uid) ? null : DialogueCodex.Get(uid); } catch { }
-            SetScreenInput("Dialogue", "UID_C", uid);
+            SetScreenInput("Dialogue", "UID_C", uid ?? "");
             SetScreenInput("Dialogue", "BG Image_C", d?.BG_Image ?? "");
             SetScreenInput("Dialogue", "NpcText", d?.Text ?? "");
-            string opts = "";
-            if (d?.Interactions != null)
+            _dlgOptions.Clear();
+            if (d?.Interactions != null) _dlgOptions.AddRange(d.Interactions);
+            RebuildOptionRows();
+            SetDlgStatus(d != null ? "Loaded " + uid : "");
+            PopulateDialogueList();
+        }
+
+        private void RebuildOptionRows()
+        {
+            var pool = FindRec(Screen("Dialogue"), "OptionsPool");
+            var tmpl = FindRec(pool, "OptionRowTemplate")?.gameObject;
+            if (pool == null || tmpl == null) return;
+            var content = PoolContent(pool);
+            for (int i = content.childCount - 1; i >= 0; i--) { var c = content.GetChild(i); if (c.name == "Row") { c.gameObject.SetActive(false); Destroy(c.gameObject); } }
+            for (int i = 0; i < _dlgOptions.Count; i++)
             {
-                var sb = new StringBuilder();
-                foreach (var o in d.Interactions) sb.AppendLine((o.Text ?? "") + " > " + (o.NextUID ?? ""));
-                opts = sb.ToString().TrimEnd();
+                int index = i;
+                var row = Instantiate(tmpl, content); row.name = "Row"; row.SetActive(true);
+                var badge = FindRec(row.transform, "IndexBadge")?.GetComponent<TMP_Text>(); if (badge != null) badge.text = (i + 1) + ".";
+                var sum = FindRec(row.transform, "SummaryLabel")?.GetComponent<TMP_Text>(); if (sum != null) sum.text = OptionSummary(_dlgOptions[i]);
+                HookRow(row.transform, "EditButton", () => OpenOptionPopup(index));
+                HookRow(row.transform, "RemoveButton", () => { if (index < _dlgOptions.Count) { _dlgOptions.RemoveAt(index); RebuildOptionRows(); SetDlgDirty(); } });
             }
-            SetScreenInput("Dialogue", "Options", opts);
+            ReflowScroll(content);
+        }
+
+        private static string OptionSummary(RawPlayerOption o)
+        {
+            string t = o.Text ?? "";
+            if (t.Length > 30) t = t.Substring(0, 30) + "...";
+            string nxt = string.IsNullOrEmpty(o.NextUID) ? "" : " -> " + o.NextUID;
+            return "[" + o.Type + "] " + t + nxt;
+        }
+
+        private void OnAddOption()
+        {
+            _dlgOptions.Add(new RawPlayerOption { Type = InteractionType.Option, Text = "New option", AlwaysVisible = true, Color = new Color32(255, 255, 255, 255) });
+            RebuildOptionRows();
+            SetDlgDirty();
+            OpenOptionPopup(_dlgOptions.Count - 1);
+        }
+
+        // ---- option popup (Pass 1: single-value fields; Pass 2 adds the nested lists) ----
+        private void OpenOptionPopup(int index)
+        {
+            if (_optionPopup == null || index < 0 || index >= _dlgOptions.Count) return;
+            if (_editingOptionIndex >= 0 && _editingOptionIndex != index && _editingOptionIndex < _dlgOptions.Count) SavePopupToOption(_editingOptionIndex);
+            _editingOptionIndex = index;
+            var dd = FindRec(_optionPopup, "TypeDropdown")?.GetComponent<TMP_Dropdown>();
+            if (dd != null && dd.options.Count == 0) { dd.ClearOptions(); dd.AddOptions(new List<string>(OptionTypeNames)); }
+            var o = _dlgOptions[index];
+            if (dd != null) dd.value = Mathf.Clamp((int)o.Type, 0, OptionTypeNames.Length - 1);
+            SetPopupInput("Text", o.Text);
+            SetPopupInput("Icon", o.Icon);
+            SetPopupInput("Transition", o.NextUID);
+            SetPopupInput("Override Error", o.OverrideError);
+            var av = Tog(_optionPopup, "AlwaysVisible_chk"); if (av != null) av.isOn = o.AlwaysVisible;
+            SetPopupInput("R", o.Color.r.ToString());
+            SetPopupInput("G", o.Color.g.ToString());
+            SetPopupInput("B", o.Color.b.ToString());
+            LoadPopupLists(o);
+            UpdateColorSwatch();
+            _optionPopup.gameObject.SetActive(true);
+        }
+
+        private void LoadPopupLists(RawPlayerOption o)
+        {
+            ClearPopupRows("Transition");
+            if (o.RandomTransition != null) foreach (var uid in o.RandomTransition) { var row = ClonePopupRow("Transition", "TransitionRowTemplate"); if (row != null) SetRowCell(row, "UidCell", uid); }
+            StackPopupRows("Transition");
+
+            ClearPopupRows("Command");
+            if (o.Commands != null) foreach (var cmd in o.Commands) { var row = ClonePopupRow("Command", "CommandRowTemplate"); if (row != null) { SplitNameParams(cmd, out var nm, out var pm); SetRowDropdown(row, "NameDropdown", CommandNames, nm); SetRowCell(row, "ParamsCell", pm); } }
+            StackPopupRows("Command");
+
+            ClearPopupRows("RandCmd");
+            if (o.RandomCommands != null) foreach (var rc in o.RandomCommands) { var row = ClonePopupRow("RandCmd", "RandCmdRowTemplate"); if (row != null) { SplitNameParams(rc.Value, out var nm, out var pm); SetRowCell(row, "WeightCell", rc.Key.ToString()); SetRowDropdown(row, "NameDropdown", CommandNames, nm); SetRowCell(row, "ParamsCell", pm); } }
+            StackPopupRows("RandCmd");
+
+            ClearPopupRows("Cond");
+            if (o.Conditions != null) for (int g = 0; g < o.Conditions.Count; g++) { var group = o.Conditions[g]; if (group == null) continue; foreach (var member in group) { var row = ClonePopupRow("Cond", "CondRowTemplate"); if (row != null) { SplitNameParams(member, out var nm, out var pm); SetRowCell(row, "GroupCell", g.ToString()); SetRowDropdown(row, "NameDropdown", ConditionNames, nm); SetRowCell(row, "ParamsCell", pm); } } }
+            StackPopupRows("Cond");
+        }
+
+        private void SavePopupLists(RawPlayerOption o)
+        {
+            var rt = new List<string>();
+            foreach (var row in PopupRows("Transition")) { var u = RowCell(row, "UidCell")?.Trim(); if (!string.IsNullOrEmpty(u)) rt.Add(u); }
+            o.RandomTransition = rt.ToArray();
+
+            var cmds = new List<string>();
+            foreach (var row in PopupRows("Command")) { string nm = GetRowDropdown(row, "NameDropdown"); string pm = RowCell(row, "ParamsCell") ?? ""; if (!string.IsNullOrEmpty(nm)) cmds.Add(JoinNameParams(nm, pm)); }
+            o.Commands = cmds.ToArray();
+
+            var rcmds = new List<KeyValuePair<int, string>>();
+            foreach (var row in PopupRows("RandCmd")) { int w = ParseInt(RowCell(row, "WeightCell"), 0); string nm = GetRowDropdown(row, "NameDropdown"); string pm = RowCell(row, "ParamsCell") ?? ""; if (w > 0 && !string.IsNullOrEmpty(nm)) rcmds.Add(new KeyValuePair<int, string>(w, JoinNameParams(nm, pm))); }
+            o.RandomCommands = rcmds;
+
+            var groups = new SortedDictionary<int, List<string>>();
+            foreach (var row in PopupRows("Cond")) { int gi = ParseInt(RowCell(row, "GroupCell"), 0); string nm = GetRowDropdown(row, "NameDropdown"); string pm = RowCell(row, "ParamsCell") ?? ""; if (string.IsNullOrEmpty(nm)) continue; if (!groups.ContainsKey(gi)) groups[gi] = new List<string>(); groups[gi].Add(JoinNameParams(nm, pm)); }
+            o.Conditions = groups.Values.Select(v => v.ToArray()).ToList();
+        }
+
+        private void SavePopupToOption(int index)
+        {
+            if (_optionPopup == null || index < 0 || index >= _dlgOptions.Count) return;
+            var o = _dlgOptions[index];
+            var dd = FindRec(_optionPopup, "TypeDropdown")?.GetComponent<TMP_Dropdown>();
+            if (dd != null && dd.value >= 0 && dd.value < OptionTypeNames.Length) o.Type = (InteractionType)dd.value;
+            o.Text = GetPopupInput("Text") ?? "";
+            o.Icon = GetPopupInput("Icon") ?? "";
+            o.NextUID = (GetPopupInput("Transition") ?? "").Replace(" ", "");
+            o.OverrideError = GetPopupInput("Override Error") ?? "";
+            var av = Tog(_optionPopup, "AlwaysVisible_chk"); if (av != null) o.AlwaysVisible = av.isOn;
+            byte r = (byte)Mathf.Clamp(ParseInt(GetPopupInput("R"), 255), 0, 255);
+            byte g = (byte)Mathf.Clamp(ParseInt(GetPopupInput("G"), 255), 0, 255);
+            byte b = (byte)Mathf.Clamp(ParseInt(GetPopupInput("B"), 255), 0, 255);
+            o.Color = new Color32(r, g, b, 255);
+            SavePopupLists(o);
+        }
+
+        private void OnPopupDone()
+        {
+            if (_editingOptionIndex >= 0) SavePopupToOption(_editingOptionIndex);
+            _editingOptionIndex = -1;
+            if (_optionPopup != null) _optionPopup.gameObject.SetActive(false);
+            RebuildOptionRows();
+            SetDlgDirty();
+        }
+
+        private void OnPopupCancel()
+        {
+            _editingOptionIndex = -1;
+            if (_optionPopup != null) _optionPopup.gameObject.SetActive(false);
+        }
+
+        private void UpdateColorSwatch()
+        {
+            var sw = FindRec(_optionPopup, "ColorSwatch")?.GetComponent<Image>();
+            if (sw == null) return;
+            sw.color = new Color32((byte)Mathf.Clamp(ParseInt(GetPopupInput("R"), 255), 0, 255),
+                                   (byte)Mathf.Clamp(ParseInt(GetPopupInput("G"), 255), 0, 255),
+                                   (byte)Mathf.Clamp(ParseInt(GetPopupInput("B"), 255), 0, 255), 255);
+        }
+
+        private TMP_InputField PopupInput(string container) { var t = FindRec(_optionPopup, container + "_C"); return t != null ? t.GetComponentInChildren<TMP_InputField>(true) : null; }
+        private void SetPopupInput(string container, string val) { var i = PopupInput(container); if (i != null) i.text = val ?? ""; }
+        private string GetPopupInput(string container) { var i = PopupInput(container); return i != null ? i.text : null; }
+
+        // ---- save / delete / preview / new ----
+        private RawDialogue BuildDialogueFromForm()
+        {
+            if (_editingOptionIndex >= 0 && _editingOptionIndex < _dlgOptions.Count) SavePopupToOption(_editingOptionIndex);
+            string uid = (GetScreenInput("Dialogue", "UID_C") ?? "").Trim().ToLowerInvariant();
+            string bg = GetScreenInput("Dialogue", "BG Image_C")?.Trim() ?? "";
+            string npcText = GetScreenInput("Dialogue", "NpcText") ?? "";
+            return new RawDialogue { UID = uid, Text = npcText, BG_Image = bg, Interactions = _dlgOptions.ToArray() };
         }
 
         private void SaveDialogue()
         {
-            string uid = GetScreenInput("Dialogue", "UID_C")?.Trim();
-            if (string.IsNullOrEmpty(uid)) { Msg("Enter a dialogue UID"); return; }
-            uid = uid.ToLowerInvariant();
-            string bg = GetScreenInput("Dialogue", "BG Image_C")?.Trim() ?? "";
-            string npcText = GetScreenInput("Dialogue", "NpcText") ?? "";
-            string optionsRaw = GetScreenInput("Dialogue", "Options") ?? "";
-            var options = new List<RawPlayerOption>();
-            foreach (var raw in optionsRaw.Replace("\r", "").Split('\n'))
-            {
-                var t = raw.Trim();
-                if (t.Length == 0) continue;
-                int gt = t.IndexOf('>');
-                string left = gt >= 0 ? t.Substring(0, gt).Trim() : t;
-                string right = gt >= 0 ? t.Substring(gt + 1).Replace(" ", "") : "";
-                options.Add(new RawPlayerOption { Type = InteractionType.Option, Text = left, NextUID = right });
-            }
-            var dialogue = new RawDialogue { UID = uid, Text = npcText, BG_Image = bg, Interactions = options.ToArray() };
+            var d = BuildDialogueFromForm();
+            if (string.IsNullOrEmpty(d.UID)) { Msg("Enter a dialogue UID"); return; }
             try
             {
-                string cfg = DialogueSyncRPC.SerializeDialogueToCfg(dialogue);
-                DialogueSyncRPC.PushDialogueToServer("legacy/" + SanitizeFileName(uid) + ".cfg", cfg);
+                string cfg = DialogueSyncRPC.SerializeDialogueToCfg(d);
+                DialogueSyncRPC.PushDialogueToServer("legacy/" + SanitizeFileName(d.UID) + ".cfg", cfg);
             }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveDialogue: " + ex.Message); Msg("Save failed"); return; }
-            _npc.dialogueProfile = uid; _npc.npcType = NpcType.DialogueNpc; _npc.SaveToZDO();
-            Msg("Saved dialogue '" + uid + "'");
-        }
-
-        private void NewDialogue()
-        {
-            SetScreenInput("Dialogue", "UID_C", "");
-            SetScreenInput("Dialogue", "BG Image_C", "");
-            SetScreenInput("Dialogue", "NpcText", "");
-            SetScreenInput("Dialogue", "Options", "");
+            _npc.dialogueProfile = d.UID; _npc.npcType = NpcType.DialogueNpc; _npc.SaveToZDO();
+            _dlgSelectedUid = d.UID;
+            PopulateDialogueList();
+            SetDlgStatus("Saved " + d.UID);
+            Msg("Saved dialogue '" + d.UID + "'");
         }
 
         private void DeleteDialogue()
         {
-            string uid = GetScreenInput("Dialogue", "UID_C")?.Trim();
+            string uid = (GetScreenInput("Dialogue", "UID_C") ?? "").Trim().ToLowerInvariant();
+            DeleteDialogueByUid(uid);
+        }
+
+        private void DeleteDialogueByUid(string uid)
+        {
             if (string.IsNullOrEmpty(uid)) return;
             try { DialogueSyncRPC.PushDialogueToServer("legacy/" + SanitizeFileName(uid.ToLowerInvariant()) + ".cfg", null); } catch { }
-            NewDialogue();
+            if (uid == _dlgSelectedUid) NewDialogue();
+            PopulateDialogueList();
+            SetDlgStatus("Deleted " + uid);
             Msg("Deleted dialogue '" + uid + "'");
         }
+
+        private void PreviewDialogue()
+        {
+            var d = BuildDialogueFromForm();
+            if (string.IsNullOrEmpty(d.UID)) { Msg("Enter a UID to preview"); return; }
+            try
+            {
+                string cfg = DialogueSyncRPC.SerializeDialogueToCfg(d);
+                DialogueCodex.ParseFromContent(cfg);
+                DialogueUI.Destroy();
+                DialogueUI.Show(_npc.npcProfileName, d.UID, _npc.GetComponent<ZNetView>());
+                SetDlgStatus("Preview opened");
+            }
+            catch (Exception ex) { Debug.LogError("[NpcBookController] PreviewDialogue: " + ex.Message); Msg("Preview failed"); }
+        }
+
+        private void NewDialogue()
+        {
+            _dlgSelectedUid = null;
+            _dlgOptions.Clear();
+            SetScreenInput("Dialogue", "UID_C", "new_dialogue");
+            SetScreenInput("Dialogue", "BG Image_C", "");
+            SetScreenInput("Dialogue", "NpcText", "");
+            RebuildOptionRows();
+            SetDlgStatus("New dialogue");
+        }
+
+        private void SetDlgStatus(string s) { var t = FindRec(Screen("Dialogue"), "DlgStatus")?.GetComponent<TMP_Text>(); if (t != null) t.text = s; }
+        private void SetDlgDirty() => SetDlgStatus("Unsaved changes");
 
         // ════════════════════════════ INFO ══════════════════════════════════
         private void PopulateInfo()
@@ -629,9 +944,12 @@ namespace FiresRPGmaker.UI
             if (string.IsNullOrEmpty(recipient)) recipient = _npc.mailProfile;
             if (string.IsNullOrEmpty(recipient)) { Msg("Enter a recipient/profile"); return; }
             string topic = GetScreenInput("Mail", "MailTopic")?.Trim() ?? "";
-            string body = GetScreenInput("Mail", "MailBody") ?? "";
+            // The mail cfg is one row per physical line; escape body newlines so a multi-line message
+            // survives the line-by-line loader (MailProfileManager.LoadOne un-escapes on read).
+            string body = (GetScreenInput("Mail", "MailBody") ?? "").Replace("\r", "").Replace("\n", "\\n");
             string attach = GetScreenInput("Mail", "Attachment_C")?.Trim() ?? "";
-            string row = sender + "|just now|" + topic + "|" + body + (string.IsNullOrEmpty(attach) ? "" : "|" + attach);
+            string date = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+            string row = sender + "|" + date + "|" + topic + "|" + body + (string.IsNullOrEmpty(attach) ? "" : "|" + attach);
             try
             {
                 MailProfileManager.EnsureLoaded();
@@ -751,19 +1069,28 @@ namespace FiresRPGmaker.UI
                     return true;
                 }
                 var raw = new List<string>(File.ReadAllLines(filePath));
-                // find the 6-line block whose 2nd line == name and replace those 6 lines
-                for (int i = 0; i < raw.Count; i++)
+                // Walk block-aligned (a block = up to 6 consecutive non-blank, non-'[' lines); replace the
+                // block whose 2nd line (Name) matches. Scanning every line could splice across boundaries.
+                int i = 0;
+                while (i < raw.Count)
                 {
                     string t = raw[i].Trim();
-                    if (t.Length == 0 || t.StartsWith("[")) continue;
-                    if (i + 1 < raw.Count && raw[i + 1].Trim() == name)
+                    if (t.Length == 0 || t.StartsWith("[")) { i++; continue; }
+                    int start = i, j = i, count = 0;
+                    while (j < raw.Count && count < 6)
                     {
-                        int end = Math.Min(i + 6, raw.Count);
-                        raw.RemoveRange(i, end - i);
-                        raw.InsertRange(i, SplitLines(block));
+                        string tj = raw[j].Trim();
+                        if (tj.Length == 0 || tj.StartsWith("[")) break;
+                        j++; count++;
+                    }
+                    if (count >= 2 && raw[start + 1].Trim() == name)
+                    {
+                        raw.RemoveRange(start, count);
+                        raw.InsertRange(start, SplitLines(block));
                         File.WriteAllText(filePath, string.Join(Environment.NewLine, raw) + Environment.NewLine);
                         return true;
                     }
+                    i = j;
                 }
                 // append (ensure a trailing blank line, then the block)
                 string existing = File.ReadAllText(filePath).TrimEnd();
@@ -825,8 +1152,9 @@ namespace FiresRPGmaker.UI
         {
             var pool = FindRec(Screen("Gambler"), "RewardPool");
             var tmpl = FindRec(pool, "RewardRowTemplate")?.gameObject;
-            if (pool == null || tmpl == null) return;
-            var row = Instantiate(tmpl, pool);
+            if (pool == null || tmpl == null) { Debug.LogWarning($"[NpcBookController] AddRewardRow pool={pool != null} tmpl={tmpl != null}"); return; }
+            var content = PoolContent(pool);
+            var row = Instantiate(tmpl, content);
             row.name = "Row";
             row.SetActive(true);
             if (data != null)
@@ -844,7 +1172,8 @@ namespace FiresRPGmaker.UI
             var pool = FindRec(Screen("Transmog"), "OfferingPool");
             var tmpl = FindRec(pool, "OfferingRowTemplate")?.gameObject;
             if (pool == null || tmpl == null) return;
-            var row = Instantiate(tmpl, pool);
+            var content = PoolContent(pool);
+            var row = Instantiate(tmpl, content);
             row.name = "Row";
             row.SetActive(true);
             if (data != null)
@@ -860,13 +1189,13 @@ namespace FiresRPGmaker.UI
 
         private void ClearRows(string tab, string poolName)
         {
-            var pool = FindRec(Screen(tab), poolName);
-            if (pool == null) return;
-            for (int i = pool.childCount - 1; i >= 0; i--)
+            var content = PoolContent(FindRec(Screen(tab), poolName));
+            if (content == null) return;
+            for (int i = content.childCount - 1; i >= 0; i--)
             {
-                var c = pool.GetChild(i);
+                var c = content.GetChild(i);
                 // Destroy is deferred to end-of-frame; deactivate now so a same-frame repopulate +
-                // RestackRows (which counts only active "Row"s) doesn't stack over the doomed rows.
+                // ReflowScroll (which counts only active "Row"s) doesn't stack over the doomed rows.
                 if (c.name == "Row") { c.gameObject.SetActive(false); Destroy(c.gameObject); }
             }
         }
@@ -874,29 +1203,73 @@ namespace FiresRPGmaker.UI
         private List<Transform> LiveRows(string tab, string poolName)
         {
             var list = new List<Transform>();
-            var pool = FindRec(Screen(tab), poolName);
-            if (pool == null) return list;
-            foreach (Transform c in pool)
+            var content = PoolContent(FindRec(Screen(tab), poolName));
+            if (content == null) return list;
+            foreach (Transform c in content)
                 if (c.name == "Row" && c.gameObject.activeSelf) list.Add(c);
             return list;
         }
 
         private void RestackRows(string tab, string poolName)
         {
-            var pool = FindRec(Screen(tab), poolName);
-            if (pool == null) return;
-            const float top = 0.86f, rowH = 0.075f, gap = 0.008f;
-            int i = 0;
-            foreach (Transform c in pool)
+            ReflowScroll(PoolContent(FindRec(Screen(tab), poolName)));
+        }
+
+        // The Content node under a FUC scroll pool (ScrollView/Viewport/Content) — where row templates +
+        // runtime clones live. Falls back to the pool itself for any pre-scroll bare panel.
+        private static Transform PoolContent(Transform pool)
+        {
+            if (pool == null) return null;
+            var c = pool.Find("Viewport/Content");
+            return c != null ? c : pool;
+        }
+
+        // Positions each active child of a scroll Content top-down by its LayoutElement height (+ spacing/
+        // padding), and resizes Content so the ScrollRect can scroll. Ported from BasePlayerModulePanel —
+        // the proven pattern that replaced the hand-rolled absolute-% rows. Inactive children (the hidden
+        // template + deactivated-pending-destroy rows) are skipped so they leave no gap.
+        private static void ReflowScroll(Transform content)
+        {
+            if (content == null) return;
+            const float spacing = 4f, padding = 6f;
+            float y = padding;
+            for (int i = 0; i < content.childCount; i++)
             {
-                if (c.name != "Row" || !c.gameObject.activeSelf) continue;
-                var rt = c as RectTransform;
-                if (rt == null) continue;
-                float y1 = top - i * (rowH + gap);
-                rt.anchorMin = new Vector2(0f, y1 - rowH);
-                rt.anchorMax = new Vector2(1f, y1);
-                rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-                i++;
+                var child = content.GetChild(i) as RectTransform;
+                if (child == null || !child.gameObject.activeSelf) continue;
+                var cle = child.GetComponent<LayoutElement>();
+                float h = cle != null && cle.preferredHeight > 0 ? cle.preferredHeight
+                        : cle != null && cle.minHeight > 0 ? cle.minHeight
+                        : child.sizeDelta.y > 0 ? child.sizeDelta.y : 24f;
+                child.anchorMin = new Vector2(0f, 1f);
+                child.anchorMax = new Vector2(1f, 1f);
+                child.pivot = new Vector2(0.5f, 1f);
+                child.offsetMin = new Vector2(padding, child.offsetMin.y);
+                child.offsetMax = new Vector2(-padding, child.offsetMax.y);
+                child.anchoredPosition = new Vector2(0f, -y);
+                child.sizeDelta = new Vector2(-padding * 2f, h);
+                y += h + spacing;
+            }
+            var crt = content as RectTransform;
+            if (crt != null) crt.sizeDelta = new Vector2(crt.sizeDelta.x, y + padding);
+        }
+
+        // Belt-and-suspenders: make every interactive widget actually respond (raycast target on,
+        // interactable, a visible caret on inputs). Cloned rows inherit this from their baked templates.
+        private static void NormalizeInteractive(Transform root)
+        {
+            foreach (var sel in root.GetComponentsInChildren<Selectable>(true))
+            {
+                if (sel == null) continue;
+                sel.interactable = true;
+                if (sel.targetGraphic != null) sel.targetGraphic.raycastTarget = true;
+            }
+            foreach (var inp in root.GetComponentsInChildren<TMP_InputField>(true))
+            {
+                if (inp == null) continue;
+                if (inp.caretWidth <= 0) inp.caretWidth = 2;
+                inp.customCaretColor = true;
+                if (inp.caretColor.a <= 0f) inp.caretColor = new Color(0.20f, 0.13f, 0.05f, 1f);
             }
         }
 
@@ -944,6 +1317,18 @@ namespace FiresRPGmaker.UI
             recolor(t.isOn);
         }
 
+        private void WireDialogueExtras()
+        {
+            var search = InputIn(_leftPage, "DlgSearchField");
+            if (search != null) { search.onValueChanged.RemoveAllListeners(); search.onValueChanged.AddListener(_ => PopulateDialogueList()); }
+            foreach (var ch in new[] { "R", "G", "B" })
+            {
+                var inp = PopupInput(ch);
+                if (inp != null) { inp.onValueChanged.RemoveAllListeners(); inp.onValueChanged.AddListener(_ => UpdateColorSwatch()); }
+            }
+            WireToggleVisual(Tog(_optionPopup, "AlwaysVisible_chk"));
+        }
+
         private Toggle Tog(Transform scope, string name) { var t = FindRec(scope, name); return t != null ? t.GetComponent<Toggle>() : null; }
         private void SetToggle(string tab, string name, bool on) { var t = Tog(Screen(tab), name); if (t != null) t.isOn = on; }
         private bool GetToggle(string tab, string name) { var t = Tog(Screen(tab), name); return t != null && t.isOn; }
@@ -953,6 +1338,7 @@ namespace FiresRPGmaker.UI
         {
             var b = Btn(name);
             if (b != null) { b.onClick.RemoveAllListeners(); b.onClick.AddListener(act); }
+            else Debug.LogWarning("[NpcBookController] button not found to hook: " + name);
         }
         private void HookRow(Transform row, string name, UnityEngine.Events.UnityAction act)
         {
@@ -976,6 +1362,15 @@ namespace FiresRPGmaker.UI
 
         private static int ParseInt(string s, int def) => int.TryParse((s ?? "").Trim(), out var v) ? v : def;
         private static string SafeName(string n) => System.Text.RegularExpressions.Regex.Replace(n ?? "", "[^a-zA-Z0-9_-]", "_");
+        // Matches TraderProfileManager.MakeSafeFileName (invalid-filename-chars only) so a book write and a
+        // manager write of the same profile name land on the same file.
+        private static string SafeFileName(string n)
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            var sb = new StringBuilder();
+            foreach (var c in (n ?? "").Trim()) sb.Append(System.Array.IndexOf(invalid, c) >= 0 ? '_' : c);
+            return sb.Length > 0 ? sb.ToString() : "Profile";
+        }
         private void Msg(string m)
         {
             try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, m); } catch { }

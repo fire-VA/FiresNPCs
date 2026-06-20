@@ -393,6 +393,7 @@ Quests = KillBoarSample
                                         case "questtype":
                                             def.QuestType = value;
                                             break;
+                                        case "name":
                                         case "questname":
                                             def.Name = value;
                                             break;
@@ -420,6 +421,14 @@ Quests = KillBoarSample
                                             break;
                                         case "previewimage":
                                             def.PreviewImage = value;
+                                            break;
+                                        case "onaccept":
+                                        case "onacceptquest":
+                                            def.LifecycleEvents["OnAcceptQuest"] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "oncomplete":
+                                        case "oncompletequest":
+                                            def.LifecycleEvents["OnCompleteQuest"] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
                                             break;
                                     }
                                 }
@@ -1657,6 +1666,7 @@ Quests = KillBoarSample
                                         case "questtype":
                                             def.QuestType = value;
                                             break;
+                                        case "name":
                                         case "questname":
                                             def.Name = value;
                                             break;
@@ -1684,6 +1694,14 @@ Quests = KillBoarSample
                                             break;
                                         case "previewimage":
                                             def.PreviewImage = value;
+                                            break;
+                                        case "onaccept":
+                                        case "onacceptquest":
+                                            def.LifecycleEvents["OnAcceptQuest"] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "oncomplete":
+                                        case "oncompletequest":
+                                            def.LifecycleEvents["OnCompleteQuest"] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
                                             break;
                                     }
                                 }

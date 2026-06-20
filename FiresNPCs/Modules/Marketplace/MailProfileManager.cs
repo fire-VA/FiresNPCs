@@ -115,7 +115,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     SenderName = parts[0].Trim(),
                     DateString = parts[1].Trim(),
                     Subject = parts[2].Trim(),
-                    Body = parts[3].Trim(),
+                    Body = parts[3].Trim().Replace("\\n", "\n"),   // un-escape multi-line bodies (see book SaveMail)
                 };
                 if (parts.Length >= 5 && !string.IsNullOrWhiteSpace(parts[4]))
                 {

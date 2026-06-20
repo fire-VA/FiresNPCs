@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "PowerShell(& \"C:\\Users\\travi\\OneDrive\\Desktop\\valheimRip2\\Tools\\FiresPrefabPipeline.ps1\"*)",
       "Bash(dotnet build *)",
       "Bash(awk '/^        public static void [A-Z]/ {print NR\": \"$0}' \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/Debug/DebugTools.cs\")",
       "Bash(xargs grep *)",
@@ -547,7 +548,14 @@
       "Bash([ -f \"$f\" ])",
       "Bash(grep -i \"\\\\.cs$\")",
       "Bash(echo \"=== file last modified ===\")",
-      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\FiresRPGmaker.csproj\" /p:Configuration=Debug /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:minimal /nologo | Select-Object -Last 60)"
+      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\FiresRPGmaker.csproj\" /p:Configuration=Debug /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:minimal /nologo | Select-Object -Last 60)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets\" -Directory)",
+      "Bash(awk '/m_TexEnvs:/{f=1} f && /^    - _/{s=$0;sub\\(/:.*/,\"\",s\\);gsub\\(/[ -]/,\"\",s\\)} f && /m_Texture:.*guid:/{g=$0;sub\\(/.*guid: /,\"\",g\\);sub\\(/,.*/,\"\",g\\);print s\" \"g} /m_Floats:/{f=0}' 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets/world/Props/mushrooms/glow.mat')",
+      "Bash(grep -viE \"\\\\.meta$|\\\\.prefab$|\\\\.mat$\")",
+      "Bash(sed -n 6,162p 'C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\PLANT_REFAB_CATALOG.md')",
+      "Read(//tmp/**)",
+      "Bash(grep -oiE '[a-z]:[\\\\\\\\/][^\"]{0,90}blender[^\"]{0,30}\\\\.exe' C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/.claude/settings.local.json)",
+      "Bash(REL=\"/c/Users/travi/OneDrive/Desktop/valheimRip2/NetBench/NetBench/bin/Release\" *)"
     ]
   }
 }
