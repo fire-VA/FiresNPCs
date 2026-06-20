@@ -240,8 +240,12 @@ namespace FiresRPGmaker.Managers
             piece.m_allowedInDungeons = true;
             piece.m_repairPiece = false;
             piece.m_canBeRemoved = true;
-            piece.m_clipEverything = true;   // Allow placing anywhere without collision checks
-            piece.m_clipGround = true;          // Allow clipping into ground
+            // m_clipEverything=true forces Player.UpdatePlacementGhost into the ground-snap branch (positions
+            // the ghost at the raw raycast point on the terrain), which prevents placing the NPC ON building
+            // pieces (floors/roofs). Both false → the collider-surface branch runs, so the NPC sits on whatever
+            // surface is aimed at (terrain OR a wood floor) while staying upright (normal is forced to up).
+            piece.m_clipEverything = false;
+            piece.m_clipGround = false;
             piece.m_groundPiece = false;        // Not a ground-only piece
             piece.m_groundOnly = false;         // Can be placed anywhere
             piece.m_cultivatedGroundOnly = false;

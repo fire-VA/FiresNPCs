@@ -1215,13 +1215,33 @@ namespace FiresRPGmaker.UI
             ReflowScroll(PoolContent(FindRec(Screen(tab), poolName)));
         }
 
-        // The Content node under a FUC scroll pool (ScrollView/Viewport/Content) — where row templates +
-        // runtime clones live. Falls back to the pool itself for any pre-scroll bare panel.
-        private static Transform PoolContent(Transform pool)
+        // Returns the Content node of a list's RUNTIME scroll, building it on first use. The book prefab bakes
+        // only an empty anchor container (named e.g. "RewardPool") plus a hidden row template; the actual
+        // ScrollRect (RectMask2D viewport — AssetBundle-safe) is created here with UIBuilderHelper, and the
+        // baked template is moved under its Content. A stencil Mask baked into the bundle leaves its masked
+        // rows invisible in-game (the cause of the empty dialogue list + dead reward +Add), so the scroll must
+        // be constructed at runtime — never baked.
+        private static Transform PoolContent(Transform anchor)
         {
-            if (pool == null) return null;
-            var c = pool.Find("Viewport/Content");
-            return c != null ? c : pool;
+            if (anchor == null) return null;
+            var built = anchor.Find("RuntimeScroll/Viewport/Content");
+            if (built != null) return built;
+
+            var sa = FiresCore.UI.UIBuilderHelper.CreateScrollArea(anchor, "RuntimeScroll",
+                Vector2.zero, Vector2.one, new Color(0.27f, 0.18f, 0.08f, 0.10f));
+            var content = sa.Content;
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
+            // Move the baked hidden row template(s) (siblings of the new scroll) under the runtime Content.
+            for (int i = anchor.childCount - 1; i >= 0; i--)
+            {
+                var c = anchor.GetChild(i);
+                if (c.name.EndsWith("Template", StringComparison.Ordinal)) c.SetParent(content, false);
+            }
+            return content;
         }
 
         // Positions each active child of a scroll Content top-down by its LayoutElement height (+ spacing/
