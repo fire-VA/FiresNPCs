@@ -268,12 +268,16 @@
     <Compile Include="UI\GUIManager.cs" />
     <Compile Include="UI\NpcBookController.cs" />
     <Compile Include="UI\BookOptionPopup.cs" />
+    <Compile Include="UI\PatrolRecorder.cs" />
+    <Compile Include="UI\PatrolRoutePopup.cs" />
+    <Compile Include="UI\PatrolRouteSync.cs" />
     <Compile Include="UI\NpcController.cs" />
     <Compile Include="UI\NpcHoverHudSuppressor.cs" />
     <Compile Include="UI\NpcMainPanelController.cs" />
     <Compile Include="UI\OverwriteConfirmDialog.cs" />
     <Compile Include="UI\PanelElementManager.cs" />
     <Compile Include="UI\Patches\InventoryGuiPatches.cs" />
+    <Compile Include="UI\Patches\PatrolInputBlockPatch.cs" />
     <Compile Include="UI\Patches\PlayerInputPatches.cs" />
     <Compile Include="UI\Patches\StaticNpcProtectionPatches.cs" />
     <Compile Include="UI\Patches\UITooltipStyleOverride.cs" />

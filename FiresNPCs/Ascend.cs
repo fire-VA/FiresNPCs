@@ -24,13 +24,13 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.112")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.123")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.112";
+        public const string PluginVersion = "0.0.123";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -85,6 +85,16 @@ namespace FiresRPGmaker
 
             // Wire the Core NPC engine's host-service bridges to RPGMaker implementations.
             Integration.NpcBridgeProviders.RegisterAll();
+
+            // Load custom NPC mp3 sounds from BepInEx/config/FiresNPCs_Sounds (KG-style). The coroutine
+            // self-guards on a headless/dedicated server (no audio output there).
+            try
+            {
+                string soundsFolder = Path.Combine(BepInEx.Paths.ConfigPath, "FiresNPCs_Sounds");
+                Directory.CreateDirectory(soundsFolder);
+                StartCoroutine(FiresCore.Audio.FiresCustomAudioStore.LoadAllCoroutine(soundsFolder));
+            }
+            catch (Exception ex) { Debug.LogWarning($"[{PluginName}] custom sound load init failed: {ex.Message}"); }
 
             FinishInit();
         }

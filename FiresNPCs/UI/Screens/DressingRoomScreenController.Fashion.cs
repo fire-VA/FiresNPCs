@@ -167,10 +167,24 @@ namespace FiresRPGmaker.UI.Screens
             return false;
         }
 
+        // The legit player emotes — the only animation names that actually fire on a player-derived
+        // Animator (each is an "emote_<name>" parameter; "sit" is the only looping one). A model-overridden
+        // monster NPC (Draugr/Lox/...) has none of these, so its dropdowns correctly come up empty.
+        private static readonly string[] PlayerEmotes =
+        {
+            "wave","sit","challenge","cheer","nonono","thumbsup","point","blowkiss",
+            "bow","cower","cry","despair","flex","comehere","headbang","kneel",
+            "laugh","roar","shrug","dance","relax","toast","rest","vibe","loveyou"
+        };
+
         /// <summary>
-        /// Builds (and caches) the filtered animation option list for the given NPC.
-        /// Called once per Show(), then reused for all 4 animation dropdowns.
+        /// Builds (and caches) the valid emote list for the NPC: the curated player emotes intersected
+        /// with the emote_* params actually present on this NPC's Animator (ground-truth that the emote
+        /// will play). The full list is offered only when the Animator can't be read at all; an Animator
+        /// with no emote params (a monster model override) yields just "(none)". Invalidated on model swap.
         /// </summary>
+        public static void InvalidateAnimationCache() { _cachedAnimOptions = null; }
+
         private static List<string> GetCachedAnimationOptions(NpcController npc)
         {
             int npcId = npc.GetInstanceID();
@@ -178,31 +192,23 @@ namespace FiresRPGmaker.UI.Screens
                 return _cachedAnimOptions;
 
             var options = new List<string> { "(none)" };
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-
             try
             {
                 var animator = npc.GetComponentInChildren<Animator>(true);
-                if (animator != null)
+                if (animator == null)
                 {
-                    var controller = animator.runtimeAnimatorController;
-                    if (controller?.animationClips != null)
-                    {
-                        foreach (var clip in controller.animationClips)
-                        {
-                            var clipName = clip?.name;
-                            if (string.IsNullOrEmpty(clipName)) continue;
-                            if (!seen.Add(clipName)) continue;
-                            if (!IsAnimationSuitable(clipName)) continue;
-                            options.Add(clipName);
-                        }
-                    }
-
+                    // Animator unreadable at populate time — offer the full curated set rather than nothing.
+                    foreach (var name in PlayerEmotes) options.Add(name);
+                }
+                else
+                {
+                    var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var p in animator.parameters)
-                    {
-                        if (!string.IsNullOrEmpty(p.name) && seen.Add(p.name))
-                            options.Add(p.name);
-                    }
+                        if (p.name != null && p.name.StartsWith("emote_") && p.name != "emote_stop")
+                            present.Add(p.name.Substring("emote_".Length));
+                    // Animator read fine: offer only the emotes it can actually fire (empty if a monster model).
+                    foreach (var name in PlayerEmotes)
+                        if (present.Contains(name)) options.Add(name);
                 }
             }
             catch (Exception ex)
@@ -250,6 +256,10 @@ namespace FiresRPGmaker.UI.Screens
             {
                 Debug.LogWarning($"[DressingRoom] PopulateSoundDropdown error: {ex.Message}");
             }
+
+            // Custom mp3 sounds loaded from BepInEx/config/FiresNPCs_Sounds (KG-style).
+            foreach (var key in FiresCore.Audio.FiresCustomAudioStore.Clips.Keys)
+                if (!options.Contains(key)) options.Add(key);
 
             dropdown.AddOptions(options);
             dropdown.value = 0;

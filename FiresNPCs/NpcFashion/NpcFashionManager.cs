@@ -814,8 +814,10 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                     // "_SkinColor" (NOT "_HairColor"). With the hair keeping its own material, _SkinColor
                     // is the channel its shader reads.
                     mats[i].SetColor("_SkinColor", color);
-                    if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[NpcFashionManager]   SET _HairColor={color} on {mats[i].name} (shader: {mats[i].shader?.name})");
+                    // TEMP [HairColorDiag] — pin why hair stays white: confirm the shader + tint channel.
+                    Debug.Log($"[HairColorDiag] hair mat '{mats[i].name}' shader='{mats[i].shader?.name}' " +
+                              $"hasSkinColor={mats[i].HasProperty("_SkinColor")} hasHairColor={mats[i].HasProperty("_HairColor")} " +
+                              $"set={color} readBack={mats[i].GetColor("_SkinColor")}");
                 }
                 smr.materials = mats;
             }
@@ -823,13 +825,10 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
             // Step 2 ï¿½ body material (VisEquipment.UpdateColors also sets _HairColor on baseMaterial)
             if (bodyModel != null)
             {
-                var bodyMat = bodyModel.material;
-                if (bodyMat != null)
-                {
-                    bodyMat.SetColor("_SkinColor", color);   // vanilla UpdateColors tints the body via _SkinColor, not _HairColor
-                    if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[NpcFashionManager]   SET body _HairColor={color} on {bodyMat.name}");
-                }
+                // Hair color is applied to the hair INSTANCE's own material above (step 1, _SkinColor —
+                // the vanilla/KG channel). Do NOT tint the body material with the hair color here:
+                // bodyModel.material is materials[0] = the SKIN, so writing _SkinColor=hairColor would
+                // dye the whole body. KG omits any body hair-color write entirely.
             }
         }
 
@@ -1009,10 +1008,18 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                     }
                 }
 
-                // --- 6. Shader replacement is now a no-op (material is already the body ---
-                // material which has the real compiled Custom/Player shader), but keep the
-                // call as a safety net for any non-body-material fallback paths.
-                try { FiresCore.Services.VanillaAssetResolver.ApplyToPrefab(clonedGO, FiresCore.Services.VanillaAssetResolver.AssetSwapMode.Shader); } catch { }
+                // --- 6. DO NOT run the VanillaAssetResolver shader swap on hair/beard. ---
+                // The hair keeps its own prefab material (step 5), whose shader is the real
+                // vanilla Custom/Player shader that natively reads "_SkinColor" — exactly what
+                // vanilla VisEquipment.UpdateColors (VisEquipment.cs:359-364) and KG Market_NPC
+                // (Market_NPC.cs:766) tint, and NEITHER does any shader swap on the hair.
+                // ApplyToPrefab(Shader) would swap that Custom/* shader for a cached vanilla
+                // shader instance, and SwapShaderPreservingProperties only re-applies _SkinColor
+                // when HasProperty("_SkinColor") is true. _SkinColor is set programmatically and
+                // is NOT declared in the shader's Properties{} block, so HasProperty returns false
+                // (same as _HairColor — see the note in ApplyHairColorToMeshAndBody) and the swap
+                // silently drops the tint channel → hair renders untinted (white). Skipping the
+                // swap matches the proven KG/vanilla path: original material, _SkinColor tint.
 
                 // --- 7. Apply color using the EXACT Valheim UpdateColors() pattern ---
                 if (!string.IsNullOrEmpty(colorOverride))
@@ -1784,61 +1791,54 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
      _lookAt.SetLoockAtTarget(player.GetHeadPoint());
         }
 
+        // "sit" is the only looping player emote (Emotes enum [Emote(OneShot=false)]); the rest are one-shots.
+        private static bool IsLoopingEmote(string name) => string.Equals(name, "sit", StringComparison.OrdinalIgnoreCase);
+
+        // Plays a legit player emote on the NPC. The valid names are the emote_* params on the player
+        // Animator (see the dressing-room dropdown filter). One-shots route through ZSyncAnimation so they
+        // replicate to other clients and survive ZSyncAnimation's per-frame re-apply; the looping "sit"
+        // is a held Bool. Falls back to a bare param/state name so older saved selections still fire.
         private void PlayAnimation(string animName)
- {
+        {
             if (string.IsNullOrEmpty(animName) || animName == "(none)") return;
 
-            // Use ZSyncAnimation if available
-        if (_zanim != null)
-     {
-      try
-         {
-        _zanim.SetTrigger(animName);
- Debug.Log($"[NpcFashionComponent] Triggered via ZSyncAnimation: {animName}");
-          return;
-      }
-          catch (Exception ex)
-      {
-         Debug.LogWarning($"[NpcFashionComponent] ZSyncAnimation.SetTrigger failed: {ex.Message}");
-    }
-        }
-
-    // Fall back to direct Animator
             if (_animator == null)
-        {
-        _animator = GetComponentInChildren<Animator>(true);
-      if (_animator == null)
-      {
-                 Debug.LogWarning($"[NpcFashionComponent] No Animator available for animation: {animName}");
-      return;
-   }
-  }
+                _animator = GetComponentInChildren<Animator>(true);
 
-          try
-        {
-       // Try SetTrigger first
-     if (HasParameter(_animator, animName, AnimatorControllerParameterType.Trigger))
-       {
-        _animator.SetTrigger(animName);
-           Debug.Log($"[NpcFashionComponent] Triggered via SetTrigger: {animName}");
-      return;
+            bool looping = IsLoopingEmote(animName);
+            string emoteParam = "emote_" + animName.ToLowerInvariant();
+            var paramType = looping ? AnimatorControllerParameterType.Bool : AnimatorControllerParameterType.Trigger;
+
+            string param = HasParameter(_animator, emoteParam, paramType) ? emoteParam
+                         : HasParameter(_animator, animName, AnimatorControllerParameterType.Trigger) ? animName
+                         : null;
+            if (param == null)
+            {
+                Debug.LogWarning($"[NpcFashionComponent] No animator param for emote '{animName}' (model has no player emotes?)");
+                return;
+            }
+
+            try
+            {
+                if (looping)
+                {
+                    // Held looping emote (sit) — raw Animator Bool (ZSyncAnimation exposes no Bool setter here).
+                    if (_animator != null) { _animator.ResetTrigger("emote_stop"); _animator.SetBool(param, true); }
                 }
-
-       // Try CrossFade to state
-        int stateHash = Animator.StringToHash(animName);
-                if (_animator.HasState(0, stateHash))
-     {
-           _animator.CrossFadeInFixedTime(stateHash, 0.15f, 0);
-    Debug.Log($"[NpcFashionComponent] CrossFade to state: {animName}");
-        return;
+                else if (_zanim != null)
+                {
+                    _zanim.SetTrigger(param);   // one-shot, replicated
                 }
-
-         Debug.LogWarning($"[NpcFashionComponent] Animation '{animName}' not found");
- }
-       catch (Exception ex)
-   {
-            Debug.LogWarning($"[NpcFashionComponent] Animation failed for '{animName}': {ex.Message}");
-          }
+                else if (_animator != null)
+                {
+                    _animator.SetTrigger(param);
+                }
+                Debug.Log($"[NpcFashionComponent] Emote '{animName}' -> '{param}' (looping={looping})");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[NpcFashionComponent] Animation failed for '{animName}': {ex.Message}");
+            }
         }
 
         private void PlaySound(string soundName)
@@ -1851,8 +1851,11 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
         {
     AudioClip clip = null;
 
+            // Custom mp3 loaded from BepInEx/config/FiresNPCs_Sounds (KG-style) resolves first.
+            FiresCore.Audio.FiresCustomAudioStore.Clips.TryGetValue(soundName, out clip);
+
           // Try to find the clip
-            if (_audioSource.clip != null && _audioSource.clip.name.Equals(soundName, StringComparison.OrdinalIgnoreCase))
+            if (clip == null && _audioSource.clip != null && _audioSource.clip.name.Equals(soundName, StringComparison.OrdinalIgnoreCase))
        {
         clip = _audioSource.clip;
   }

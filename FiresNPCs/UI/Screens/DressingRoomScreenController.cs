@@ -120,6 +120,9 @@ Shoulder,
         {
      if (!IsVisible) return;
 
+     // The patrol popup sits on top and owns all clicks; don't also process dressing clicks behind it.
+     if (PatrolRoutePopup.IsOpen) return;
+
      // Handle Escape key to go back
        if (Input.GetKeyDown(KeyCode.Escape))
     {

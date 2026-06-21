@@ -48,6 +48,8 @@ namespace FiresRPGmaker.UI
         // player inventory + shows worn-gear icons + drag-to-equip). Dialogue keeps the book's new-look editor.
         private DressingRoomScreenController _dressingCtrl;
         private bool _dressingWired;
+        private bool _patrolBtnAdded;
+        private RectTransform _patrolBtnRect;
 
         public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
 
@@ -106,8 +108,21 @@ namespace FiresRPGmaker.UI
         // Manual hit-test of the left-page tab buttons, used while InventoryGui blocks the event system.
         private void HandleManualTabClick()
         {
-            if (_leftPage == null) return;
+            // While the patrol popup is up it owns all clicks; don't also process tab/button hits behind it.
+            if (PatrolRoutePopup.IsOpen) return;
+
             Vector2 mouse = Input.mousePosition;
+
+            // "Set Patrol Route" button (right page / dressing screen). Its onClick is blocked by the open
+            // InventoryGui, so detect it manually: open the patrol popup over the dressing room.
+            if (_patrolBtnRect != null && _patrolBtnRect.gameObject.activeInHierarchy
+                && RectTransformUtility.RectangleContainsScreenPoint(_patrolBtnRect, mouse, null))
+            {
+                if (_npc != null) PatrolRoutePopup.Open(_npc, this);
+                return;
+            }
+
+            if (_leftPage == null) return;
             foreach (var tab in Tabs)
             {
                 if (tab == _activeTab) continue;
@@ -250,6 +265,18 @@ namespace FiresRPGmaker.UI
             }
             try { _dressingCtrl.Show(_npc); }
             catch (Exception ex) { Debug.LogError("[NpcBookController] show dressing: " + ex); }
+
+            // One-time "Set Patrol Route" button on the dressing screen: opens the patrol popup. The dressing
+            // tab keeps the InventoryGui open, which swallows the UI event system, so the click is handled by
+            // the book's manual hit-test (HandleManualTabClick), not the button's own onClick. Built with the
+            // Core parchment-button helper so it matches the rest of the book.
+            if (!_patrolBtnAdded)
+            {
+                _patrolBtnAdded = true;
+                var btn = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(screen.transform, "Set Patrol Route",
+                    new Vector2(0.66f, 0.935f), new Vector2(1.0f, 0.985f), null);
+                _patrolBtnRect = btn.GetComponent<RectTransform>();
+            }
         }
 
         private static string TabForType(NpcType t) => t switch
@@ -703,12 +730,37 @@ namespace FiresRPGmaker.UI
             {
                 int index = i;
                 var row = Instantiate(tmpl, content); row.name = "Row"; row.SetActive(true);
-                var badge = FindRec(row.transform, "IndexBadge")?.GetComponent<TMP_Text>(); if (badge != null) badge.text = (i + 1) + ".";
-                var sum = FindRec(row.transform, "SummaryLabel")?.GetComponent<TMP_Text>(); if (sum != null) sum.text = OptionSummary(_dlgOptions[i]);
+                var badge = FindRec(row.transform, "IndexBadge")?.GetComponent<TMP_Text>(); if (badge != null) { badge.text = (i + 1) + "."; badge.raycastTarget = false; }
+                var sum = FindRec(row.transform, "SummaryLabel")?.GetComponent<TMP_Text>(); if (sum != null) { sum.text = OptionSummary(_dlgOptions[i]); sum.raycastTarget = false; }
+
+                // The baked row is a PanelXY with NO graphic, so its only raycast targets were the two
+                // small Edit/X buttons — which only registered on the top row. The working dialogue-list
+                // row instead carries a full-fill SelectButton graphic that registers on EVERY row.
+                // Mirror that: give the row a transparent full-fill click surface (added, since the row
+                // has no Image) that opens the editor. The small X stays a child on top for remove.
+                if (row.GetComponent<Image>() == null)
+                {
+                    var img = row.gameObject.AddComponent<Image>();
+                    img.color = new Color(0f, 0f, 0f, 0f);
+                    img.raycastTarget = true;
+                    var rowBtn = row.gameObject.AddComponent<Button>();
+                    rowBtn.targetGraphic = img;
+                    rowBtn.transition = Selectable.Transition.None;
+                    rowBtn.onClick.AddListener(() => OpenOptionPopup(index));
+                }
                 HookRow(row.transform, "EditButton", () => OpenOptionPopup(index));
                 HookRow(row.transform, "RemoveButton", () => { if (index < _dlgOptions.Count) { _dlgOptions.RemoveAt(index); RebuildOptionRows(); SetDlgDirty(); } });
             }
             ReflowScroll(content);
+            // TEMP [RowDiag] — confirm rows/buttons are positioned where they render (world rects).
+            for (int i = 0; i < content.childCount; i++)
+            {
+                var c = content.GetChild(i); if (c.name != "Row") continue;
+                var rt = c as RectTransform; var corners = new Vector3[4]; rt.GetWorldCorners(corners);
+                var eb = FindRec(c, "EditButton") as RectTransform; string ebStr = "<none>";
+                if (eb != null) { var ec = new Vector3[4]; eb.GetWorldCorners(ec); ebStr = $"x{ec[0].x:F0}-{ec[2].x:F0} y{ec[0].y:F0}-{ec[2].y:F0}"; }
+                Debug.Log($"[RowDiag] row#{i} rectY {corners[0].y:F0}-{corners[1].y:F0} edit[{ebStr}]");
+            }
         }
 
         private static string OptionSummary(RawPlayerOption o)
@@ -913,8 +965,8 @@ namespace FiresRPGmaker.UI
             // (x 0.81-1.0) and clipped in the corner. Runtime move avoids a re-bake; left-aligned strip
             // just under the buttons (their band is y 0-0.07 of this screen).
             var rt = t.rectTransform;
-            rt.anchorMin = new Vector2(0.02f, -0.075f);
-            rt.anchorMax = new Vector2(0.81f, -0.01f);
+            rt.anchorMin = new Vector2(0.02f, -0.045f);
+            rt.anchorMax = new Vector2(0.81f, 0.008f);
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             t.alignment = TextAlignmentOptions.Left;
         }

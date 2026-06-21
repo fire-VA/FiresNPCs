@@ -36,6 +36,10 @@ namespace FiresRPGmaker.UI
         public string mailProfile;
         public string transmogProfile;
 
+        // Name of the assigned patrol route (a file under BepInEx/config/FiresNPCs_PatrolRoutes/).
+        // Empty = no patrol. Multiple NPCs can share one route name.
+        public string patrolRouteName;
+
         [Header("Overrides")]
         public string modelOverride;
         public NpcType npcType = NpcType.QuestNpc;
@@ -467,6 +471,28 @@ if (_isFollowing && _followTarget == player)
         // TEMP [GreyDiag] delayed body-material dump (catches async effects like the 0.5s hair-color invoke).
         public void DumpBodyMatDelayed() => global::FiresRPGmaker.NpcFashion.NpcFashionManager.DumpBodyMat("6-delayed", this);
 
+        /// <summary>
+        /// Attaches/refreshes the Core PatrolAssignment from <see cref="patrolRouteName"/> and grants the
+        /// movable rigidbody + active MonsterAI a patrolling NPC needs (static NPCs are kinematic / AI-off
+        /// by default). Runs on every machine from LoadFromZDO; the patrol movement itself runs on the owner.
+        /// </summary>
+        public void SyncPatrolAssignment()
+        {
+            var pa = GetComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
+            if (string.IsNullOrEmpty(patrolRouteName))
+            {
+                if (pa != null) pa.RouteName = "";
+                return;
+            }
+            if (pa == null) pa = gameObject.AddComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
+            pa.RouteName = patrolRouteName;
+
+            var rb = GetComponent<Rigidbody>();
+            if (rb != null) { rb.isKinematic = false; rb.useGravity = true; }
+            var mai = GetComponent<MonsterAI>();
+            if (mai != null) mai.enabled = true;
+        }
+
         #endregion
 
         #region Valheim Interactable Interface
@@ -595,6 +621,8 @@ if (_isFollowing && _followTarget == player)
             leaderboardProfile = zdo.GetString("npc_leaderboard_profile", leaderboardProfile ?? "");
             mailProfile = zdo.GetString("npc_mail_profile", mailProfile ?? "");
             transmogProfile = zdo.GetString("npc_transmog_profile", transmogProfile ?? "");
+            patrolRouteName = zdo.GetString("npc_patrol_route", patrolRouteName ?? "");
+            SyncPatrolAssignment();
    modelOverride = zdo.GetString("npc_model_override", modelOverride ?? "");
      npcType = (NpcType)zdo.GetInt("npc_type", (int)npcType);
 
@@ -640,6 +668,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             zdo.Set("npc_leaderboard_profile", leaderboardProfile ?? "");
             zdo.Set("npc_mail_profile", mailProfile ?? "");
             zdo.Set("npc_transmog_profile", transmogProfile ?? "");
+            zdo.Set("npc_patrol_route", patrolRouteName ?? "");
     zdo.Set("npc_model_override", modelOverride ?? "");
    zdo.Set("npc_type", (int)npcType);
 
@@ -849,6 +878,9 @@ visualGO.transform.SetParent(transform, false);
   }
 
          CopyAnimatorFromPrefab(sourcePrefab);
+            // The animator controller changed — the dressing-room emote dropdowns are cached per NPC and
+            // must rebuild against the new controller's emote params.
+            DressingRoomScreenController.InvalidateAnimationCache();
        EnableAllRenderers(targetVisual.gameObject);
             FiresCore.Services.VanillaAssetResolver.ApplyToPrefab(gameObject, FiresCore.Services.VanillaAssetResolver.AssetSwapMode.Shader);
 

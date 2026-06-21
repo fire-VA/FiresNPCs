@@ -562,6 +562,63 @@ namespace FiresRPGmaker.UI
      Hide();
   }
     }
+
+            // While the dressing tab is open the InventoryGui swallows the UI event system, so these
+            // left-page controls don't receive their normal onClick. Detect those clicks manually — the
+            // exact pattern DressingRoomScreenController uses for its own controls. Only runs while the
+            // inventory is up; otherwise the standard event-system wiring handles them.
+            if (Input.GetMouseButtonDown(0) && InventoryGui.instance != null && InventoryGui.IsVisible())
+                HandleManualClickWhileInventoryOpen();
+   }
+
+        private void HandleManualClickWhileInventoryOpen()
+        {
+            if (PatrolRoutePopup.IsOpen) return; // the patrol popup is on top and owns clicks
+
+            Vector2 mousePos = Input.mousePosition;
+
+            // Apply Setup button.
+            if (applyButton != null)
+            {
+                var rt = applyButton.GetComponent<RectTransform>();
+                if (rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, mousePos, null))
+                {
+                    OnApplyButtonClicked();
+                    return;
+                }
+            }
+
+            // Allow-idle-wandering toggle (box + label).
+            if (_idleWanderToggle != null && _idleWanderToggleGO != null && _idleWanderToggleGO.activeInHierarchy)
+            {
+                var rt = _idleWanderToggleGO.GetComponent<RectTransform>();
+                if (rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, mousePos, null))
+                {
+                    _idleWanderToggle.isOn = !_idleWanderToggle.isOn;
+                    return;
+                }
+            }
+
+            // Name / Profile / Model Override input fields — focus them when clicked.
+            foreach (var input in new[] { nameOverrideInput, profileInput, modelOverrideInput })
+            {
+                if (input == null) continue;
+                var rt = input.GetComponent<RectTransform>();
+                if (rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, mousePos, null))
+                {
+                    try
+                    {
+                        EventSystem.current?.SetSelectedGameObject(input.gameObject);
+                        input.ActivateInputField();
+                        input.Select();
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogWarning($"[NpcMainPanelController] focus input failed: {ex.Message}");
+                    }
+                    return;
+                }
+            }
    }
 
         #region Screen Navigation
