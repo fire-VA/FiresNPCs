@@ -94,6 +94,30 @@ namespace FiresRPGmaker.UI
             // Valheim hides/relocks the cursor every frame while a panel is up — force it visible.
             if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
             { Cursor.visible = true; Cursor.lockState = CursorLockMode.None; }
+
+            // The Dressing tab opens the player InventoryGui, which swallows the UI event system —
+            // so the tab buttons' onClick never fires and the user gets stuck on Dressing until they
+            // close the whole book. While Dressing is active, detect tab clicks manually and route
+            // them to SelectTab (its Hide closes the inventory on the way out).
+            if (_activeTab == "Dressing" && Input.GetMouseButtonDown(0))
+                HandleManualTabClick();
+        }
+
+        // Manual hit-test of the left-page tab buttons, used while InventoryGui blocks the event system.
+        private void HandleManualTabClick()
+        {
+            if (_leftPage == null) return;
+            Vector2 mouse = Input.mousePosition;
+            foreach (var tab in Tabs)
+            {
+                if (tab == _activeTab) continue;
+                if (!(FindRec(_leftPage, tab + "Tab") is RectTransform rt)) continue;
+                if (RectTransformUtility.RectangleContainsScreenPoint(rt, mouse, null))
+                {
+                    SelectTab(tab);
+                    return;
+                }
+            }
         }
 
         // ── build / load ─────────────────────────────────────────────────────
