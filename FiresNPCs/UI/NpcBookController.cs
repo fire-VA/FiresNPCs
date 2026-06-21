@@ -79,6 +79,7 @@ namespace FiresRPGmaker.UI
         public void Hide()
         {
             if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch { } }
+            _bookOptionPopup?.Close();
             if (_optionPopup != null) _optionPopup.gameObject.SetActive(false);
             _editingOptionIndex = -1;
             if (_panelGo != null) _panelGo.SetActive(false);
@@ -203,7 +204,7 @@ namespace FiresRPGmaker.UI
             // Dialogue takes both pages: hide the NPC setup, show the dialogue list on the left. Tabs stay pinned.
             FindRec(_leftPage, "SetupGroup")?.gameObject.SetActive(!dlg);
             FindRec(_leftPage, "DialogueListGroup")?.gameObject.SetActive(dlg);
-            if (!dlg && _optionPopup != null) { _optionPopup.gameObject.SetActive(false); _editingOptionIndex = -1; }
+            if (!dlg) { _bookOptionPopup?.Close(); if (_optionPopup != null) _optionPopup.gameObject.SetActive(false); _editingOptionIndex = -1; }
             // Dressing tab: wire the working dressing logic onto the book's own parchment grid, then load gear +
             // open the player inventory. Leaving the tab closes the inventory.
             if (dressing) WireAndShowDressing();
@@ -703,26 +704,22 @@ namespace FiresRPGmaker.UI
         }
 
         // ---- option popup (Pass 1: single-value fields; Pass 2 adds the nested lists) ----
+        private BookOptionPopup _bookOptionPopup;
+
+        // Opens the runtime, draggable, auto-sizing option editor (BookOptionPopup) — the original working popup
+        // recolored to parchment + positioned right of the book — instead of the old baked OptionPopup.
         private void OpenOptionPopup(int index)
         {
-            if (_optionPopup == null || index < 0 || index >= _dlgOptions.Count) return;
-            if (_editingOptionIndex >= 0 && _editingOptionIndex != index && _editingOptionIndex < _dlgOptions.Count) SavePopupToOption(_editingOptionIndex);
+            if (index < 0 || index >= _dlgOptions.Count) return;
             _editingOptionIndex = index;
-            var dd = FindRec(_optionPopup, "TypeDropdown")?.GetComponent<TMP_Dropdown>();
-            if (dd != null && dd.options.Count == 0) { dd.ClearOptions(); dd.AddOptions(new List<string>(OptionTypeNames)); }
-            var o = _dlgOptions[index];
-            if (dd != null) dd.value = Mathf.Clamp((int)o.Type, 0, OptionTypeNames.Length - 1);
-            SetPopupInput("Text", o.Text);
-            SetPopupInput("Icon", o.Icon);
-            SetPopupInput("Transition", o.NextUID);
-            SetPopupInput("Override Error", o.OverrideError);
-            var av = Tog(_optionPopup, "AlwaysVisible_chk"); if (av != null) av.isOn = o.AlwaysVisible;
-            SetPopupInput("R", o.Color.r.ToString());
-            SetPopupInput("G", o.Color.g.ToString());
-            SetPopupInput("B", o.Color.b.ToString());
-            LoadPopupLists(o);
-            UpdateColorSwatch();
-            _optionPopup.gameObject.SetActive(true);
+            if (_bookOptionPopup == null)
+            {
+                var host = new GameObject("BookOptionPopupHost");
+                host.transform.SetParent(_root, false);
+                _bookOptionPopup = host.AddComponent<BookOptionPopup>();
+            }
+            var bookRect = _panelGo.GetComponent<RectTransform>();
+            _bookOptionPopup.Open(_dlgOptions[index], bookRect, () => { _editingOptionIndex = -1; RebuildOptionRows(); SetDlgDirty(); });
         }
 
         private void LoadPopupLists(RawPlayerOption o)
@@ -812,7 +809,7 @@ namespace FiresRPGmaker.UI
         // ---- save / delete / preview / new ----
         private RawDialogue BuildDialogueFromForm()
         {
-            if (_editingOptionIndex >= 0 && _editingOptionIndex < _dlgOptions.Count) SavePopupToOption(_editingOptionIndex);
+            _bookOptionPopup?.FlushIfOpen();
             string uid = (GetScreenInput("Dialogue", "UID_C") ?? "").Trim().ToLowerInvariant();
             string bg = GetScreenInput("Dialogue", "BG Image_C")?.Trim() ?? "";
             string npcText = GetScreenInput("Dialogue", "NpcText") ?? "";

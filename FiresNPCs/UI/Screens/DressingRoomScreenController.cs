@@ -1662,19 +1662,82 @@ _sizeButtonRect = null;
         {
             if (npc == null) return;
 
-  var equipment = npc.GetEquipmentData();
-      if (equipment == null) return;
+            var equipment = npc.GetEquipmentData();
+            if (equipment == null) return;
 
-       foreach (var kvp in equipment)
+            // Our NpcController.equip* strings are the editable store, but on clients they
+            // can come up empty even while the NPC is visibly wearing the gear. The vanilla
+            // VisEquipment ZDO (RightItem/ChestItem/...) is the authoritative, network-synced
+            // record of what the NPC ACTUALLY has equipped. For any slot our strings don't
+            // cover, fall back to that synced state so the grid always reflects the real
+            // loadout (weapon + back slots included) — exactly like a tamed companion's grid.
+            var zdo = npc.GetComponent<ZNetView>()?.GetZDO();
+
+            foreach (EquipmentSlot slot in Enum.GetValues(typeof(EquipmentSlot)))
             {
-       if (_slots.TryGetValue(kvp.Key, out var slotUI))
-      {
-     SetSlotItem(slotUI, kvp.Value);
-       _pendingEquipment[kvp.Key] = kvp.Value;
-          }
-         }
+                string fieldVal = equipment.TryGetValue(slot, out var v) ? (v ?? "") : "";
+                string liveVal = (zdo != null) ? GetVanillaEquipName(zdo, slot) : "";
 
-            Debug.Log($"[DressingRoomScreen] Loaded {equipment.Count} equipment items from NPC");
+                string used = fieldVal;
+                string source = "field";
+                if (string.IsNullOrEmpty(used) && !string.IsNullOrEmpty(liveVal))
+                {
+                    used = liveVal;
+                    source = "visEquip";
+                }
+
+                if (_slots.TryGetValue(slot, out var slotUI))
+                    SetSlotItem(slotUI, used);
+                _pendingEquipment[slot] = used;
+
+                string zdoStr = (zdo != null) ? zdo.GetString(ZdoEquipStringKey(slot), "<none>") : "<no-zdo>";
+                Debug.Log($"[WeaponDiag] {slot}: field='{fieldVal}' zdoStr='{zdoStr}' visEquip='{liveVal}' -> '{used}' ({source})");
+            }
+
+            Debug.Log($"[WeaponDiag] owner={(zdo != null && zdo.IsOwner())} " +
+                      $"server={(ZNet.instance != null && ZNet.instance.IsServer())} npc={npc.GetDisplayName()}");
+        }
+
+        /// <summary>
+        /// Reads the item prefab name actually equipped in a given slot from the NPC's vanilla
+        /// VisEquipment ZDO (the network-synced source of truth). Returns "" if the slot is empty.
+        /// </summary>
+        private static string GetVanillaEquipName(ZDO zdo, EquipmentSlot slot)
+        {
+            int hash;
+            switch (slot)
+            {
+                case EquipmentSlot.Helmet:    hash = zdo.GetInt(ZDOVars.s_helmetItem); break;
+                case EquipmentSlot.Chest:     hash = zdo.GetInt(ZDOVars.s_chestItem); break;
+                case EquipmentSlot.Legs:      hash = zdo.GetInt(ZDOVars.s_legItem); break;
+                case EquipmentSlot.Shoulder:  hash = zdo.GetInt(ZDOVars.s_shoulderItem); break;
+                case EquipmentSlot.Utility:   hash = zdo.GetInt(ZDOVars.s_utilityItem); break;
+                case EquipmentSlot.RightHand: hash = zdo.GetInt(ZDOVars.s_rightItem); break;
+                case EquipmentSlot.LeftHand:  hash = zdo.GetInt(ZDOVars.s_leftItem); break;
+                case EquipmentSlot.RightBack: hash = zdo.GetInt(ZDOVars.s_rightBackItem); break;
+                case EquipmentSlot.LeftBack:  hash = zdo.GetInt(ZDOVars.s_leftBackItem); break;
+                default: return "";
+            }
+            if (hash == 0) return "";
+            var prefab = ObjectDB.instance?.GetItemPrefab(hash);
+            return prefab != null ? prefab.name : "";
+        }
+
+        private static string ZdoEquipStringKey(EquipmentSlot slot)
+        {
+            switch (slot)
+            {
+                case EquipmentSlot.Helmet:    return "npc_equip_helmet";
+                case EquipmentSlot.Chest:     return "npc_equip_chest";
+                case EquipmentSlot.Legs:      return "npc_equip_legs";
+                case EquipmentSlot.Shoulder:  return "npc_equip_shoulder";
+                case EquipmentSlot.Utility:   return "npc_equip_utility";
+                case EquipmentSlot.RightHand: return "npc_equip_righthand";
+                case EquipmentSlot.LeftHand:  return "npc_equip_lefthand";
+                case EquipmentSlot.RightBack: return "npc_equip_rightback";
+                case EquipmentSlot.LeftBack:  return "npc_equip_leftback";
+                default: return "";
+            }
         }
 
         public void SetSlotItem(EquipmentSlotUI slot, string prefabName)

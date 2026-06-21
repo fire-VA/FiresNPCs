@@ -597,7 +597,22 @@
       "Bash(sed -i 's/\"FiresRPGmaker\", \"0.0.104\"/\"FiresRPGmaker\", \"0.0.105\"/' Ascend.cs)",
       "Bash(sed -i 's/PluginVersion = \"0.0.104\"/PluginVersion = \"0.0.105\"/' Ascend.cs)",
       "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\FiresPrefabPipeline.ps1\" unity -Method FiresMushroomBuilder.BuildBundle -Label shroomcol3; & \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\FiresPrefabPipeline.ps1\" deploy -Copy \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets\\\\AssetBundles\\\\vaitems_mushrooms\" -Dest \"C:\\\\Users\\\\travi\\\\AppData\\\\Roaming\\\\r2modmanPlus-local\\\\Valheim\\\\profiles\\\\BlueHills\\\\BepInEx\\\\plugins\\\\VerdantsAscentAssets\"; & \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\FiresPrefabPipeline.ps1\" unity -Method FiresMushroomBuilder.VerifyBundle -Label shroomverify 1> \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\shroom_verify.txt\")",
-      "Bash(cp \"C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/AssetBundles/firesnpcsui\" \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/firesnpcsui\" && echo \"bundle copied: $\\(stat -c '%s' \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/firesnpcsui\"\\) bytes\" *)"
+      "Bash(cp \"C:/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/AssetBundles/firesnpcsui\" \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/firesnpcsui\" && echo \"bundle copied: $\\(stat -c '%s' \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/firesnpcsui\"\\) bytes\" *)",
+      "Bash(grep -c \"_BF.prefab$\")",
+      "Bash(grep -iE \"Shroom[1-4]P_RtD.prefab$\")",
+      "Bash(grep -cE \"Shroom[0-9]P_RtD.prefab$\")",
+      "Bash(awk '{print $6, $7}')",
+      "Bash(mkdir -p \"/c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/cc0_test\")",
+      "Bash(curl -sL --max-time 30 \"https://api.polyhaven.com/files/bark_brown_02\" -o ph_files.json)",
+      "Bash(curl -sL --max-time 60 \"https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_brown_02/bark_brown_02_diff_1k.jpg\" -o bark_diff_1k.jpg)",
+      "Bash(grep -nE 'Compile Include=\"UI\\\\\\\\NpcBookController.cs\"|Compile Include=\"UI\\\\\\\\CodegenUIWiring' C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresNPCs/FiresNPCs/FiresRPGmaker.csproj)",
+      "PowerShell(& \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\FiresPrefabPipeline.ps1\" gen -Script \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\gen_mushroom_tex.py\" -GenArgs FiresMushroomFrost,0.62/0.20/0.16,spotted 1> \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\tex_run.log\"; Write-Output \"---- tail ----\"; Get-Content \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\tex_run.log\" -Tail 15; Write-Output \"---- outputs ----\"; Test-Path \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\Tools\\\\proc_tex_previews\\\\FiresMushroomFrost_tex.png\"; Get-ChildItem \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\NewProject2026\\\\Fires2026Project\\\\Assets\\\\Custom\\\\VAitems\\\\ProcMushrooms\\\\FiresMushroomFrost\\\\Tex\" -ErrorAction SilentlyContinue | Select-Object Name,Length)",
+      "Bash(sed -i 's/\"FiresRPGmaker\", \"0.0.105\"/\"FiresRPGmaker\", \"0.0.106\"/' Ascend.cs)",
+      "Bash(sed -i 's/PluginVersion = \"0.0.105\"/PluginVersion = \"0.0.106\"/' Ascend.cs)",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" FiresRPGmaker.csproj -p:Configuration=Debug -p:UseSharedCompilation=false -nodeReuse:false -m:1 -v:minimal)",
+      "Bash(grep -iE \"handoff|md|\\\\.md$\")",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresUnifiedCore/FiresUnifiedCore/FiresUnifiedCore.csproj\" -p:Configuration=Debug -p:UseSharedCompilation=false -nodeReuse:false -m:1 -v:minimal)",
+      "Bash(grep -E 'Hair[0-9]+\\\\.prefab$|HairNone\\\\.prefab$')"
     ]
   }
 }
