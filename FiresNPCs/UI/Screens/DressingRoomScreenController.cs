@@ -1990,6 +1990,11 @@ if (itemDrop == null) return prefabName;
             _currentNpc.SaveToZDO();
  Debug.Log("[DressingRoomScreen] Called SaveToZDO");
 
+            // TEMP [GreyDiag] — probe the body material at the dressing boundary + after async settles.
+            NpcFashionManager.DumpBodyMat("7-dressingAfterSave", _currentNpc);
+            _currentNpc.CancelInvoke(nameof(NpcController.DumpBodyMatDelayed));
+            _currentNpc.Invoke(nameof(NpcController.DumpBodyMatDelayed), 1.5f);
+
           int equippedCount = 0;
   foreach (var kvp in _pendingEquipment)
             {

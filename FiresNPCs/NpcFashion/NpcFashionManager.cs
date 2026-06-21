@@ -235,6 +235,7 @@ return ColorPresets["(none)"];
                 Debug.Log($"[NpcFashionManager] Applying fashion JSON to NPC {npc.name}");
                 Debug.Log($"[NpcFashionManager] Hair: {data.HairItem}, Beard: {data.BeardItem}");
                 Debug.Log($"[NpcFashionManager] PeriodicAnim: {data.PeriodicAnimation}, Time: {data.PeriodicAnimationTime}");
+                DumpBodyMat("0-start", npc);
 
                 // Map items to npc equip fields
                 if (!string.IsNullOrEmpty(data.HelmetItem)) npc.equipHelmet = data.HelmetItem;
@@ -289,6 +290,7 @@ return ColorPresets["(none)"];
                 var beardColor = HairBeardColors.GetColor(data.BeardColor);
                 ApplyHairToNpc(npc, data.HairItem, ColorToString(hairColor));
                 ApplyBeardToNpc(npc, data.BeardItem, ColorToString(beardColor));
+                DumpBodyMat("1-afterHairBeard", npc);
 
                 // Apply skin color
 if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
@@ -296,6 +298,7 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
        var skinColor = SkinToneColors.GetColor(data.SkinColor);
     ApplySkinColorToNpc(npc, skinColor);
    }
+                DumpBodyMat("2-afterSkin", npc);
 
     // Apply eye color (attempts to find eye materials - may not work on all models)
   if (!string.IsNullOrEmpty(data.EyeColor) && data.EyeColor != "(none)")
@@ -303,10 +306,12 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
         var eyeColor = EyeColors.GetColor(data.EyeColor);
  ApplyEyeColorToNpc(npc, eyeColor);
     }
+                DumpBodyMat("3-afterEye", npc);
 
  // Apply model scale - ALWAYS apply to ensure changes take effect immediately
      // even when resetting from a larger scale back to 1.0
      ApplyModelScale(npc, comp.ModelScale);
+                DumpBodyMat("4-afterScale", npc);
 
       // Configure look-at behavior using Valheim's LookAt component
    bool lookAtPlayer = !string.IsNullOrEmpty(data.LookAtPlayer) && 
@@ -322,11 +327,32 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
 
                 // Refresh visuals
                 npc.ApplyVisualEquipment();
+                DumpBodyMat("5-afterApplyVisual", npc);
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[NpcFashionManager] Failed to apply fashion json: {ex.Message}");
             }
+        }
+
+        // TEMP [GreyDiag] — dumps the NPC body material so we can pin which fashion step nulls the
+        // armor underlay / skin texture (the static-NPC "grey body on hair change" bug). Reads
+        // sharedMaterial (non-mutating). Remove once the cause is found.
+        internal static void DumpBodyMat(string step, NpcController npc)
+        {
+            try
+            {
+                var bm = npc != null ? GetBodyModel(npc.transform) : null;
+                if (bm == null) { Debug.Log($"[GreyDiag] {step}: bodyModel=<null>"); return; }
+                var m = bm.sharedMaterial;
+                if (m == null) { Debug.Log($"[GreyDiag] {step}: sharedMaterial=<null>"); return; }
+                string Tex(string p) => m.HasProperty(p) ? (m.GetTexture(p) != null ? "SET" : "NULL") : "noProp";
+                Color skin = m.HasProperty("_SkinColor") ? m.GetColor("_SkinColor") : Color.clear;
+                Debug.Log($"[GreyDiag] {step}: mat#{m.GetInstanceID()} shader='{m.shader?.name}' " +
+                          $"_MainTex={Tex("_MainTex")} _ChestTex={Tex("_ChestTex")} _LegsTex={Tex("_LegsTex")} " +
+                          $"_SkinColor={skin} mesh='{(bm.sharedMesh != null ? bm.sharedMesh.name : "<null>")}'");
+            }
+            catch (Exception ex) { Debug.Log($"[GreyDiag] {step}: dump failed — {ex.Message}"); }
         }
 
         /// <summary>
@@ -784,7 +810,10 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 for (int i = 0; i < mats.Length; i++)
                 {
                     if (mats[i] == null) continue;
-                    mats[i].SetColor("_HairColor", color);
+                    // Vanilla VisEquipment.UpdateColors + KG tint the hair INSTANCE's own material with
+                    // "_SkinColor" (NOT "_HairColor"). With the hair keeping its own material, _SkinColor
+                    // is the channel its shader reads.
+                    mats[i].SetColor("_SkinColor", color);
                     if (FiresLogger.VerboseEnabled)
                         Debug.Log($"[NpcFashionManager]   SET _HairColor={color} on {mats[i].name} (shader: {mats[i].shader?.name})");
                 }
@@ -797,7 +826,7 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 var bodyMat = bodyModel.material;
                 if (bodyMat != null)
                 {
-                    bodyMat.SetColor("_HairColor", color);
+                    bodyMat.SetColor("_SkinColor", color);   // vanilla UpdateColors tints the body via _SkinColor, not _HairColor
                     if (FiresLogger.VerboseEnabled)
                         Debug.Log($"[NpcFashionManager]   SET body _HairColor={color} on {bodyMat.name}");
                 }
@@ -922,9 +951,11 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 {
                     foreach (var smr in smrs)
                     {
+                        // Match vanilla VisEquipment.AttachItem / KG Market_NPC.AttachItem: copy ONLY
+                        // rootBone + bones. Do NOT set localBounds — overwriting the hair mesh's
+                        // head-sized bounds with the full-body bounds inflates it to a body-sized blob.
                         smr.rootBone          = bodyModel.rootBone;
                         smr.bones             = bodyModel.bones;
-                        smr.localBounds       = bodyModel.localBounds;
                         smr.updateWhenOffscreen = true;
                     }
                     bonesFound = bodyModel.bones?.Length ?? 0;
@@ -968,9 +999,13 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                     {
                         // new Material() creates an independent instance so each NPC
                         // gets their own copy ï¿½ setting _HairColor won't bleed across NPCs.
-                        smr.sharedMaterial = new Material(bodyModel.sharedMaterial);
+                        // Keep the hair prefab's OWN material (vanilla VisEquipment.AttachItem + KG
+                        // never swap to the body atlas — the hair UVs are authored for the dedicated
+                        // hair texture, so the body atlas paints body skin onto the hair = the blob).
+                        // Instance it only so per-NPC _SkinColor tint can't bleed across shared prefabs.
+                        if (smr.sharedMaterial != null) smr.material = new Material(smr.sharedMaterial);
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[NpcFashionManager] Assigned body material copy to {smr.name}");
+                            Debug.Log($"[NpcFashionManager] Instanced hair's own material for {smr.name}");
                     }
                 }
 

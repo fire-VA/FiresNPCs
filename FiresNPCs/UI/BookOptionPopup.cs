@@ -84,8 +84,14 @@ namespace FiresRPGmaker.UI
             if (option == null) return;
             _opt = option;
             _onDone = onDone;
+            Debug.Log($"[BookOptionPopup] Open: type={option.Type} text='{option.Text}' " +
+                      $"cmds={option.Commands?.Length ?? 0} randCmds={(option.RandomCommands != null ? 1 : 0)} " +
+                      $"conds={option.Conditions?.Count ?? 0} randTrans={option.RandomTransition?.Length ?? 0}");
             EnsureBuilt(bookPanelRect);
-            LoadFromOption(option);
+            // Load the option into the fields. Guard each populated-list load so a single bad entry
+            // can't abort Open and leave the popup hidden (the Edit-shows-nothing symptom).
+            try { LoadFromOption(option); }
+            catch (Exception ex) { Debug.LogError($"[BookOptionPopup] LoadFromOption failed (popup still shown): {ex}"); }
             _popupGo.SetActive(true);
             _popupGo.transform.SetAsLastSibling();
             LayoutRebuilder.ForceRebuildLayoutImmediate(_popupRect);
@@ -118,7 +124,16 @@ namespace FiresRPGmaker.UI
             if (bookPanelRect != null)
             {
                 float panelRight = bookPanelRect.anchoredPosition.x + bookPanelRect.sizeDelta.x * (1f - bookPanelRect.pivot.x);
-                _popupRect.anchoredPosition = new Vector2(panelRight + 12f, bookPanelRect.anchoredPosition.y);
+                float x = panelRight + 12f;
+                // Keep the popup on-screen: the book often fills most of the width, so "right of the book"
+                // would push the popup off the canvas edge (the user then sees nothing on Edit/Add). If it
+                // would overflow, pull it left so its right edge stays inside the canvas.
+                if (parent is RectTransform canvasRect)
+                {
+                    float maxX = canvasRect.rect.width * 0.5f - POPUP_W - 8f;
+                    if (x > maxX) x = maxX;
+                }
+                _popupRect.anchoredPosition = new Vector2(x, bookPanelRect.anchoredPosition.y);
             }
             _popupRect.sizeDelta = new Vector2(POPUP_W, 120f);   // height driven by ContentSizeFitter
 

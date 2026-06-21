@@ -464,6 +464,9 @@ if (_isFollowing && _followTarget == player)
       Debug.Log($"[NpcController] Applied visual equipment to {GetDisplayName()}");
         }
 
+        // TEMP [GreyDiag] delayed body-material dump (catches async effects like the 0.5s hair-color invoke).
+        public void DumpBodyMatDelayed() => global::FiresRPGmaker.NpcFashion.NpcFashionManager.DumpBodyMat("6-delayed", this);
+
         #endregion
 
         #region Valheim Interactable Interface

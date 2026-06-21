@@ -617,7 +617,10 @@
       "Bash(echo \"FOUND netstandard.dll\")",
       "Bash(echo \"no netstandard.dll\")",
       "Bash(ls -la __TRACKED_VAR__/UnityEngine.ImageConversionModule.dll)",
-      "Bash(cd \"/c/Users/travi/OneDrive/Desktop/valheimRip2/Tools\" && echo \"=== trace log: DONE/SKIP/ERROR lines ===\" && grep -iE \"DONE|SKIP|ERROR|BATCH\" batch_trace.log 2>/dev/null | tail -45 && echo \"=== trace log size / last lines ===\" && tail -5 batch_trace.log 2>/dev/null && echo \"=== tex log exists? ===\" && ls -la batch_tex.log batch_build.log batch_deploy.log 2>/dev/null)"
+      "Bash(cd \"/c/Users/travi/OneDrive/Desktop/valheimRip2/Tools\" && echo \"=== trace log: DONE/SKIP/ERROR lines ===\" && grep -iE \"DONE|SKIP|ERROR|BATCH\" batch_trace.log 2>/dev/null | tail -45 && echo \"=== trace log size / last lines ===\" && tail -5 batch_trace.log 2>/dev/null && echo \"=== tex log exists? ===\" && ls -la batch_tex.log batch_build.log batch_deploy.log 2>/dev/null)",
+      "Bash(iconv -f UTF-16LE -t UTF-8 batch_tex.log)",
+      "Bash(grep -vi \"\\\\.cs$\")",
+      "Bash(iconv -f UTF-16LE -t UTF-8 b_build.log)"
     ]
   }
 }

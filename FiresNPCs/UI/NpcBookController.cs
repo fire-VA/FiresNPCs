@@ -734,6 +734,7 @@ namespace FiresRPGmaker.UI
         // recolored to parchment + positioned right of the book — instead of the old baked OptionPopup.
         private void OpenOptionPopup(int index)
         {
+            Debug.Log($"[NpcBookController] OpenOptionPopup({index}) — options={_dlgOptions.Count}");
             if (index < 0 || index >= _dlgOptions.Count) return;
             _editingOptionIndex = index;
             if (_bookOptionPopup == null)
@@ -896,11 +897,28 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Dialogue", "BG Image_C", "");
             SetScreenInput("Dialogue", "NpcText", "");
             RebuildOptionRows();
-            SetDlgStatus("New dialogue");
+            SetDlgStatus("New dialogue", dirty: true);
         }
 
-        private void SetDlgStatus(string s) { var t = FindRec(Screen("Dialogue"), "DlgStatus")?.GetComponent<TMP_Text>(); if (t != null) t.text = s; }
-        private void SetDlgDirty() => SetDlgStatus("Unsaved changes");
+        private static readonly Color DLG_STATUS_DIRTY = new Color(0.80f, 0.16f, 0.12f, 1f); // red — unsaved changes
+        private static readonly Color DLG_STATUS_OK    = new Color(0.16f, 0.50f, 0.18f, 1f); // green — saved / clean
+
+        private void SetDlgStatus(string s, bool dirty = false)
+        {
+            var t = FindRec(Screen("Dialogue"), "DlgStatus")?.GetComponent<TMP_Text>();
+            if (t == null) return;
+            t.text = s;
+            t.color = dirty ? DLG_STATUS_DIRTY : DLG_STATUS_OK;
+            // Reposition below the Save/Delete/Preview button row — it was baked to the right of Preview
+            // (x 0.81-1.0) and clipped in the corner. Runtime move avoids a re-bake; left-aligned strip
+            // just under the buttons (their band is y 0-0.07 of this screen).
+            var rt = t.rectTransform;
+            rt.anchorMin = new Vector2(0.02f, -0.075f);
+            rt.anchorMax = new Vector2(0.81f, -0.01f);
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            t.alignment = TextAlignmentOptions.Left;
+        }
+        private void SetDlgDirty() => SetDlgStatus("Unsaved changes", dirty: true);
 
         // ════════════════════════════ INFO ══════════════════════════════════
         private void PopulateInfo()
