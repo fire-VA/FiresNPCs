@@ -47,6 +47,16 @@ namespace FiresRPGmaker.UI
         [Header("Behavior")]
         public bool allowIdleWandering;
 
+        [Header("Combat / Health")]
+        public float maxHealth = 0f;          // 0 = use the prefab's natural health; >=20 = custom (slider 20–250000)
+        public bool infiniteHealth = false;   // blocks all damage with no calculation
+        public float respawnDelay = 60f;      // seconds before a killed patrol NPC respawns
+
+        [Header("Nameplate")]
+        public bool hideNameplate = false;    // hide the floating name
+        public float nameplateScale = 1f;     // canvas scale of the floating plate
+        public float nameplateYOffset = 0f;   // metres added to the plate height above the model
+
         // Equipment data (stored as prefab names)
         [Header("Equipment")]
         public string equipHelmet;
@@ -493,6 +503,21 @@ if (_isFollowing && _followTarget == player)
             if (mai != null) mai.enabled = true;
         }
 
+        /// <summary>Pushes the configured max health onto the Humanoid. Static NPCs are server-authoritative,
+        /// so this only writes on the server (claiming ownership if needed). Tops up current health when the
+        /// bar was full so raising the cap actually fills it.</summary>
+        public void ApplyMaxHealth()
+        {
+            if (maxHealth < 20f) return; // unset / below the slider floor → leave the prefab's natural health
+            var hum = GetComponent<Humanoid>();
+            if (hum == null || _nview == null || !_nview.IsValid()) return;
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            if (!_nview.IsOwner()) _nview.ClaimOwnership();
+            bool wasFull = hum.GetHealth() >= hum.GetMaxHealth() - 0.01f;
+            hum.SetMaxHealth(maxHealth);
+            if (wasFull) hum.SetHealth(maxHealth);
+        }
+
         #endregion
 
         #region Valheim Interactable Interface
@@ -628,6 +653,14 @@ if (_isFollowing && _followTarget == player)
 
       allowIdleWandering = zdo.GetBool("npc_allow_idle_wander", false);
 
+            maxHealth = zdo.GetFloat("npc_max_health", 0f);
+            infiniteHealth = zdo.GetBool("npc_infinite_health", false);
+            respawnDelay = zdo.GetFloat("npc_respawn_delay", respawnDelay);
+            hideNameplate = zdo.GetBool("npc_name_hidden", false);
+            nameplateScale = zdo.GetFloat("npc_text_size", 1f);
+            nameplateYOffset = zdo.GetFloat("npc_text_height", 0f);
+            ApplyMaxHealth();
+
       equipHelmet = zdo.GetString("npc_equip_helmet", "");
   equipChest = zdo.GetString("npc_equip_chest", "");
       equipLegs = zdo.GetString("npc_equip_legs", "");
@@ -673,6 +706,13 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
    zdo.Set("npc_type", (int)npcType);
 
             zdo.Set("npc_allow_idle_wander", allowIdleWandering);
+
+            zdo.Set("npc_max_health", maxHealth);
+            zdo.Set("npc_infinite_health", infiniteHealth);
+            zdo.Set("npc_respawn_delay", respawnDelay);
+            zdo.Set("npc_name_hidden", hideNameplate);
+            zdo.Set("npc_text_size", nameplateScale);
+            zdo.Set("npc_text_height", nameplateYOffset);
 
             zdo.Set("npc_equip_helmet", equipHelmet ?? "");
             zdo.Set("npc_equip_chest", equipChest ?? "");

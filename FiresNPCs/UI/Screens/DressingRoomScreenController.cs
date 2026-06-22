@@ -65,6 +65,13 @@ namespace FiresRPGmaker.UI.Screens
         // Keep list of input fields for manual click handling
         private List<TMP_InputField> _inputFields = new List<TMP_InputField>();
 
+        // NPC stats scroll strip (health / respawn / nameplate) — manual click/scroll since the inventory blocks events.
+        private Toggle _infiniteHealthToggle, _hideNameplateToggle;
+        private Slider _maxHealthSlider, _respawnDelaySlider, _nameplateSizeSlider, _nameplateYSlider;
+        private readonly List<Toggle> _statToggles = new List<Toggle>();
+        private readonly List<Slider> _statSliders = new List<Slider>();
+        private RectTransform _statsContentRect, _statsViewportRect;
+
  // Pending equipment changes (prefab names)
         private Dictionary<EquipmentSlot, string> _pendingEquipment = new Dictionary<EquipmentSlot, string>();
 
@@ -150,6 +157,9 @@ Shoulder,
     // Manual drag-to-scroll for open dropdown lists (covers the case where
     // InventoryGui swallows the native ScrollRect drag, e.g. beard dropdown).
     HandleDropdownDrag();
+
+    // Mouse-wheel scroll for the NPC stats strip (native ScrollRect is dead while the inventory is open).
+    HandleStatsScroll();
 
       // Get current drag state for visual feedback only
             var draggedItem = GetDraggedItemFromInventory();
@@ -250,6 +260,34 @@ Shoulder,
              }
     }
       }
+
+            // NPC stats toggles/sliders (scroll strip) — manual click, guarded to the visible viewport so a
+            // control scrolled out of view isn't hit through the mask.
+            if (_statsViewportRect != null && RectTransformUtility.RectangleContainsScreenPoint(_statsViewportRect, mousePos, null))
+            {
+                foreach (var tg in _statToggles)
+                {
+                    if (tg == null) continue;
+                    var rt = tg.GetComponent<RectTransform>();
+                    if (rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, mousePos, null))
+                    {
+                        tg.isOn = !tg.isOn;
+                        return;
+                    }
+                }
+                foreach (var sl in _statSliders)
+                {
+                    if (sl == null) continue;
+                    var rt = sl.GetComponent<RectTransform>();
+                    if (rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, mousePos, null) &&
+                        RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, mousePos, null, out var lp))
+                    {
+                        float frac = Mathf.Clamp01((lp.x - rt.rect.xMin) / rt.rect.width);
+                        sl.value = sl.minValue + frac * (sl.maxValue - sl.minValue);
+                        return;
+                    }
+                }
+            }
 
             // Check our dropdown captions - Inventory may block pointer events so open dropdowns programmatically
             if (_dropdowns != null)
@@ -394,6 +432,21 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
          sizeButton.onClick.Invoke();
   }
      }
+        }
+
+        // Mouse-wheel scrolls the NPC stats strip content while the cursor is over its viewport. The native
+        // ScrollRect can't receive wheel events while the inventory holds the event system.
+        private void HandleStatsScroll()
+        {
+            if (_statsContentRect == null || _statsViewportRect == null) return;
+            float wheel = Input.mouseScrollDelta.y;
+            if (Mathf.Abs(wheel) < 0.01f) return;
+            if (!RectTransformUtility.RectangleContainsScreenPoint(_statsViewportRect, Input.mousePosition, null)) return;
+
+            float max = Mathf.Max(0f, _statsContentRect.rect.height - _statsViewportRect.rect.height);
+            var pos = _statsContentRect.anchoredPosition;
+            pos.y = Mathf.Clamp(pos.y - wheel * 24f, 0f, max);
+            _statsContentRect.anchoredPosition = pos;
         }
 
         /// <summary>
@@ -571,6 +624,28 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
                 if (_eyeColorDropdown != null) _dropdowns.Add(_eyeColorDropdown);
             }
 
+            // NPC stats scroll strip (health / respawn / nameplate)
+            var statsContent = CodegenUIWiring.FindChild(t, "FashionPanel_Stats");
+            if (statsContent != null)
+            {
+                _statsContentRect = statsContent.GetComponent<RectTransform>();
+                _statsViewportRect = statsContent.parent as RectTransform;
+
+                _infiniteHealthToggle = FindToggleInContainer(statsContent, "InfiniteHealth_Container");
+                _hideNameplateToggle = FindToggleInContainer(statsContent, "HideNameplate_Container");
+                _maxHealthSlider = FindSliderInContainer(statsContent, "MaxHealth_Container");
+                _respawnDelaySlider = FindSliderInContainer(statsContent, "RespawnDelay_Container");
+                _nameplateSizeSlider = FindSliderInContainer(statsContent, "NameplateSize_Container");
+                _nameplateYSlider = FindSliderInContainer(statsContent, "NameplateHeight_Container");
+
+                if (_infiniteHealthToggle != null) _statToggles.Add(_infiniteHealthToggle);
+                if (_hideNameplateToggle != null) _statToggles.Add(_hideNameplateToggle);
+                HookStatSlider(_maxHealthSlider, "MaxHealth_Container", statsContent, true);
+                HookStatSlider(_respawnDelaySlider, "RespawnDelay_Container", statsContent, true);
+                HookStatSlider(_nameplateSizeSlider, "NameplateSize_Container", statsContent, false);
+                HookStatSlider(_nameplateYSlider, "NameplateHeight_Container", statsContent, false);
+            }
+
             // Track input fields for manual click handling
             if (_periodicAnimationTimeInput != null) _inputFields.Add(_periodicAnimationTimeInput);
             if (_periodicSoundTimeInput != null) _inputFields.Add(_periodicSoundTimeInput);
@@ -651,6 +726,31 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
                 }
             }
             return null;
+        }
+
+        private static Toggle FindToggleInContainer(Transform parent, string containerName)
+        {
+            var container = parent.Find(containerName);
+            return container?.GetComponentInChildren<Toggle>(true);
+        }
+
+        private static Slider FindSliderInContainer(Transform parent, string containerName)
+        {
+            var container = parent.Find(containerName);
+            return container?.GetComponentInChildren<Slider>(true);
+        }
+
+        // Registers a stats slider for manual handling and keeps its right-side value label in sync.
+        private void HookStatSlider(Slider slider, string containerName, Transform statsContent, bool whole)
+        {
+            if (slider == null) return;
+            _statSliders.Add(slider);
+            var valText = statsContent.Find(containerName)?.Find("Val")?.GetComponent<TextMeshProUGUI>();
+            if (valText != null)
+            {
+                slider.onValueChanged.AddListener(v => valText.text = whole ? ((int)v).ToString() : v.ToString("0.0"));
+                valText.text = whole ? ((int)slider.value).ToString() : slider.value.ToString("0.0");
+            }
         }
 
         public static DressingRoomScreenController Create(Transform parent)
@@ -1330,6 +1430,7 @@ _inputFields.Add(input);
             LoadEquipmentFromNpc(npc);
   PopulateDropdowns(npc);
     RestoreFashionSelectionsFromNpc(npc);
+            RestoreStatControlsFromNpc(npc);
 
             if (NpcMainPanelController.Instance != null)
      {
@@ -1348,6 +1449,41 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
  OpenPlayerInventory();
 
         Debug.Log($"[DressingRoomScreen] Opened for NPC: {npc?.GetDisplayName()}");
+        }
+
+        // Pushes the NPC's stats values onto the scroll-strip controls when the dressing room opens.
+        private void RestoreStatControlsFromNpc(NpcController npc)
+        {
+            if (npc == null) return;
+            if (_infiniteHealthToggle != null) _infiniteHealthToggle.isOn = npc.infiniteHealth;
+            if (_hideNameplateToggle != null) _hideNameplateToggle.isOn = npc.hideNameplate;
+            if (_maxHealthSlider != null)
+            {
+                // Unset (0) → show the NPC's actual current max health so the slider reflects reality.
+                float mh = npc.maxHealth;
+                if (mh < _maxHealthSlider.minValue)
+                {
+                    var hum = npc.GetComponent<Humanoid>();
+                    mh = hum != null ? hum.GetMaxHealth() : 100f;
+                }
+                _maxHealthSlider.value = Mathf.Clamp(mh, _maxHealthSlider.minValue, _maxHealthSlider.maxValue);
+            }
+            if (_respawnDelaySlider != null) _respawnDelaySlider.value = Mathf.Clamp(npc.respawnDelay, _respawnDelaySlider.minValue, _respawnDelaySlider.maxValue);
+            if (_nameplateSizeSlider != null) _nameplateSizeSlider.value = Mathf.Clamp(npc.nameplateScale <= 0f ? 1f : npc.nameplateScale, _nameplateSizeSlider.minValue, _nameplateSizeSlider.maxValue);
+            if (_nameplateYSlider != null) _nameplateYSlider.value = Mathf.Clamp(npc.nameplateYOffset, _nameplateYSlider.minValue, _nameplateYSlider.maxValue);
+        }
+
+        // Reads the scroll-strip controls back onto the NPC on Apply.
+        private void ApplyStatControlsToNpc()
+        {
+            if (_currentNpc == null) return;
+            if (_infiniteHealthToggle != null) _currentNpc.infiniteHealth = _infiniteHealthToggle.isOn;
+            if (_maxHealthSlider != null) _currentNpc.maxHealth = _maxHealthSlider.value;
+            if (_respawnDelaySlider != null) _currentNpc.respawnDelay = _respawnDelaySlider.value;
+            if (_hideNameplateToggle != null) _currentNpc.hideNameplate = _hideNameplateToggle.isOn;
+            if (_nameplateSizeSlider != null) _currentNpc.nameplateScale = _nameplateSizeSlider.value;
+            if (_nameplateYSlider != null) _currentNpc.nameplateYOffset = _nameplateYSlider.value;
+            _currentNpc.ApplyMaxHealth();
         }
 
         private void RestoreFashionSelectionsFromNpc(NpcController npc)
@@ -1989,6 +2125,8 @@ if (itemDrop == null) return prefabName;
 
             _currentNpc.ApplyVisualEquipment();
  Debug.Log("[DressingRoomScreen] Called ApplyVisualEquipment");
+
+            ApplyStatControlsToNpc();
 
             _currentNpc.SaveToZDO();
  Debug.Log("[DressingRoomScreen] Called SaveToZDO");

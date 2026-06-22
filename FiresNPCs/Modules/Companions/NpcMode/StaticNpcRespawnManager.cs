@@ -65,8 +65,15 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             public float SkinR, SkinG, SkinB;
             public float EyeR, EyeG, EyeB;
 
+            // Patrol respawn: Pos is WHERE it respawns (last checkpoint if patrolling, else home); Home is the
+            // placed position used to look up the position-keyed saved config. RespawnDelay is per-NPC.
+            public float HomeX, HomeY, HomeZ;
+            public string PatrolRouteName;
+            public float RespawnDelay = RespawnDelaySeconds;
+
             [JsonIgnore] public Vector3 Position => new Vector3(PosX, PosY, PosZ);
             [JsonIgnore] public Quaternion Rotation => new Quaternion(RotX, RotY, RotZ, RotW);
+            [JsonIgnore] public Vector3 HomePosition => new Vector3(HomeX, HomeY, HomeZ);
         }
 
         private readonly List<PendingEntry> _pending = new List<PendingEntry>();
@@ -123,10 +130,11 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
         {
             if (entry == null || string.IsNullOrEmpty(entry.PrefabName)) return;
             LoadIfNeeded();
-            entry.DeadlineUtcTicks = DateTime.UtcNow.AddSeconds(RespawnDelaySeconds).Ticks;
+            float delay = entry.RespawnDelay > 0f ? entry.RespawnDelay : RespawnDelaySeconds;
+            entry.DeadlineUtcTicks = DateTime.UtcNow.AddSeconds(delay).Ticks;
             _pending.Add(entry);
             Save();
-            Debug.Log($"[StaticNpcRespawnManager] Scheduled '{entry.NameOverride}' respawn at {entry.Position} (deadline +{RespawnDelaySeconds:F0}s, persisted)");
+            Debug.Log($"[StaticNpcRespawnManager] Scheduled '{entry.NameOverride}' respawn at {entry.Position} (deadline +{delay:F0}s, persisted)");
         }
 
         // ── respawn ───────────────────────────────────────────────────────────
@@ -170,12 +178,16 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             zdo.Set(ZDOVars.s_skinColor, new Vector3(e.SkinR, e.SkinG, e.SkinB));
             zdo.Set("npc_eyeColor", new Vector3(e.EyeR, e.EyeG, e.EyeB));
 
-            // Restore config (profiles/type/equipment/fashion) by position, then push it to the ZDO so the
-            // initializer's restore path reads it back.
+            // Restore config (profiles/type/equipment/fashion). The saved record is position-keyed by the
+            // PLACED HOME, so look it up by home even though the body respawned at the patrol checkpoint.
+            // Re-apply the patrol route + per-NPC respawn delay (not carried in the position-keyed file).
             var npc = go.GetComponent<UI.NpcController>();
             if (npc != null)
             {
-                SavedNpcManager.LoadIntoNpc(npc);
+                Vector3 lookup = (e.HomeX == 0f && e.HomeY == 0f && e.HomeZ == 0f) ? e.Position : e.HomePosition;
+                SavedNpcManager.LoadIntoNpc(npc, lookup);
+                if (!string.IsNullOrEmpty(e.PatrolRouteName)) npc.patrolRouteName = e.PatrolRouteName;
+                if (e.RespawnDelay > 0f) npc.respawnDelay = e.RespawnDelay;
                 npc.SaveToZDO();
             }
 
@@ -213,8 +225,11 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 prefabName = global::Utils.GetPrefabName(c.gameObject);
             if (string.IsNullOrEmpty(prefabName)) return null;
 
-            Vector3 pos = zdo.GetVec3("npc_stationed_pos", c.transform.position);
+            Vector3 home = zdo.GetVec3("npc_stationed_pos", c.transform.position);
             Quaternion rot = zdo.GetQuaternion("npc_stationed_rot", c.transform.rotation);
+            string route = zdo.GetString("npc_patrol_route", "");
+            // A patrolling NPC respawns at its last reached checkpoint; everything else at its placed home.
+            Vector3 pos = string.IsNullOrEmpty(route) ? home : zdo.GetVec3("npc_patrol_checkpoint", home);
             Vector3 hair = zdo.GetVec3(ZDOVars.s_hairColor, Vector3.one);
             Vector3 skin = zdo.GetVec3(ZDOVars.s_skinColor, Vector3.one);
             Vector3 eye = zdo.GetVec3("npc_eyeColor", new Vector3(0.4f, 0.3f, 0.2f));
@@ -223,6 +238,9 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             {
                 PrefabName   = prefabName,
                 PosX = pos.x, PosY = pos.y, PosZ = pos.z,
+                HomeX = home.x, HomeY = home.y, HomeZ = home.z,
+                PatrolRouteName = route,
+                RespawnDelay = zdo.GetFloat("npc_respawn_delay", RespawnDelaySeconds),
                 RotX = rot.x, RotY = rot.y, RotZ = rot.z, RotW = rot.w,
                 NameOverride = zdo.GetString("npc_name_override", ""),
                 Scale        = zdo.GetFloat("npc_scale", 1f),

@@ -650,7 +650,9 @@
       "Bash(curl -sL -A \"FiresModResearch/1.0 \\(travisjt101389@gmail.com\\)\" --max-time 45 \"https://api.openverse.org/v1/images/?q=Suillus%20granulatus&license=by,by-sa,cc0&page_size=12&mature=false\" -o /c/Users/travi/OneDrive/Desktop/NewProject2026/Fires2026Project/Assets/Custom/VAitems/CCBYTex/tan_ov.json)",
       "Bash(cp tan_c0.jpg tan_src.jpg)",
       "Bash(sed -n '1p' tan_urls.txt)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -n 'executeMethod\\\\|-Method\\\\|BuildAndRenderAll\\\\|BuildAllAssetBundles\\\\|-batchmode\\\\|$Method\\\\|Verb\\\\|param\\(' C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/FiresPrefabPipeline.ps1)",
+      "PowerShell(\\(Get-Command python\\).Source; python --version)"
     ]
   }
 }

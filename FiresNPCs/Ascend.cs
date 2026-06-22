@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using HarmonyLib;
 using System;
 using System.Collections;
@@ -24,13 +24,13 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.123")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.126")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.123";
+        public const string PluginVersion = "0.0.126";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -47,11 +47,11 @@ namespace FiresRPGmaker
 
         protected override void Setup()
         {
-            // Diagnostic â€” fires before any other init code or log filter install.
+            // Diagnostic Ã¢â‚¬â€ fires before any other init code or log filter install.
             // If this line doesn't appear in the log even though BepInEx says
             // "Loading [FiresRPGmaker X.X.X]", then Awake() never executed
             // (Unity scheduling issue, plugin instantiation failure, etc).
-            Debug.Log($"[{PluginName}] Awake() entered â€” version {PluginVersion}");
+            Debug.Log($"[{PluginName}] Awake() entered Ã¢â‚¬â€ version {PluginVersion}");
 
             // Install log filter FIRST, before any asset loading that might generate shader warnings
         InstallLogFilter();
@@ -103,7 +103,7 @@ namespace FiresRPGmaker
         {
             // FiresUnifiedCore installs the one shared rate-limit/suppression log handler now
             // (FiresCore.Logging.RateLimitedLogHandler). This per-mod copy was collapsed into Core so the handler
-            // chain stays a single wrapper instead of one-per-mod — intentionally a no-op.
+            // chain stays a single wrapper instead of one-per-mod â€” intentionally a no-op.
         }
 
         private void Update()
@@ -125,7 +125,7 @@ namespace FiresRPGmaker
         /// (Minimap, Hud, EnemyHud, InventoryGui, FejdStartup, GameCamera, etc.) inside
         /// their patch method bodies.  When Harmony's IL rewriter tries to import those
         /// references on a headless server the Mono runtime crashes natively inside
-        /// AssemblyName.get_FullName â†’ String.FastAllocateString.
+        /// AssemblyName.get_FullName Ã¢â€ â€™ String.FastAllocateString.
         /// </summary>
         private static readonly HashSet<string> _clientOnlyPatchTypes =
         [
@@ -157,13 +157,13 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Guilds.GuildChat.GuildChatChannel+Chat_InputText_Patch",
             "FiresRPGmaker.Modules.Guilds.Map.GuildMapFeatures+Minimap_UpdatePlayerPins_Patch",
             "FiresRPGmaker.Modules.Guilds.Map.GuildMapFeatures+Minimap_OnMapMiddleClick_Patch",
-            // Marketplace LeaderboardTracker — InventoryGui/Minimap touches don't exist server-side.
+            // Marketplace LeaderboardTracker â€” InventoryGui/Minimap touches don't exist server-side.
             "FiresRPGmaker.Modules.Marketplace.LeaderboardTrackerPatches+InventoryGui_DoCrafting_Patch",
             "FiresRPGmaker.Modules.Marketplace.LeaderboardTrackerPatches+Minimap_Explore_Patch",
-            // Marketplace console commands — Terminal exists server-side too, but the patch class registers
+            // Marketplace console commands â€” Terminal exists server-side too, but the patch class registers
             // a player-side flow only; keeping it client-skipped is harmless.
             "FiresRPGmaker.Modules.Marketplace.MarketplaceConsoleCommands",
-            // Transmog visual swap — VisEquipment is client-side (visualization), patches NRE on dedi.
+            // Transmog visual swap â€” VisEquipment is client-side (visualization), patches NRE on dedi.
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetHelmetItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetChestItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetLegItem_Patch",
@@ -171,11 +171,11 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetRightItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetLeftItem_Patch",
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetUtilityItem_Patch",
-            // Inventory grid marker — InventoryGrid is a client-only UI component.
+            // Inventory grid marker â€” InventoryGrid is a client-only UI component.
             "FiresRPGmaker.Modules.Marketplace.InventoryGrid_TransmogMarker_Patch",
-            // Client input gates (M key, TAB) — Minimap/InventoryGui don't exist server-side.
+            // Client input gates (M key, TAB) â€” Minimap/InventoryGui don't exist server-side.
             "FiresRPGmaker.UI.Patches.ClientInputGatePatches",
-            // Territory missing-flag patches — most reference Player.m_localPlayer / Hud / MessageHud.
+            // Territory missing-flag patches â€” most reference Player.m_localPlayer / Hud / MessageHud.
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_UseStamina_Patch",
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_UseEitr_Patch",
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_GetRunSpeedFactor_Patch",
@@ -188,14 +188,16 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+SpawnSystem_UpdateSpawning_Patch",
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Mister_OnEnable_Patch",
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+SpawnSystem_FindBaseSpawnPoint_Patch",
-            // Quest type-extension patches — client-side gameplay event hooks.
+            // Quest type-extension patches â€” client-side gameplay event hooks.
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+Player_OnInventoryChanged_Patch",
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+Pickable_RPC_Pick_Patch",
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+InventoryGui_DoCrafting_Patch",
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+Player_PlacePiece_Patch",
             "FiresRPGmaker.Modules.Quest.QuestProgressPatches_NewTypes+Player_Update_MoveQuest_Patch",
-            // Quest lifecycle OnDeath hook — local-player only, dedi never has m_localPlayer.
+            // Quest lifecycle OnDeath hook â€” local-player only, dedi never has m_localPlayer.
             "FiresRPGmaker.Modules.Quest.QuestLifecyclePatches+Player_OnDeath_Patch",
+            // Per-NPC nameplate controls â€” references EnemyHud (client UI), absent server-side.
+            "FiresRPGmaker.UI.Patches.NpcNameplatePatches",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server
@@ -238,7 +240,7 @@ namespace FiresRPGmaker
 
             // Guild registration in its OWN try/catch so a throw in the block above
             // can't skip over it. This was the actual root cause of the "guild RPC
-            // not registering on the server" bug â€” TerritorySyncedState or one of
+            // not registering on the server" bug Ã¢â‚¬â€ TerritorySyncedState or one of
             // the manifest helpers above was throwing silently and the shared catch
             // was swallowing the whole chain. The Harmony backup hook below is a
             // second-chance guarantee in case ZRoutedRpc.instance was still null
@@ -247,9 +249,9 @@ namespace FiresRPGmaker
             {
                 if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
                 {
-                    // VikingLands.Core (TDV) owns guilds — stand ours down. Our guild-dependent
+                    // VikingLands.Core (TDV) owns guilds â€” stand ours down. Our guild-dependent
                     // features (chat / dialogue conditions / territory) read TDV via RpgMakerApi.
-                    Debug.Log("[FiresRPGmaker] GuildModule.Initialize SKIPPED — VikingLands.Core owns guilds.");
+                    Debug.Log("[FiresRPGmaker] GuildModule.Initialize SKIPPED â€” VikingLands.Core owns guilds.");
                 }
                 else if (ZRoutedRpc.instance != null)
                 {
@@ -257,12 +259,12 @@ namespace FiresRPGmaker
                 }
                 else
                 {
-                    // Expected path on plugin Awake â€” BepInEx loads us before ZRoutedRpc
+                    // Expected path on plugin Awake Ã¢â‚¬â€ BepInEx loads us before ZRoutedRpc
                     // is constructed.  The Harmony Game.Start backup below re-runs
                     // Initialize() once ZRoutedRpc is wired, so this is just a
                     // breadcrumb, not a problem.  Demoted from Warning so it doesn't
                     // look alarming in the log.
-                    Debug.Log("[FiresRPGmaker] GuildModule.Initialize deferred to Game.Start (ZRoutedRpc not constructed yet â€” expected during plugin Awake).");
+                    Debug.Log("[FiresRPGmaker] GuildModule.Initialize deferred to Game.Start (ZRoutedRpc not constructed yet Ã¢â‚¬â€ expected during plugin Awake).");
                 }
             }
             catch (Exception ex)
@@ -282,7 +284,7 @@ namespace FiresRPGmaker
         /// Game.Start fires after ZNet/ZRoutedRpc are fully wired, so this guarantees
         /// guild RPCs are registered even if FinishInit ran before ZRoutedRpc was
         /// available (or threw before reaching the guild registration call). Safe
-        /// to call repeatedly â€” GuildSyncManager.Initialize is idempotent via its
+        /// to call repeatedly Ã¢â‚¬â€ GuildSyncManager.Initialize is idempotent via its
         /// own _registered flag.
         /// </summary>
         [HarmonyPatch(typeof(Game), nameof(Game.Start))]
@@ -344,7 +346,7 @@ namespace FiresRPGmaker
             configSync.AddConfigEntry(cm.configLockBossSummons);
             configSync.AddConfigEntry(cm.configLockBossSummonsKey);
 
-            // Companion persistence (server-authoritative â€” clients must agree
+            // Companion persistence (server-authoritative Ã¢â‚¬â€ clients must agree
             // on whether companions persist across logout, otherwise the dedupe
             // sweep on the server fights with a client still expecting fresh
             // spawns from vault).
@@ -433,7 +435,7 @@ namespace FiresRPGmaker
             {
                 // ORDER MATTERS: firesnpcsui declares a Dependency on firesnpcs (per its manifest), so
                 // firesnpcs MUST load FIRST or firesnpcsui's cross-bundle refs (Image sprites etc.) don't
-                // resolve at deserialize-time → Image components get stripped from prefabs at runtime
+                // resolve at deserialize-time â†’ Image components get stripped from prefabs at runtime
                 // (was: panel.GetComponentsInChildren<Image>() returned 0 even though .prefab YAML had 24).
                 assetBundle = GetAssetBundleFromResources("firesnpcs");
                 if (assetBundle == null) throw new Exception("Bundle not found");
@@ -451,7 +453,7 @@ namespace FiresRPGmaker
 
                 // Schedule the one-time shader/mesh prewarm pass for every
                 // loaded NPC prefab. Init() registers a PlayerSpawnGate
-                // callback â€” actual rendering happens AFTER the player is
+                // callback Ã¢â‚¬â€ actual rendering happens AFTER the player is
                 // in-world. See VANpcShaderPrewarm.cs for the full design.
                 try { VANpcShaderPrewarm.Init(); }
                 catch (Exception ex)
@@ -523,7 +525,7 @@ namespace FiresRPGmaker
                 Debug.LogWarning($"{PluginName}: Could not scrub ZNetScene.m_namedPrefabs: {ex.Message}");
             }
 
-            // Only register itemPrefabs here â€” piecePrefabs are registered later
+            // Only register itemPrefabs here Ã¢â‚¬â€ piecePrefabs are registered later
             // in VAPieceManager.AddPiecesToHammer() at the same time they're added to the
             // hammer's PieceTable. This prevents other mods (e.g. MVBP) from scooping up
             // our prefabs before we've claimed them in the hammer.
@@ -564,7 +566,7 @@ namespace FiresRPGmaker
             if (!IsObjectDBValid()) return;
 
             // Purge fake-null entries from ObjectDB shared collections before adding.
-            // Same rationale as AddPrefabsToZNetScene â€” leftover dead refs from a
+            // Same rationale as AddPrefabsToZNetScene Ã¢â‚¬â€ leftover dead refs from a
             // previous session crash other mods' Awake patches on the second world load.
             ObjectDB.instance.m_items.RemoveAll(p => p == null);
 
@@ -727,13 +729,13 @@ if (hashDict != null)
 
             // Generic manifest-diff transport + folder/blob registrations.
             // Registered here (not in FinishInit) because on a client the plugin
-            // Awake fires before ZNet starts â€” ZRoutedRpc.instance is null at
+            // Awake fires before ZNet starts Ã¢â‚¬â€ ZRoutedRpc.instance is null at
             // that point, so EnsureRegistered would silently bail and every
             // future RequestFromPeer query from the server would time out
             // against a handler-less client. WaitForZNetReady runs after
             // ZNetScene + ObjectDB are wired (i.e. after the player has
             // joined a server and ZRoutedRpc is alive), which is the correct
-            // moment for both sides â€” server asks, client answers,
+            // moment for both sides Ã¢â‚¬â€ server asks, client answers,
             // listen-server does both.
             ManifestDiffSync.EnsureRegistered();
             global::FiresRPGmaker.Managers.ServerConfigFileWatcher.RegisterManifestFolders();
@@ -763,7 +765,7 @@ if (hashDict != null)
                                // span on the same useless request until ZRpc keep-alive
                                // timed out and disconnected the client.  Gating the FIRST
                                // request on PlayerSpawnGate.RunWhenLocalReady lets the
-                               // request fire exactly when the ID is real â€” RetryGuildSync
+                               // request fire exactly when the ID is real Ã¢â‚¬â€ RetryGuildSync
                                // below is now only a fallback for genuine packet drops, not
                                // a "spin until the player is ready" loop.
                                // Guilds: only sync/retry when RPG Maker owns them. When VikingLands.Core
@@ -792,7 +794,7 @@ if (hashDict != null)
             AddItemsToObjectDB();
             AddPrefabsToZNetScene(ZNetScene.instance);
 
-            // Companion prefab ZNetScene registration removed — FiresCompanions owns the companion
+            // Companion prefab ZNetScene registration removed â€” FiresCompanions owns the companion
             // prefabs (firescompanions bundle). RPGMaker no longer registers them, which also resolves
             // the prior double-registration when both mods were installed.
 
@@ -828,7 +830,7 @@ if (hashDict != null)
             VARecipeManager.UpdatePieceRequirements();
 
 
-            // Mod compatibility â€” remove conflicting patches from other mods
+            // Mod compatibility Ã¢â‚¬â€ remove conflicting patches from other mods
             BalrondAmazingNatureCompat.Apply();
 
             // Ensure UI system is initialized (backup in case Harmony patch didn't trigger)
@@ -858,7 +860,7 @@ if (hashDict != null)
                 Debug.LogWarning($"[{PluginName}] Failed to initialize ServerConfigFileWatcher: {ex.Message}");
             }
 
-            Debug.Log($"{PluginName}: All items & pieces fully registered â€” ready!");
+            Debug.Log($"{PluginName}: All items & pieces fully registered Ã¢â‚¬â€ ready!");
         }
 
         /// <summary>
@@ -921,7 +923,7 @@ if (hashDict != null)
                 if (ZRoutedRpc.instance != null)
                 {
                     AbilityRPCManager.Initialize();
-                    // VikingLands.Core (TDV) owns groups — skip our Party when it's present.
+                    // VikingLands.Core (TDV) owns groups â€” skip our Party when it's present.
                     if (!global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
                         global::FiresRPGmaker.Modules.Party.PartyManager.Initialize();
                 }
@@ -1161,7 +1163,7 @@ return;
       }
       else if (string.Equals(folderName, "SavedNPCs", StringComparison.OrdinalIgnoreCase))
       {
-          // Don't call OnServerFileChanged here â€” the File.WriteAllText above will
+          // Don't call OnServerFileChanged here Ã¢â‚¬â€ the File.WriteAllText above will
           // trigger the FileWatcher, which calls OnServerFileChanged with debouncing.
           // Calling it directly here causes double-processing.
       }
@@ -1196,13 +1198,13 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
                     Debug.Log($"[FiresRPGmaker] Re-registered {FiresRPGmaker.itemPrefabs.Count} item prefabs to ZNetScene on Awake");
                 }
 
-                // Companion prefab re-registration removed — FiresCompanions owns companion prefabs.
+                // Companion prefab re-registration removed â€” FiresCompanions owns companion prefabs.
 
                 // Pre-register piece prefabs (wayshrines etc.) with ZNetScene
                 // BEFORE ZDOMan.Load runs and tries to spawn the persistent
                 // ZDOs that reference them. PieceTable wiring (Hammer build
                 // menu) still happens in AddPiecesToHammer at ObjectDB.Awake
-                // because that one needs the Hammer ItemDrop to be ready â€”
+                // because that one needs the Hammer ItemDrop to be ready Ã¢â‚¬â€
                 // but the ZNetScene side has to land here or vanilla's
                 // CreateObject runs "Destroyed invalid predab ZDO:..." on
                 // every wayshrine in the world.
@@ -1238,7 +1240,7 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
         /// </summary>
         [HarmonyPatch(typeof(ObjectDB), "Awake")]
         [HarmonyPostfix]
-        // No __instance parameter â€” body uses static ObjectDB / ZNetScene state only.
+        // No __instance parameter Ã¢â‚¬â€ body uses static ObjectDB / ZNetScene state only.
         public static void ObjectDB_Awake_Postfix()
         {
             try
@@ -1253,7 +1255,7 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
 
             // Re-register piece prefabs to hammer and ZNetScene.
             // AddPiecesToHammer internally registers each piece to ZNetScene.m_namedPrefabs
-            // and adds it to the hammer's PieceTable â€” both are required for PlacePiece.
+            // and adds it to the hammer's PieceTable Ã¢â‚¬â€ both are required for PlacePiece.
             if (FiresRPGmaker.piecePrefabs.Count > 0 && ZNetScene.instance != null)
             {
                 VAPieceManager.AddPiecesToHammer();
@@ -1262,7 +1264,7 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
 
             // Pre-warm CompanionRandomLoadout's item-list cache. The cache
             // does a full ObjectDB.m_items scan with per-prefab validation
-            // (GetPrefab + GetComponent + child traversal) â€” a one-shot cost
+            // (GetPrefab + GetComponent + child traversal) Ã¢â‚¬â€ a one-shot cost
             // of tens of ms. If we let it lazy-build on the first wild
             // companion spawn, that cost lands on the spawn frame and
             // causes a visible hitch. Doing it here, while ObjectDB is
@@ -1283,3 +1285,4 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
     }
     }
 }
+

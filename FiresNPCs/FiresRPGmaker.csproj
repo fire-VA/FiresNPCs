@@ -277,6 +277,7 @@
     <Compile Include="UI\OverwriteConfirmDialog.cs" />
     <Compile Include="UI\PanelElementManager.cs" />
     <Compile Include="UI\Patches\InventoryGuiPatches.cs" />
+    <Compile Include="UI\Patches\NpcNameplatePatches.cs" />
     <Compile Include="UI\Patches\PatrolInputBlockPatch.cs" />
     <Compile Include="UI\Patches\PlayerInputPatches.cs" />
     <Compile Include="UI\Patches\StaticNpcProtectionPatches.cs" />

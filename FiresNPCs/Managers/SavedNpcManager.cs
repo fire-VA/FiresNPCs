@@ -189,7 +189,13 @@ namespace FiresRPGmaker.Managers
         /// Loads NPC data into an NpcController from the saved store.
         /// Returns true if data was loaded.
         /// </summary>
-        public static bool LoadIntoNpc(UI.NpcController npc)
+        public static bool LoadIntoNpc(UI.NpcController npc) =>
+            npc != null && LoadIntoNpc(npc, npc.transform.position);
+
+        /// <summary>As <see cref="LoadIntoNpc(UI.NpcController)"/>, but resolves the saved record by an
+        /// explicit position. Used when an NPC respawns somewhere other than where it was placed (e.g. a
+        /// patrol checkpoint) but its config is still keyed by the original placed position.</summary>
+        public static bool LoadIntoNpc(UI.NpcController npc, Vector3 lookupPosition)
         {
             if (npc == null) return false;
 
@@ -198,7 +204,7 @@ namespace FiresRPGmaker.Managers
 
             Initialize();
 
-            string npcId = GenerateNpcId(npc.transform.position);
+            string npcId = GenerateNpcId(lookupPosition);
             var savedData = GetNpc(npcId);
 
             if (savedData == null) return false;

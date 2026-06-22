@@ -44,10 +44,27 @@ namespace FiresRPGmaker.UI.Patches
         private static bool Prefix(Character __instance)
         {
             if (!StaticNpcProtection.IsStaticNpc(__instance)) return true;
+            // Per-NPC "infinite health": block all damage before any calculation runs.
+            if (IsInfiniteHealth(__instance)) return false;
             bool invulnerable = false;
             try { invulnerable = global::FiresRPGmaker.Managers.ConfigManager.Instance?.configStaticNpcInvulnerable?.Value ?? false; }
             catch { }
             return !invulnerable; // invulnerable → skip Damage (block); otherwise let it through (killable)
+        }
+
+        /// <summary>True if this NPC's per-NPC infinite-health flag is set. Reads the ZDO bool (reliable on
+        /// every machine from the first frame) with the NpcController as a fast fallback.</summary>
+        private static bool IsInfiniteHealth(Character c)
+        {
+            var npc = c.GetComponent<global::FiresRPGmaker.UI.NpcController>();
+            if (npc != null && npc.infiniteHealth) return true;
+            var nview = c.GetComponent<ZNetView>();
+            if (nview != null && nview.IsValid())
+            {
+                var zdo = nview.GetZDO();
+                if (zdo != null && zdo.GetBool("npc_infinite_health", false)) return true;
+            }
+            return false;
         }
     }
 
