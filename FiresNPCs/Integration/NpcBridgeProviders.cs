@@ -93,6 +93,13 @@ namespace FiresRPGmaker.Integration
             // eye emission texture (cached during prefab build) + teleport-suppression gate
             NpcCompanionBridge.EyeEmissionTexture = CompanionPrefabManager.GetCachedEyeEmissionTexture;
             CompanionBridge.TeleportsSuppressed = CompanionPatches.AreCompanionTeleportsSuppressed;
+
+            // Live billboard / EnemyHud name update when an NPC is renamed in the UI. This delegate was never
+            // assigned, so RaiseSetDisplayName was a silent no-op — the reason renaming never changed the
+            // floating name. CompanionController.UpdateCharacterName writes ZDOVars.s_tamedName, the field the
+            // tamed-NPC nameplate actually reads.
+            NpcCompanionBridge.SetDisplayName = (npc, name) =>
+                npc.GetComponent<CompanionController>()?.UpdateCharacterName(name);
         }
 
         private static T GetConfigValue<T>(string key, T fallback)
