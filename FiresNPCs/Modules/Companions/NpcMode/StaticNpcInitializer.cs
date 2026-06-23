@@ -282,8 +282,14 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 npcModule.SaveToZDO();
             }
 
-            // --- Configure idle behavior home position and enable if wandering ---
-            idleBehavior.enabled = npcModule.allowIdleWandering;
+            // --- Configure idle behavior home position and enable if wandering OR on a patrol route ---
+            // A stationary patrol NPC has allowIdleWandering=false, but its patrol is driven through this
+            // same CompanionIdleBehavior. Enabling only on wandering here would clobber the enable that
+            // NpcController.SyncPatrolAssignment set 0.5s earlier (this init runs at ~1s) — that's exactly
+            // why patrol didn't auto-resume on relog. Keep it enabled whenever a route is assigned.
+            bool hasPatrolRoute = GetComponent<FiresCore.Npc.Patrol.PatrolAssignment>()?.HasRoute == true
+                                  || (npcCtrl != null && !string.IsNullOrEmpty(npcCtrl.patrolRouteName));
+            idleBehavior.enabled = npcModule.allowIdleWandering || hasPatrolRoute;
             if (npcModule.allowIdleWandering)
             {
                 idleBehavior.SetHomePosition(transform.position, npcModule.idleWanderRadius);
