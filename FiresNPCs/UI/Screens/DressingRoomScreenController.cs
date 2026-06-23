@@ -624,8 +624,8 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
                 if (_eyeColorDropdown != null) _dropdowns.Add(_eyeColorDropdown);
             }
 
-            // NPC stats scroll strip (health / respawn / nameplate)
-            var statsContent = CodegenUIWiring.FindChild(t, "FashionPanel_Stats");
+            // NPC stats controls live at the bottom of the unified fashion scroll content.
+            var statsContent = CodegenUIWiring.FindChild(t, "FashionContent");
             if (statsContent != null)
             {
                 _statsContentRect = statsContent.GetComponent<RectTransform>();

@@ -497,8 +497,11 @@ if (_isFollowing && _followTarget == player)
             if (pa == null) pa = gameObject.AddComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
             pa.RouteName = patrolRouteName;
 
+            // Release the stationed freeze so the NPC obeys gravity (drops out of the air if it was placed
+            // floating) and can walk the route. CompanionNpcModule keeps this released each frame while a
+            // route is assigned (it otherwise snaps stationed NPCs back to their spot).
             var rb = GetComponent<Rigidbody>();
-            if (rb != null) { rb.isKinematic = false; rb.useGravity = true; }
+            if (rb != null) { rb.constraints = RigidbodyConstraints.None; rb.isKinematic = false; rb.useGravity = true; }
             var mai = GetComponent<MonsterAI>();
             if (mai != null) mai.enabled = true;
         }

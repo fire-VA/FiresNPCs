@@ -652,7 +652,8 @@
       "Bash(sed -n '1p' tan_urls.txt)",
       "Bash(echo \"exit=$?\")",
       "Bash(grep -n 'executeMethod\\\\|-Method\\\\|BuildAndRenderAll\\\\|BuildAllAssetBundles\\\\|-batchmode\\\\|$Method\\\\|Verb\\\\|param\\(' C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/FiresPrefabPipeline.ps1)",
-      "PowerShell(\\(Get-Command python\\).Source; python --version)"
+      "PowerShell(\\(Get-Command python\\).Source; python --version)",
+      "Bash(awk '{print $6,$7,$8,\"  \",$5,\"bytes\"}')"
     ]
   }
 }
