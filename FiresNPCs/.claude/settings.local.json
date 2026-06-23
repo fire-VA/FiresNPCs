@@ -653,7 +653,14 @@
       "Bash(echo \"exit=$?\")",
       "Bash(grep -n 'executeMethod\\\\|-Method\\\\|BuildAndRenderAll\\\\|BuildAllAssetBundles\\\\|-batchmode\\\\|$Method\\\\|Verb\\\\|param\\(' C:/Users/travi/OneDrive/Desktop/valheimRip2/Tools/FiresPrefabPipeline.ps1)",
       "PowerShell(\\(Get-Command python\\).Source; python --version)",
-      "Bash(awk '{print $6,$7,$8,\"  \",$5,\"bytes\"}')"
+      "Bash(awk '{print $6,$7,$8,\"  \",$5,\"bytes\"}')",
+      "Bash(ls -la FiresValcast)",
+      "Bash(ls Tools)",
+      "Bash(ls \"/c/Users/travi/OneDrive/Desktop/valheimRip2/Tools/Sync-FiresRelease.ps1\")",
+      "Bash(awk '{print $6,$7,$8}')",
+      "Bash(grep -iv \"//\\\\|summary\\\\|<see\")",
+      "Bash([ -f \"$pl\" ])",
+      "Bash(grep -iv \"//\\\\|summary\\\\|<see\\\\|Debug.Log\")"
     ]
   }
 }

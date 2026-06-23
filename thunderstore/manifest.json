@@ -1,6 +1,6 @@
 {
     "name":  "FiresNPCs",
-    "version_number":  "0.0.130",
+    "version_number":  "0.0.132",
     "website_url":  "https://github.com/fire-VA/FiresNPCs",
     "description":  "Part of the Fires mod family for Valheim.",
     "dependencies":  [

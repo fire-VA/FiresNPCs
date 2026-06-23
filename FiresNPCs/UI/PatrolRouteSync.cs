@@ -29,7 +29,7 @@ namespace FiresRPGmaker.UI
             if (PatrolRouteManager.GetRoute(name) == null) return;
 
             npc.patrolRouteName = name;
-            npc.SaveToZDO();
+            WriteRouteKeyOnly(npc, name);
             npc.SyncPatrolAssignment();
         }
 
@@ -39,8 +39,22 @@ namespace FiresRPGmaker.UI
             if (npc == null) return;
 
             npc.patrolRouteName = "";
-            npc.SaveToZDO();
+            WriteRouteKeyOnly(npc, "");
             npc.SyncPatrolAssignment();
+        }
+
+        /// <summary>
+        /// Persists ONLY the patrol-route ZDO key. A route is independent of the NPC's saved profile, so this
+        /// must NEVER call npc.SaveToZDO() — that rewrites name/profile/equipment from the controller's
+        /// (possibly stale/default) fields and was clobbering the NPC's applied name back to "StaticNpc".
+        /// </summary>
+        private static void WriteRouteKeyOnly(NpcController npc, string routeName)
+        {
+            var nview = npc.GetComponent<ZNetView>();
+            if (nview == null || !nview.IsValid()) return;
+            if (!nview.IsOwner()) nview.ClaimOwnership();   // static NPCs are server-owned; claim so the write sticks (host/SP)
+            var zdo = nview.GetZDO();
+            if (zdo != null) zdo.Set("npc_patrol_route", routeName ?? "");
         }
     }
 }

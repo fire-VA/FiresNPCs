@@ -59,12 +59,10 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             var syncTransform = GetComponent<ZSyncTransform>();
             if (syncTransform != null) syncTransform.m_syncRotation = false;
 
-            var body = GetComponent<Rigidbody>();
-            if (body != null)
-            {
-                body.isKinematic = true;
-                body.useGravity = false;
-            }
+            // NOTE: physics is deliberately left at the companion default (non-kinematic, gravity ON,
+            // FreezeRotation). A static NPC is just a stationed companion — it settles onto the surface via
+            // gravity + collision exactly like a companion, and is held on its mark by the AI Stay state, not
+            // by freezing. The disables above are ONLY about holding facing during spawn, not physics.
 
             // Apply the correct rotation immediately
             transform.rotation = _placementRotation;
@@ -144,12 +142,6 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 yield break;
             }
 
-            // First-time placement (server): the NPC piece allows any-surface placement (m_groundPiece=false),
-            // so the placement ghost can sit slightly off the surface. Snap the NPC down onto the collision it
-            // was placed against so it stands ON the surface it was aimed at, instead of freezing mid-air.
-            if (isServer)
-                SnapToPlacementSurface();
-
             // CRITICAL: Always set up the companion NPC component stack on EVERY machine
             // (client and server). Without this, clients never get CompanionNpcModule,
             // isStationedAsNpc is never true, and interaction/hover/wandering all break.
@@ -191,27 +183,6 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
 
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft,
                 "Static Quest NPC placed. Use Shift+E to configure.");
-        }
-
-        /// <summary>
-        /// Drops the freshly-placed NPC straight down onto the first solid surface beneath the placement
-        /// point so it stands on the surface the player aimed at (terrain, rocks, built pieces, etc.) rather
-        /// than freezing wherever the any-surface placement ghost happened to sit. XZ + rotation are kept.
-        /// </summary>
-        private void SnapToPlacementSurface()
-        {
-            Vector3 p = transform.position;
-            int mask = LayerMask.GetMask("Default", "static_solid", "Default_small", "piece", "terrain", "vehicle");
-            var hits = Physics.RaycastAll(p + Vector3.up * 2f, Vector3.down, 220f, mask, QueryTriggerInteraction.Ignore);
-            if (hits == null || hits.Length == 0) return;
-            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-            foreach (var h in hits)
-            {
-                if (h.collider != null && h.collider.transform.IsChildOf(transform)) continue; // skip our own colliders
-                transform.position = new Vector3(p.x, h.point.y, p.z);
-                Debug.Log($"[StaticNpcInitializer] Snapped placement onto surface at y={h.point.y:F2} (was {p.y:F2})");
-                return;
-            }
         }
 
         /// <summary>

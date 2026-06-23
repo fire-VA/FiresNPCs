@@ -482,9 +482,9 @@ if (_isFollowing && _followTarget == player)
         public void DumpBodyMatDelayed() => global::FiresRPGmaker.NpcFashion.NpcFashionManager.DumpBodyMat("6-delayed", this);
 
         /// <summary>
-        /// Attaches/refreshes the Core PatrolAssignment from <see cref="patrolRouteName"/> and grants the
-        /// movable rigidbody + active MonsterAI a patrolling NPC needs (static NPCs are kinematic / AI-off
-        /// by default). Runs on every machine from LoadFromZDO; the patrol movement itself runs on the owner.
+        /// Attaches/refreshes the Core PatrolAssignment from <see cref="patrolRouteName"/>. A static NPC has
+        /// normal companion physics, so no freeze/gravity flips are needed — PatrolBehavior just walks it.
+        /// Runs on every machine from LoadFromZDO; the patrol movement itself runs on the owner.
         /// </summary>
         public void SyncPatrolAssignment()
         {
@@ -496,14 +496,11 @@ if (_isFollowing && _followTarget == player)
             }
             if (pa == null) pa = gameObject.AddComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
             pa.RouteName = patrolRouteName;
-
-            // Release the stationed freeze so the NPC obeys gravity (drops out of the air if it was placed
-            // floating) and can walk the route. CompanionNpcModule keeps this released each frame while a
-            // route is assigned (it otherwise snaps stationed NPCs back to their spot).
-            var rb = GetComponent<Rigidbody>();
-            if (rb != null) { rb.constraints = RigidbodyConstraints.None; rb.isKinematic = false; rb.useGravity = true; }
-            var mai = GetComponent<MonsterAI>();
-            if (mai != null) mai.enabled = true;
+            // Patrol runs through CompanionIdleBehavior, which is disabled on a non-wandering static NPC —
+            // enable it so the route actually drives. No physics changes needed: the NPC already has normal
+            // companion physics (gravity on), so PatrolBehavior just walks it like any companion.
+            var idle = GetComponent<CompanionIdleBehavior>();
+            if (idle != null) idle.enabled = true;
         }
 
         /// <summary>Pushes the configured max health onto the Humanoid. Static NPCs are server-authoritative,
