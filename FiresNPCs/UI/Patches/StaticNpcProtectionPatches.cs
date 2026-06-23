@@ -90,14 +90,11 @@ namespace FiresRPGmaker.UI.Patches
     {
         private static void Prefix(Character __instance)
         {
-            bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
-            bool isStatic = StaticNpcProtection.IsStaticNpc(__instance);
-            Debug.Log($"[RespawnDiag] Character.OnDeath '{(__instance != null ? __instance.m_name : "?")}' isServer={isServer} isStatic={isStatic}");
-            if (!isServer || !isStatic) return;
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            if (!StaticNpcProtection.IsStaticNpc(__instance)) return;
             try
             {
                 var snap = global::FiresRPGmaker.Modules.Companions.NpcMode.StaticNpcRespawnManager.CaptureFrom(__instance);
-                Debug.Log($"[RespawnDiag] captured = {(snap != null ? $"prefab='{snap.PrefabName}' pos={snap.Position} route='{snap.PatrolRouteName}'" : "NULL (capture failed)")}");
                 if (snap != null)
                     global::FiresRPGmaker.Modules.Companions.NpcMode.StaticNpcRespawnManager.Instance.Schedule(snap);
             }

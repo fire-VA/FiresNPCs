@@ -664,7 +664,9 @@
       "Bash(cp -f /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking/thunderstore/CHANGELOG.md /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking/CHANGELOG.md)",
       "Bash([ -d \"$REUSE\" ])",
       "Bash(cp -f /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking/thunderstore/CHANGELOG.md /c/Users/travi/OneDrive/Desktop/FiresGhettoNetworkingzipsforts/CHANGELOG.md)",
-      "Bash(rm -f \"/c/Users/travi/.claude/projects/C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs/memory/feedback_no_test_hedge.md\" && echo \"deleted wrong memory\")"
+      "Bash(rm -f \"/c/Users/travi/.claude/projects/C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs/memory/feedback_no_test_hedge.md\" && echo \"deleted wrong memory\")",
+      "Bash(grep -iv \"//\\\\|summary\")",
+      "Bash(grep -iv \"summary\\\\|//\")"
     ]
   }
 }

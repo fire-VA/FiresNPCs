@@ -106,7 +106,6 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             {
                 if (now < _pending[i].DeadlineUtcTicks) continue;
                 var entry = _pending[i];
-                Debug.Log($"[RespawnDiag] deadline reached for '{entry.NameOverride}' prefab='{entry.PrefabName}' at {entry.Position} — attempting respawn");
 
                 // Single-instance guard (covers crash-after-spawn-before-save): if a static NPC is already
                 // standing at this spot, the respawn already happened — just clear the stale entry.
@@ -263,8 +262,6 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             if (uid == 0L) return;                       // world not ready yet
             if (_loaded && _loadedWorldUid == uid) return;
 
-            if (_pending.Count > 0)
-                Debug.LogWarning($"[RespawnDiag] LoadIfNeeded reloading from file — DISCARDING {_pending.Count} in-memory pending (uid={uid} loaded={_loaded} loadedUid={_loadedWorldUid})");
             _pending.Clear();
             try
             {
