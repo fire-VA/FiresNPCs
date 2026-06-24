@@ -668,7 +668,8 @@
       "Bash(grep -iv \"//\\\\|summary\")",
       "Bash(grep -iv \"summary\\\\|//\")",
       "Bash(ls \"/c/Program Files/Microsoft Visual Studio/2022/\"*/MSBuild/Current/Bin/MSBuild.exe 2>/dev/null; ls \"/c/Program Files \\(x86\\)/Microsoft Visual Studio/2019/\"*/MSBuild/Current/Bin/MSBuild.exe 2>/dev/null; which dotnet 2>/dev/null)",
-      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" FiresUnifiedCore.csproj /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:minimal /clp:ErrorsOnly)"
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" FiresUnifiedCore.csproj /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:minimal /clp:ErrorsOnly)",
+      "Bash(f=\"/c/Users/travi/OneDrive/Desktop/valheimRip2/BepInExREF/Configuration/ConfigEntry\\\\`1.cs\" *)"
     ]
   }
 }
