@@ -2055,6 +2055,19 @@ if (itemDrop == null) return prefabName;
          try
              {
           _currentNpc.SetEquipmentData(_pendingEquipment);
+
+          // Full-fidelity combat stats: for a hand weapon, persist the REAL dragged item (quality/upgrades/
+          // crafter/customData/worldLevel) so the static NPC fights with the exact weapon, not a quality-1
+          // prefab clone. Visuals still come from the prefab-name fields, so no double-paint.
+          if (slotType == EquipmentSlot.RightHand || slotType == EquipmentSlot.LeftHand)
+          {
+              string itemBlob = "";
+              if (_lastDraggedItem != null && _lastDraggedItem.m_dropPrefab != null
+                  && _lastDraggedItem.m_dropPrefab.name == prefabName)
+                  itemBlob = global::FiresCore.Npc.CompanionInventory.SerializeItemData(_lastDraggedItem);
+              _currentNpc.SetEquipmentItemData(slotType, itemBlob);
+          }
+
            _currentNpc.ApplyVisualEquipment();
     _currentNpc.Invoke("ApplyVisualEquipment", 0.05f);
     _currentNpc.SaveToZDO();   // persist the drop immediately so it survives close/reopen

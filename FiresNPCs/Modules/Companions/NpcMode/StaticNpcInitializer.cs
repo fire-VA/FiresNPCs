@@ -303,12 +303,28 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 var inv = GetComponent<global::FiresCore.Npc.CompanionInventory>();
                 if (inv != null)
                 {
-                    if (!string.IsNullOrEmpty(npcCtrl.equipRightHand))
-                        inv.LoadCombatWeaponSilent(global::FiresCore.Npc.CompanionInventory.EquipmentSlot.RightHand, npcCtrl.equipRightHand);
-                    if (!string.IsNullOrEmpty(npcCtrl.equipLeftHand))
-                        inv.LoadCombatWeaponSilent(global::FiresCore.Npc.CompanionInventory.EquipmentSlot.LeftHand, npcCtrl.equipLeftHand);
+                    LoadCombatHand(inv, global::FiresCore.Npc.CompanionInventory.EquipmentSlot.RightHand,
+                                   npcCtrl.equipRightHandData, npcCtrl.equipRightHand);
+                    LoadCombatHand(inv, global::FiresCore.Npc.CompanionInventory.EquipmentSlot.LeftHand,
+                                   npcCtrl.equipLeftHandData, npcCtrl.equipLeftHand);
                 }
             }
+        }
+
+        /// <summary>Arms a static NPC's hand slot for combat: prefer the full serialized ItemData (real
+        /// quality/upgrades/customData the player equipped); fall back to a prefab clone (quality 1) for
+        /// randomized/legacy NPCs that never stored full data.</summary>
+        private static void LoadCombatHand(global::FiresCore.Npc.CompanionInventory inv,
+                                           global::FiresCore.Npc.CompanionInventory.EquipmentSlot slot,
+                                           string itemBlob, string prefabName)
+        {
+            if (!string.IsNullOrEmpty(itemBlob))
+            {
+                var item = global::FiresCore.Npc.CompanionInventory.DeserializeItemData(itemBlob);
+                if (item != null && inv.LoadCombatItemSilent(slot, item)) return;
+            }
+            if (!string.IsNullOrEmpty(prefabName))
+                inv.LoadCombatWeaponSilent(slot, prefabName);
         }
 
         /// <summary>

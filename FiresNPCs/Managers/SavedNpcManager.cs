@@ -248,6 +248,10 @@ namespace FiresRPGmaker.Managers
                 npc.equipRightHand = savedData.EquipRightHand;
             if (!string.IsNullOrEmpty(savedData.EquipLeftHand))
                 npc.equipLeftHand = savedData.EquipLeftHand;
+            if (!string.IsNullOrEmpty(savedData.EquipRightHandData))
+                npc.equipRightHandData = savedData.EquipRightHandData;
+            if (!string.IsNullOrEmpty(savedData.EquipLeftHandData))
+                npc.equipLeftHandData = savedData.EquipLeftHandData;
             if (!string.IsNullOrEmpty(savedData.EquipRightBack))
                 npc.equipRightBack = savedData.EquipRightBack;
             if (!string.IsNullOrEmpty(savedData.EquipLeftBack))
@@ -303,7 +307,9 @@ namespace FiresRPGmaker.Managers
                 EquipRightHand = npc.equipRightHand,
                 EquipLeftHand = npc.equipLeftHand,
                 EquipRightBack = npc.equipRightBack,
-                EquipLeftBack = npc.equipLeftBack
+                EquipLeftBack = npc.equipLeftBack,
+                EquipRightHandData = npc.equipRightHandData,
+                EquipLeftHandData = npc.equipLeftHandData
             };
 
             // Capture marketplace fashion data
@@ -632,7 +638,9 @@ namespace FiresRPGmaker.Managers
                 EquipRightHand = npc.equipRightHand,
                 EquipLeftHand = npc.equipLeftHand,
                 EquipRightBack = npc.equipRightBack,
-                EquipLeftBack = npc.equipLeftBack
+                EquipLeftBack = npc.equipLeftBack,
+                EquipRightHandData = npc.equipRightHandData,
+                EquipLeftHandData = npc.equipLeftHandData
             };
 
             try

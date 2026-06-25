@@ -685,7 +685,9 @@
       "Bash(unzip -l /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresSteamworksPatcher/thunderstore/FiresSteamworksPatcher1.1.1.zip)",
       "Bash(unzip -p /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresSteamworksPatcher/thunderstore/FiresSteamworksPatcher1.1.1.zip manifest.json)",
       "Bash(git -C C:/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking --no-pager log --oneline -3)",
-      "Bash(git -C C:/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking show HEAD:thunderstore/CHANGELOG.md)"
+      "Bash(git -C C:/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking show HEAD:thunderstore/CHANGELOG.md)",
+      "Bash(grep -viE \"//|\\\\.vs\")",
+      "Bash(grep -viE \"//|void SaveNpc\")"
     ]
   }
 }

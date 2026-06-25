@@ -69,6 +69,12 @@ namespace FiresRPGmaker.UI
         public string equipRightBack;
         public string equipLeftBack;
 
+        // Full serialized ItemData (base64) for the hand weapons, so a static NPC fights with the EXACT item
+        // the player equipped (quality/upgrades/crafter/customData/worldLevel) — not a quality-1 prefab clone.
+        // Visuals still use the prefab-name fields above; these are combat-stat fidelity only.
+        public string equipRightHandData;
+        public string equipLeftHandData;
+
      private ZNetView _nview;
         private string _appliedModelOverride;
    private NpcVisEquipment _visEquipment;
@@ -460,6 +466,18 @@ if (_isFollowing && _followTarget == player)
        case DressingRoomScreenController.EquipmentSlot.LeftBack: equipLeftBack = kvp.Value; break;
 }
         }
+
+            // Drop the serialized combat-item blob for any hand slot that is now empty (weapon removed).
+            if (string.IsNullOrEmpty(equipRightHand)) equipRightHandData = "";
+            if (string.IsNullOrEmpty(equipLeftHand)) equipLeftHandData = "";
+        }
+
+        /// <summary>Stores the full serialized ItemData (base64) for a hand slot so combat uses the real weapon
+        /// stats. Visuals are unaffected (they use the prefab-name fields). Empty/null clears it.</summary>
+        public void SetEquipmentItemData(DressingRoomScreenController.EquipmentSlot slot, string base64)
+        {
+            if (slot == DressingRoomScreenController.EquipmentSlot.RightHand) equipRightHandData = base64 ?? "";
+            else if (slot == DressingRoomScreenController.EquipmentSlot.LeftHand) equipLeftHandData = base64 ?? "";
         }
 
         public void ApplyVisualEquipment()
@@ -670,6 +688,8 @@ if (_isFollowing && _followTarget == player)
         equipLeftHand = zdo.GetString("npc_equip_lefthand", "");
    equipRightBack = zdo.GetString("npc_equip_rightback", "");
           equipLeftBack = zdo.GetString("npc_equip_leftback", "");
+            equipRightHandData = zdo.GetString("npc_equip_righthand_data", "");
+            equipLeftHandData = zdo.GetString("npc_equip_lefthand_data", "");
 
 string fashionJson = zdo.GetString("npc_fashion_json", "");
             if (!string.IsNullOrEmpty(fashionJson))
@@ -723,6 +743,8 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
        zdo.Set("npc_equip_lefthand", equipLeftHand ?? "");
         zdo.Set("npc_equip_rightback", equipRightBack ?? "");
   zdo.Set("npc_equip_leftback", equipLeftBack ?? "");
+            zdo.Set("npc_equip_righthand_data", equipRightHandData ?? "");
+            zdo.Set("npc_equip_lefthand_data", equipLeftHandData ?? "");
 
          string fashionJson = null;
         try
