@@ -671,7 +671,8 @@
       "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" FiresUnifiedCore.csproj /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /v:minimal /clp:ErrorsOnly)",
       "Bash(f=\"/c/Users/travi/OneDrive/Desktop/valheimRip2/BepInExREF/Configuration/ConfigEntry\\\\`1.cs\" *)",
       "PowerShell(Start-Process -FilePath $exe)",
-      "PowerShell($exe = \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\FiresValcastController\\\\FiresValcastController.exe\")"
+      "PowerShell($exe = \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\FiresValcastController\\\\FiresValcastController.exe\")",
+      "Bash(grep -ivE \"//|///\")"
     ]
   }
 }
