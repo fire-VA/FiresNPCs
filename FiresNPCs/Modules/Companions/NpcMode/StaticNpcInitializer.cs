@@ -294,6 +294,21 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             {
                 idleBehavior.SetHomePosition(transform.position, npcModule.idleWanderRadius);
             }
+
+            // Load the NPC's hand weapon(s) into CompanionInventory as real combat ItemData so it can actually
+            // attack + weapon-swap when defending its post. Static-NPC gear is otherwise visual-only
+            // (NpcVisEquipment), which leaves the combat system with no weapon. Silent = no visual repaint.
+            if (npcCtrl != null)
+            {
+                var inv = GetComponent<global::FiresCore.Npc.CompanionInventory>();
+                if (inv != null)
+                {
+                    if (!string.IsNullOrEmpty(npcCtrl.equipRightHand))
+                        inv.LoadCombatWeaponSilent(global::FiresCore.Npc.CompanionInventory.EquipmentSlot.RightHand, npcCtrl.equipRightHand);
+                    if (!string.IsNullOrEmpty(npcCtrl.equipLeftHand))
+                        inv.LoadCombatWeaponSilent(global::FiresCore.Npc.CompanionInventory.EquipmentSlot.LeftHand, npcCtrl.equipLeftHand);
+                }
+            }
         }
 
         /// <summary>

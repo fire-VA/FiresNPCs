@@ -677,7 +677,15 @@
       "WebFetch(domain:api.openverse.org)",
       "Bash(unzip -l \"FiresValcast_v0.6.0.zip\")",
       "Bash(grep -viE \"//\")",
-      "Bash(grep -viE \"//|StoreGui|InventoryGui\")"
+      "Bash(grep -viE \"//|StoreGui|InventoryGui\")",
+      "Bash(command -v unzip)",
+      "Bash(unzip -l /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresSteamworksPatcher/thunderstore/FiresSteamworksPatcher1.1.0.zip)",
+      "Bash(cygpath -w /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresSteamworksPatcher/thunderstore/FiresSteamworksPatcher1.1.0.zip)",
+      "Bash(powershell.exe -NoProfile -Command 'Add-Type -A System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead\\('\\\\''__CMDSUB_OUTPUT__'\\\\''\\).Entries | ForEach-Object { '\\\\''{0,10}  {1}'\\\\'' -f $_.Length, $_.FullName }')",
+      "Bash(unzip -l /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresSteamworksPatcher/thunderstore/FiresSteamworksPatcher1.1.1.zip)",
+      "Bash(unzip -p /c/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresSteamworksPatcher/thunderstore/FiresSteamworksPatcher1.1.1.zip manifest.json)",
+      "Bash(git -C C:/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking --no-pager log --oneline -3)",
+      "Bash(git -C C:/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking show HEAD:thunderstore/CHANGELOG.md)"
     ]
   }
 }
