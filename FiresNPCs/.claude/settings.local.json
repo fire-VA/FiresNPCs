@@ -675,7 +675,9 @@
       "Bash(grep -ivE \"//|///\")",
       "PowerShell($path = \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\assembly_valheim\\\\Player.cs\"; $lines = Get-Content $path | Select-Object -Index 1768..1774; $lines | ForEach-Object { Write-Output \"$_\" })",
       "WebFetch(domain:api.openverse.org)",
-      "Bash(unzip -l \"FiresValcast_v0.6.0.zip\")"
+      "Bash(unzip -l \"FiresValcast_v0.6.0.zip\")",
+      "Bash(grep -viE \"//\")",
+      "Bash(grep -viE \"//|StoreGui|InventoryGui\")"
     ]
   }
 }

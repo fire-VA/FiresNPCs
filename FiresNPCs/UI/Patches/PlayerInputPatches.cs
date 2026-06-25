@@ -1,4 +1,5 @@
 using HarmonyLib;
+using UnityEngine;
 
 namespace FiresRPGmaker.UI.Patches
 {
@@ -25,15 +26,27 @@ namespace FiresRPGmaker.UI.Patches
             return true;
         }
 
-        // Blocks camera rotation while any custom UI panel has input focus.
-        // GameCamera reads raw mouse delta independently of Player.TakeInput,
-        // so without this patch the camera drifts whenever the cursor moves
-        // over a guild/companion/quest UI element.
-        [HarmonyPatch(typeof(GameCamera), "UpdateCamera")]
-        [HarmonyPrefix]
-        private static bool GameCamera_UpdateCamera_Prefix()
+        // Holds the camera still while a custom panel is open — replaces an older prefix that returned false to
+        // SKIP GameCamera.UpdateCamera. Skipping UpdateCamera stops vanilla from repositioning the camera each
+        // frame, so a camera mod that applies a RELATIVE offset in GameCamera.LateUpdate (e.g. FiresValcast)
+        // accumulates its offset every frame and flies the camera "way out". Instead we let the camera update
+        // normally, then pin its transform to wherever it was when the panel opened — overriding both vanilla
+        // follow and any later camera-mod offset (lowest priority => runs last). Player.TakeInput is already
+        // blocked, so the player can't move under the held camera, and the pin doubles as the look-drift guard
+        // the old prefix provided.
+        private static bool _camPinned;
+        private static Vector3 _camPinPos;
+        private static Quaternion _camPinRot;
+
+        [HarmonyPatch(typeof(GameCamera), "LateUpdate")]
+        [HarmonyPostfix]
+        [HarmonyPriority(int.MinValue)]
+        private static void GameCamera_LateUpdate_Postfix(GameCamera __instance)
         {
-            return !GUIManager.ShouldBlockGameInput();
+            if (!GUIManager.ShouldBlockGameInput()) { _camPinned = false; return; }
+            var t = __instance.transform;
+            if (_camPinned) { t.position = _camPinPos; t.rotation = _camPinRot; }
+            else { _camPinPos = t.position; _camPinRot = t.rotation; _camPinned = true; }
         }
 
     }
