@@ -487,6 +487,7 @@ namespace FiresRPGmaker.UI
             if (max > 0) SetRowCell(row.transform, "MaxCell", max.ToString());
             HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); RestackRows("Banker", "CurrencyPool"); });
             RestackRows("Banker", "CurrencyPool");
+            RowDiag("Banker", "CurrencyPool", "afterAddCurrency");
         }
 
         private void SaveBanker()
@@ -1499,6 +1500,7 @@ namespace FiresRPGmaker.UI
         private void AddRewardRow(GamblerItemEntry data)
         {
             var row = AddRow("Gambler", "RewardPool", "RewardRowTemplate", RewardCells);
+            Debug.Log($"[RowDiag] Gambler AddRewardRow returned row={(row != null)}");
             if (row == null) { Msg("Gambler reward pool missing (bad prefab)"); return; }
             if (data != null)
             {
@@ -1508,6 +1510,30 @@ namespace FiresRPGmaker.UI
             }
             HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); RestackRows("Gambler", "RewardPool"); });
             RestackRows("Gambler", "RewardPool");
+            RowDiag("Gambler", "RewardPool", "afterAddReward");
+        }
+
+        // TEMP [RowDiag] — diagnose why click-added input rows don't appear / aren't interactable. Remove once fixed.
+        private void RowDiag(string tab, string poolName, string note)
+        {
+            var pool = FindRec(Screen(tab), poolName);
+            var content = pool != null ? pool.Find("RuntimeScroll/Viewport/Content") : null;
+            var vp = pool != null ? pool.Find("RuntimeScroll/Viewport") as RectTransform : null;
+            int active = 0; var sb = new System.Text.StringBuilder();
+            if (content != null)
+                for (int i = 0; i < content.childCount; i++)
+                {
+                    var ch = content.GetChild(i) as RectTransform;
+                    if (ch == null || !ch.gameObject.activeSelf) continue;
+                    active++;
+                    var inp = ch.GetComponentInChildren<TMP_InputField>(true);
+                    string g = inp != null && inp.targetGraphic != null ? inp.targetGraphic.raycastTarget.ToString() : "?";
+                    sb.Append($" [{ch.name} pos={ch.anchoredPosition} size={ch.sizeDelta} act={ch.gameObject.activeInHierarchy} " +
+                              $"inp={(inp != null ? "Y" : "N")} interact={(inp != null ? inp.interactable.ToString() : "-")} ray={g}]");
+                }
+            var crt = content as RectTransform;
+            Debug.Log($"[RowDiag] {tab}/{poolName} {note}: pool={pool != null} content={content != null} " +
+                      $"vpSize={(vp != null ? vp.rect.size.ToString() : "?")} contentSize={(crt != null ? crt.rect.size.ToString() : "?")} activeRows={active}{sb}");
         }
 
         private void AddOfferingRow(TransmogOption data)
