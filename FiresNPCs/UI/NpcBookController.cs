@@ -522,6 +522,44 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Gambler", "Amount_C", p != null ? p.RequiredItem.Min.ToString() : "100");
             ClearInputRows("Gambler", "RewardPool");
             if (p != null) foreach (var r in p.Rewards) AddRewardRow(r);
+            StartCoroutine(RayDiagNextFrame());
+        }
+
+        // TEMP — fires a raycast at the +Add button, a reward input cell, and a reward X button to log EXACTLY
+        // which UI element the EventSystem hits there (top hit = what receives the click). Reveals any blocker.
+        private System.Collections.IEnumerator RayDiagNextFrame()
+        {
+            yield return null; yield return null;
+            Canvas.ForceUpdateCanvases();
+            RayDiag("AddRewardButton", FindRec(Screen("Gambler"), "AddRewardButton"));
+            RayDiag("Cost Item_C", FindRec(Screen("Gambler"), "Cost Item_C"));
+            var content = InputScroll(FindRec(Screen("Gambler"), "RewardPool"));
+            Transform firstRow = null;
+            if (content != null) foreach (Transform c in content) if (c.name == "Row" && c.gameObject.activeSelf) { firstRow = c; break; }
+            if (firstRow != null)
+            {
+                RayDiag("row.ItemCell", FindRec(firstRow, "ItemCell"));
+                RayDiag("row.RemoveButton", FindRec(firstRow, "RemoveButton"));
+            }
+            else Debug.Log("[RayDiag] no active reward row found");
+        }
+
+        private void RayDiag(string label, Transform target)
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (target == null || es == null) { Debug.Log($"[RayDiag] {label}: target={(target != null)} es={(es != null)}"); return; }
+            var rt = target as RectTransform;
+            Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, rt.position);
+            var ped = new UnityEngine.EventSystems.PointerEventData(es) { position = screen };
+            var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+            es.RaycastAll(ped, results);
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < Mathf.Min(results.Count, 5); i++)
+            {
+                var go = results[i].gameObject;
+                sb.Append($" #{i}:{go.name}<{(go.transform.parent != null ? go.transform.parent.name : "?")}>");
+            }
+            Debug.Log($"[RayDiag] {label} screen={screen} hits={results.Count}{sb}");
         }
 
         private void SaveGambler()
