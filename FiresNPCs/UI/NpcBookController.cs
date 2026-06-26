@@ -70,6 +70,10 @@ namespace FiresRPGmaker.UI
         {
             if (!EnsureBuilt()) { Debug.LogError("[NpcBookController] build failed; cannot open book"); return; }
             _npc = npc;
+            // Keep the left "Configure NPC" Profile field in lockstep with module-tab saves: any SaveToZDO
+            // for this NPC re-reads the active profile onto the left page. Re-subscribe (idempotent) per open.
+            NpcController.ProfileChanged -= OnNpcProfileChanged;
+            NpcController.ProfileChanged += OnNpcProfileChanged;
             try { npc.LoadFromZDO(); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] LoadFromZDO: " + ex.Message); }
             PopulateLeft();
             SelectTab(TabForType(npc.npcType));
@@ -80,6 +84,7 @@ namespace FiresRPGmaker.UI
 
         public void Hide()
         {
+            NpcController.ProfileChanged -= OnNpcProfileChanged;
             if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch { } }
             _bookOptionPopup?.Close();
             if (_optionPopup != null) _optionPopup.gameObject.SetActive(false);
@@ -87,6 +92,14 @@ namespace FiresRPGmaker.UI
             if (_panelGo != null) _panelGo.SetActive(false);
             _npc = null;
             try { if (!GUIManager.IsCustomPanelOpen()) GUIManager.BlockInput(false); } catch { }
+        }
+
+        // A SaveToZDO for the NPC we're editing fired — refresh the left page so its Profile field reflects
+        // whatever a module tab just saved (the "save on one side shows on the other" guarantee).
+        private void OnNpcProfileChanged(NpcController npc)
+        {
+            if (!IsOpen || npc == null || npc != _npc) return;
+            PopulateLeft();
         }
 
         private void Update()
@@ -301,7 +314,12 @@ namespace FiresRPGmaker.UI
             if (_npc == null) return;
             SetInput(_leftPage, "Container_NameOverrideInput",
                 string.IsNullOrEmpty(_npc.displayNameOverride) ? _npc.npcProfileName : _npc.displayNameOverride);
-            SetInput(_leftPage, "Container_ProfileInput", _npc.npcProfileName);
+            // The left "Profile" field shows the ACTIVE module profile (the per-npcType field), not the
+            // identity name — so it mirrors whatever was last set on a module tab. npcProfileName is the
+            // NPC's name/identity and is edited via the "Npc Name" field above.
+            SetInput(_leftPage, "Container_ProfileInput", _npc.GetActiveProfile());
+            EnsureProfileDropdown("LeftPage", _leftPage, "Container_ProfileInput", _npc.npcType,
+                name => { _npc.SetActiveProfile(name); });
             SetInput(_leftPage, "Container_ModelOverrideInput", _npc.modelOverride);
             var idle = Tog(_leftPage, "AllowIdleWander_chk");
             if (idle != null) idle.isOn = FiresCore.Bridge.NpcCompanionBridge.GetIdleWander(_npc.gameObject) ?? _npc.allowIdleWandering;
@@ -318,8 +336,10 @@ namespace FiresRPGmaker.UI
                 _npc.displayNameOverride = disp;
                 try { FiresCore.Bridge.NpcCompanionBridge.RaiseSetDisplayName(_npc.gameObject, disp); } catch { }
             }
+            // The left Profile field edits the ACTIVE module profile (single source of truth), not the
+            // identity name — so a save here and a save on the matching module tab write the same field.
             string prof = GetInput(_leftPage, "Container_ProfileInput")?.Trim();
-            if (!string.IsNullOrEmpty(prof)) _npc.npcProfileName = prof;
+            if (!string.IsNullOrEmpty(prof)) _npc.SetActiveProfile(prof);
 
             string newModel = GetInput(_leftPage, "Container_ModelOverrideInput")?.Trim() ?? "";
             string oldModel = _npc.modelOverride ?? "";
@@ -367,6 +387,7 @@ namespace FiresRPGmaker.UI
                 case "Mail": PopulateMail(); break;
                 case "Dressing": PopulateDressing(); break;
             }
+            EnsureActiveScreenProfileDropdown();
         }
 
         private Transform Screen(string tab) => FindRec(_rightPage, "Screen_" + tab);
@@ -975,7 +996,9 @@ namespace FiresRPGmaker.UI
         // ════════════════════════════ INFO ══════════════════════════════════
         private void PopulateInfo()
         {
+            EnsureInfoProfileInput();
             string profileName = string.IsNullOrEmpty(_npc.infoProfile) ? _npc.npcProfileName : _npc.infoProfile;
+            SetScreenInput("Info", "InfoProfile_C", profileName);
             InfoNpcScreenController.InfoProfile p = null;
             try { p = InfoNpcScreenController.GetProfileForName(profileName); } catch { }
             SetScreenInput("Info", "Header Text_C", p?.HeaderText ?? "");
@@ -983,9 +1006,21 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Info", "InfoText", p?.InfoText ?? "");
         }
 
+        // The Info screen prefab shipped without a profile-name field (it auto-derived the name). Add one at
+        // runtime so admins can name/select an info profile like every other module. Built once.
+        private void EnsureInfoProfileInput()
+        {
+            var screen = Screen("Info");
+            if (screen == null || FindRec(screen, "InfoProfile_C") != null) return;
+            FiresCore.UI.UIBuilderHelper.CreateInputField(screen, "InfoProfile_C", "Info profile name",
+                new Vector2(0.05f, 0.90f), new Vector2(0.95f, 0.965f), 13);
+        }
+
         private void SaveInfo()
         {
-            string profileName = string.IsNullOrEmpty(_npc.infoProfile) ? SafeName(_npc.npcProfileName) : _npc.infoProfile;
+            string profileName = GetScreenInput("Info", "InfoProfile_C")?.Trim();
+            if (string.IsNullOrEmpty(profileName))
+                profileName = string.IsNullOrEmpty(_npc.infoProfile) ? SafeName(_npc.npcProfileName) : _npc.infoProfile;
             var profile = new InfoNpcScreenController.InfoProfile
             {
                 HeaderText = GetScreenInput("Info", "Header Text_C")?.Trim() ?? "",
@@ -1266,16 +1301,88 @@ namespace FiresRPGmaker.UI
         private void PopulateDressing() { }
         private void SaveDressing() { if (_npc != null) _npc.SaveToZDO(); Msg("Appearance saved"); }
 
+        // ── profile dropdowns (a "Saved Profiles" arrow on every profile input) ──────────────
+        // Each module tab → its profile-name input node + the NpcType whose saved profiles fill the list.
+        private static readonly Dictionary<string, (string node, NpcType type)> ProfileInputNodes =
+            new Dictionary<string, (string node, NpcType type)>
+            {
+                { "Trader",      ("Trader Profile_C",  NpcType.Trader) },
+                { "Banker",      ("Banker Profile_C",  NpcType.Banker) },
+                { "Gambler",     ("Profile Name_C",    NpcType.Gambler) },
+                { "Transmog",    ("TmProfile",         NpcType.Transmog) },
+                { "Quest",       ("Save To Profile_C", NpcType.QuestNpc) },
+                { "Leaderboard", ("AchProfile",        NpcType.Leaderboard) },
+                { "Mail",        ("Recipient_C",       NpcType.Mail) },
+                { "Info",        ("InfoProfile_C",     NpcType.InfoNpc) },
+            };
+
+        private readonly Dictionary<string, TMP_Dropdown> _profileDd = new Dictionary<string, TMP_Dropdown>();
+
+        // Adds (once) or refreshes the saved-profile arrow on the active tab's profile input. Called at the
+        // end of every screen populate so the list is always current (a profile saved on another screen
+        // shows here without reopening the book).
+        private void EnsureActiveScreenProfileDropdown()
+        {
+            if (_npc == null || string.IsNullOrEmpty(_activeTab)) return;
+            if (!ProfileInputNodes.TryGetValue(_activeTab, out var pi)) return;
+            NpcType type = pi.type;
+            EnsureProfileDropdown(_activeTab, Screen(_activeTab), pi.node, type, name =>
+            {
+                // Picking a saved profile loads it into the form: point the NPC at it (in memory) and
+                // re-populate the screen from that profile. Apply still commits it to the NPC's ZDO.
+                _npc.SetProfileForType(type, name);
+                _npc.npcType = type;
+                PopulateActiveScreen();
+            });
+        }
+
+        private void EnsureProfileDropdown(string key, Transform scope, string inputNode, NpcType type, Action<string> onPicked)
+        {
+            if (_npc == null) return;
+            var input = InputIn(scope, inputNode);
+            if (input == null) return;
+            if (_profileDd.TryGetValue(key, out var existing) && existing != null)
+            {
+                SavedProfilesDropdown.Refresh(existing, NpcController.GetProfileNamesForType(type));
+                return;
+            }
+            var dd = BuildInlineProfileDropdown(input, () => NpcController.GetProfileNamesForType(type), onPicked);
+            if (dd != null) _profileDd[key] = dd;
+        }
+
+        // A compact "▾" arrow glued to the right edge of a profile input; clicking opens the saved-profile
+        // list. Reuses the shared SavedProfilesDropdown widget (no parallel dropdown) and re-anchors it.
+        private TMP_Dropdown BuildInlineProfileDropdown(TMP_InputField input, Func<IEnumerable<string>> source, Action<string> onPicked)
+        {
+            var inputRT = input.GetComponent<RectTransform>();
+            if (inputRT == null) return null;
+            var dd = SavedProfilesDropdown.AttachToInput(inputRT, 0f, 1f, 0f, 1f, input, source, onPicked);
+            var ddRT = dd.GetComponent<RectTransform>();
+            ddRT.anchorMin = new Vector2(1f, 0f); ddRT.anchorMax = new Vector2(1f, 1f); ddRT.pivot = new Vector2(1f, 0.5f);
+            ddRT.sizeDelta = new Vector2(24f, -2f); ddRT.anchoredPosition = new Vector2(-2f, 0f);
+            var bg = dd.GetComponent<Image>(); if (bg != null) bg.color = new Color(0.30f, 0.22f, 0.10f, 0.65f);
+            if (dd.captionText != null) dd.captionText.gameObject.SetActive(false);   // only the arrow shows in the strip
+            if (dd.template != null)
+            {
+                // Hang a readable-width list below, right-aligned under the input.
+                dd.template.anchorMin = new Vector2(1f, 0f); dd.template.anchorMax = new Vector2(1f, 0f);
+                dd.template.pivot = new Vector2(1f, 1f);
+                dd.template.sizeDelta = new Vector2(230f, 240f); dd.template.anchoredPosition = new Vector2(2f, -2f);
+            }
+            return dd;
+        }
+
         // ── dynamic list rows (gambler reward pool, transmog offerings) ──────
+        // Cell layout for runtime-built rows (used when the prefab has no baked row template).
+        private static readonly (string node, string ph, float xMin, float xMax)[] RewardCells =
+            { ("ItemCell", "item prefab", 0.02f, 0.56f), ("MinCell", "min", 0.58f, 0.71f), ("MaxCell", "max", 0.73f, 0.86f) };
+        private static readonly (string node, string ph, float xMin, float xMax)[] OfferingCells =
+            { ("SlotCell", "slot", 0.02f, 0.24f), ("AppearanceCell", "appearance", 0.26f, 0.56f), ("CurrencyCell", "currency", 0.58f, 0.74f), ("PriceCell", "price", 0.76f, 0.86f) };
+
         private void AddRewardRow(GamblerItemEntry data)
         {
-            var pool = FindRec(Screen("Gambler"), "RewardPool");
-            var tmpl = FindRec(pool, "RewardRowTemplate")?.gameObject;
-            if (pool == null || tmpl == null) { Debug.LogWarning($"[NpcBookController] AddRewardRow pool={pool != null} tmpl={tmpl != null}"); return; }
-            var content = PoolContent(pool);
-            var row = Instantiate(tmpl, content);
-            row.name = "Row";
-            row.SetActive(true);
+            var row = AddRow("Gambler", "RewardPool", "RewardRowTemplate", RewardCells);
+            if (row == null) { Msg("Gambler reward pool missing (bad prefab)"); return; }
             if (data != null)
             {
                 SetRowCell(row.transform, "ItemCell", data.Prefab);
@@ -1288,13 +1395,8 @@ namespace FiresRPGmaker.UI
 
         private void AddOfferingRow(TransmogOption data)
         {
-            var pool = FindRec(Screen("Transmog"), "OfferingPool");
-            var tmpl = FindRec(pool, "OfferingRowTemplate")?.gameObject;
-            if (pool == null || tmpl == null) return;
-            var content = PoolContent(pool);
-            var row = Instantiate(tmpl, content);
-            row.name = "Row";
-            row.SetActive(true);
+            var row = AddRow("Transmog", "OfferingPool", "OfferingRowTemplate", OfferingCells);
+            if (row == null) { Msg("Transmog offering pool missing (bad prefab)"); return; }
             if (data != null)
             {
                 SetRowCell(row.transform, "SlotCell", data.Slot);
@@ -1304,6 +1406,40 @@ namespace FiresRPGmaker.UI
             }
             HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); RestackRows("Transmog", "OfferingPool"); });
             RestackRows("Transmog", "OfferingPool");
+        }
+
+        // Clones the baked row template if present; otherwise builds an equivalent row at runtime (named
+        // input cells + a RemoveButton) via the Core UI helper, so the +Add button works even when the
+        // prefab never shipped a template. Returns the active "Row" parented under the pool's runtime scroll.
+        private GameObject AddRow(string tab, string poolName, string templateName, (string node, string ph, float xMin, float xMax)[] cells)
+        {
+            var pool = FindRec(Screen(tab), poolName);
+            if (pool == null) return null;
+            var content = PoolContent(pool);
+            var tmpl = FindRec(pool, templateName)?.gameObject;
+            GameObject row;
+            if (tmpl != null)
+            {
+                row = Instantiate(tmpl, content);
+            }
+            else
+            {
+                row = new GameObject("Row", typeof(RectTransform));
+                row.transform.SetParent(content, false);
+                var le = row.AddComponent<LayoutElement>(); le.preferredHeight = 28f; le.minHeight = 28f;
+                var rt = (RectTransform)row.transform;
+                rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+                rt.sizeDelta = new Vector2(0f, 28f);
+                foreach (var c in cells)
+                    FiresCore.UI.UIBuilderHelper.CreateInputField(row.transform, c.node, c.ph,
+                        new Vector2(c.xMin, 0.08f), new Vector2(c.xMax, 0.92f), 12);
+                var rm = FiresCore.UI.UIBuilderHelper.CreateButton(row.transform, "X",
+                    new Vector2(0.89f, 0.10f), new Vector2(0.99f, 0.90f), null);
+                rm.gameObject.name = "RemoveButton";
+            }
+            row.name = "Row";
+            row.SetActive(true);
+            return row;
         }
 
         private void ClearRows(string tab, string poolName)

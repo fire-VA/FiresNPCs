@@ -85,6 +85,9 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<float> configCompanionChestSearchRadius;
         public ConfigEntry<float> configCompanionStayModeWorkRadius;
         public ConfigEntry<float> configChestAutoSortRadius;
+        public ConfigEntry<float> configCompanionStationedDefendRange;
+        public ConfigEntry<float> configCompanionStationedLeashRange;
+        public ConfigEntry<float> configCompanionStationedCombatHold;
 
         // Companion Persistence (Synced) — server-authoritative model where companions
         // live in the world like vanilla tames instead of being destroyed and respawned
@@ -221,6 +224,15 @@ namespace FiresRPGmaker.Managers
             configChestAutoSortRadius = config.Bind("Companions.Behavior", "ChestAutoSortRadius", 10f,
                 "Radius (in meters) for auto-sorting items across multiple chests when interacting with a single chest. " +
                 "Range: 5-30.");
+            configCompanionStationedDefendRange = config.Bind("Companions.Behavior", "StationedDefendRange", 14f,
+                "Aggro radius (in meters) around a stationed/patrol NPC's post within which it engages hostile enemies. " +
+                "Range: 4-40.");
+            configCompanionStationedLeashRange = config.Bind("Companions.Behavior", "StationedLeashRange", 24f,
+                "Distance (in meters) from its post past which a stationed/patrol NPC gives up pursuit and returns to guard. " +
+                "Keep this larger than StationedDefendRange. Range: 6-60.");
+            configCompanionStationedCombatHold = config.Bind("Companions.Behavior", "StationedCombatHold", 10f,
+                "How long (in seconds) a stationed/patrol NPC stays engaged/alert after the last threat clears before " +
+                "resuming patrol/idle. Range: 0-60.");
 
             // ────── Companion Persistence (Synced) ──────
             // True (default): companions live in the world like vanilla tames. Logout

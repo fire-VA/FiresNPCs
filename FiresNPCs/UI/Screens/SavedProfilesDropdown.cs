@@ -173,6 +173,44 @@ namespace FiresRPGmaker.UI.Screens
             return dd;
         }
 
+        /// <summary>Builds a dropdown bound to a profile <see cref="TMP_InputField"/>: picking an option
+        /// writes the chosen name into <paramref name="target"/> and runs <paramref name="afterPick"/>
+        /// (e.g. load that profile's body). The option list is seeded from <paramref name="source"/> and
+        /// re-seeded on each <see cref="Refresh"/>. This is the one-liner every "profile input + arrow"
+        /// screen uses so the glue lives here, not copy-pasted per screen.</summary>
+        public static TMP_Dropdown AttachToInput(
+            RectTransform parent,
+            float xMin, float xMax, float yMin, float yMax,
+            TMP_InputField target,
+            Func<IEnumerable<string>> source,
+            Action<string> afterPick = null)
+        {
+            var dd = Build(parent, xMin, xMax, yMin, yMax, name =>
+            {
+                if (target != null) target.SetTextWithoutNotify(name);
+                afterPick?.Invoke(name);
+            });
+            if (source != null) Refresh(dd, source());
+            return dd;
+        }
+
+        /// <summary>Top-anchored variant of <see cref="AttachToInput"/> for pixel-offset screens.</summary>
+        public static TMP_Dropdown AttachToInputTopAnchored(
+            RectTransform parent,
+            float xMin, float rightPx, float topPx, float height,
+            TMP_InputField target,
+            Func<IEnumerable<string>> source,
+            Action<string> afterPick = null)
+        {
+            var dd = BuildTopAnchored(parent, xMin, rightPx, topPx, height, name =>
+            {
+                if (target != null) target.SetTextWithoutNotify(name);
+                afterPick?.Invoke(name);
+            });
+            if (source != null) Refresh(dd, source());
+            return dd;
+        }
+
         /// <summary>Rebuilds the option list. Pass the result of the host's GetAllProfileNames-style
         /// call. The first option is always the "Saved Profiles" header (index 0, no-op on selection).</summary>
         public static void Refresh(TMP_Dropdown dd, IEnumerable<string> profileNames)

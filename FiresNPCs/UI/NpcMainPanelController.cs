@@ -1613,25 +1613,10 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
         #region NPC Settings
 
         private string GetCurrentProfileForType(NpcType type)
-      {
-      if (_currentNpc == null) return "";
-
-            return type switch
-     {
-        NpcType.QuestNpc => _currentNpc.questProfile ?? "",
-        NpcType.InfoNpc => _currentNpc.infoProfile ?? "",
-             NpcType.DialogueNpc => _currentNpc.dialogueProfile ?? "",
- NpcType.Trader => _currentNpc.traderProfile ?? "",
-             NpcType.Banker => _currentNpc.bankerProfile ?? "",
-             NpcType.Gambler => _currentNpc.gamblerProfile ?? "",
-             NpcType.Marketplace => _currentNpc.marketplaceProfile ?? "",
-             NpcType.Achievement => _currentNpc.achievementProfile ?? "",
-             NpcType.Leaderboard => _currentNpc.leaderboardProfile ?? "",
-             NpcType.Mail => _currentNpc.mailProfile ?? "",
-             NpcType.Transmog => _currentNpc.transmogProfile ?? "",
-             _ => ""
-      };
-}
+        {
+            // Single source of truth lives on NpcController — don't fork the switch.
+            return _currentNpc == null ? "" : _currentNpc.GetProfileForType(type);
+        }
 
         private void ApplyNpcChanges()
         {
@@ -1857,30 +1842,8 @@ if (_selectedNpcType.Value != NpcType.InfoNpc)
 
   private void ApplyProfileToType(NpcType type, string profile)
         {
-        switch (type)
-      {
-  case NpcType.QuestNpc:
-        _currentNpc.questProfile = profile;
-             break;
-    case NpcType.InfoNpc:
-             _currentNpc.infoProfile = profile;
-            break;
-           case NpcType.DialogueNpc:
-         _currentNpc.dialogueProfile = profile;
-          break;
-       case NpcType.Trader:
-       _currentNpc.traderProfile = profile;
-    break;
-       case NpcType.Banker:
-       _currentNpc.bankerProfile = profile;
-    break;
-       case NpcType.Gambler:      _currentNpc.gamblerProfile = profile;     break;
-       case NpcType.Marketplace:  _currentNpc.marketplaceProfile = profile; break;
-       case NpcType.Achievement:  _currentNpc.achievementProfile = profile; break;
-       case NpcType.Leaderboard:  _currentNpc.leaderboardProfile = profile; break;
-       case NpcType.Mail:         _currentNpc.mailProfile = profile;        break;
-       case NpcType.Transmog:     _currentNpc.transmogProfile = profile;    break;
-            }
+            // Single source of truth lives on NpcController — don't fork the switch.
+            _currentNpc?.SetProfileForType(type, profile);
         }
 
   #endregion

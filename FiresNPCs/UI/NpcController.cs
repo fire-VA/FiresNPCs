@@ -9,6 +9,7 @@ using FiresRPGmaker.UI.Screens;
 using FiresRPGmaker.Managers;
 using FiresRPGmaker.Modules.Companions.NpcMode;
 using FiresRPGmaker.Modules.Dialogues;
+using FiresRPGmaker.Modules.Marketplace;
 
 namespace FiresRPGmaker.UI
 {
@@ -772,7 +773,87 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
 
   SavedNpcManager.SaveFromNpc(this);
             Debug.Log($"[NpcController] Saved to ZDO - Name: {npcProfileName}, Type: {npcType}");
+
+            // Tell any open config screen showing THIS NPC to re-read its profile field. There's one
+            // field per type, so this carries no value — it just keeps the left "Configure NPC" page
+            // and the active module tab in lockstep ("save on one side = shows on the other").
+            ProfileChanged?.Invoke(this);
         }
+
+        #region Profile accessors & cross-screen sync
+
+        // The single source of truth for "the profile name" is the per-type field selected by npcType.
+        // npcProfileName is identity/display only (the "Npc Name" field), NOT a profile selector. Every
+        // config screen — the left Configure-NPC page included — reads and writes the active profile
+        // through these accessors, so the left field and a module tab can never hold conflicting values.
+        public string GetProfileForType(NpcType type) => type switch
+        {
+            NpcType.QuestNpc    => questProfile ?? "",
+            NpcType.InfoNpc     => infoProfile ?? "",
+            NpcType.DialogueNpc => dialogueProfile ?? "",
+            NpcType.Trader      => traderProfile ?? "",
+            NpcType.Banker      => bankerProfile ?? "",
+            NpcType.Gambler     => gamblerProfile ?? "",
+            NpcType.Marketplace => marketplaceProfile ?? "",
+            NpcType.Achievement => achievementProfile ?? "",
+            NpcType.Leaderboard => leaderboardProfile ?? "",
+            NpcType.Mail        => mailProfile ?? "",
+            NpcType.Transmog    => transmogProfile ?? "",
+            _ => ""
+        };
+
+        public void SetProfileForType(NpcType type, string profile)
+        {
+            switch (type)
+            {
+                case NpcType.QuestNpc:    questProfile = profile;       break;
+                case NpcType.InfoNpc:     infoProfile = profile;        break;
+                case NpcType.DialogueNpc: dialogueProfile = profile;    break;
+                case NpcType.Trader:      traderProfile = profile;      break;
+                case NpcType.Banker:      bankerProfile = profile;      break;
+                case NpcType.Gambler:     gamblerProfile = profile;     break;
+                case NpcType.Marketplace: marketplaceProfile = profile; break;
+                case NpcType.Achievement: achievementProfile = profile; break;
+                case NpcType.Leaderboard: leaderboardProfile = profile; break;
+                case NpcType.Mail:        mailProfile = profile;        break;
+                case NpcType.Transmog:    transmogProfile = profile;    break;
+            }
+        }
+
+        public string GetActiveProfile() => GetProfileForType(npcType);
+        public void SetActiveProfile(string profile) => SetProfileForType(npcType, profile);
+
+        // Raised after SaveToZDO so open config screens refresh the visible profile field for THIS NPC.
+        public static event Action<NpcController> ProfileChanged;
+
+        // Saved-profile names available for a module type — the source for every profile dropdown.
+        // Mirrors the interaction dispatch (one module per type); managers auto-load on access.
+        public static IEnumerable<string> GetProfileNamesForType(NpcType type)
+        {
+            try
+            {
+                switch (type)
+                {
+                    case NpcType.QuestNpc:    return QuestProfileManager.GetAllProfileNames();
+                    case NpcType.DialogueNpc: return DialogueManager.GetAllProfileNames();
+                    case NpcType.InfoNpc:     return Screens.InfoNpcScreenController.GetAllProfileNames();
+                    case NpcType.Trader:      return TraderProfileManager.GetAllProfileNames();
+                    case NpcType.Banker:      return BankerProfileManager.AllProfileNames;
+                    case NpcType.Gambler:     return GamblerProfileManager.AllProfileNames;
+                    case NpcType.Mail:        return MailProfileManager.GetLoadedProfileNames();
+                    case NpcType.Transmog:    return TransmogProfileManager.GetLoadedProfileNames();
+                    case NpcType.Marketplace: return MarketplaceListingManager.GetLoadedProfileNames();
+                    case NpcType.Achievement: return AchievementProfileManager.GetLoadedProfileNames();
+                    case NpcType.Leaderboard: return LeaderboardProfileManager.GetLoadedProfileNames();
+                    default: return Enumerable.Empty<string>();
+                }
+            }
+            catch { return Enumerable.Empty<string>(); }
+        }
+
+        public IEnumerable<string> GetActiveProfileNames() => GetProfileNamesForType(npcType);
+
+        #endregion
 
         // ─── Per-NPC trader gold pool (used by TraderUIController) ───
         // The gold pool is keyed on each NPC's ZDO so two NPCs sharing the same trader profile
@@ -1043,24 +1124,7 @@ visualGO.transform.SetParent(transform, false);
    return gameObject.name;
         }
 
-        public string GetActiveProfile()
-    {
-    return npcType switch
-  {
-      NpcType.QuestNpc => questProfile,
-           NpcType.InfoNpc => infoProfile,
-        NpcType.DialogueNpc => dialogueProfile,
-      NpcType.Trader => traderProfile,
-      NpcType.Banker => bankerProfile,
-      NpcType.Gambler => gamblerProfile,
-      NpcType.Marketplace => marketplaceProfile,
-      NpcType.Achievement => achievementProfile,
-      NpcType.Leaderboard => leaderboardProfile,
-      NpcType.Mail => mailProfile,
-      NpcType.Transmog => transmogProfile,
-   _ => questProfile
-      };
-     }
+        // GetActiveProfile()/GetProfileForType() live in the "Profile accessors & cross-screen sync" region.
 
       private void HandleNormalInteraction(Player player)
         {
