@@ -481,7 +481,7 @@ namespace FiresRPGmaker.UI
 
         private void AddCurrencyRow(string currency, int max)
         {
-            var row = AddRow("Banker", "CurrencyPool", "CurrencyRowTemplate", CurrencyCells);
+            var row = AddRow("Banker", "CurrencyPool", CurrencyCells);
             if (row == null) { Msg("Banker currency pool missing (bad prefab)"); return; }
             SetRowCell(row.transform, "CurrencyCell", currency ?? "");
             if (max > 0) SetRowCell(row.transform, "MaxCell", max.ToString());
@@ -1499,7 +1499,7 @@ namespace FiresRPGmaker.UI
 
         private void AddRewardRow(GamblerItemEntry data)
         {
-            var row = AddRow("Gambler", "RewardPool", "RewardRowTemplate", RewardCells);
+            var row = AddRow("Gambler", "RewardPool", RewardCells);
             Debug.Log($"[RowDiag] Gambler AddRewardRow returned row={(row != null)}");
             if (row == null) { Msg("Gambler reward pool missing (bad prefab)"); return; }
             if (data != null)
@@ -1538,7 +1538,7 @@ namespace FiresRPGmaker.UI
 
         private void AddOfferingRow(TransmogOption data)
         {
-            var row = AddRow("Transmog", "OfferingPool", "OfferingRowTemplate", OfferingCells);
+            var row = AddRow("Transmog", "OfferingPool", OfferingCells);
             if (row == null) { Msg("Transmog offering pool missing (bad prefab)"); return; }
             if (data != null)
             {
@@ -1551,36 +1551,29 @@ namespace FiresRPGmaker.UI
             RestackRows("Transmog", "OfferingPool");
         }
 
-        // Clones the baked row template if present; otherwise builds an equivalent row at runtime (named
-        // input cells + a RemoveButton) via the Core UI helper, so the +Add button works even when the
-        // prefab never shipped a template. Returns the active "Row" parented under the pool's runtime scroll.
-        private GameObject AddRow(string tab, string poolName, string templateName, (string node, string ph, float xMin, float xMax)[] cells)
+        // Builds an input-cell row at RUNTIME (named input cells + a RemoveButton) via the Core UI helper —
+        // the same CreateInputField the working player panels use. We deliberately do NOT clone the baked
+        // *RowTemplate: a TMP_InputField cloned out of the AssetBundle template misbehaves (the +Add row
+        // doesn't appear / only the first row stays interactable), whereas freshly built input fields each
+        // work. Returns the active "Row" under the pool's runtime scroll Content.
+        private GameObject AddRow(string tab, string poolName, (string node, string ph, float xMin, float xMax)[] cells)
         {
             var pool = FindRec(Screen(tab), poolName);
             if (pool == null) return null;
             var content = PoolContent(pool);
-            var tmpl = FindRec(pool, templateName)?.gameObject;
-            GameObject row;
-            if (tmpl != null)
-            {
-                row = Instantiate(tmpl, content);
-            }
-            else
-            {
-                row = new GameObject("Row", typeof(RectTransform));
-                row.transform.SetParent(content, false);
-                var le = row.AddComponent<LayoutElement>(); le.preferredHeight = 28f; le.minHeight = 28f;
-                var rt = (RectTransform)row.transform;
-                rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
-                rt.sizeDelta = new Vector2(0f, 28f);
-                foreach (var c in cells)
-                    FiresCore.UI.UIBuilderHelper.CreateInputField(row.transform, c.node, c.ph,
-                        new Vector2(c.xMin, 0.08f), new Vector2(c.xMax, 0.92f), 12);
-                var rm = FiresCore.UI.UIBuilderHelper.CreateButton(row.transform, "X",
-                    new Vector2(0.89f, 0.10f), new Vector2(0.99f, 0.90f), null);
-                rm.gameObject.name = "RemoveButton";
-            }
-            row.name = "Row";
+            if (content == null) return null;
+            var row = new GameObject("Row", typeof(RectTransform));
+            row.transform.SetParent(content, false);
+            var le = row.AddComponent<LayoutElement>(); le.preferredHeight = 30f; le.minHeight = 30f;
+            var rt = (RectTransform)row.transform;
+            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+            rt.sizeDelta = new Vector2(0f, 30f);
+            foreach (var c in cells)
+                FiresCore.UI.UIBuilderHelper.CreateInputField(row.transform, c.node, c.ph,
+                    new Vector2(c.xMin, 0.10f), new Vector2(c.xMax, 0.90f), 12);
+            var rm = FiresCore.UI.UIBuilderHelper.CreateButton(row.transform, "X",
+                new Vector2(0.90f, 0.12f), new Vector2(0.99f, 0.88f), null);
+            rm.gameObject.name = "RemoveButton";
             row.SetActive(true);
             return row;
         }
