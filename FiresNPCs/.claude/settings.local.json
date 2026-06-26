@@ -692,7 +692,8 @@
       "Bash(git -C \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresDiscordIntegration\" status --short)",
       "Bash(git -C \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresDiscordIntegration\" branch --show-current)",
       "Bash(git -C \"C:/Users/travi/OneDrive/Desktop/valheimRip2/FiresDiscordIntegration\" diff -- FiresDiscordIntegration/ClientLogRelay/ClientLogRelayIntegration.cs FiresDiscordIntegration/FiresDiscordIntegration.csproj)",
-      "Bash(exit)"
+      "Bash(exit)",
+      "Bash(xargs -I{} sh -c 'echo \"--- {} ---\"; grep -niE \"Swamp.*env|env.*Swamp|m_environment.*Swamp|biome.*Swamp.*env|swamp.*fog|fog.*swamp|EnvSetup.*Swamp|Swamp.*Setup\" \"{}\" | head -8')"
     ]
   }
 }
