@@ -226,6 +226,8 @@ namespace FiresRPGmaker.UI
             // Dressing Apply/ClearAll are owned by the wired DressingRoomScreenController, not the book.
             Hook("AddRewardButton", () => AddRewardRow(null));
             Hook("AddOfferingButton", () => AddOfferingRow(null));
+            Hook("AddCurrencyButton", () => { AddCurrencyRow("", 0); });
+            Hook("AddMailButton", ClearMailEditFields);
             Hook("DlgSave", SaveDialogue);
             Hook("DlgNew", NewDialogue);
             Hook("DlgDelete", DeleteDialogue);
@@ -320,11 +322,33 @@ namespace FiresRPGmaker.UI
             SetInput(_leftPage, "Container_ProfileInput", _npc.GetActiveProfile());
             EnsureProfileDropdown("LeftPage", _leftPage, "Container_ProfileInput", _npc.npcType,
                 name => { _npc.SetActiveProfile(name); });
+            EnsureNpcTypeDropdown();
             SetInput(_leftPage, "Container_ModelOverrideInput", _npc.modelOverride);
             var idle = Tog(_leftPage, "AllowIdleWander_chk");
             if (idle != null) idle.isOn = FiresCore.Bridge.NpcCompanionBridge.GetIdleWander(_npc.gameObject) ?? _npc.allowIdleWandering;
             var head = FindRec(_leftPage, "Header")?.GetComponent<TMP_Text>();
             if (head != null) head.text = "Configure NPC: " + (string.IsNullOrEmpty(_npc.displayNameOverride) ? _npc.npcProfileName : _npc.displayNameOverride);
+        }
+
+        // The explicit left-page NPC Type selector. Selecting a type updates the NPC's type (in memory) and
+        // re-shows the Profile field/list for that type, so the left page and the matching module tab agree.
+        private bool _npcTypeDdWired;
+        private void EnsureNpcTypeDropdown()
+        {
+            var dd = ScreenDd(_leftPage, "NpcType_C");
+            if (dd == null) return;
+            SetScreenDropdown(_leftPage, "NpcType_C", _npc.npcType.ToString());
+            if (_npcTypeDdWired) return;
+            _npcTypeDdWired = true;
+            dd.onValueChanged.AddListener(idx =>
+            {
+                if (dd == null || _npc == null) return;
+                string picked = idx >= 0 && idx < dd.options.Count ? dd.options[idx].text : null;
+                if (!Enum.TryParse(picked, out NpcType t)) return;
+                _npc.npcType = t;
+                SetInput(_leftPage, "Container_ProfileInput", _npc.GetActiveProfile());
+                EnsureProfileDropdown("LeftPage", _leftPage, "Container_ProfileInput", _npc.npcType, n => { _npc.SetActiveProfile(n); });
+            });
         }
 
         private void ApplySetup()
@@ -336,6 +360,9 @@ namespace FiresRPGmaker.UI
                 _npc.displayNameOverride = disp;
                 try { FiresCore.Bridge.NpcCompanionBridge.RaiseSetDisplayName(_npc.gameObject, disp); } catch { }
             }
+            // Explicit NPC Type selector wins (the module tabs also set the type when you Save on them).
+            string typeStr = GetScreenDropdown(_leftPage, "NpcType_C");
+            if (Enum.TryParse(typeStr, out NpcType chosen)) _npc.npcType = chosen;
             // The left Profile field edits the ACTIVE module profile (single source of truth), not the
             // identity name — so a save here and a save on the matching module tab write the same field.
             string prof = GetInput(_leftPage, "Container_ProfileInput")?.Trim();
@@ -401,6 +428,8 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Trader", "Trades", p != null ? TraderProfileManager.SerializeTrades(p) : "");
             SetScreenInput("Trader", "Stock_C", p != null && p.DefaultStock != -1 ? p.DefaultStock.ToString() : "");
             SetScreenInput("Trader", "Restock (h)_C", p != null && p.DefaultRestockSeconds != 0 ? (p.DefaultRestockSeconds / 3600).ToString() : "");
+            SetScreenInput("Trader", "Max Gold_C", p != null && p.MaxGold != -1 ? p.MaxGold.ToString() : "");
+            SetScreenInput("Trader", "Gold Restock_C", p != null && p.GoldRestockSeconds != 0 ? p.GoldRestockSeconds.ToString() : "");
         }
 
         private void SaveTrader()
@@ -411,11 +440,15 @@ namespace FiresRPGmaker.UI
             int stock = ParseInt(GetScreenInput("Trader", "Stock_C"), -1);
             int restockH = ParseInt(GetScreenInput("Trader", "Restock (h)_C"), 0);
             int restockS = restockH * 3600;
-            // Direct header write so the form's Stock/Restock take effect (SaveProfile re-uses the existing
-            // profile header instead). Same folder + reload the manager uses.
+            int maxGold = ParseInt(GetScreenInput("Trader", "Max Gold_C"), -1);
+            int goldRestock = ParseInt(GetScreenInput("Trader", "Gold Restock_C"), 0);
+            // Direct header write so the form's Stock/Restock/MaxGold take effect (SaveProfile re-uses the
+            // existing profile header instead). Same folder + reload the manager uses; keys match the parser.
             string header = name;
             if (stock != -1) header += $",Stock={stock}";
             if (restockS != 0) header += $",Restock={restockS}";
+            if (maxGold != -1) header += $",MaxGold={maxGold}";
+            if (goldRestock != 0) header += $",GoldRestock={goldRestock}";
             var folder = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Traders");
             try
             {
@@ -435,31 +468,48 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Banker", "Banker Profile_C", name);
             var p = string.IsNullOrEmpty(name) ? null : BankerProfileManager.GetProfile(name);
             SetScreenInput("Banker", "Interest %/min_C", p != null ? p.InterestPerMinute.ToString() : "");
-            var cur = p != null && p.CurrencyLimits.Count > 0 ? p.CurrencyLimits.First() : new KeyValuePair<string, int>("Coins", 1000000);
-            SetScreenInput("Banker", "Accepted_C", cur.Key);
-            SetScreenInput("Banker", "Max Deposit_C", cur.Value.ToString());
+            // Multi-currency list (restores the legacy multi-currency editing the single Accepted/Max pair dropped).
+            ClearRows("Banker", "CurrencyPool");
+            if (p != null && p.CurrencyLimits.Count > 0)
+                foreach (var kv in p.CurrencyLimits) AddCurrencyRow(kv.Key, kv.Value);
+            else AddCurrencyRow("Coins", 1000000);
+            SetBankerStatus("");
+        }
+
+        private static readonly (string node, string ph, float xMin, float xMax)[] CurrencyCells =
+            { ("CurrencyCell", "currency", 0.02f, 0.56f), ("MaxCell", "max deposit", 0.58f, 0.86f) };
+
+        private void AddCurrencyRow(string currency, int max)
+        {
+            var row = AddRow("Banker", "CurrencyPool", "CurrencyRowTemplate", CurrencyCells);
+            if (row == null) { Msg("Banker currency pool missing (bad prefab)"); return; }
+            SetRowCell(row.transform, "CurrencyCell", currency ?? "");
+            if (max > 0) SetRowCell(row.transform, "MaxCell", max.ToString());
+            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); RestackRows("Banker", "CurrencyPool"); });
+            RestackRows("Banker", "CurrencyPool");
         }
 
         private void SaveBanker()
         {
             string name = GetScreenInput("Banker", "Banker Profile_C")?.Trim();
-            if (string.IsNullOrEmpty(name)) { Msg("Enter a banker profile name"); return; }
+            if (string.IsNullOrEmpty(name)) { SetBankerStatus("Enter a banker profile name"); Msg("Enter a banker profile name"); return; }
             string interest = GetScreenInput("Banker", "Interest %/min_C")?.Trim();
-            string cur = GetScreenInput("Banker", "Accepted_C")?.Trim();
-            string max = GetScreenInput("Banker", "Max Deposit_C")?.Trim();
-            var existing = BankerProfileManager.GetProfile(name);
             var sb = new StringBuilder();
             if (!string.IsNullOrEmpty(interest)) sb.AppendLine("interest=" + interest);
-            if (!string.IsNullOrEmpty(cur)) sb.AppendLine(cur + ":" + (string.IsNullOrEmpty(max) ? "1000000" : max));
-            // Preserve any other currencies the profile already accepts (the form edits one at a time).
-            if (existing != null)
-                foreach (var kv in existing.CurrencyLimits)
-                    if (!kv.Key.Equals(cur, StringComparison.OrdinalIgnoreCase))
-                        sb.AppendLine(kv.Key + ":" + kv.Value);
+            foreach (var row in LiveRows("Banker", "CurrencyPool"))
+            {
+                string cur = RowCell(row, "CurrencyCell")?.Trim();
+                if (string.IsNullOrEmpty(cur)) continue;
+                string max = RowCell(row, "MaxCell")?.Trim();
+                sb.AppendLine(cur + ":" + (string.IsNullOrEmpty(max) ? "1000000" : max));
+            }
             BankerProfileManager.SaveProfile(name, sb.ToString().TrimEnd());
             _npc.bankerProfile = name; _npc.npcType = NpcType.Banker; _npc.SaveToZDO();
+            SetBankerStatus("Saved '" + name + "'");
             Msg("Saved banker profile '" + name + "'");
         }
+
+        private void SetBankerStatus(string s) { var t = FindRec(Screen("Banker"), "BankerStatus")?.GetComponent<TMP_Text>(); if (t != null) t.text = s ?? ""; }
 
         // ════════════════════════════ GAMBLER ═══════════════════════════════
         private void PopulateGambler()
@@ -555,13 +605,10 @@ namespace FiresRPGmaker.UI
             string questId = GetScreenInput("Quest", "Profile ID_C")?.Trim();
             if (string.IsNullOrEmpty(questId)) { Msg("Enter a Quest ID"); return; }
             string name = GetScreenInput("Quest", "Quest Name_C")?.Trim() ?? "";
-            string type = GetScreenInput("Quest", "Type_C")?.Trim();
+            string type = GetScreenDropdown(Screen("Quest"), "Type_C");
             if (string.IsNullOrEmpty(type)) type = "Kill";
             if (type.Equals("Go To", StringComparison.OrdinalIgnoreCase)) type = "Move";
-            string autoStr = GetScreenInput("Quest", "Auto-Complete_C")?.Trim() ?? "";
-            bool autocomplete = autoStr.Equals("true", StringComparison.OrdinalIgnoreCase)
-                             || autoStr.Equals("on", StringComparison.OrdinalIgnoreCase)
-                             || autoStr.Equals("yes", StringComparison.OrdinalIgnoreCase);
+            bool autocomplete = GetToggle("Quest", "Auto-Complete_chk");
             string desc = GetScreenInput("Quest", "Desc")?.Trim() ?? "";
             string target = GetScreenInput("Quest", "Target_C")?.Trim() ?? "";
             string amount = GetScreenInput("Quest", "Amount_C")?.Trim() ?? "1";
@@ -572,8 +619,9 @@ namespace FiresRPGmaker.UI
             string required = GetScreenInput("Quest", "Required_C")?.Trim() ?? "";
             string onStart = GetScreenInput("Quest", "On Start Event_C")?.Trim() ?? "";
             string onComplete = GetScreenInput("Quest", "On Complete_C")?.Trim() ?? "";
-            string profileName = GetScreenInput("Quest", "Or New_C")?.Trim();
-            if (string.IsNullOrEmpty(profileName)) profileName = GetScreenInput("Quest", "Save To Profile_C")?.Trim();
+            string preview = GetScreenInput("Quest", "Preview PNG_C")?.Trim() ?? "";
+            // One profile field now (pick existing via the arrow OR type a new name) — no separate "Or New".
+            string profileName = GetScreenInput("Quest", "Save To Profile_C")?.Trim();
             if (string.IsNullOrEmpty(profileName)) profileName = questId;
 
             // KG cfg uses "Key = Value"; the loader only routes a block through the key-value parser when its
@@ -596,6 +644,7 @@ namespace FiresRPGmaker.UI
             sb.AppendLine($"Autocomplete = {(autocomplete ? "true" : "false")}");
             if (!string.IsNullOrEmpty(onStart)) sb.AppendLine($"OnAcceptQuest = {onStart}");
             if (!string.IsNullOrEmpty(onComplete)) sb.AppendLine($"OnCompleteQuest = {onComplete}");
+            if (!string.IsNullOrEmpty(preview)) sb.AppendLine($"PreviewImage = {preview}");
 
             if (!WriteBlockInPlace(Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Quests", "QuestDatabase.cfg"),
                                    questId, sb.ToString())) { Msg("Quest save failed (see log)"); return; }
@@ -996,9 +1045,8 @@ namespace FiresRPGmaker.UI
         // ════════════════════════════ INFO ══════════════════════════════════
         private void PopulateInfo()
         {
-            EnsureInfoProfileInput();
             string profileName = string.IsNullOrEmpty(_npc.infoProfile) ? _npc.npcProfileName : _npc.infoProfile;
-            SetScreenInput("Info", "InfoProfile_C", profileName);
+            SetScreenInput("Info", "Info Profile_C", profileName);
             InfoNpcScreenController.InfoProfile p = null;
             try { p = InfoNpcScreenController.GetProfileForName(profileName); } catch { }
             SetScreenInput("Info", "Header Text_C", p?.HeaderText ?? "");
@@ -1006,19 +1054,9 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Info", "InfoText", p?.InfoText ?? "");
         }
 
-        // The Info screen prefab shipped without a profile-name field (it auto-derived the name). Add one at
-        // runtime so admins can name/select an info profile like every other module. Built once.
-        private void EnsureInfoProfileInput()
-        {
-            var screen = Screen("Info");
-            if (screen == null || FindRec(screen, "InfoProfile_C") != null) return;
-            FiresCore.UI.UIBuilderHelper.CreateInputField(screen, "InfoProfile_C", "Info profile name",
-                new Vector2(0.05f, 0.90f), new Vector2(0.95f, 0.965f), 13);
-        }
-
         private void SaveInfo()
         {
-            string profileName = GetScreenInput("Info", "InfoProfile_C")?.Trim();
+            string profileName = GetScreenInput("Info", "Info Profile_C")?.Trim();
             if (string.IsNullOrEmpty(profileName))
                 profileName = string.IsNullOrEmpty(_npc.infoProfile) ? SafeName(_npc.npcProfileName) : _npc.infoProfile;
             var profile = new InfoNpcScreenController.InfoProfile
@@ -1039,6 +1077,7 @@ namespace FiresRPGmaker.UI
         {
             string profile = string.IsNullOrEmpty(_npc.leaderboardProfile) ? "server" : _npc.leaderboardProfile;
             SetScreenInput("Leaderboard", "AchProfile", profile);
+            SetScreenDropdown(Screen("Leaderboard"), "Trigger Type_C", "MonstersKilled");
         }
 
         private void SaveLeaderboard()
@@ -1046,7 +1085,7 @@ namespace FiresRPGmaker.UI
             string profile = GetScreenInput("Leaderboard", "AchProfile")?.Trim();
             if (string.IsNullOrEmpty(profile)) profile = string.IsNullOrEmpty(_npc.leaderboardProfile) ? "server" : _npc.leaderboardProfile;
             profile = profile.ToLowerInvariant();
-            string trigger = GetScreenInput("Leaderboard", "Trigger Type_C")?.Trim() ?? "";
+            string trigger = GetScreenDropdown(Screen("Leaderboard"), "Trigger Type_C");
             string name = GetScreenInput("Leaderboard", "AchName")?.Trim() ?? "";
             if (string.IsNullOrEmpty(name)) { Msg("Enter an achievement name"); return; }
             string desc = GetScreenInput("Leaderboard", "AchDesc")?.Trim() ?? "";
@@ -1070,36 +1109,99 @@ namespace FiresRPGmaker.UI
         // ════════════════════════════ MAIL ══════════════════════════════════
         // v1: appends a mail row to the recipient profile's .cfg + writes the global post-tunables to
         // MarketPlace.cfg. A networked player-to-player broadcast RPC is a later pass.
+        // -1 = the edit fields compose a NEW mail; >=0 = editing that saved entry (Save overwrites it).
+        private int _editingMailIndex = -1;
+
         private void PopulateMail()
         {
             string profile = _npc.mailProfile;
             SetScreenInput("Mail", "Recipient_C", profile);
+            SetScreenInput("Mail", "Post Cost_C", ReadCfgValue(MarketplaceCfgPath, "MailPostRecipe"));
+            SetScreenInput("Mail", "Wait (s)_C", ReadCfgValue(MarketplaceCfgPath, "MailPostWaitTime"));
+            PopulateMailEntries(profile);
+            ClearMailEditFields();
+        }
+
+        // Fills the saved-mails browse list for a profile; each row has Edit (load into the fields) + X (delete).
+        private void PopulateMailEntries(string profile)
+        {
+            ClearRows("Mail", "MailEntryPool");
             try
             {
                 MailProfileManager.EnsureLoaded();
                 var mail = string.IsNullOrEmpty(profile) ? null : MailProfileManager.GetMail(profile);
-                var first = (mail != null && mail.Count > 0) ? mail[0] : null;
-                if (first != null)
-                {
-                    SetScreenInput("Mail", "Sender_C", first.SenderName);
-                    SetScreenInput("Mail", "MailTopic", first.Subject);
-                    SetScreenInput("Mail", "MailBody", first.Body);
-                }
+                if (mail != null) for (int i = 0; i < mail.Count; i++) AddMailEntryRow(i, mail[i]);
             }
             catch { }
-            SetScreenInput("Mail", "Post Cost_C", ReadCfgValue(MarketplaceCfgPath, "MailPostRecipe"));
-            SetScreenInput("Mail", "Wait (s)_C", ReadCfgValue(MarketplaceCfgPath, "MailPostWaitTime"));
+            RestackRows("Mail", "MailEntryPool");
+        }
+
+        private void AddMailEntryRow(int index, MailEntry entry)
+        {
+            var pool = FindRec(Screen("Mail"), "MailEntryPool");
+            var tmpl = FindRec(pool, "MailEntryRowTemplate")?.gameObject;
+            if (pool == null || tmpl == null) return;
+            var row = Instantiate(tmpl, PoolContent(pool)); row.name = "Row"; row.SetActive(true);
+            var sum = FindRec(row.transform, "SummaryLabel")?.GetComponent<TMP_Text>();
+            if (sum != null) sum.text = (entry.SenderName ?? "?") + " — " + (entry.Subject ?? "");
+            int captured = index;
+            HookRow(row.transform, "EditButton", () => LoadMailEntry(captured));
+            HookRow(row.transform, "RemoveButton", () => DeleteMailEntry(captured));
+        }
+
+        private void LoadMailEntry(int index)
+        {
+            var mail = MailProfileManager.GetMail(GetScreenInput("Mail", "Recipient_C")?.Trim());
+            if (mail == null || index < 0 || index >= mail.Count) return;
+            var e = mail[index];
+            _editingMailIndex = index;
+            SetScreenInput("Mail", "Sender_C", e.SenderName);
+            SetScreenInput("Mail", "MailTopic", e.Subject);
+            SetScreenInput("Mail", "MailBody", e.Body);
+            SetScreenInput("Mail", "Attachment_C", SerializeAttachments(e.Attachments));
+            Msg("Editing mail #" + (index + 1));
+        }
+
+        private void DeleteMailEntry(int index)
+        {
+            string profile = GetScreenInput("Mail", "Recipient_C")?.Trim();
+            if (string.IsNullOrEmpty(profile)) return;
+            var mail = new List<MailEntry>(MailProfileManager.GetMail(profile));
+            if (index < 0 || index >= mail.Count) return;
+            mail.RemoveAt(index);
+            MailProfileManager.SaveProfile(profile, string.Join(Environment.NewLine, mail.Select(SerializeMailRow)));
+            PopulateMailEntries(profile);
+            ClearMailEditFields();
+            Msg("Deleted mail");
+        }
+
+        private void ClearMailEditFields()
+        {
+            _editingMailIndex = -1;
+            SetScreenInput("Mail", "Sender_C", "");
+            SetScreenInput("Mail", "MailTopic", "");
+            SetScreenInput("Mail", "MailBody", "");
+            SetScreenInput("Mail", "Attachment_C", "");
+        }
+
+        private static string SerializeAttachments(List<MailAttachment> atts)
+            => (atts == null || atts.Count == 0) ? "" : string.Join(";", atts.Select(a => a.Prefab + ":" + a.Count));
+
+        // One pipe-delimited row, body newlines escaped so the line-per-row loader survives multi-line bodies.
+        private static string SerializeMailRow(MailEntry e)
+        {
+            string body = (e.Body ?? "").Replace("\r", "").Replace("\n", "\\n");
+            string att = SerializeAttachments(e.Attachments);
+            return e.SenderName + "|" + e.DateString + "|" + e.Subject + "|" + body + (string.IsNullOrEmpty(att) ? "" : "|" + att);
         }
 
         private void SaveMail()
         {
-            string sender = GetScreenInput("Mail", "Sender_C")?.Trim() ?? "";
             string recipient = GetScreenInput("Mail", "Recipient_C")?.Trim();
             if (string.IsNullOrEmpty(recipient)) recipient = _npc.mailProfile;
             if (string.IsNullOrEmpty(recipient)) { Msg("Enter a recipient/profile"); return; }
+            string sender = GetScreenInput("Mail", "Sender_C")?.Trim() ?? "";
             string topic = GetScreenInput("Mail", "MailTopic")?.Trim() ?? "";
-            // The mail cfg is one row per physical line; escape body newlines so a multi-line message
-            // survives the line-by-line loader (MailProfileManager.LoadOne un-escapes on read).
             string body = (GetScreenInput("Mail", "MailBody") ?? "").Replace("\r", "").Replace("\n", "\\n");
             string attach = GetScreenInput("Mail", "Attachment_C")?.Trim() ?? "";
             string date = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm");
@@ -1107,14 +1209,17 @@ namespace FiresRPGmaker.UI
             try
             {
                 MailProfileManager.EnsureLoaded();
-                string existing = MailProfileManager.Serialize(MailProfileManager.GetMail(recipient));
-                string merged = string.IsNullOrEmpty(existing) ? row : existing + Environment.NewLine + row;
-                MailProfileManager.SaveProfile(recipient, merged);
+                var lines = MailProfileManager.GetMail(recipient).Select(SerializeMailRow).ToList();
+                if (_editingMailIndex >= 0 && _editingMailIndex < lines.Count) lines[_editingMailIndex] = row;   // overwrite the edited entry
+                else lines.Add(row);                                                                              // else append a new one
+                MailProfileManager.SaveProfile(recipient, string.Join(Environment.NewLine, lines));
             }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveMail: " + ex.Message); }
             WriteCfgValue(MarketplaceCfgPath, "Main", "MailPostRecipe", GetScreenInput("Mail", "Post Cost_C")?.Trim());
             WriteCfgValue(MarketplaceCfgPath, "Main", "MailPostWaitTime", GetScreenInput("Mail", "Wait (s)_C")?.Trim());
             _npc.mailProfile = recipient; _npc.npcType = NpcType.Mail; _npc.SaveToZDO();
+            PopulateMailEntries(recipient);
+            ClearMailEditFields();
             Msg("Saved mail to '" + recipient + "'");
         }
 
@@ -1313,7 +1418,7 @@ namespace FiresRPGmaker.UI
                 { "Quest",       ("Save To Profile_C", NpcType.QuestNpc) },
                 { "Leaderboard", ("AchProfile",        NpcType.Leaderboard) },
                 { "Mail",        ("Recipient_C",       NpcType.Mail) },
-                { "Info",        ("InfoProfile_C",     NpcType.InfoNpc) },
+                { "Info",        ("Info Profile_C",    NpcType.InfoNpc) },
             };
 
         private readonly Dictionary<string, TMP_Dropdown> _profileDd = new Dictionary<string, TMP_Dropdown>();
@@ -1336,40 +1441,52 @@ namespace FiresRPGmaker.UI
             });
         }
 
+        // Wires the BAKED "ProfileDD" dropdown next to a profile input (built by FiresNpcBookBuild.ProfileField).
+        // Fills it with the module's saved profiles; picking one fills the input and runs onPicked. Options are
+        // refreshed every call (so a profile saved elsewhere shows up); the onValueChanged is attached once.
         private void EnsureProfileDropdown(string key, Transform scope, string inputNode, NpcType type, Action<string> onPicked)
         {
-            if (_npc == null) return;
+            if (_npc == null || scope == null) return;
             var input = InputIn(scope, inputNode);
-            if (input == null) return;
-            if (_profileDd.TryGetValue(key, out var existing) && existing != null)
+            var dd = FindRec(scope, "ProfileDD")?.GetComponent<TMP_Dropdown>();
+            if (dd == null || input == null) return;
+            PopulateProfileDropdown(dd, NpcController.GetProfileNamesForType(type));
+            if (_profileDd.TryGetValue(key, out var wired) && wired == dd) return;
+            _profileDd[key] = dd;
+            dd.onValueChanged.AddListener(idx =>
             {
-                SavedProfilesDropdown.Refresh(existing, NpcController.GetProfileNamesForType(type));
-                return;
-            }
-            var dd = BuildInlineProfileDropdown(input, () => NpcController.GetProfileNamesForType(type), onPicked);
-            if (dd != null) _profileDd[key] = dd;
+                if (dd == null || idx <= 0) return;
+                string picked = idx < dd.options.Count ? dd.options[idx].text : null;
+                dd.SetValueWithoutNotify(0);
+                if (!string.IsNullOrEmpty(picked)) { input.SetTextWithoutNotify(picked); onPicked?.Invoke(picked); }
+            });
         }
 
-        // A compact "▾" arrow glued to the right edge of a profile input; clicking opens the saved-profile
-        // list. Reuses the shared SavedProfilesDropdown widget (no parallel dropdown) and re-anchors it.
-        private TMP_Dropdown BuildInlineProfileDropdown(TMP_InputField input, Func<IEnumerable<string>> source, Action<string> onPicked)
+        // Index 0 is a short no-op header ("—"); the input field shows the chosen name, the arrow just picks.
+        private static void PopulateProfileDropdown(TMP_Dropdown dd, IEnumerable<string> names)
         {
-            var inputRT = input.GetComponent<RectTransform>();
-            if (inputRT == null) return null;
-            var dd = SavedProfilesDropdown.AttachToInput(inputRT, 0f, 1f, 0f, 1f, input, source, onPicked);
-            var ddRT = dd.GetComponent<RectTransform>();
-            ddRT.anchorMin = new Vector2(1f, 0f); ddRT.anchorMax = new Vector2(1f, 1f); ddRT.pivot = new Vector2(1f, 0.5f);
-            ddRT.sizeDelta = new Vector2(24f, -2f); ddRT.anchoredPosition = new Vector2(-2f, 0f);
-            var bg = dd.GetComponent<Image>(); if (bg != null) bg.color = new Color(0.30f, 0.22f, 0.10f, 0.65f);
-            if (dd.captionText != null) dd.captionText.gameObject.SetActive(false);   // only the arrow shows in the strip
-            if (dd.template != null)
-            {
-                // Hang a readable-width list below, right-aligned under the input.
-                dd.template.anchorMin = new Vector2(1f, 0f); dd.template.anchorMax = new Vector2(1f, 0f);
-                dd.template.pivot = new Vector2(1f, 1f);
-                dd.template.sizeDelta = new Vector2(230f, 240f); dd.template.anchoredPosition = new Vector2(2f, -2f);
-            }
-            return dd;
+            var sorted = (names ?? Enumerable.Empty<string>()).Where(n => !string.IsNullOrEmpty(n)).OrderBy(n => n).ToList();
+            var opts = new List<TMP_Dropdown.OptionData>(sorted.Count + 1) { new TMP_Dropdown.OptionData("—") };
+            foreach (var n in sorted) opts.Add(new TMP_Dropdown.OptionData(n));
+            dd.ClearOptions();
+            dd.AddOptions(opts);
+            dd.SetValueWithoutNotify(0);
+        }
+
+        // ── baked labeled-dropdown read/write (Quest Type, Leaderboard Trigger Type, left-page NPC Type) ──────
+        private TMP_Dropdown ScreenDd(Transform scope, string node) => FindRec(scope, node)?.GetComponent<TMP_Dropdown>();
+        private void SetScreenDropdown(Transform scope, string node, string val)
+        {
+            var dd = ScreenDd(scope, node);
+            if (dd == null) return;
+            int idx = dd.options.FindIndex(o => string.Equals(o.text, val, StringComparison.OrdinalIgnoreCase));
+            dd.SetValueWithoutNotify(idx >= 0 ? idx : 0);
+            if (dd.captionText != null && dd.value < dd.options.Count) dd.captionText.text = dd.options[dd.value].text;
+        }
+        private string GetScreenDropdown(Transform scope, string node)
+        {
+            var dd = ScreenDd(scope, node);
+            return (dd != null && dd.value >= 0 && dd.value < dd.options.Count) ? dd.options[dd.value].text : "";
         }
 
         // ── dynamic list rows (gambler reward pool, transmog offerings) ──────
