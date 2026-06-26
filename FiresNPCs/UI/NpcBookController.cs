@@ -469,25 +469,20 @@ namespace FiresRPGmaker.UI
             var p = string.IsNullOrEmpty(name) ? null : BankerProfileManager.GetProfile(name);
             SetScreenInput("Banker", "Interest %/min_C", p != null ? p.InterestPerMinute.ToString() : "");
             // Multi-currency list (restores the legacy multi-currency editing the single Accepted/Max pair dropped).
-            ClearRows("Banker", "CurrencyPool");
+            ClearInputRows("Banker", "CurrencyPool");
             if (p != null && p.CurrencyLimits.Count > 0)
                 foreach (var kv in p.CurrencyLimits) AddCurrencyRow(kv.Key, kv.Value);
             else AddCurrencyRow("Coins", 1000000);
             SetBankerStatus("");
         }
 
-        private static readonly (string node, string ph, float xMin, float xMax)[] CurrencyCells =
-            { ("CurrencyCell", "currency", 0.02f, 0.56f), ("MaxCell", "max deposit", 0.58f, 0.86f) };
-
         private void AddCurrencyRow(string currency, int max)
         {
-            var row = AddRow("Banker", "CurrencyPool", CurrencyCells);
+            var row = AddRow("Banker", "CurrencyPool", "CurrencyRowTemplate");
             if (row == null) { Msg("Banker currency pool missing (bad prefab)"); return; }
             SetRowCell(row.transform, "CurrencyCell", currency ?? "");
             if (max > 0) SetRowCell(row.transform, "MaxCell", max.ToString());
-            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); RestackRows("Banker", "CurrencyPool"); });
-            RestackRows("Banker", "CurrencyPool");
-            RowDiag("Banker", "CurrencyPool", "afterAddCurrency");
+            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); });
         }
 
         private void SaveBanker()
@@ -497,7 +492,7 @@ namespace FiresRPGmaker.UI
             string interest = GetScreenInput("Banker", "Interest %/min_C")?.Trim();
             var sb = new StringBuilder();
             if (!string.IsNullOrEmpty(interest)) sb.AppendLine("interest=" + interest);
-            foreach (var row in LiveRows("Banker", "CurrencyPool"))
+            foreach (var row in LiveInputRows("Banker", "CurrencyPool"))
             {
                 string cur = RowCell(row, "CurrencyCell")?.Trim();
                 if (string.IsNullOrEmpty(cur)) continue;
@@ -525,9 +520,8 @@ namespace FiresRPGmaker.UI
             SetToggle("Gambler", "Wheel_chk", p != null && p.Games.Contains(GamblerGames.Wheel));
             SetScreenInput("Gambler", "Cost Item_C", p != null ? p.RequiredItem.Prefab : "Coins");
             SetScreenInput("Gambler", "Amount_C", p != null ? p.RequiredItem.Min.ToString() : "100");
-            ClearRows("Gambler", "RewardPool");
+            ClearInputRows("Gambler", "RewardPool");
             if (p != null) foreach (var r in p.Rewards) AddRewardRow(r);
-            else RestackRows("Gambler", "RewardPool");
         }
 
         private void SaveGambler()
@@ -549,7 +543,7 @@ namespace FiresRPGmaker.UI
                 RequiredItem = new GamblerItemEntry { Prefab = GetScreenInput("Gambler", "Cost Item_C")?.Trim() ?? "Coins", Min = cost, Max = cost },
                 Rewards = new List<GamblerItemEntry>(),
             };
-            foreach (var row in LiveRows("Gambler", "RewardPool"))
+            foreach (var row in LiveInputRows("Gambler", "RewardPool"))
             {
                 string item = RowCell(row, "ItemCell")?.Trim();
                 if (string.IsNullOrEmpty(item)) continue;
@@ -568,10 +562,9 @@ namespace FiresRPGmaker.UI
         {
             string name = _npc.transmogProfile;
             SetScreenInput("Transmog", "TmProfile", name);
-            ClearRows("Transmog", "OfferingPool");
+            ClearInputRows("Transmog", "OfferingPool");
             var opts = string.IsNullOrEmpty(name) ? null : TransmogProfileManager.GetProfileOptions(name);
             if (opts != null) foreach (var o in opts) AddOfferingRow(o);
-            else RestackRows("Transmog", "OfferingPool");
         }
 
         private void SaveTransmog()
@@ -579,7 +572,7 @@ namespace FiresRPGmaker.UI
             string name = GetScreenInput("Transmog", "TmProfile")?.Trim();
             if (string.IsNullOrEmpty(name)) { Msg("Enter a transmog profile name"); return; }
             var sb = new StringBuilder();
-            foreach (var row in LiveRows("Transmog", "OfferingPool"))
+            foreach (var row in LiveInputRows("Transmog", "OfferingPool"))
             {
                 string app = RowCell(row, "AppearanceCell")?.Trim();
                 if (string.IsNullOrEmpty(app)) continue;
@@ -1492,15 +1485,9 @@ namespace FiresRPGmaker.UI
 
         // ── dynamic list rows (gambler reward pool, transmog offerings) ──────
         // Cell layout for runtime-built rows (used when the prefab has no baked row template).
-        private static readonly (string node, string ph, float xMin, float xMax)[] RewardCells =
-            { ("ItemCell", "item prefab", 0.02f, 0.56f), ("MinCell", "min", 0.58f, 0.71f), ("MaxCell", "max", 0.73f, 0.86f) };
-        private static readonly (string node, string ph, float xMin, float xMax)[] OfferingCells =
-            { ("SlotCell", "slot", 0.02f, 0.24f), ("AppearanceCell", "appearance", 0.26f, 0.56f), ("CurrencyCell", "currency", 0.58f, 0.74f), ("PriceCell", "price", 0.76f, 0.86f) };
-
         private void AddRewardRow(GamblerItemEntry data)
         {
-            var row = AddRow("Gambler", "RewardPool", RewardCells);
-            Debug.Log($"[RowDiag] Gambler AddRewardRow returned row={(row != null)}");
+            var row = AddRow("Gambler", "RewardPool", "RewardRowTemplate");
             if (row == null) { Msg("Gambler reward pool missing (bad prefab)"); return; }
             if (data != null)
             {
@@ -1508,37 +1495,30 @@ namespace FiresRPGmaker.UI
                 SetRowCell(row.transform, "MinCell", data.Min.ToString());
                 SetRowCell(row.transform, "MaxCell", data.Max.ToString());
             }
-            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); RestackRows("Gambler", "RewardPool"); });
-            RestackRows("Gambler", "RewardPool");
-            RowDiag("Gambler", "RewardPool", "afterAddReward");
+            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); });
         }
 
-        // TEMP [RowDiag] — diagnose why click-added input rows don't appear / aren't interactable. Remove once fixed.
+        // TEMP [RowDiag] — confirm rows now live directly under the pool panel + are interactable. Remove once confirmed.
         private void RowDiag(string tab, string poolName, string note)
         {
-            var pool = FindRec(Screen(tab), poolName);
-            var content = pool != null ? pool.Find("RuntimeScroll/Viewport/Content") : null;
-            var vp = pool != null ? pool.Find("RuntimeScroll/Viewport") as RectTransform : null;
+            var host = InputScroll(FindRec(Screen(tab), poolName));
             int active = 0; var sb = new System.Text.StringBuilder();
-            if (content != null)
-                for (int i = 0; i < content.childCount; i++)
+            if (host != null)
+                foreach (Transform c in host)
                 {
-                    var ch = content.GetChild(i) as RectTransform;
-                    if (ch == null || !ch.gameObject.activeSelf) continue;
+                    if (c.name != "Row" || !c.gameObject.activeSelf) continue;
                     active++;
-                    var inp = ch.GetComponentInChildren<TMP_InputField>(true);
-                    string g = inp != null && inp.targetGraphic != null ? inp.targetGraphic.raycastTarget.ToString() : "?";
-                    sb.Append($" [{ch.name} pos={ch.anchoredPosition} size={ch.sizeDelta} act={ch.gameObject.activeInHierarchy} " +
-                              $"inp={(inp != null ? "Y" : "N")} interact={(inp != null ? inp.interactable.ToString() : "-")} ray={g}]");
+                    var ch = c as RectTransform;
+                    var inp = c.GetComponentInChildren<TMP_InputField>(true);
+                    sb.Append($" [pos={ch.anchoredPosition} size={ch.sizeDelta} inp={(inp != null ? "Y" : "N")} " +
+                              $"interact={(inp != null ? inp.interactable.ToString() : "-")}]");
                 }
-            var crt = content as RectTransform;
-            Debug.Log($"[RowDiag] {tab}/{poolName} {note}: pool={pool != null} content={content != null} " +
-                      $"vpSize={(vp != null ? vp.rect.size.ToString() : "?")} contentSize={(crt != null ? crt.rect.size.ToString() : "?")} activeRows={active}{sb}");
+            Debug.Log($"[RowDiag] {tab}/{poolName} {note}: host={host != null} activeRows={active}{sb}");
         }
 
         private void AddOfferingRow(TransmogOption data)
         {
-            var row = AddRow("Transmog", "OfferingPool", OfferingCells);
+            var row = AddRow("Transmog", "OfferingPool", "OfferingRowTemplate");
             if (row == null) { Msg("Transmog offering pool missing (bad prefab)"); return; }
             if (data != null)
             {
@@ -1547,8 +1527,7 @@ namespace FiresRPGmaker.UI
                 SetRowCell(row.transform, "CurrencyCell", data.PricePrefab);
                 SetRowCell(row.transform, "PriceCell", data.PriceAmount.ToString());
             }
-            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); RestackRows("Transmog", "OfferingPool"); });
-            RestackRows("Transmog", "OfferingPool");
+            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); });
         }
 
         // Builds an input-cell row at RUNTIME (named input cells + a RemoveButton) via the Core UI helper —
@@ -1556,26 +1535,102 @@ namespace FiresRPGmaker.UI
         // *RowTemplate: a TMP_InputField cloned out of the AssetBundle template misbehaves (the +Add row
         // doesn't appear / only the first row stays interactable), whereas freshly built input fields each
         // work. Returns the active "Row" under the pool's runtime scroll Content.
-        private GameObject AddRow(string tab, string poolName, (string node, string ph, float xMin, float xMax)[] cells)
+        // Input-cell rows (Gambler reward / Banker currency / Transmog offering) live DIRECTLY under the pool
+        // panel — NOT inside a ScrollRect. A TMP_InputField placed inside the runtime scroll's RectMask2D
+        // viewport never takes keyboard focus in this book, but the identical field as a plain panel child does
+        // (the left-page Npc Name / Profile fields prove it: same CreateInputField, no scroll, fully typeable).
+        // These admin config lists are short, so no scroll is needed.
+        private Transform InputHost(string tab, string poolName) => FindRec(Screen(tab), poolName);
+
+        private GameObject AddRow(string tab, string poolName, string templateName)
         {
-            var pool = FindRec(Screen(tab), poolName);
-            if (pool == null) return null;
-            var content = PoolContent(pool);
+            var anchor = FindRec(Screen(tab), poolName);
+            if (anchor == null) return null;
+            var content = InputScroll(anchor);
             if (content == null) return null;
-            var row = new GameObject("Row", typeof(RectTransform));
-            row.transform.SetParent(content, false);
-            var le = row.AddComponent<LayoutElement>(); le.preferredHeight = 30f; le.minHeight = 30f;
-            var rt = (RectTransform)row.transform;
-            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
-            rt.sizeDelta = new Vector2(0f, 30f);
-            foreach (var c in cells)
-                FiresCore.UI.UIBuilderHelper.CreateInputField(row.transform, c.node, c.ph,
-                    new Vector2(c.xMin, 0.10f), new Vector2(c.xMax, 0.90f), 12);
-            var rm = FiresCore.UI.UIBuilderHelper.CreateButton(row.transform, "X",
-                new Vector2(0.90f, 0.12f), new Vector2(0.99f, 0.88f), null);
-            rm.gameObject.name = "RemoveButton";
+            var tmpl = FindRec(content, templateName)?.gameObject ?? FindRec(anchor, templateName)?.gameObject;
+            if (tmpl == null) return null;
+            var row = Instantiate(tmpl, content);
+            row.name = "Row";
             row.SetActive(true);
+            var le = row.GetComponent<LayoutElement>() ?? row.AddComponent<LayoutElement>();
+            if (le.preferredHeight <= 0f) le.preferredHeight = 30f;
             return row;
+        }
+
+        // Verbatim copy of the working Dressing Room FashionScroll: ScrollRect + clear-Image/RectMask2D viewport
+        // + VerticalLayoutGroup/ContentSizeFitter content. The baked RowTemplate is moved under Content on first
+        // build so AddRow can clone it. Same construction that makes the dressing input fields accept typing.
+        private static Transform InputScroll(Transform anchor)
+        {
+            if (anchor == null) return null;
+            var built = anchor.Find("InputScroll/Viewport/Content");
+            if (built != null) return built;
+            var scrollGo = new GameObject("InputScroll", typeof(RectTransform), typeof(ScrollRect));
+            scrollGo.transform.SetParent(anchor, false);
+            var srt = (RectTransform)scrollGo.transform;
+            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+            var sr = scrollGo.GetComponent<ScrollRect>();
+            var vpGo = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
+            vpGo.transform.SetParent(scrollGo.transform, false);
+            var vrt = (RectTransform)vpGo.transform;
+            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one; vrt.offsetMin = Vector2.zero; vrt.offsetMax = Vector2.zero;
+            vpGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f);
+            var cGo = new GameObject("Content", typeof(RectTransform));
+            cGo.transform.SetParent(vpGo.transform, false);
+            var crt = (RectTransform)cGo.transform;
+            crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f); crt.pivot = new Vector2(0.5f, 1f);
+            crt.anchoredPosition = Vector2.zero; crt.sizeDelta = Vector2.zero;
+            var vlg = cGo.AddComponent<VerticalLayoutGroup>();
+            vlg.childControlWidth = true; vlg.childForceExpandWidth = true; vlg.childControlHeight = true; vlg.childForceExpandHeight = false;
+            vlg.spacing = 3f; vlg.padding = new RectOffset(2, 2, 2, 2);
+            var csf = cGo.AddComponent<ContentSizeFitter>(); csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            sr.viewport = vrt; sr.content = crt; sr.horizontal = false; sr.vertical = true; sr.scrollSensitivity = 26f;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+            for (int i = anchor.childCount - 1; i >= 0; i--)
+            {
+                var ch = anchor.GetChild(i);
+                if (ch.name.EndsWith("Template", StringComparison.Ordinal)) ch.SetParent(crt, false);
+            }
+            return crt;
+        }
+
+        private void ClearInputRows(string tab, string poolName)
+        {
+            var host = InputScroll(FindRec(Screen(tab), poolName));
+            if (host == null) return;
+            for (int i = host.childCount - 1; i >= 0; i--)
+            {
+                var c = host.GetChild(i);
+                if (c.name == "Row") { c.gameObject.SetActive(false); Destroy(c.gameObject); }
+            }
+        }
+
+        private List<Transform> LiveInputRows(string tab, string poolName)
+        {
+            var list = new List<Transform>();
+            var host = InputScroll(FindRec(Screen(tab), poolName));
+            if (host == null) return list;
+            foreach (Transform c in host) if (c.name == "Row" && c.gameObject.activeSelf) list.Add(c);
+            return list;
+        }
+
+        // Stacks active rows top-down inside the (fixed-size) pool panel. No content resize — the panel is a band.
+        private void LayoutInputRows(string tab, string poolName)
+        {
+            var host = InputScroll(FindRec(Screen(tab), poolName));
+            if (host == null) return;
+            const float rowH = 30f, spacing = 3f, padding = 2f;
+            float y = padding;
+            foreach (Transform c in host)
+            {
+                var rt = c as RectTransform;
+                if (rt == null || c.name != "Row" || !c.gameObject.activeSelf) continue;
+                rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+                rt.anchoredPosition = new Vector2(0f, -y);
+                rt.sizeDelta = new Vector2(-padding * 2f, rowH);
+                y += rowH + spacing;
+            }
         }
 
         private void ClearRows(string tab, string poolName)
