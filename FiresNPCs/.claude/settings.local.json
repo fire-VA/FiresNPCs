@@ -709,7 +709,18 @@
       "Bash(ls -la C:/Users/travi/AppData/Local/Temp/claude/C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs/ee76613f-6a93-4819-bf60-847f6514e514/tasks)",
       "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && find FiresNPCs FiresUnifiedCore -type f -name \"*.cs\" | head -30)",
       "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && grep -rn \"RegisterPersistedBlob\\\\|RegisterFolder\\\\|RegisterHashProvider\" FiresNPCs FiresUnifiedCore --include=\"*.cs\" | grep -v \"public static void Register\")",
-      "Bash(grep -ivE \"Docs/|//\")"
+      "Bash(grep -ivE \"Docs/|//\")",
+      "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && grep -rn \"cache\\\\|Cache\" FiresNPCs FiresUnifiedCore --include=\"*.cs\" | grep -i \"path\\\\|folder\\\\|dir\" | head -30)",
+      "Bash(echo \"=== Installed Framework targeting packs ===\" *)",
+      "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && find . -name \"RuntimeSpriteSync.cs\" -type f)",
+      "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && find . -name \"*UILayout*\" -type f | head -10)",
+      "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && grep -rn \"File.WriteAllText\\\\|File.WriteAllBytes\" FiresNPCs/FiresNPCs --include=\"*.cs\" | grep -v \"Debug\\\\|Example\\\\|Dump\" | head -40)",
+      "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && grep -n \"QuestDbManifestNamespace\\\\|BlobCachePath\" FiresUnifiedCore/FiresUnifiedCore/Sync/ManifestDiffSync.cs)",
+      "Bash(P=\"C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio\" *)",
+      "Bash(grep -iE \"^FiresUnifiedCore$|^ServerSync$|FiresCore.Sync|com.Fire.FiresUnifiedCore\")",
+      "Bash(mkdir -p C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio)",
+      "Bash(cp C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio/bin/Debug/ValheimCustomizationStudio.dll C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio/)",
+      "Bash(cp C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio/bin/Debug/ValheimCustomizationStudio.pdb C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio/)"
     ]
   }
 }

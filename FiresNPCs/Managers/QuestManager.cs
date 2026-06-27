@@ -37,6 +37,12 @@ namespace FiresRPGmaker.Modules.Quest
             Instance.LoadQuestDatabase();
             Instance.LoadQuestProfiles();
 
+            // Drop the legacy profile-global quest-DB hash (pre per-server fix). The DB
+            // fingerprint is now computed live from the in-memory DB, so a stale hash from
+            // another server can no longer bleed quests or block a legitimate re-send.
+            FiresCore.Sync.FiresServerScope.DeleteLegacy(
+                System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresUnifiedCore", "cache", "manifests", "QuestDatabase.hash"));
+
             FiresLogger.LogVerbose("[FiresRPGmaker] QuestManager initialized (hybrid ZDO + JSON)");
 
             // NOTE: FileUpdate and QuestDB RPCs are registered in VaultOfKnowledge.RegisterRPCs()
@@ -695,9 +701,22 @@ Quests = KillBoarSample
             return JsonConvert.SerializeObject(dict, Formatting.None) ?? string.Empty;
         }
 
+        /// <summary>
+        /// Live fingerprint of the in-memory quest DB. Replaces the old persisted
+        /// (profile-global) QuestDatabase.hash so the manifest fast-path tracks the
+        /// CURRENT server's DB — it can't bleed another server's quests, and a stale
+        /// hash can't block a legitimate re-send (the DB itself was never persisted).
+        /// Mirrors the territory live-fingerprint fix.
+        /// </summary>
+        public static string GetLiveQuestDbFingerprint()
+        {
+            try { return ManifestDiffSync.ComputeSha256(Instance != null ? Instance.SerialiseQuestDb() : string.Empty); }
+            catch { return string.Empty; }
+        }
+
         // Send the full in-memory quest database as JSON to a peer. Used to ensure clients have authoritative DB.
-        // Diff-sync: if the peer already has a cached SHA-256 of this exact payload
-        // (persisted by HandleQuestDB on its last receive) the send is skipped entirely.
+        // Diff-sync: the peer reports a LIVE fingerprint of its in-memory DB
+        // (GetLiveQuestDbFingerprint); if it already matches this payload the send is skipped.
         public void BroadcastQuestDatabaseToPeer(long peerUid)
         {
             try
@@ -789,15 +808,9 @@ Quests = KillBoarSample
                         Instance.questDatabase = dict.ToDictionary(kv => kv.Key, kv => kv.Value);
                         FiresLogger.LogVerbose($"Received QuestDB from {sender}; loaded {Instance.questDatabase.Count} quests");
 
-                        // Persist the hash of what we just received so future manifest queries
-                        // let the server skip re-sending identical content. Idempotent � writes
-                        // only 64 hex chars to disk.
-                        try
-                        {
-                            string hash = ManifestDiffSync.ComputeSha256(json);
-                            ManifestDiffSync.RememberBlobHash(QuestDbManifestNamespace, hash);
-                        }
-                        catch { }
+                        // No hash persisted: the manifest fingerprint is computed live from
+                        // this in-memory DB (GetLiveQuestDbFingerprint), so it always reflects
+                        // the current server and can't bleed across servers.
 
                         // Validate rewards/targets against ZNetScene after receiving full DB
                         if (ZNetScene.instance != null)

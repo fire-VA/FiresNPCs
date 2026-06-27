@@ -24,13 +24,13 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.164")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.166")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.164";
+        public const string PluginVersion = "0.0.166";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -740,8 +740,11 @@ if (hashDict != null)
             ManifestDiffSync.EnsureRegistered();
             global::FiresRPGmaker.Managers.ServerConfigFileWatcher.RegisterManifestFolders();
             global::FiresRPGmaker.Managers.SavedNpcManager.RegisterManifestFolder();
-            ManifestDiffSync.RegisterPersistedBlob(
-                global::FiresRPGmaker.Modules.Quest.QuestManager.QuestDbManifestNamespace);
+            // Quest DB fingerprint is computed live from the in-memory DB (no profile-global
+            // .hash that would bleed quests across servers — mirrors the territory fix).
+            ManifestDiffSync.RegisterHashProvider(
+                global::FiresRPGmaker.Modules.Quest.QuestManager.QuestDbManifestNamespace,
+                () => global::FiresRPGmaker.Modules.Quest.QuestManager.GetLiveQuestDbFingerprint());
             // Territory fingerprint is computed live from the per-server client cache
             // (no profile-global .hash that would bleed overlays across servers).
             ManifestDiffSync.RegisterHashProvider(

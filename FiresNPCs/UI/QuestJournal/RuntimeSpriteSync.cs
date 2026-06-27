@@ -146,6 +146,14 @@ namespace FiresRPGmaker.UI.QuestJournal
         // Active server-side send coroutine (so we can cancel on shutdown)
         private static Coroutine _activeSendCoroutine;
 
+        // Per-server sprite scope: synced sprites are profile-global on disk, so when a
+        // client reconnects to a DIFFERENT server we must drop the previous server's
+        // synced sprites first or its quest art / UI sprites bleed onto the new server.
+        // Checked once per session in RequestSyncFromServer.
+        private static bool _spriteScopeChecked;
+        private static string SpriteServerMarkerPath =>
+            Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "cache", "sprite_server.key");
+
         /// <summary>
         /// Initialize the sprite sync system and register RPCs.
         /// Safe to call multiple times � only registers once per ZRoutedRpc instance.
@@ -167,6 +175,7 @@ namespace FiresRPGmaker.UI.QuestJournal
             _syncComplete = false;
             _pendingImages.Clear();
             _activeSendCoroutine = null;
+            _spriteScopeChecked = false;
             Debug.Log("[RuntimeSpriteSync] State reset for logout");
         }
 
@@ -202,6 +211,10 @@ namespace FiresRPGmaker.UI.QuestJournal
 
             if (ZRoutedRpc.instance == null) return;
           if (ZNet.instance == null || ZNet.instance.IsServer()) return;
+
+            // Drop another server's synced sprites before we report our manifest, so the
+            // current server re-sends its own (no cross-server quest-art bleed).
+            EnsureSpriteScopeMatchesServer();
 
          // Check cooldown
             var now = DateTime.UtcNow;
@@ -781,6 +794,65 @@ UnityEngine.Object.Destroy(cache[fullPath]);
   cache.Remove(fullPath);
    }
        }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Once per session, if the synced sprites on disk belong to a different server
+        /// than the one we're now on, delete them and clear sprite caches so the current
+        /// server re-syncs its own. Same-server reconnects keep the cache (no re-download).
+        /// </summary>
+        private static void EnsureSpriteScopeMatchesServer()
+        {
+            if (_spriteScopeChecked) return;
+            string key = FiresCore.Sync.FiresServerScope.Key();
+            if (string.IsNullOrEmpty(key)) return; // server not resolved yet; re-check next call
+            _spriteScopeChecked = true;
+            try
+            {
+                string marker = SpriteServerMarkerPath;
+                string prev = File.Exists(marker) ? File.ReadAllText(marker).Trim() : null;
+                if (prev == key) return; // same server — keep the synced sprite cache
+
+                foreach (var (dir, _) in GetSyncFolders())
+                {
+                    try
+                    {
+                        if (!Directory.Exists(dir)) continue;
+                        foreach (var ext in SupportedExtensions)
+                            foreach (var f in Directory.GetFiles(dir, $"*{ext}", SearchOption.TopDirectoryOnly))
+                                try { File.Delete(f); } catch { }
+                    }
+                    catch { }
+                }
+
+                try { FiresCore.UI.VAMiscAssetManager.ClearAllCaches(); } catch { }
+                ClearAllQuestJournalSprites();
+
+                Directory.CreateDirectory(Path.GetDirectoryName(marker));
+                File.WriteAllText(marker, key);
+                Debug.Log($"[RuntimeSpriteSync] Server changed ({prev ?? "none"} -> {key}); cleared synced sprite cache to prevent cross-server bleed.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[RuntimeSpriteSync] Sprite scope check failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>Clears the entire QuestJournalController sprite cache (destroying textures).</summary>
+        private static void ClearAllQuestJournalSprites()
+        {
+            try
+            {
+                var cacheField = typeof(QuestJournalController).GetField("_spriteCache",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                if (cacheField?.GetValue(null) is Dictionary<string, Texture2D> cache)
+                {
+                    foreach (var tex in cache.Values)
+                        if (tex != null) UnityEngine.Object.Destroy(tex);
+                    cache.Clear();
+                }
             }
             catch { }
         }

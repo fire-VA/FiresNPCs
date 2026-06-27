@@ -28,7 +28,20 @@ namespace FiresRPGmaker.Managers
         /// so the server can query the client's local SavedNPCs/ hashes and skip unchanged entries.</summary>
         private const string ManifestNamespace = "SavedNPCs";
 
-        private static string SavedNpcsFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "SavedNPCs");
+        // The server owns the canonical flat folder. A CLIENT caches received NPCs in a
+        // per-server subfolder so one r2modman profile reused across servers never mixes
+        // another server's saved NPCs — the diff-sync manifest is built from this folder,
+        // so it must be per-server to report the right {file->hash} set.
+        private static string SavedNpcsFolder
+        {
+            get
+            {
+                string flat = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "SavedNPCs");
+                return (ZNet.instance != null && ZNet.instance.IsServer())
+                    ? flat
+                    : FiresCore.Sync.FiresServerScope.ScopedDir(flat);
+            }
+        }
 
         // Legacy single-file path (for migration)
         private static string LegacySavedNpcsFile => Path.Combine(SavedNpcsFolder, "npcs.json");

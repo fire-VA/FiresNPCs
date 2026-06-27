@@ -1018,34 +1018,10 @@ namespace FiresRPGmaker.Modules.Territories
         // peer, so it falls back to the world UID (m_world is host-only). Returns
         // null when identity can't be resolved yet; callers must guard so we never
         // load or save a foreign snapshot.
-        private static string CurrentServerKey()
-        {
-            try
-            {
-                var net = ZNet.instance;
-                if (net == null) return null;
-                var sp = net.GetServerPeer();
-                if (sp != null && sp.m_socket != null)
-                {
-                    string host = sp.m_socket.GetHostName();
-                    if (!string.IsNullOrEmpty(host)) return "s" + SanitizeKey(host);
-                }
-                if (net.IsServer())
-                {
-                    long uid = net.GetWorldUID();
-                    if (uid != 0L) return "h" + uid.ToString("X");
-                }
-            }
-            catch { }
-            return null;
-        }
-
-        private static string SanitizeKey(string raw)
-        {
-            var sb = new System.Text.StringBuilder(raw.Length);
-            foreach (char c in raw) sb.Append(char.IsLetterOrDigit(c) ? c : '_');
-            return sb.ToString();
-        }
+        // Single source of truth for the per-server key lives in Core; see
+        // FiresCore.Sync.FiresServerScope (lifted from this class so quests /
+        // saved-NPCs / sprites reuse the same derivation).
+        private static string CurrentServerKey() => FiresCore.Sync.FiresServerScope.Key();
 
         // Removes the pre-0.0.164 profile-global cache + manifest hash that bled
         // across servers. Safe to run every client login; no-op once gone.

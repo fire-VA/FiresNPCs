@@ -54,7 +54,11 @@ namespace FiresRPGmaker.Modules.Vault
             }
             
             Directory.CreateDirectory(Instance.PlayersDir);
-            Instance.LoadServerData();
+            // server.json holds server-authoritative state and is profile-global; only the
+            // server may load it. A client loading it would carry one server's timers/global
+            // state onto another on a shared r2modman profile. Clients get pushed state via RPC.
+            if (ZNet.instance != null && ZNet.instance.IsServer())
+                Instance.LoadServerData();
             EnsureRpcsRegistered();
 
             // Ensure timer manager is running so server can enforce timers
