@@ -722,7 +722,17 @@
       "Bash(cp C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio/bin/Debug/ValheimCustomizationStudio.dll C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio/)",
       "Bash(cp C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio/bin/Debug/ValheimCustomizationStudio.pdb C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio/)",
       "Bash(echo \"=== Character.m_baseAI ===\")",
-      "Bash(grep -nE 'm_baseAI;' C:/Users/travi/OneDrive/Desktop/valheimRip2/assembly_valheim/Character.cs)"
+      "Bash(grep -nE 'm_baseAI;' C:/Users/travi/OneDrive/Desktop/valheimRip2/assembly_valheim/Character.cs)",
+      "Bash(awk '{print \"  \",$6,$7,$8}')",
+      "Bash(grep -v -E \"ClothCollider|^m_Name: $\")",
+      "Bash(ls -la FiresTossinShade/tossinshade)",
+      "Bash(find . -iname \"tossinshade*\" -type f)",
+      "Bash(py --version)",
+      "Bash(ls /c/Python*)",
+      "Bash(where python *)",
+      "PowerShell($p = Get-Command python -ErrorAction SilentlyContinue; if \\($p\\) { & $p.Source --version } else { \"no python\" }; Get-ChildItem C:\\\\ -Filter \"python.exe\" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 3 FullName)",
+      "Bash(xxd)",
+      "Bash(grep -a -A1 -E \"m_BoneName: \\(Spine|Spine1|Spine2|LeftArm|LeftUpLeg|LeftLeg|Neck|Head|Jaw\\)$\" player_femAvatar.asset)"
     ]
   }
 }
