@@ -8,7 +8,6 @@ using BepInEx.Configuration;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.EventSystems;
 using FiresCore.Npc;
 using FiresRPGmaker.Managers;
 using FiresRPGmaker.Modules.Marketplace;
@@ -51,6 +50,9 @@ namespace FiresRPGmaker.UI
         private bool _dressingWired;
         private bool _patrolBtnAdded;
         private RectTransform _patrolBtnRect;
+        private RectTransform _dragHandleRect;
+        private bool _dragging;
+        private Vector2 _dragOffset;
 
         public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
 
@@ -125,6 +127,8 @@ namespace FiresRPGmaker.UI
             // them to SelectTab (its Hide closes the inventory on the way out).
             if (_activeTab == "Dressing" && Input.GetMouseButtonDown(0))
                 HandleManualTabClick();
+
+            HandleDrag();
         }
 
         // Manual hit-test of the left-page tab buttons, used while InventoryGui blocks the event system.
@@ -208,29 +212,49 @@ namespace FiresRPGmaker.UI
             scaler.matchWidthOrHeight = 0.5f;
         }
 
-        // Makes the book draggable by its top edge. An invisible raycast strip spans the top-centre band (across
-        // both tree emblems), kept clear of the corner buttons (X, Set Patrol Route) and the tabs/titles below it,
-        // so dragging there slides the whole panel via BookDragMover. Position persists between opens; the mover
-        // soft-clamps the panel centre to the canvas so it can't be dragged fully off-screen.
+        // Defines the top-edge grab band (across the two tree emblems): panel-relative, sitting just above the
+        // tabs and left of the X (x>=0.78) / Set Patrol Route (x>=0.69) buttons, so dragging there can't conflict
+        // with them. The pages are insets at panel-y 0.305..0.708, so the trees live at panel-y ~0.69 — NOT the
+        // cover margin above. Dragging is driven from Update via RectangleContainsScreenPoint + raw Input (NOT
+        // the EventSystem), because the Dressing tab opens InventoryGui which swallows UI events — same reason
+        // the tabs and Set Patrol button use manual hit-testing.
         private void AddDragHandle()
         {
-            var panelRt = _panelGo != null ? _panelGo.GetComponent<RectTransform>() : null;
-            if (_root == null || panelRt == null) return;
-
-            var go = new GameObject("DragHandle", typeof(RectTransform), typeof(Image));
+            if (_root == null) return;
+            var go = new GameObject("DragHandle", typeof(RectTransform));
             go.transform.SetParent(_root, false);
-            go.transform.SetAsLastSibling();
-            var rt = (RectTransform)go.transform;
-            rt.anchorMin = new Vector2(0.04f, 0.84f);
-            rt.anchorMax = new Vector2(0.76f, 1f);
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-            var img = go.GetComponent<Image>();
-            img.color = new Color(0f, 0f, 0f, 0f);
-            img.raycastTarget = true;
+            _dragHandleRect = (RectTransform)go.transform;
+            _dragHandleRect.anchorMin = new Vector2(0.10f, 0.64f);
+            _dragHandleRect.anchorMax = new Vector2(0.68f, 0.82f);
+            _dragHandleRect.offsetMin = Vector2.zero; _dragHandleRect.offsetMax = Vector2.zero;
+        }
 
-            var mover = go.AddComponent<BookDragMover>();
-            mover.panel = panelRt;
-            mover.canvas = _canvasGo != null ? _canvasGo.GetComponent<Canvas>() : null;
+        // Manual book-drag (works on every tab, including Dressing where the EventSystem is swallowed). Grab the
+        // top-edge band and slide the whole panel; screen-space move (overlay canvas => RectTransform.position is
+        // in screen px, like GroupHudController), soft-clamped so the book can't be lost off-screen.
+        private void HandleDrag()
+        {
+            var panelRect = _panelGo != null ? _panelGo.GetComponent<RectTransform>() : null;
+            if (panelRect == null) return;
+            Vector2 mouse = Input.mousePosition;
+
+            if (_dragging)
+            {
+                if (!Input.GetMouseButton(0)) { _dragging = false; return; }
+                Vector2 p = mouse + _dragOffset;
+                p.x = Mathf.Clamp(p.x, UnityEngine.Screen.width * 0.15f, UnityEngine.Screen.width * 0.85f);
+                p.y = Mathf.Clamp(p.y, UnityEngine.Screen.height * 0.15f, UnityEngine.Screen.height * 0.85f);
+                panelRect.position = p;
+                return;
+            }
+
+            if (Input.GetMouseButtonDown(0) && _dragHandleRect != null
+                && RectTransformUtility.RectangleContainsScreenPoint(_dragHandleRect, mouse, null))
+            {
+                _dragging = true;
+                _dragOffset = (Vector2)panelRect.position - mouse;
+                Debug.Log("[NpcBookController] book drag start");
+            }
         }
 
         private void WireTabs()
@@ -1819,28 +1843,6 @@ namespace FiresRPGmaker.UI
         {
             try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, m); } catch { }
             Debug.Log("[NpcBookController] " + m);
-        }
-    }
-
-    // Drags a panel by a child handle: slides the panel's anchoredPosition by the pointer delta (scaled by the
-    // canvas scale factor) and soft-clamps the panel centre to the canvas so it can't be lost off-screen.
-    internal class BookDragMover : MonoBehaviour, IDragHandler
-    {
-        public RectTransform panel;
-        public Canvas canvas;
-
-        public void OnDrag(PointerEventData e)
-        {
-            if (panel == null) return;
-            float s = (canvas != null && canvas.scaleFactor > 0f) ? canvas.scaleFactor : 1f;
-            var p = panel.anchoredPosition + e.delta / s;
-            if (canvas != null && canvas.transform is RectTransform cr)
-            {
-                float hw = cr.rect.width * 0.5f, hh = cr.rect.height * 0.5f;
-                p.x = Mathf.Clamp(p.x, -hw, hw);
-                p.y = Mathf.Clamp(p.y, -hh, hh);
-            }
-            panel.anchoredPosition = p;
         }
     }
 }
