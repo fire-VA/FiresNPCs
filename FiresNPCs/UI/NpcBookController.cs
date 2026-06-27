@@ -80,10 +80,35 @@ namespace FiresRPGmaker.UI
             _panelGo.SetActive(true);
             try { GUIManager.BlockInput(true); } catch { }
             try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
+            try { SuppressCrosshairRaycast(true); } catch { }
+        }
+
+        // Valheim's crosshair "HoverName" text sits at screen-center with a raycastTarget and was intercepting
+        // clicks on the book's right page (raycast probe showed it as the #0 hit over the +Add button — that is
+        // why the +Add, the currency/reward inputs, and the X buttons in the center band did nothing). Disable
+        // raycast on the crosshair's graphics while the book is open; restore them on close.
+        private readonly List<Graphic> _crosshairRaycasts = new List<Graphic>();
+        private void SuppressCrosshairRaycast(bool suppress)
+        {
+            if (suppress)
+            {
+                _crosshairRaycasts.Clear();
+                var hud = Hud.instance;
+                var cross = hud != null ? FindRec(hud.transform, "crosshair") : null;
+                if (cross == null) return;
+                foreach (var g in cross.GetComponentsInChildren<Graphic>(true))
+                    if (g != null && g.raycastTarget) { g.raycastTarget = false; _crosshairRaycasts.Add(g); }
+            }
+            else
+            {
+                foreach (var g in _crosshairRaycasts) if (g != null) g.raycastTarget = true;
+                _crosshairRaycasts.Clear();
+            }
         }
 
         public void Hide()
         {
+            try { SuppressCrosshairRaycast(false); } catch { }
             NpcController.ProfileChanged -= OnNpcProfileChanged;
             if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch { } }
             _bookOptionPopup?.Close();
@@ -105,6 +130,9 @@ namespace FiresRPGmaker.UI
         private void Update()
         {
             if (!IsOpen) return;
+            // The Hud may re-enable the crosshair raycast on its own update; keep it off while the book is open.
+            for (int i = 0; i < _crosshairRaycasts.Count; i++)
+                if (_crosshairRaycasts[i] != null) _crosshairRaycasts[i].raycastTarget = false;
             if (Input.GetKeyDown(KeyCode.Escape)) { Hide(); return; }
             // Valheim hides/relocks the cursor every frame while a panel is up — force it visible.
             if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
@@ -522,44 +550,6 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Gambler", "Amount_C", p != null ? p.RequiredItem.Min.ToString() : "100");
             ClearInputRows("Gambler", "RewardPool");
             if (p != null) foreach (var r in p.Rewards) AddRewardRow(r);
-            StartCoroutine(RayDiagNextFrame());
-        }
-
-        // TEMP — fires a raycast at the +Add button, a reward input cell, and a reward X button to log EXACTLY
-        // which UI element the EventSystem hits there (top hit = what receives the click). Reveals any blocker.
-        private System.Collections.IEnumerator RayDiagNextFrame()
-        {
-            yield return null; yield return null;
-            Canvas.ForceUpdateCanvases();
-            RayDiag("AddRewardButton", FindRec(Screen("Gambler"), "AddRewardButton"));
-            RayDiag("Cost Item_C", FindRec(Screen("Gambler"), "Cost Item_C"));
-            var content = InputScroll(FindRec(Screen("Gambler"), "RewardPool"));
-            Transform firstRow = null;
-            if (content != null) foreach (Transform c in content) if (c.name == "Row" && c.gameObject.activeSelf) { firstRow = c; break; }
-            if (firstRow != null)
-            {
-                RayDiag("row.ItemCell", FindRec(firstRow, "ItemCell"));
-                RayDiag("row.RemoveButton", FindRec(firstRow, "RemoveButton"));
-            }
-            else Debug.Log("[RayDiag] no active reward row found");
-        }
-
-        private void RayDiag(string label, Transform target)
-        {
-            var es = UnityEngine.EventSystems.EventSystem.current;
-            if (target == null || es == null) { Debug.Log($"[RayDiag] {label}: target={(target != null)} es={(es != null)}"); return; }
-            var rt = target as RectTransform;
-            Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, rt.position);
-            var ped = new UnityEngine.EventSystems.PointerEventData(es) { position = screen };
-            var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
-            es.RaycastAll(ped, results);
-            var sb = new System.Text.StringBuilder();
-            for (int i = 0; i < Mathf.Min(results.Count, 5); i++)
-            {
-                var go = results[i].gameObject;
-                sb.Append($" #{i}:{go.name}<{(go.transform.parent != null ? go.transform.parent.name : "?")}>");
-            }
-            Debug.Log($"[RayDiag] {label} screen={screen} hits={results.Count}{sb}");
         }
 
         private void SaveGambler()
