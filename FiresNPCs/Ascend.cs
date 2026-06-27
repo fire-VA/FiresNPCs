@@ -24,13 +24,13 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.161")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.162")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.161";
+        public const string PluginVersion = "0.0.162";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;

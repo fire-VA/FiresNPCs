@@ -80,35 +80,16 @@ namespace FiresRPGmaker.UI
             _panelGo.SetActive(true);
             try { GUIManager.BlockInput(true); } catch { }
             try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
-            try { SuppressCrosshairRaycast(true); } catch { }
+            // Valheim's crosshair "HoverName" raycastTarget sits at screen-center and would eat clicks on the
+            // book's center band (+Add, currency/reward inputs, X buttons). Core utility suppresses it while open.
+            try { FiresCore.UI.CrosshairRaycast.Suppress(_crosshairRaycasts); } catch { }
         }
 
-        // Valheim's crosshair "HoverName" text sits at screen-center with a raycastTarget and was intercepting
-        // clicks on the book's right page (raycast probe showed it as the #0 hit over the +Add button — that is
-        // why the +Add, the currency/reward inputs, and the X buttons in the center band did nothing). Disable
-        // raycast on the crosshair's graphics while the book is open; restore them on close.
         private readonly List<Graphic> _crosshairRaycasts = new List<Graphic>();
-        private void SuppressCrosshairRaycast(bool suppress)
-        {
-            if (suppress)
-            {
-                _crosshairRaycasts.Clear();
-                var hud = Hud.instance;
-                var cross = hud != null ? FindRec(hud.transform, "crosshair") : null;
-                if (cross == null) return;
-                foreach (var g in cross.GetComponentsInChildren<Graphic>(true))
-                    if (g != null && g.raycastTarget) { g.raycastTarget = false; _crosshairRaycasts.Add(g); }
-            }
-            else
-            {
-                foreach (var g in _crosshairRaycasts) if (g != null) g.raycastTarget = true;
-                _crosshairRaycasts.Clear();
-            }
-        }
 
         public void Hide()
         {
-            try { SuppressCrosshairRaycast(false); } catch { }
+            try { FiresCore.UI.CrosshairRaycast.Restore(_crosshairRaycasts); } catch { }
             NpcController.ProfileChanged -= OnNpcProfileChanged;
             if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch { } }
             _bookOptionPopup?.Close();
@@ -131,8 +112,7 @@ namespace FiresRPGmaker.UI
         {
             if (!IsOpen) return;
             // The Hud may re-enable the crosshair raycast on its own update; keep it off while the book is open.
-            for (int i = 0; i < _crosshairRaycasts.Count; i++)
-                if (_crosshairRaycasts[i] != null) _crosshairRaycasts[i].raycastTarget = false;
+            FiresCore.UI.CrosshairRaycast.Reassert(_crosshairRaycasts);
             if (Input.GetKeyDown(KeyCode.Escape)) { Hide(); return; }
             // Valheim hides/relocks the cursor every frame while a panel is up — force it visible.
             if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
@@ -844,15 +824,6 @@ namespace FiresRPGmaker.UI
                 HookRow(row.transform, "RemoveButton", () => { if (index < _dlgOptions.Count) { _dlgOptions.RemoveAt(index); RebuildOptionRows(); SetDlgDirty(); } });
             }
             ReflowScroll(content);
-            // TEMP [RowDiag] — confirm rows/buttons are positioned where they render (world rects).
-            for (int i = 0; i < content.childCount; i++)
-            {
-                var c = content.GetChild(i); if (c.name != "Row") continue;
-                var rt = c as RectTransform; var corners = new Vector3[4]; rt.GetWorldCorners(corners);
-                var eb = FindRec(c, "EditButton") as RectTransform; string ebStr = "<none>";
-                if (eb != null) { var ec = new Vector3[4]; eb.GetWorldCorners(ec); ebStr = $"x{ec[0].x:F0}-{ec[2].x:F0} y{ec[0].y:F0}-{ec[2].y:F0}"; }
-                Debug.Log($"[RowDiag] row#{i} rectY {corners[0].y:F0}-{corners[1].y:F0} edit[{ebStr}]");
-            }
         }
 
         private static string OptionSummary(RawPlayerOption o)
@@ -1526,24 +1497,6 @@ namespace FiresRPGmaker.UI
             HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); });
         }
 
-        // TEMP [RowDiag] — confirm rows now live directly under the pool panel + are interactable. Remove once confirmed.
-        private void RowDiag(string tab, string poolName, string note)
-        {
-            var host = InputScroll(FindRec(Screen(tab), poolName));
-            int active = 0; var sb = new System.Text.StringBuilder();
-            if (host != null)
-                foreach (Transform c in host)
-                {
-                    if (c.name != "Row" || !c.gameObject.activeSelf) continue;
-                    active++;
-                    var ch = c as RectTransform;
-                    var inp = c.GetComponentInChildren<TMP_InputField>(true);
-                    sb.Append($" [pos={ch.anchoredPosition} size={ch.sizeDelta} inp={(inp != null ? "Y" : "N")} " +
-                              $"interact={(inp != null ? inp.interactable.ToString() : "-")}]");
-                }
-            Debug.Log($"[RowDiag] {tab}/{poolName} {note}: host={host != null} activeRows={active}{sb}");
-        }
-
         private void AddOfferingRow(TransmogOption data)
         {
             var row = AddRow("Transmog", "OfferingPool", "OfferingRowTemplate");
@@ -1557,18 +1510,6 @@ namespace FiresRPGmaker.UI
             }
             HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); });
         }
-
-        // Builds an input-cell row at RUNTIME (named input cells + a RemoveButton) via the Core UI helper —
-        // the same CreateInputField the working player panels use. We deliberately do NOT clone the baked
-        // *RowTemplate: a TMP_InputField cloned out of the AssetBundle template misbehaves (the +Add row
-        // doesn't appear / only the first row stays interactable), whereas freshly built input fields each
-        // work. Returns the active "Row" under the pool's runtime scroll Content.
-        // Input-cell rows (Gambler reward / Banker currency / Transmog offering) live DIRECTLY under the pool
-        // panel — NOT inside a ScrollRect. A TMP_InputField placed inside the runtime scroll's RectMask2D
-        // viewport never takes keyboard focus in this book, but the identical field as a plain panel child does
-        // (the left-page Npc Name / Profile fields prove it: same CreateInputField, no scroll, fully typeable).
-        // These admin config lists are short, so no scroll is needed.
-        private Transform InputHost(string tab, string poolName) => FindRec(Screen(tab), poolName);
 
         private GameObject AddRow(string tab, string poolName, string templateName)
         {
@@ -1641,24 +1582,6 @@ namespace FiresRPGmaker.UI
             if (host == null) return list;
             foreach (Transform c in host) if (c.name == "Row" && c.gameObject.activeSelf) list.Add(c);
             return list;
-        }
-
-        // Stacks active rows top-down inside the (fixed-size) pool panel. No content resize — the panel is a band.
-        private void LayoutInputRows(string tab, string poolName)
-        {
-            var host = InputScroll(FindRec(Screen(tab), poolName));
-            if (host == null) return;
-            const float rowH = 30f, spacing = 3f, padding = 2f;
-            float y = padding;
-            foreach (Transform c in host)
-            {
-                var rt = c as RectTransform;
-                if (rt == null || c.name != "Row" || !c.gameObject.activeSelf) continue;
-                rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
-                rt.anchoredPosition = new Vector2(0f, -y);
-                rt.sizeDelta = new Vector2(-padding * 2f, rowH);
-                y += rowH + spacing;
-            }
         }
 
         private void ClearRows(string tab, string poolName)
