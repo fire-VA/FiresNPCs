@@ -720,7 +720,9 @@
       "Bash(grep -iE \"^FiresUnifiedCore$|^ServerSync$|FiresCore.Sync|com.Fire.FiresUnifiedCore\")",
       "Bash(mkdir -p C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio)",
       "Bash(cp C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio/bin/Debug/ValheimCustomizationStudio.dll C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio/)",
-      "Bash(cp C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio/bin/Debug/ValheimCustomizationStudio.pdb C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio/)"
+      "Bash(cp C:/Users/travi/OneDrive/Desktop/valheimRip2/ValheimCustomizationStudio/ValheimCustomizationStudio/bin/Debug/ValheimCustomizationStudio.pdb C:/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/ValheimCustomizationStudio/)",
+      "Bash(echo \"=== Character.m_baseAI ===\")",
+      "Bash(grep -nE 'm_baseAI;' C:/Users/travi/OneDrive/Desktop/valheimRip2/assembly_valheim/Character.cs)"
     ]
   }
 }
