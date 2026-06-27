@@ -20,6 +20,23 @@ namespace FiresRPGmaker.Modules.Territories
     {
         private static bool _rpcsRegistered;
         public static List<Territory> ClientTerritories { get; private set; } = new();
+
+        /// <summary>
+        /// True once the server has answered this session's territory request for the
+        /// current server (full data, or a 0-count "you're up-to-date" ack). The client
+        /// map overlay refuses to paint until this flips, so a stale/foreign cache can
+        /// never flash before the server confirms. Server/host is authoritative and
+        /// ignores this gate. Reset on each (re)connect in <see cref="Init"/>.
+        /// </summary>
+        public static bool HasReceivedThisSession { get; private set; }
+
+        /// <summary>
+        /// Live fingerprint of the currently-cached client territories. Because the cache
+        /// is per-server, this is automatically per-server, which is why we no longer
+        /// persist a separate (profile-global, bleeding) .hash file. Drives both the
+        /// client's own manifest request and the server's RequestFromPeer fast-path.
+        /// </summary>
+        public static string GetLiveFingerprint() => ComputeTerritoriesFingerprint(ClientTerritories);
         private static readonly Dictionary<long, List<Territory>> _pendingChunks = new();
         private static readonly List<CombinedTerritory> _combinedClient = new();
         private const int MaxTerritoriesPerChunk = 25;
@@ -51,8 +68,9 @@ namespace FiresRPGmaker.Modules.Territories
         /// <summary>
         /// Namespace key used by <see cref="ManifestDiffSync"/> so the
         /// server can skip re-sending the full territory snapshot to a peer that already
-        /// has a client-cached SHA-256 matching the current server ledger. Persisted per
-        /// session under <c>BepInEx/config/FiresRPGmaker/cache/manifests/Territories.hash</c>.
+        /// has a client SHA-256 matching the current server ledger. The fingerprint is
+        /// computed live from the per-server client cache (see <see cref="GetLiveFingerprint"/>),
+        /// not persisted to a profile-global file, so it cannot bleed across servers.
         /// </summary>
         public const string TerritoriesManifestNamespace = "Territories";
 
@@ -106,13 +124,15 @@ namespace FiresRPGmaker.Modules.Territories
             }
             else
             {
-                // Client: hydrate ClientTerritories from the on-disk cache so we
-                // don't start the session with Count==0 and trigger a full
-                // re-download from the server on every login. The cache is
-                // refreshed by HandleReceive whenever the server actually sends
-                // a new payload, and the server can short-circuit by comparing
-                // its current fingerprint with the persisted blob hash that
-                // RememberBlobHash wrote alongside the cache.
+                // Client: re-arm the paint gate for this (re)connect, drop the old
+                // profile-global cache, then hydrate ClientTerritories from THIS
+                // server's per-server cache so we don't start at Count==0 and force
+                // a full re-download every login. The cache is refreshed by
+                // HandleReceive whenever the server sends a new payload, and the
+                // server short-circuits by comparing its current fingerprint with
+                // the live per-server fingerprint we report in WriteClientManifest.
+                HasReceivedThisSession = false;
+                MigrateLegacyClientCache();
                 LoadClientCacheFromDisk();
             }
         }
@@ -235,8 +255,7 @@ namespace FiresRPGmaker.Modules.Territories
             // a valid file-count int next, so the wire format stays compatible.
             try
             {
-                pkg.Write(ManifestDiffSync.GetPersistedBlobHash(
-                    TerritoriesManifestNamespace) ?? string.Empty);
+                pkg.Write(GetLiveFingerprint() ?? string.Empty);
             }
             catch
             {
@@ -509,19 +528,10 @@ namespace FiresRPGmaker.Modules.Territories
                     ResetRetryState();
                     RebuildCombinedClient();
 
-                    // Persist a fingerprint of what we just received so future manifest
-                    // queries let the server skip re-sending this exact snapshot.
-                    try
-                    {
-                        ManifestDiffSync.RememberBlobHash(
-                            TerritoriesManifestNamespace,
-                            ComputeTerritoriesFingerprint(ClientTerritories));
-                    }
-                    catch { }
-
-                    // Persist the full snapshot to disk so next login starts with
-                    // ClientTerritories already populated and the server fast-paths
-                    // via the matching blob fingerprint above.
+                    // Persist THIS server's snapshot so the next login to this server
+                    // starts populated; the live per-server fingerprint then lets the
+                    // server fast-path a 0-count ack. (Cache + fingerprint are keyed by
+                    // server, so nothing bleeds to another server's profile reuse.)
                     SaveClientCacheToDisk();
 
                     sw.Stop();
@@ -535,6 +545,7 @@ namespace FiresRPGmaker.Modules.Territories
             if (count == 0)
             {
                 ResetRetryState();
+                HasReceivedThisSession = true;
                 sw.Stop();
                 Debug.Log($"[FiresRPGmaker] Territory sync: client is up-to-date ({ClientTerritories.Count} territories cached)");
 
@@ -556,17 +567,8 @@ namespace FiresRPGmaker.Modules.Territories
             ResetRetryState();
             RebuildCombinedClient();
 
-            try
-            {
-                ManifestDiffSync.RememberBlobHash(
-                    TerritoriesManifestNamespace,
-                    ComputeTerritoriesFingerprint(ClientTerritories));
-            }
-            catch { }
-
-            // Persist the full snapshot to disk so next login starts with
-            // ClientTerritories already populated and the server fast-paths
-            // via the matching blob fingerprint above.
+            // Persist THIS server's snapshot so the next login to this server starts
+            // populated; the live per-server fingerprint then fast-paths a 0-count ack.
             SaveClientCacheToDisk();
 
             sw.Stop();
@@ -581,6 +583,7 @@ namespace FiresRPGmaker.Modules.Territories
         private static void OnTerritoriesReceived()
         {
             var sw = Stopwatch.StartNew();
+            HasReceivedThisSession = true;
             try
             {
                 TerritoryMapOverlay.OnTerritoriesChanged();
@@ -990,11 +993,14 @@ namespace FiresRPGmaker.Modules.Territories
         }
 
         // ===================================================================
-        // Client-side persistent territory cache
+        // Client-side persistent territory cache (PER SERVER)
         //
-        // Sits next to the manifest hash file so the two travel together:
-        //   BepInEx/config/FiresRPGmaker/cache/territories.bin   <- snapshot
-        //   BepInEx/config/FiresRPGmaker/cache/manifests/Territories.hash
+        // One snapshot file per connected server so a client reusing a single
+        // r2modman profile across servers never paints another server's overlays:
+        //   BepInEx/config/FiresRPGmaker/cache/territories_<serverKey>.bin
+        // The fingerprint is computed live from this cache (no separate .hash),
+        // so it is per-server for free. The legacy profile-global territories.bin
+        // / manifests/Territories.hash are deleted by MigrateLegacyClientCache.
         //
         // Wire format = the same Territory.Serialize stream we already use for
         // the RPC payload, prefixed with a single int count. We deliberately do
@@ -1004,13 +1010,74 @@ namespace FiresRPGmaker.Modules.Territories
         // path that already protects the in-memory RPC handler).
         // ===================================================================
 
-        private static string ClientCachePath =>
-            System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "cache", "territories.bin");
+        // Per-server scoping: a client that reuses one r2modman profile across
+        // servers must not paint another server's cached overlays. The cache and
+        // the live fingerprint are keyed by the connected server's host id, which
+        // is stable per server and available on a dedicated-server client via the
+        // server peer's socket. A listen-server / single-player host has no server
+        // peer, so it falls back to the world UID (m_world is host-only). Returns
+        // null when identity can't be resolved yet; callers must guard so we never
+        // load or save a foreign snapshot.
+        private static string CurrentServerKey()
+        {
+            try
+            {
+                var net = ZNet.instance;
+                if (net == null) return null;
+                var sp = net.GetServerPeer();
+                if (sp != null && sp.m_socket != null)
+                {
+                    string host = sp.m_socket.GetHostName();
+                    if (!string.IsNullOrEmpty(host)) return "s" + SanitizeKey(host);
+                }
+                if (net.IsServer())
+                {
+                    long uid = net.GetWorldUID();
+                    if (uid != 0L) return "h" + uid.ToString("X");
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static string SanitizeKey(string raw)
+        {
+            var sb = new System.Text.StringBuilder(raw.Length);
+            foreach (char c in raw) sb.Append(char.IsLetterOrDigit(c) ? c : '_');
+            return sb.ToString();
+        }
+
+        // Removes the pre-0.0.164 profile-global cache + manifest hash that bled
+        // across servers. Safe to run every client login; no-op once gone.
+        private static void MigrateLegacyClientCache()
+        {
+            try
+            {
+                string cacheDir = System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "cache");
+                string legacyBin = System.IO.Path.Combine(cacheDir, "territories.bin");
+                if (System.IO.File.Exists(legacyBin)) System.IO.File.Delete(legacyBin);
+                string legacyHash = System.IO.Path.Combine(cacheDir, "manifests", "Territories.hash");
+                if (System.IO.File.Exists(legacyHash)) System.IO.File.Delete(legacyHash);
+            }
+            catch { }
+        }
+
+        private static string ClientCachePath
+        {
+            get
+            {
+                string key = CurrentServerKey();
+                string file = !string.IsNullOrEmpty(key) ? $"territories_{key}.bin" : "territories_unknown.bin";
+                return System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "cache", file);
+            }
+        }
 
         private static void SaveClientCacheToDisk()
         {
             try
             {
+                // Don't write a server-agnostic file if identity isn't resolved.
+                if (string.IsNullOrEmpty(CurrentServerKey())) return;
                 var dir = System.IO.Path.GetDirectoryName(ClientCachePath);
                 if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
 
@@ -1036,6 +1103,13 @@ namespace FiresRPGmaker.Modules.Territories
         {
             try
             {
+                // No foreign cache: if the server isn't identifiable yet, start empty
+                // and let the server request populate us for the correct server.
+                if (string.IsNullOrEmpty(CurrentServerKey()))
+                {
+                    ClientTerritories = new List<Territory>();
+                    return;
+                }
                 if (!System.IO.File.Exists(ClientCachePath)) return;
                 byte[] bytes = System.IO.File.ReadAllBytes(ClientCachePath);
                 if (bytes == null || bytes.Length == 0) return;
@@ -1047,19 +1121,9 @@ namespace FiresRPGmaker.Modules.Territories
                 for (int i = 0; i < n; i++) list.Add(Territory.Deserialize(pkg));
                 ClientTerritories = list;
                 RebuildCombinedClient();
-                Debug.Log($"[FiresRPGmaker] Loaded {ClientTerritories.Count} territories from client cache");
-
-                // Refresh the persisted fingerprint from the loaded snapshot in
-                // case the .hash file was deleted but the .bin survived. This
-                // keeps the server fast-path consistent on the very first
-                // request after this session starts.
-                try
-                {
-                    ManifestDiffSync.RememberBlobHash(
-                        TerritoriesManifestNamespace,
-                        ComputeTerritoriesFingerprint(ClientTerritories));
-                }
-                catch { }
+                Debug.Log($"[FiresRPGmaker] Loaded {ClientTerritories.Count} territories from {System.IO.Path.GetFileName(ClientCachePath)}");
+                // No persisted fingerprint to refresh: it is computed live from the
+                // (now per-server) ClientTerritories whenever the manifest is built.
             }
             catch (Exception ex)
             {

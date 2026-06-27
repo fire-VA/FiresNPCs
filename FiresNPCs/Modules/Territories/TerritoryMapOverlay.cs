@@ -76,6 +76,16 @@ namespace FiresRPGmaker.Modules.Territories
        _overlayDirty = false;
             return;
   }
+            // Per-server paint gate: a pure client must not paint until the server
+            // has confirmed this session's territories, so a foreign/stale cache can
+            // never flash when one r2modman profile is reused across servers. The
+            // server/host is authoritative (uses TerritoryLedger) and is never gated.
+            if (ZNet.instance != null && !ZNet.instance.IsServer()
+                && !TerritorySyncedState.HasReceivedThisSession)
+            {
+                Debug.Log("[FiresRPGmaker] MaybeApplyOverlay deferred - awaiting server territory confirmation");
+                return;
+            }
    var mm = Minimap.instance;
        if (mm == null)
             {

@@ -24,13 +24,13 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.162")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.164")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.162";
+        public const string PluginVersion = "0.0.164";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -742,8 +742,11 @@ if (hashDict != null)
             global::FiresRPGmaker.Managers.SavedNpcManager.RegisterManifestFolder();
             ManifestDiffSync.RegisterPersistedBlob(
                 global::FiresRPGmaker.Modules.Quest.QuestManager.QuestDbManifestNamespace);
-            ManifestDiffSync.RegisterPersistedBlob(
-                global::FiresRPGmaker.Modules.Territories.TerritorySyncedState.TerritoriesManifestNamespace);
+            // Territory fingerprint is computed live from the per-server client cache
+            // (no profile-global .hash that would bleed overlays across servers).
+            ManifestDiffSync.RegisterHashProvider(
+                global::FiresRPGmaker.Modules.Territories.TerritorySyncedState.TerritoriesManifestNamespace,
+                () => global::FiresRPGmaker.Modules.Territories.TerritorySyncedState.GetLiveFingerprint());
 
                         // Initialize RuntimeSprites sync for quest preview images
                           global::FiresRPGmaker.UI.QuestJournal.RuntimeSpriteSync.Init();
