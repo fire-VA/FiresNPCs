@@ -697,7 +697,19 @@
       "Bash(sed -n 907,913p __TRACKED_VAR__/expand_vegetation.yaml)",
       "Bash(sed -n 45,52p __TRACKED_VAR__/expand_vegetation_redthicket.yaml)",
       "Bash(awk '/prefab: PoisonGeyser/{p=$0} /prefab: PoisonGeyser/{c=4} c>0{if\\(/min:|max:/\\)print \"  \"p\" -> \"$0; c--}' expand_vegetation_balrondamazingnature.yaml)",
-      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\\\\FiresUnifiedCore.sln\" /t:Build /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /clp:ErrorsOnly /v:minimal; Write-Output \"MSBUILD_EXIT=$LASTEXITCODE\")"
+      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\\\\FiresUnifiedCore.sln\" /t:Build /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /clp:ErrorsOnly /v:minimal; Write-Output \"MSBUILD_EXIT=$LASTEXITCODE\")",
+      "Read(//e/SteamLibrary/steamapps/common/Valheim/valheim_Data/**)",
+      "Read(//e/SteamLibrary/steamapps/common/Valheim/valheim_Data/Managed/**)",
+      "Read(//e/SteamLibrary/steamapps/common/Valheim/BepInExPack_Valheim/BepInEx/**)",
+      "Read(//c/Users/User/Downloads/**)",
+      "Bash(dotnet --version)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft Visual Studio/**)",
+      "Bash(echo \"=== VikingCore presence + Party/Group init + errors ===\")",
+      "Bash(grep -nE 'VikingCore|VikingLands|terresdeviking|Party|PartyManager|Group|group ui|GroupHud|defers' /c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/LogOutput.log)",
+      "Bash(ls -la C:/Users/travi/AppData/Local/Temp/claude/C--Users-travi-OneDrive-Desktop-valheimRip2-FiresNPCs-FiresNPCs/ee76613f-6a93-4819-bf60-847f6514e514/tasks)",
+      "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && find FiresNPCs FiresUnifiedCore -type f -name \"*.cs\" | head -30)",
+      "Bash(cd /c/Users/travi/OneDrive/Desktop/valheimRip2 && grep -rn \"RegisterPersistedBlob\\\\|RegisterFolder\\\\|RegisterHashProvider\" FiresNPCs FiresUnifiedCore --include=\"*.cs\" | grep -v \"public static void Register\")",
+      "Bash(grep -ivE \"Docs/|//\")"
     ]
   }
 }
