@@ -24,13 +24,13 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.168")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.169")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.168";
+        public const string PluginVersion = "0.0.169";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -173,8 +173,6 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Marketplace.TransmogVisualPatches+SetUtilityItem_Patch",
             // Inventory grid marker â€” InventoryGrid is a client-only UI component.
             "FiresRPGmaker.Modules.Marketplace.InventoryGrid_TransmogMarker_Patch",
-            // Client input gates (M key, TAB) â€” Minimap/InventoryGui don't exist server-side.
-            "FiresRPGmaker.UI.Patches.ClientInputGatePatches",
             // Territory missing-flag patches â€” most reference Player.m_localPlayer / Hud / MessageHud.
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_UseStamina_Patch",
             "FiresRPGmaker.Modules.Territories.TerritoryRuntime_MissingFlagPatches+Player_UseEitr_Patch",

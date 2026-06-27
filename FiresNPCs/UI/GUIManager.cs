@@ -14,10 +14,8 @@ namespace FiresRPGmaker.UI
     /// </summary>
     public static class GUIManager
     {
-        private static bool _inputBlocked;
-        private static bool _cursorVisible;
-        private static CursorLockMode _previousLockMode;
-        
+        // Input blocking moved to FiresCore.UI.InputBlock (Shared -> Core). The methods below delegate.
+
         // Cached TMP font from game UI
    private static TMP_FontAsset _cachedFont;
         private static bool _fontSearched;
@@ -32,7 +30,7 @@ namespace FiresRPGmaker.UI
         /// <summary>
         /// Gets whether UI input is currently blocked.
         /// </summary>
-  public static bool IsInputBlocked => _inputBlocked;
+  public static bool IsInputBlocked => FiresCore.UI.InputBlock.IsBlocked;
         
         /// <summary>
         /// Initializes the GUIManager and subscribes to font config changes.
@@ -323,26 +321,8 @@ namespace FiresRPGmaker.UI
  /// </summary>
     public static void BlockInput(bool block)
         {
-            if (block == _inputBlocked) return;
-
-     _inputBlocked = block;
-
-            if (block)
-            {
-        // Store current cursor state
-     _cursorVisible = Cursor.visible;
-     _previousLockMode = Cursor.lockState;
-
-        // Show cursor and unlock for UI
-                Cursor.visible = true;
-          Cursor.lockState = CursorLockMode.None;
-     }
-        else
-            {
-           // Restore cursor state
-   Cursor.visible = _cursorVisible;
-      Cursor.lockState = _previousLockMode;
-        }
+            // Single shared implementation lives in Core (cursor state + Player/GameCamera/Minimap/InventoryGui patches).
+            FiresCore.UI.InputBlock.Block(block);
         }
 
       /// <summary>
@@ -351,7 +331,7 @@ namespace FiresRPGmaker.UI
         /// </summary>
       public static bool ShouldBlockGameInput()
         {
- return _inputBlocked;
+            return FiresCore.UI.InputBlock.IsBlocked;
         }
 
      #endregion
