@@ -273,6 +273,7 @@
     <Compile Include="UI\PatrolRouteSync.cs" />
     <Compile Include="UI\ContextMenu\PatrolNodeContextProvider.cs" />
     <Compile Include="UI\ContextMenu\PatrolNodeGrabController.cs" />
+    <Compile Include="Bridges\WayshrinesBridge.cs" />
     <Compile Include="UI\NpcController.cs" />
     <Compile Include="UI\NpcHoverHudSuppressor.cs" />
     <Compile Include="UI\NpcMainPanelController.cs" />

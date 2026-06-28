@@ -24,13 +24,14 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.179")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.182")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
+    [BepInDependency("com.Fire.FiresWayshrines", BepInDependency.DependencyFlags.SoftDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.179";
+        public const string PluginVersion = "0.0.182";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -165,6 +166,11 @@ namespace FiresRPGmaker
             // Marketplace LeaderboardTracker â€” InventoryGui/Minimap touches don't exist server-side.
             "FiresRPGmaker.Modules.Marketplace.LeaderboardTrackerPatches+InventoryGui_DoCrafting_Patch",
             "FiresRPGmaker.Modules.Marketplace.LeaderboardTrackerPatches+Minimap_Explore_Patch",
+            // Server-feed capture — same client-only InventoryGui/Minimap touches; rest (Character/Piece/Pickable)
+            // exist server-side so they patch fine. Without these two the dedi server crashes natively in
+            // PatchAll's IL rewrite (the cause of an ErrorConnectFailed handshake).
+            "FiresRPGmaker.Modules.Marketplace.LeaderboardFeedPatches+InventoryGui_DoCrafting",
+            "FiresRPGmaker.Modules.Marketplace.LeaderboardFeedPatches+Minimap_Explore",
             // Marketplace console commands â€” Terminal exists server-side too, but the patch class registers
             // a player-side flow only; keeping it client-skipped is harmless.
             "FiresRPGmaker.Modules.Marketplace.MarketplaceConsoleCommands",

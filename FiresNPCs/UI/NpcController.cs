@@ -36,6 +36,7 @@ namespace FiresRPGmaker.UI
         public string leaderboardProfile;
         public string mailProfile;
         public string transmogProfile;
+        public string teleporterProfile;
 
         // Name of the assigned patrol route (a file under BepInEx/config/FiresNPCs_PatrolRoutes/).
         // Empty = no patrol. Multiple NPCs can share one route name.
@@ -665,6 +666,7 @@ if (_isFollowing && _followTarget == player)
             leaderboardProfile = zdo.GetString("npc_leaderboard_profile", leaderboardProfile ?? "");
             mailProfile = zdo.GetString("npc_mail_profile", mailProfile ?? "");
             transmogProfile = zdo.GetString("npc_transmog_profile", transmogProfile ?? "");
+            teleporterProfile = zdo.GetString("npc_teleporter_profile", teleporterProfile ?? "");
             patrolRouteName = zdo.GetString("npc_patrol_route", patrolRouteName ?? "");
             SyncPatrolAssignment();
    modelOverride = zdo.GetString("npc_model_override", modelOverride ?? "");
@@ -722,6 +724,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             zdo.Set("npc_leaderboard_profile", leaderboardProfile ?? "");
             zdo.Set("npc_mail_profile", mailProfile ?? "");
             zdo.Set("npc_transmog_profile", transmogProfile ?? "");
+            zdo.Set("npc_teleporter_profile", teleporterProfile ?? "");
             zdo.Set("npc_patrol_route", patrolRouteName ?? "");
     zdo.Set("npc_model_override", modelOverride ?? "");
    zdo.Set("npc_type", (int)npcType);
@@ -799,6 +802,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             NpcType.Leaderboard => leaderboardProfile ?? "",
             NpcType.Mail        => mailProfile ?? "",
             NpcType.Transmog    => transmogProfile ?? "",
+            NpcType.Teleporter  => teleporterProfile ?? "",
             _ => ""
         };
 
@@ -817,6 +821,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
                 case NpcType.Leaderboard: leaderboardProfile = profile; break;
                 case NpcType.Mail:        mailProfile = profile;        break;
                 case NpcType.Transmog:    transmogProfile = profile;    break;
+                case NpcType.Teleporter:  teleporterProfile = profile;  break;
             }
         }
 
@@ -845,6 +850,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
                     case NpcType.Marketplace: return MarketplaceListingManager.GetLoadedProfileNames();
                     case NpcType.Achievement: return AchievementProfileManager.GetLoadedProfileNames();
                     case NpcType.Leaderboard: return LeaderboardProfileManager.GetLoadedProfileNames();
+                    case NpcType.Teleporter:  return Bridges.WayshrinesBridge.GetProfileNames();
                     default: return Enumerable.Empty<string>();
                 }
             }
@@ -1149,6 +1155,7 @@ HandleInfoNpcInteraction(player);
       case NpcType.Marketplace:  Screens.PlayerPanels.MarketplacePlayerPanel.Show(marketplaceProfile, GetDisplayName());   break;
       case NpcType.Mail:         Screens.PlayerPanels.MailPlayerPanel.Show(mailProfile, GetDisplayName());                 break;
       case NpcType.Transmog:     Screens.PlayerPanels.TransmogPlayerPanel.Show(transmogProfile, GetDisplayName());         break;
+      case NpcType.Teleporter:   Bridges.WayshrinesBridge.OpenSelectionForProfile(player, teleporterProfile);            break;
       // Achievement + Leaderboard NPC types are legacy — global panels now. If an old NPC still has the
       // type stored on its ZDO, just fall through to the admin panel as a stub.
       case NpcType.Achievement:

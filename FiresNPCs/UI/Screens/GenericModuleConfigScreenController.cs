@@ -257,6 +257,7 @@ namespace FiresRPGmaker.UI.Screens
                     NpcType.Leaderboard => GetLeaderboardProfileNames(),
                     NpcType.Mail        => GetMailProfileNames(),
                     NpcType.Transmog    => GetTransmogProfileNames(),
+                    NpcType.Teleporter  => Bridges.WayshrinesBridge.GetProfileNames(),
                     _ => null,
                 };
             }

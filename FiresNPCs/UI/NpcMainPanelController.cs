@@ -124,6 +124,7 @@ namespace FiresRPGmaker.UI
             (NpcType.Marketplace, "marketplaceProfile", "Marketplace", "MarketplaceConfigScreen", "MarketplaceApplyButton", "Market"),
             (NpcType.Mail,        "mailProfile",        "Mail",        "MailConfigScreen",        "MailApplyButton",        "Mail"),
             (NpcType.Transmog,    "transmogProfile",    "Transmog",    "TransmogConfigScreen",    "TransmogApplyButton",    "Transmog"),
+            (NpcType.Teleporter,  "teleporterProfile",  "Teleporter",  "TeleporterConfigScreen",  "TeleporterApplyButton",  "Wayshrine"),
         };
 
         /// <summary>Wires the 6 generic module screens + clones a tab button per module into a 2nd tab row.</summary>
@@ -274,6 +275,7 @@ namespace FiresRPGmaker.UI
             NpcType.Leaderboard => PanelElementManager.ScreenMode.LeaderboardConfig,
             NpcType.Mail        => PanelElementManager.ScreenMode.MailConfig,
             NpcType.Transmog    => PanelElementManager.ScreenMode.TransmogConfig,
+            NpcType.Teleporter  => PanelElementManager.ScreenMode.TeleporterConfig,
             _                   => PanelElementManager.ScreenMode.AdminConfig,
         };
         private DressingRoomScreenController _dressingRoomScreenController;

@@ -54,6 +54,7 @@ namespace FiresRPGmaker.UI
             LeaderboardConfig,
             MailConfig,
             TransmogConfig,
+            TeleporterConfig,
 
             /// <summary>Hidden - panel is closed.</summary>
             Hidden
@@ -119,6 +120,7 @@ namespace FiresRPGmaker.UI
             case ScreenMode.LeaderboardConfig: ConfigureModuleMode(panelRoot, "LeaderboardConfigScreen", "LeaderboardApplyButton", "Leaderboard Config"); break;
             case ScreenMode.MailConfig: ConfigureModuleMode(panelRoot, "MailConfigScreen", "MailApplyButton", "Mail Config"); break;
             case ScreenMode.TransmogConfig: ConfigureModuleMode(panelRoot, "TransmogConfigScreen", "TransmogApplyButton", "Transmog Config"); break;
+            case ScreenMode.TeleporterConfig: ConfigureModuleMode(panelRoot, "TeleporterConfigScreen", "TeleporterApplyButton", "Wayshrine Config"); break;
 
        case ScreenMode.Hidden:
                 HideAllElements(panelRoot);
