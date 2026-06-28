@@ -24,13 +24,13 @@ using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.175")]
+    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.178")]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.175";
+        public const string PluginVersion = "0.0.178";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -85,6 +85,11 @@ namespace FiresRPGmaker
 
             // Wire the Core NPC engine's host-service bridges to RPGMaker implementations.
             Integration.NpcBridgeProviders.RegisterAll();
+
+            // Register the patrol-route node-editing context-menu provider (client-only — the context menu is a
+            // client UI). Hold-Alt + right-click a visualized route node to move/nudge/insert/delete it.
+            if (!Application.isBatchMode)
+                FiresCore.UI.ContextMenu.FiresContextMenu.Register(new UI.ContextMenu.PatrolNodeContextProvider());
 
             // Load custom NPC mp3 sounds from BepInEx/config/FiresNPCs_Sounds (KG-style). The coroutine
             // self-guards on a headless/dedicated server (no audio output there).

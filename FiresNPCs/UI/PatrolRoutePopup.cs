@@ -171,17 +171,20 @@ namespace FiresRPGmaker.UI
             if (hasRoute)
             {
                 SetStatus($"Current route: {_npc.patrolRouteName}");
-                AddButton("Change Route", new Vector2(0.12f, 0.66f), new Vector2(0.88f, 0.82f), RebuildPicker);
-                AddButton("Clear Route", new Vector2(0.12f, 0.46f), new Vector2(0.88f, 0.62f), OnClear);
+                bool showing = PatrolRouteVisualizer.IsShowing(_npc.patrolRouteName);
+                AddButton(showing ? "Hide Route Lines" : "Visualize Route",
+                    new Vector2(0.12f, 0.64f), new Vector2(0.88f, 0.78f), OnToggleVisualize);
+                AddButton("Change Route", new Vector2(0.12f, 0.46f), new Vector2(0.88f, 0.60f), RebuildPicker);
+                AddButton("Clear Route", new Vector2(0.12f, 0.28f), new Vector2(0.88f, 0.42f), OnClear);
             }
             else
             {
                 SetStatus("No patrol route set for this NPC.");
-                AddButton("Set New Route", new Vector2(0.12f, 0.66f), new Vector2(0.88f, 0.82f), OnSetNew);
-                AddButton("Use Existing", new Vector2(0.12f, 0.46f), new Vector2(0.88f, 0.62f), RebuildPicker);
+                AddButton("Set New Route", new Vector2(0.12f, 0.62f), new Vector2(0.88f, 0.78f), OnSetNew);
+                AddButton("Use Existing", new Vector2(0.12f, 0.42f), new Vector2(0.88f, 0.58f), RebuildPicker);
             }
 
-            AddButton("Cancel", new Vector2(0.30f, 0.16f), new Vector2(0.70f, 0.32f), Close);
+            AddButton("Cancel", new Vector2(0.30f, 0.12f), new Vector2(0.70f, 0.26f), Close);
         }
 
         private void RebuildPicker() => BuildPicker(resetSelection: true);
@@ -309,6 +312,19 @@ namespace FiresRPGmaker.UI
             PatrolRouteSync.ClearAssignment(_npc);
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Cleared patrol route");
             Close();
+        }
+
+        // Draws/hides the assigned route in the world (golden line + node markers). Persists after the popup
+        // closes so you can walk the route to inspect it; toggle off here or it auto-clears on logout.
+        private void OnToggleVisualize()
+        {
+            if (_npc == null || string.IsNullOrEmpty(_npc.patrolRouteName)) return;
+            PatrolRouteVisualizer.Toggle(_npc.patrolRouteName);
+            MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft,
+                PatrolRouteVisualizer.IsShowing(_npc.patrolRouteName)
+                    ? $"Showing route '{_npc.patrolRouteName}' — close this and walk it"
+                    : "Hid route lines");
+            RebuildEntry();   // refresh the toggle label
         }
 
         // ── helpers ─────────────────────────────────────────────────────────
