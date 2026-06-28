@@ -323,6 +323,7 @@
     <Compile Include="Modules\Marketplace\MarketplacePaths.cs" />
     <Compile Include="UI\Screens\Player\BankerPlayerPanel.cs" />
     <Compile Include="Modules\Marketplace\LeaderboardTracker.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardServerFeed.cs" />
     <Compile Include="Modules\Marketplace\TransmogState.cs" />
     <Compile Include="Modules\Marketplace\TransmogInventoryMarker.cs" />
     <Compile Include="UI\Screens\TraderConfigScreenController.cs" />

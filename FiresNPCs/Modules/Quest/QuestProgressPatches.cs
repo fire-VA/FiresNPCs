@@ -288,6 +288,22 @@ namespace FiresRPGmaker.Modules.Quest
                                 var pkg = CreateStatPackage(playerId, $"kills.{statKey}", 1);
                                 ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_UpdateStat", pkg);
 
+                                // Feed the server-authoritative cross-player leaderboard (Core repo). PvP kills
+                                // route to the KilledPlayers column; everything else to KilledCreatures.
+                                try
+                                {
+                                    var creditPlayer = Player.GetPlayer(playerId);
+                                    string creditName = creditPlayer != null ? creditPlayer.GetPlayerName() : null;
+                                    if (!string.IsNullOrEmpty(creditName))
+                                    {
+                                        var kind = target is Player
+                                            ? Marketplace.LeaderboardStat.KilledPlayer
+                                            : Marketplace.LeaderboardStat.KilledCreature;
+                                        Marketplace.LeaderboardServerFeed.Send(kind, creditName, statKey, 1);
+                                    }
+                                }
+                                catch { }
+
                                 // Only increment starN stat if star > 0, using format 'kills.<name><N>Star'
                                 if (star > 0)
                                 {

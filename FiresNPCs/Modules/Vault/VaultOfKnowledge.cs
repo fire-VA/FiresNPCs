@@ -21,6 +21,20 @@ namespace FiresRPGmaker.Modules.Vault
         private string ServerFilePath => Path.Combine(BaseSavePath, "server.json");
         private string PlayersDir => Path.Combine(BaseSavePath, "players");
 
+        // Per-world path for the shared Core LiteDB vault (config/FiresRPGmaker/Worlds/<world>/vault.db).
+        // Per-world (NOT profile-global) so guild / leaderboard / player-identity data can't bleed across
+        // worlds on a shared r2modman profile — the same cross-server-pollution class server.json guards against.
+        private string VaultDbPath =>
+            Path.Combine(BaseSavePath, "Worlds", SanitizeWorldName(ZNet.instance?.GetWorldName()), "vault.db");
+
+        private static string SanitizeWorldName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "default";
+            foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+            name = name.Trim();
+            return name.Length == 0 ? "default" : name;
+        }
+
         public ServerVaultData serverData = new();
 
         // pending requests from peers (key = peerUid, value = (requested playerId, requested playerName))
@@ -59,6 +73,21 @@ namespace FiresRPGmaker.Modules.Vault
             // state onto another on a shared r2modman profile. Clients get pushed state via RPC.
             if (ZNet.instance != null && ZNet.instance.IsServer())
                 Instance.LoadServerData();
+
+            // Configure the shared Core LiteDB vault (per-world) on the server so PlayerIdentity capture and
+            // the leaderboard repository actually persist. Server-only — clients receive board snapshots via RPC,
+            // they never open the DB. Nothing else in the family configured it, so without this every Core repo
+            // op no-ops on its IsConfigured guard.
+            if (ZNet.instance != null && ZNet.instance.IsServer() && !FiresCore.Storage.VaultDatabase.IsConfigured)
+            {
+                try
+                {
+                    FiresCore.Storage.VaultDatabase.Configure(Instance.VaultDbPath);
+                    Debug.Log($"[FiresRPGmaker] VaultDatabase configured (per-world): {FiresCore.Storage.VaultDatabase.DatabasePath}");
+                }
+                catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] VaultDatabase.Configure failed: {ex.Message}"); }
+            }
+
             EnsureRpcsRegistered();
 
             // Ensure timer manager is running so server can enforce timers
@@ -84,6 +113,7 @@ namespace FiresRPGmaker.Modules.Vault
                 ZRoutedRpc.instance.Register("FiresRPGmaker_QuestProgressEvent", new Action<long, ZPackage>(RPC_QuestProgressEvent));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_QuestMoveCheck", new Action<long, ZPackage>(RPC_QuestMoveCheck));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_UpdateStat", new Action<long, ZPackage>(RPC_UpdateStat));
+                Marketplace.LeaderboardServerFeed.RegisterRpc(ZRoutedRpc.instance);
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_AnnouncePlayerInfo", new Action<long, ZPackage>(RPC_AnnouncePlayerInfo));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_RequestPlayerData", new Action<long, ZPackage>(RPC_RequestPlayerData));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_ReceivePlayerData", new Action<long, ZPackage>(RPC_ReceivePlayerData));
