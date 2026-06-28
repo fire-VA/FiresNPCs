@@ -732,7 +732,8 @@
       "Bash(where python *)",
       "PowerShell($p = Get-Command python -ErrorAction SilentlyContinue; if \\($p\\) { & $p.Source --version } else { \"no python\" }; Get-ChildItem C:\\\\ -Filter \"python.exe\" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 3 FullName)",
       "Bash(xxd)",
-      "Bash(grep -a -A1 -E \"m_BoneName: \\(Spine|Spine1|Spine2|LeftArm|LeftUpLeg|LeftLeg|Neck|Head|Jaw\\)$\" player_femAvatar.asset)"
+      "Bash(grep -a -A1 -E \"m_BoneName: \\(Spine|Spine1|Spine2|LeftArm|LeftUpLeg|LeftLeg|Neck|Head|Jaw\\)$\" player_femAvatar.asset)",
+      "Bash(grep -v \"/\\\\.vs\\\\|/bin\\\\|/obj\\\\|/packages\")"
     ]
   }
 }

@@ -26,8 +26,6 @@ namespace FiresRPGmaker.UI
         public static PatrolRoutePopup Instance { get; private set; }
         public static bool IsOpen => Instance != null && Instance._open;
 
-        private const int MaxVisibleRoutes = 5;
-
         private NpcController _npc;
         private NpcBookController _book;
         private bool _open;
@@ -38,7 +36,14 @@ namespace FiresRPGmaker.UI
         private TextMeshProUGUI _status;
         private string _selectedRoute;
 
-        private struct HotZone { public RectTransform Rect; public Action Action; }
+        // Scrollable route list — driven by the raw mouse wheel, because the open InventoryGui swallows Unity's
+        // event system (so a ScrollRect drag wouldn't fire); the same reason every click is a manual hit-test.
+        private RectTransform _scrollViewport;
+        private RectTransform _scrollContent;
+        private float _scrollOffset;
+        private List<string> _routeNames;
+
+        private struct HotZone { public RectTransform Rect; public RectTransform Clip; public Action Action; public Action RightAction; }
         private readonly List<HotZone> _hot = new List<HotZone>();
 
         public static void Open(NpcController npc, NpcBookController book)
@@ -67,17 +72,34 @@ namespace FiresRPGmaker.UI
             if (!Cursor.visible) Cursor.visible = true;
             if (Cursor.lockState != CursorLockMode.None) Cursor.lockState = CursorLockMode.None;
 
-            if (Input.GetMouseButtonDown(0))
+            Vector2 mouse = Input.mousePosition;
+
+            // Mouse-wheel scroll of the route list while the cursor is over it.
+            if (_scrollContent != null && _scrollViewport != null)
             {
-                Vector2 mouse = Input.mousePosition;
-                foreach (var h in _hot)
+                float wheel = Input.mouseScrollDelta.y;
+                if (Mathf.Abs(wheel) > 0.01f && RectTransformUtility.RectangleContainsScreenPoint(_scrollViewport, mouse, null))
                 {
-                    if (h.Rect != null && RectTransformUtility.RectangleContainsScreenPoint(h.Rect, mouse, null))
-                    {
-                        h.Action?.Invoke();
-                        return;
-                    }
+                    _scrollOffset -= wheel * 45f;
+                    ClampScroll();
                 }
+            }
+
+            if (Input.GetMouseButtonDown(0)) { DispatchHit(mouse, rightClick: false); return; }
+            if (Input.GetMouseButtonDown(1)) { DispatchHit(mouse, rightClick: true); return; }
+        }
+
+        // Manual hit dispatch (the InventoryGui swallows the event system). Skips a hot-zone whose row is
+        // scrolled outside its clip viewport so an invisible row can't be clicked.
+        private void DispatchHit(Vector2 mouse, bool rightClick)
+        {
+            foreach (var h in _hot)
+            {
+                if (h.Rect == null) continue;
+                var act = rightClick ? h.RightAction : h.Action;
+                if (act == null) continue;
+                if (h.Clip != null && !RectTransformUtility.RectangleContainsScreenPoint(h.Clip, mouse, null)) continue;
+                if (RectTransformUtility.RectangleContainsScreenPoint(h.Rect, mouse, null)) { act.Invoke(); return; }
             }
         }
 
@@ -108,7 +130,7 @@ namespace FiresRPGmaker.UI
             _panelGo.transform.SetParent(_canvasGo.transform, false);
             var prect = _panelGo.AddComponent<RectTransform>();
             prect.anchorMin = prect.anchorMax = prect.pivot = new Vector2(0.5f, 0.5f);
-            prect.sizeDelta = new Vector2(440f, 340f);
+            prect.sizeDelta = new Vector2(460f, 440f);
             prect.anchoredPosition = Vector2.zero;
             var pbg = _panelGo.AddComponent<Image>();
             pbg.color = UIFontConfig.Colors.ParchmentPanel;
@@ -169,35 +191,88 @@ namespace FiresRPGmaker.UI
             ClearContent();
             if (resetSelection) _selectedRoute = null;
 
-            var names = PatrolRouteManager.GetAllRouteNames().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+            _routeNames = PatrolRouteManager.GetAllRouteNames()
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
-            if (names.Count == 0)
+            if (_routeNames.Count == 0)
             {
                 SetStatus("No saved routes yet — use Set New Route.");
                 AddButton("Back", new Vector2(0.30f, 0.16f), new Vector2(0.70f, 0.32f), RebuildEntry);
                 return;
             }
 
-            int shown = Mathf.Min(names.Count, MaxVisibleRoutes);
-            SetStatus(names.Count > shown
-                ? $"Choose a route (showing first {shown} of {names.Count}):"
-                : "Choose a route:");
-            if (names.Count > shown)
-                Debug.Log($"[PatrolRoutePopup] {names.Count} routes saved; list capped at {shown}.");
+            SetStatus($"Choose a route ({_routeNames.Count}) — left-click to pick, right-click to delete:");
 
-            const float rowTop = 0.86f, rowH = 0.115f, gap = 0.01f;
-            for (int i = 0; i < shown; i++)
+            // Scrollable viewport over ALL routes — mouse-wheel scroll; rows are clipped to the viewport.
+            var vpGo = new GameObject("RouteViewport", typeof(RectTransform), typeof(RectMask2D));
+            vpGo.transform.SetParent(_content, false);
+            _scrollViewport = (RectTransform)vpGo.transform;
+            _scrollViewport.anchorMin = new Vector2(0.06f, 0.18f);
+            _scrollViewport.anchorMax = new Vector2(0.94f, 0.97f);
+            _scrollViewport.offsetMin = _scrollViewport.offsetMax = Vector2.zero;
+
+            var listGo = new GameObject("RouteList", typeof(RectTransform));
+            listGo.transform.SetParent(_scrollViewport, false);
+            _scrollContent = (RectTransform)listGo.transform;
+            _scrollContent.anchorMin = new Vector2(0f, 1f);
+            _scrollContent.anchorMax = new Vector2(1f, 1f);
+            _scrollContent.pivot = new Vector2(0.5f, 1f);
+
+            const float rowPx = 46f, gapPx = 6f;
+            _scrollContent.sizeDelta = new Vector2(0f, _routeNames.Count * rowPx + Mathf.Max(0, _routeNames.Count - 1) * gapPx);
+
+            for (int i = 0; i < _routeNames.Count; i++)
             {
-                string routeName = names[i];
-                float top = rowTop - i * (rowH + gap);
+                string routeName = _routeNames[i];
                 bool selected = routeName == _selectedRoute;
-                var btn = AddButton(selected ? "» " + routeName : routeName,
-                    new Vector2(0.08f, top - rowH), new Vector2(0.92f, top), () => OnSelectRoute(routeName));
+                var btn = UIBuilderHelper.CreateParchmentButton(_scrollContent,
+                    selected ? "» " + routeName : routeName, Vector2.zero, Vector2.one, null);
+                var rt = btn.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+                float top = -i * (rowPx + gapPx);
+                rt.offsetMin = new Vector2(0f, top - rowPx);
+                rt.offsetMax = new Vector2(0f, top);
                 if (selected) btn.GetComponent<Image>().color = UIFontConfig.Colors.ParchmentButtonHover;
+                _hot.Add(new HotZone
+                {
+                    Rect = rt,
+                    Clip = _scrollViewport,
+                    Action = () => OnSelectRoute(routeName),
+                    RightAction = () => OnRequestDelete(routeName),
+                });
             }
 
-            AddButton("Apply", new Vector2(0.10f, 0.02f), new Vector2(0.48f, 0.16f), OnApplySelected);
-            AddButton("Back", new Vector2(0.52f, 0.02f), new Vector2(0.90f, 0.16f), RebuildEntry);
+            ClampScroll();
+
+            AddButton("Apply", new Vector2(0.10f, 0.02f), new Vector2(0.48f, 0.15f), OnApplySelected);
+            AddButton("Back", new Vector2(0.52f, 0.02f), new Vector2(0.90f, 0.15f), RebuildEntry);
+        }
+
+        // Right-click a route → confirm before deleting its cfg from disk.
+        private void OnRequestDelete(string routeName)
+        {
+            ClearContent();
+            SetStatus($"Delete route '{routeName}'? This removes its saved cfg and can't be undone.");
+            AddButton("Delete", new Vector2(0.14f, 0.46f), new Vector2(0.86f, 0.62f), () => OnConfirmDelete(routeName));
+            AddButton("Cancel", new Vector2(0.30f, 0.18f), new Vector2(0.70f, 0.34f), () => BuildPicker(resetSelection: false));
+        }
+
+        private void OnConfirmDelete(string routeName)
+        {
+            bool ok = PatrolRouteManager.DeleteRoute(routeName);
+            MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
+                ok ? $"Deleted patrol route '{routeName}'" : $"Couldn't delete '{routeName}'");
+            if (_selectedRoute == routeName) _selectedRoute = null;
+            _scrollOffset = 0f;
+            BuildPicker(resetSelection: false);
+        }
+
+        private void ClampScroll()
+        {
+            if (_scrollContent == null || _scrollViewport == null) { _scrollOffset = 0f; return; }
+            float max = Mathf.Max(0f, _scrollContent.rect.height - _scrollViewport.rect.height);
+            _scrollOffset = Mathf.Clamp(_scrollOffset, 0f, max);
+            _scrollContent.anchoredPosition = new Vector2(0f, _scrollOffset);
         }
 
         // ── actions ─────────────────────────────────────────────────────────
@@ -252,6 +327,8 @@ namespace FiresRPGmaker.UI
         private void ClearContent()
         {
             _hot.Clear();
+            _scrollViewport = null;
+            _scrollContent = null;
             if (_content == null) return;
             for (int i = _content.childCount - 1; i >= 0; i--)
                 Destroy(_content.GetChild(i).gameObject);
