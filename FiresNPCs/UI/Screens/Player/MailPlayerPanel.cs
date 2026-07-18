@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FiresRPGmaker.Modules.Marketplace;
 using TMPro;
 using UnityEngine;
@@ -23,6 +24,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private static int _openCount;
         public static bool AnyOpen => _openCount > 0;
         private bool _opened;
+        // Closed by the central Menu.Show Escape hook (GUIManager.CloseAllPanels) — no self-close on Escape.
+        public static void CloseAny() { try { if (_instance != null && _instance.IsOpen) _instance.Close(); } catch { } }
 
         private GameObject _canvasGo;
         private GameObject _panelGo;
@@ -64,6 +67,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _instance.Open(profileName, npcDisplayName);
         }
 
+        // Toggle open/closed — used by the physical Mailbox piece's interact.
+        public static void Toggle(string profileName, string npcDisplayName)
+        {
+            if (AnyOpen && _instance != null) _instance.Close();
+            else Show(profileName, npcDisplayName);
+        }
+
         private void Open(string profileName, string npcDisplayName)
         {
             if (!EnsureBuilt()) return;
@@ -73,10 +83,31 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_subtitleText != null)
                 _subtitleText.text = npcDisplayName + "  -  Profile: " + (string.IsNullOrEmpty(profileName) ? "<none>" : profileName);
             _panelGo.SetActive(true);
+            MailNetwork.OnInbox = OnInboxUpdated;
+            MailNetwork.OnResult = OnMailResult;
             Refresh();
+            MailNetwork.RequestInbox(_profileName); // server delivers profile mail once, returns the real inbox
             if (!_opened) { _opened = true; _openCount++; }
             try { GUIManager.BlockInput(true); } catch { }
             try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
+        }
+
+        // Fired on the local client when the server inbox reply lands (also after a claim). Repaints the stack
+        // and refreshes the unread badge in the title.
+        private static void OnInboxUpdated()
+        {
+            if (_instance == null || !_instance.IsOpen) return;
+            if (_instance._titleText != null)
+                _instance._titleText.text = MailNetwork.ClientUnread > 0 ? $"Mail ({MailNetwork.ClientUnread})" : "Mail";
+            if (_instance._tab == Tab.Inbox) _instance.RefreshInbox();
+        }
+
+        // Fired with a status line after a send or claim reply.
+        private static void OnMailResult(string status)
+        {
+            if (_instance == null || !_instance.IsOpen || string.IsNullOrEmpty(status)) return;
+            if (_instance._statusText != null) _instance._statusText.text = status;
+            if (_instance._sendStatusText != null) _instance._sendStatusText.text = status;
         }
 
         private void Close()
@@ -91,7 +122,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private void Update()
         {
             if (!IsOpen) return;
-            if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+            // Escape owned by the central Menu.Show hook — no self-close here (avoids the menu-opens race).
             if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
             {
                 Cursor.visible = true;
@@ -244,13 +275,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
             _envelopeClones.Clear();
 
-            var inbox = MailProfileManager.GetMail(_profileName);
+            var inbox = MailNetwork.ClientInbox;
             if (inbox.Count == 0)
             {
                 if (_detailSubject != null) _detailSubject.text = "Inbox is empty.";
                 if (_detailFrom    != null) _detailFrom.text = "";
                 if (_detailDate    != null) _detailDate.text = "";
-                if (_detailBody    != null) _detailBody.text = "Drop a .cfg into BepInEx\\config\\firesnpcs\\mail\\ to seed sample messages.";
+                if (_detailBody    != null) _detailBody.text = "No mail yet. Messages from other players and NPCs arrive here.";
                 ClearAttachments();
                 if (_statusText != null) _statusText.text = "";
                 return;
@@ -270,8 +301,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             int n = inbox.Count;
             for (int i = 0; i < n; i++) BuildEnvelopeClone(inbox[i], i + 1, isLast: i == n - 1);
 
-            if (_selected == null) SelectMessage(inbox[0]);
-            else                   SelectMessage(_selected);
+            // The reply rebuilds the list with fresh objects each refresh, so re-resolve the selection by Id.
+            var toSelect = _selected != null ? inbox.FirstOrDefault(m => m.Id == _selected.Id) : null;
+            SelectMessage(toSelect ?? inbox[0]);
         }
 
         /// <summary>Builds the static "Inbox" tab as the top envelope (index 0) of the stack. Shows
@@ -359,6 +391,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private void SelectMessage(MailEntry msg)
         {
             _selected = msg;
+            if (msg.Id > 0) MailNetwork.RequestMarkRead(msg.Id); // viewing a message reads it (server marks it)
             if (_detailSubject != null) _detailSubject.text = msg.Subject;
             if (_detailFrom    != null) _detailFrom.text    = "From: " + msg.SenderName;
             if (_detailDate    != null) _detailDate.text    = msg.DateString;
@@ -408,26 +441,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         {
             if (_selected == null) { if (_statusText != null) _statusText.text = "Select a message first."; return; }
             if (_selected.Attachments.Count == 0) { if (_statusText != null) _statusText.text = "No attachments on this mail."; return; }
-            var player = Player.m_localPlayer; if (player == null) return;
-            var inv = player.GetInventory();
-            int granted = 0;
-            foreach (var att in _selected.Attachments)
-            {
-                var pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(att.Prefab) : null;
-                var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
-                if (drop == null) continue;
-                if (inv.CanAddItem(drop.m_itemData, att.Count))
-                    inv.AddItem(att.Prefab, att.Count, 1, 0, 0L, "");
-                else
-                {
-                    var go = Object.Instantiate(pf, player.transform.position + player.transform.forward * 1.5f + Vector3.up * 1.5f, Quaternion.identity);
-                    var dr = go.GetComponent<ItemDrop>(); if (dr != null) dr.m_itemData.m_stack = att.Count;
-                }
-                granted++;
-            }
-            _selected.Attachments.Clear();
-            ClearAttachments();
-            if (_statusText != null) _statusText.text = "Claimed " + granted + " attachment(s).";
+            // Server-authoritative: it flips AttachmentsTaken and replies with the items to grant, so the same
+            // mail can never be claimed twice (the old local grant reset on reload and could be re-claimed).
+            MailNetwork.RequestClaim(_selected.Id);
+            if (_statusText != null) _statusText.text = "Claiming…";
         }
 
         private void OnSendClicked()
@@ -438,16 +455,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (string.IsNullOrEmpty(to))   { if (_sendStatusText != null) _sendStatusText.text = "Enter a recipient name."; return; }
             if (string.IsNullOrEmpty(subj)) { if (_sendStatusText != null) _sendStatusText.text = "Enter a subject.";        return; }
             if (string.IsNullOrEmpty(body)) { if (_sendStatusText != null) _sendStatusText.text = "Enter a message body.";   return; }
-            MailProfileManager.AppendLocalMail(to.ToLowerInvariant(), new MailEntry
-            {
-                Id = MailProfileManager.NextLocalId(),
-                SenderName = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : "?",
-                DateString = "just now",
-                Subject = subj,
-                Body = body,
-                Attachments = new List<MailAttachment>(),
-            });
-            if (_sendStatusText != null) _sendStatusText.text = "Sent to '" + to + "' (local-only until cross-player wiring lands).";
+            // Server resolves the recipient by name and stores the mail in their vault mailbox (cross-player,
+            // persistent). The SendResult reply lands on OnMailResult with success/failure text.
+            MailNetwork.RequestSend(to, subj, body);
+            if (_sendStatusText != null) _sendStatusText.text = "Sending…";
             if (_sendTo      != null) _sendTo.text = "";
             if (_sendSubject != null) _sendSubject.text = "";
             if (_sendMessage != null) _sendMessage.text = "";

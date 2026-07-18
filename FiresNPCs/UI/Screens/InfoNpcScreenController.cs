@@ -32,7 +32,7 @@ namespace FiresRPGmaker.UI.Screens
         private Button _applyButton;
 
         // Config folder path - mirrors Marketplace structure for compatibility
-        private static string ServerInfosConfigFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "ServerInfos");
+        private static string ServerInfosConfigFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.ServerInfos);
 
         // Cache of loaded profiles
       private static Dictionary<string, InfoProfile> _profileCache = new Dictionary<string, InfoProfile>(StringComparer.OrdinalIgnoreCase);
@@ -232,27 +232,32 @@ _hasUnsavedChanges = true;
    SyncToServerIfNeeded();
         }
 
-   private void SyncToServerIfNeeded()
+   private void SyncToServerIfNeeded() => PushServerInfosToServer();
+
+        /// <summary>Pushes the local ServerInfos.cfg to the server via the shared file-sync RPC. No-op on the
+        /// server/host (it owns the file). Used by BOTH the codegen editor AND the book Info save — without
+        /// this the dedicated server never receives an admin's Info edit and nothing persists server-side.</summary>
+        public static void PushServerInfosToServer()
         {
-   try
-        {
-       if (ZNet.instance != null && ZNet.instance.IsServer()) return;
-        if (ZRoutedRpc.instance == null) return;
-     
-  string filePath = Path.Combine(ServerInfosConfigFolder, "ServerInfos.cfg");
-    if (!File.Exists(filePath)) return;
- 
-     string fileContent = File.ReadAllText(filePath);
-   var pkg = new ZPackage();
-          pkg.Write("ServerInfos");
-          pkg.Write("ServerInfos.cfg");
-     pkg.Write(fileContent);
-         ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_SyncFiles", pkg);
-         MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Config synced to server");
-}
-    catch (Exception ex)
+            try
             {
-Debug.LogWarning($"[InfoNpcScreenController] Failed to sync: {ex.Message}");
+                if (ZNet.instance != null && ZNet.instance.IsServer()) return;
+                if (ZRoutedRpc.instance == null) return;
+
+                string filePath = Path.Combine(ServerInfosConfigFolder, "ServerInfos.cfg");
+                if (!File.Exists(filePath)) return;
+
+                string fileContent = File.ReadAllText(filePath);
+                var pkg = new ZPackage();
+                pkg.Write("ServerInfos");
+                pkg.Write("ServerInfos.cfg");
+                pkg.Write(fileContent);
+                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_SyncFiles", pkg);
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Config synced to server");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[InfoNpcScreenController] Failed to sync: {ex.Message}");
             }
         }
 
@@ -260,14 +265,30 @@ Debug.LogWarning($"[InfoNpcScreenController] Failed to sync: {ex.Message}");
 
         #region Profile Management
 
-        private string GetProfileNameForNpc(NpcController npc)
-   {
-    if (!string.IsNullOrEmpty(npc.infoProfile)) return npc.infoProfile;
-     string baseName = npc.npcProfileName ?? npc.GetDisplayName() ?? "InfoNpc";
-        return MakeSafeProfileName(baseName);
+        private string GetProfileNameForNpc(NpcController npc) => DefaultProfileNameFor(npc);
+
+        /// <summary>Resolves the Info profile name for an NPC. Prefers an explicit infoProfile, then the NPC's
+        /// (non-default) display name, else a UNIQUE per-placement id so multiple unnamed Info NPCs don't all
+        /// collide on the shared "StaticNpc" name — which made a second new Info NPC overwrite the first.
+        /// The unique id is taken from the stable placement anchor, so it survives relogs/patrol movement.</summary>
+        public static string DefaultProfileNameFor(NpcController npc)
+        {
+            if (npc == null) return "default";
+            if (!string.IsNullOrEmpty(npc.infoProfile)) return npc.infoProfile;
+            string display = npc.GetDisplayName();
+            if (!string.IsNullOrEmpty(display) && !global::FiresRPGmaker.Managers.SavedNpcManager.IsDefaultNpcName(display))
+                return MakeSafeProfileName(display);
+            Vector3 p = npc.transform.position;
+            try
+            {
+                var z = npc.GetComponent<ZNetView>()?.GetZDO();
+                if (z != null) p = z.GetVec3("npc_placed_anchor", z.GetVec3("npc_stationed_pos", p));
+            }
+            catch { }
+            return $"info_{Mathf.RoundToInt(p.x)}_{Mathf.RoundToInt(p.y)}_{Mathf.RoundToInt(p.z)}";
         }
 
-        private string MakeSafeProfileName(string name)
+        private static string MakeSafeProfileName(string name)
         {
    var sb = new StringBuilder();
    foreach (char c in name)
@@ -319,14 +340,16 @@ Debug.LogWarning($"[InfoNpcScreenController] Failed to sync: {ex.Message}");
 
         try
        {
-          string filePath = Path.Combine(ServerInfosConfigFolder, "ServerInfos.cfg");
-     if (!File.Exists(filePath)) return;
-
-           var profiles = LoadAllProfilesFromFile(filePath);
+          // Pure clients parse the server-synced in-memory store (no config files on client disk);
+          // server/host reads its folder as before.
+          foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("ServerInfos"))
+          {
+           var profiles = LoadAllProfilesFromLines(kv.Value);
     foreach (var kvp in profiles)
          {
      _profileCache[kvp.Key] = kvp.Value;
                 }
+          }
 }
 catch (Exception ex)
        {
@@ -367,12 +390,23 @@ catch (Exception ex)
 
      private static Dictionary<string, InfoProfile> LoadAllProfilesFromFile(string filePath)
         {
+            if (!File.Exists(filePath)) return new Dictionary<string, InfoProfile>(StringComparer.OrdinalIgnoreCase);
+            string[] fileLines;
+            try { fileLines = File.ReadAllLines(filePath); }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[InfoNpcScreenController] Failed to load profiles: {ex.Message}");
+                return new Dictionary<string, InfoProfile>(StringComparer.OrdinalIgnoreCase);
+            }
+            return LoadAllProfilesFromLines(fileLines);
+        }
+
+        private static Dictionary<string, InfoProfile> LoadAllProfilesFromLines(string[] lines)
+        {
             var profiles = new Dictionary<string, InfoProfile>(StringComparer.OrdinalIgnoreCase);
- if (!File.Exists(filePath)) return profiles;
 
      try
       {
-           string[] lines = File.ReadAllLines(filePath);
   string currentProfile = null;
          InfoProfile currentData = null;
           var contentBuilder = new StringBuilder();

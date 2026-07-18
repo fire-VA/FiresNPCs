@@ -64,6 +64,9 @@ namespace FiresRPGmaker
                             case "api":            ApiDump(args); return;
                             case "territory_flag": TerritoryFlagDump(args); return;
                             case "marketplace":    OpenMarketplace(args); return;
+                            case "factions":       FactionsDump(args); return;
+                            case "admin":          AdminDump(args); return;
+                            case "panels":         OpenPanel(args); return;
                             default:
                                 args.Context.AddString("[firesrpg_test] Unknown subverb '" + verb + "'. Run 'firesrpg_test help'.");
                                 return;
@@ -77,7 +80,8 @@ namespace FiresRPGmaker
                 optionsFetcher: () => new System.Collections.Generic.List<string>
                 {
                     "help", "sanity", "quest_progress", "quest_reward", "quest_accept", "quest_complete",
-                    "quest_list", "lifecycle", "api", "territory_flag", "marketplace"
+                    "quest_list", "lifecycle", "api", "territory_flag", "marketplace",
+                    "factions", "admin", "panels"
                 });
         }
 
@@ -101,6 +105,9 @@ namespace FiresRPGmaker
                 "  api                               → dumps API.ClientSide results at the local player's position",
                 "  territory_flag <flagName>         → reports which territory carries the named primary OR additional flag at your position",
                 "  marketplace [profile]             → opens MarketplacePlayerPanel (profile defaults to 'default')",
+                "  factions                          → dumps loaded factions (lists/skills/icon) + your current membership",
+                "  admin                             → dumps the 3 admin signals + the canonical IsLocalAdmin() result",
+                "  panels <banker|mail|transmog|gambler|marketplace> [profile]  → opens a player panel for manual testing",
             };
             foreach (var l in lines) ctx.AddString(l);
         }
@@ -495,6 +502,120 @@ namespace FiresRPGmaker
                 }
                 catch { mpThrew = true; }
                 Report("MarketplacePlayerPanel.Show()    ", !mpThrew, mpThrew ? "threw" : "panel constructed");
+
+                // ─── 9. Factions (config + enforcement plumbing) ───
+                ctx.AddString("[9] Factions");
+                Report("faction table loaded            ", true, global::FiresRPGmaker.Modules.Factions.FactionManager.All.Count + " faction(s)");
+                bool facThrew = false;
+                try
+                {
+                    int fh = "SwordIron".GetStableHashCode();
+                    var lf = global::FiresRPGmaker.Modules.Factions.FactionMembership.LocalFaction();
+                    global::FiresRPGmaker.Modules.Factions.FactionManager.UseAllowed(fh, lf);
+                    global::FiresRPGmaker.Modules.Factions.FactionManager.BuildAllowed(fh, lf);
+                    global::FiresRPGmaker.Modules.Factions.FactionManager.CraftAllowed(fh, lf);
+                    global::FiresRPGmaker.Modules.Factions.FactionManager.PickupBlocked(fh, lf);
+                }
+                catch { facThrew = true; }
+                Report("use/build/craft/pickup callable  ", !facThrew, facThrew ? "threw" : "ok");
+                bool serOk = false;
+                try
+                {
+                    var fd = new global::FiresRPGmaker.Modules.Factions.FactionData { Id = "fires_sanity_fac", Name = "Sanity", CanDamageSameFaction = false };
+                    fd.UseNames.Add("SwordIron"); fd.BonusSkills[Skills.SkillType.Swords] = 10;
+                    string yaml = global::FiresRPGmaker.Modules.Factions.FactionManager.Serialize(fd);
+                    serOk = yaml.Contains("fires_sanity_fac") && yaml.Contains("SpecificUseItems") && yaml.Contains("Swords");
+                }
+                catch { }
+                Report("FactionData serialize round-trip ", serOk);
+                bool iconThrew = false;
+                try { global::FiresRPGmaker.Modules.Factions.FactionIcons.Resolve(""); global::FiresRPGmaker.Modules.Factions.FactionIcons.Ui("trash_icon"); }
+                catch { iconThrew = true; }
+                Report("FactionIcons resolve callable    ", !iconThrew);
+
+                // ─── 10. Economy repositories (server owns the vault) ───
+                ctx.AddString("[10] Economy repos (LiteDB vault)");
+                if (!global::FiresCore.Storage.VaultDatabase.IsConfigured)
+                {
+                    ctx.AddString("  SKIP  vault not configured (run on host/server — clients don't open the DB)");
+                }
+                else
+                {
+                    const string owner = "fires_sanity_owner";
+                    int coinHash = "Coins".GetStableHashCode();
+                    try
+                    {
+                        global::FiresCore.Storage.BankRepository.Deposit(owner, coinHash, 100);
+                        int afterDep = global::FiresCore.Storage.BankRepository.GetItems(owner).TryGetValue(coinHash, out var v1) ? v1 : 0;
+                        int wd = global::FiresCore.Storage.BankRepository.Withdraw(owner, coinHash, 40);
+                        int afterWd = global::FiresCore.Storage.BankRepository.GetItems(owner).TryGetValue(coinHash, out var v2) ? v2 : 0;
+                        global::FiresCore.Storage.BankRepository.Withdraw(owner, coinHash, 1000); // drain the sentinel
+                        Report("Bank deposit/withdraw/getitems  ", afterDep == 100 && wd == 40 && afterWd == 60, "dep=" + afterDep + " wd=" + wd + " left=" + afterWd);
+                    }
+                    catch (Exception ex) { Report("Bank deposit/withdraw/getitems  ", false, ex.Message); }
+                    try
+                    {
+                        int id = global::FiresCore.Storage.MarketplaceRepository.AddListing(new global::FiresCore.Storage.MarketListing { ItemPrefab = "Wood", Count = 5, Price = 10, Currency = "Coins", SellerName = "sanity", SellerUserID = owner });
+                        var got = global::FiresCore.Storage.MarketplaceRepository.GetListing(id);
+                        global::FiresCore.Storage.MarketplaceRepository.RemoveListing(id);
+                        var gone = global::FiresCore.Storage.MarketplaceRepository.GetListing(id);
+                        Report("Market add/get/remove listing   ", id != 0 && got != null && gone == null, "id=" + id);
+                    }
+                    catch (Exception ex) { Report("Market add/get/remove listing   ", false, ex.Message); }
+                    try
+                    {
+                        global::FiresCore.Storage.MailRepository.AddMail(new global::FiresCore.Storage.MailEntry { Owner = owner, Sender = "sanity", Topic = "t", Message = "m", Attachments = new System.Collections.Generic.List<global::FiresCore.Storage.StoredItem>(), Links = new System.Collections.Generic.List<global::FiresCore.Storage.StoredItem>() });
+                        var mails = global::FiresCore.Storage.MailRepository.GetUserMails(owner);
+                        int mid = mails.Count > 0 ? mails[0]._id : 0;
+                        if (mid != 0) global::FiresCore.Storage.MailRepository.RemoveMail(owner, mid);
+                        int after = global::FiresCore.Storage.MailRepository.GetUserMails(owner).Count;
+                        Report("Mail add/get/remove             ", mails.Count >= 1 && after == 0);
+                    }
+                    catch (Exception ex) { Report("Mail add/get/remove             ", false, ex.Message); }
+                }
+
+                // ─── 11. VIP + admin check ───
+                ctx.AddString("[11] VIP + admin check");
+                bool vipThrew = false;
+                try
+                {
+                    global::FiresRPGmaker.Modules.Marketplace.VipManager.IsVip("x", "y");
+                    float taxV = global::FiresRPGmaker.Modules.Marketplace.VipManager.MarketTaxPercent(true);
+                    global::FiresRPGmaker.Modules.Marketplace.VipManager.BankerInterestMultiplier(true);
+                    vipThrew = taxV < 0f || taxV > 100f;
+                }
+                catch { vipThrew = true; }
+                Report("VipManager tax/interest sane     ", !vipThrew);
+                bool adminThrew = false;
+                try { global::FiresCore.Sync.AdminSyncing.IsLocalAdmin(); }
+                catch { adminThrew = true; }
+                Report("AdminSyncing.IsLocalAdmin()      ", !adminThrew, adminThrew ? "threw" : "= " + global::FiresCore.Sync.AdminSyncing.IsLocalAdmin());
+
+                // ─── 12. Economy network RPC registration (idempotent) ───
+                ctx.AddString("[12] Economy network RPCs");
+                bool netThrew = false;
+                try
+                {
+                    global::FiresRPGmaker.Modules.Marketplace.BankerNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Marketplace.MailNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Marketplace.MarketplaceNetwork.Initialize();
+                }
+                catch { netThrew = true; }
+                Report("Banker/Mail/Market Initialize    ", !netThrew, netThrew ? "threw" : "registered (idempotent)");
+
+                // ─── 13. Config managers load ───
+                ctx.AddString("[13] Config managers load");
+                bool cfgThrew = false;
+                try
+                {
+                    int _ = global::FiresRPGmaker.Modules.Marketplace.BankerProfileManager.AllProfileNames.Count
+                          + global::FiresRPGmaker.Modules.Marketplace.GamblerProfileManager.AllProfileNames.Count;
+                    global::FiresRPGmaker.Modules.Marketplace.TransmogProfileManager.GetAllForProfile("default");
+                    global::FiresRPGmaker.Modules.Marketplace.MarketplaceListingManager.GetProfileSamples("example");
+                    foreach (var _n in global::FiresRPGmaker.Modules.Marketplace.MailProfileManager.GetLoadedProfileNames()) { }
+                }
+                catch { cfgThrew = true; }
+                Report("Banker/Gambler/Transmog/Mail cfgs", !cfgThrew, cfgThrew ? "threw" : "all managers load");
             }
             finally
             {
@@ -513,6 +634,60 @@ namespace FiresRPGmaker
 
             ctx.AddString("───────────────────────────────");
             ctx.AddString("SUMMARY  " + pass + " PASS  /  " + fail + " FAIL  (" + (pass + fail) + " total)");
+        }
+
+        // ─── factions ─────────────────────────────────────────────────────
+
+        private static void FactionsDump(Terminal.ConsoleEventArgs args)
+        {
+            var ids = new System.Collections.Generic.List<string>(global::FiresRPGmaker.Modules.Factions.FactionManager.Ids);
+            args.Context.AddString("Loaded factions: " + ids.Count);
+            foreach (var id in ids)
+            {
+                var f = global::FiresRPGmaker.Modules.Factions.FactionManager.Get(id);
+                args.Context.AddString("  • " + id + " — " + f?.Name
+                    + "  (use=" + (f?.UseNames.Count ?? 0) + " build=" + (f?.BuildNames.Count ?? 0)
+                    + " craft=" + (f?.CraftNames.Count ?? 0) + " pickup=" + (f?.PickupNames.Count ?? 0)
+                    + " skills=" + (f?.BonusSkills.Count ?? 0) + " icon=" + (string.IsNullOrEmpty(f?.Icon) ? "none" : f.Icon) + ")");
+            }
+            var local = global::FiresRPGmaker.Modules.Factions.FactionMembership.LocalFaction();
+            args.Context.AddString("Local player faction: " + (local != null ? local.Name : "(none)"));
+        }
+
+        // ─── admin ────────────────────────────────────────────────────────
+
+        private static void AdminDump(Terminal.ConsoleEventArgs args)
+        {
+            var znet = ZNet.instance;
+            args.Context.AddString("─── admin signals @ local player ───");
+            args.Context.AddString("  IsServer()               = " + (znet != null && znet.IsServer()));
+            bool lpah = false; try { lpah = znet != null && znet.LocalPlayerIsAdminOrHost(); } catch { }
+            args.Context.AddString("  LocalPlayerIsAdminOrHost = " + lpah);
+            args.Context.AddString("  ConfigSync.lockExempt    = " + global::FiresCore.Sync.ConfigSync.lockExempt);
+            args.Context.AddString("  → IsLocalAdmin()         = " + global::FiresCore.Sync.AdminSyncing.IsLocalAdmin());
+        }
+
+        // ─── panels ───────────────────────────────────────────────────────
+
+        private static void OpenPanel(Terminal.ConsoleEventArgs args)
+        {
+            if (args.Length < 3) { args.Context.AddString("usage: firesrpg_test panels <banker|mail|transmog|gambler|marketplace> [profile]"); return; }
+            string which = args[2].ToLowerInvariant();
+            string profile = args.Length > 3 ? args[3] : "example";
+            try
+            {
+                switch (which)
+                {
+                    case "banker":      global::FiresRPGmaker.UI.Screens.PlayerPanels.BankerPlayerPanel.Show(profile, "[test]"); break;
+                    case "mail":        global::FiresRPGmaker.UI.Screens.PlayerPanels.MailPlayerPanel.Show(profile, "[test]"); break;
+                    case "transmog":    global::FiresRPGmaker.UI.Screens.PlayerPanels.TransmogPlayerPanel.Show(profile, "[test]"); break;
+                    case "gambler":     global::FiresRPGmaker.UI.Screens.PlayerPanels.GamblerPlayerPanel.Show(profile, "[test]"); break;
+                    case "marketplace": global::FiresRPGmaker.UI.Screens.PlayerPanels.MarketplacePlayerPanel.Show(profile, "[test]"); break;
+                    default: args.Context.AddString("[firesrpg_test] unknown panel '" + which + "'"); return;
+                }
+                args.Context.AddString("[firesrpg_test] opened " + which + " panel (profile '" + profile + "')");
+            }
+            catch (Exception ex) { args.Context.AddString("[firesrpg_test] open " + which + " threw: " + ex.Message); }
         }
 
         // ─── marketplace ──────────────────────────────────────────────────

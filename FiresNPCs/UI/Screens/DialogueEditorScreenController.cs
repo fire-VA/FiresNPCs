@@ -54,6 +54,14 @@ namespace FiresRPGmaker.UI.Screens
         // Multi-condition support
         private Transform _popupConditionsContainer;
         private readonly List<PopupConditionRow> _popupConditionRows = new List<PopupConditionRow>();
+        // Cooldown controls
+        private TMP_Dropdown _popupCooldownScopeDropdown;
+        private TMP_InputField _popupCooldownDurationInput;
+        private TMP_Dropdown _popupCooldownUnitDropdown;
+        private TMP_Dropdown _popupCooldownShowDropdown;
+
+        // Cooldown unit dropdown indices -> seconds-per-unit
+        private static readonly int[] CooldownUnitSeconds = { 1, 60, 3600, 86400 };
 
         private class PopupCommandRow
         {
@@ -108,95 +116,12 @@ namespace FiresRPGmaker.UI.Screens
         private static readonly Color FullBg        = new Color(0.04f, 0.04f, 0.06f, 0.97f);
 
         // ?? Command definitions for dropdown ??
-        private static readonly string[] CommandNames =
-        {
-            "GiveItem", "RemoveItem", "GiveQuest", "RemoveQuest", "FinishQuest",
-            "Teleport", "Spawn", "SpawnRaw", "SpawnXYZ", "Damage", "Heal", "GiveBuff",
-            "AddPlayerKey", "RemovePlayerKey", "AddCustomPlayerKey", "RemoveCustomPlayerKey",
-            "PlayAnimation", "PlaySound", "ConsoleCommand", "AddPin", "PingMap", "OpenUI",
-            "EnterPassword", "SendWebhook"
-        };
-
-        private static readonly string[] ConditionNames =
-        {
-            "HasItem", "NotHasItem",
-            "HasQuest", "NotHasQuest",
-            "QuestFinished", "QuestNotFinished",
-            "QuestProgressDone", "QuestProgressNotDone",
-            "HasPlayerKey", "NotHasPlayerKey",
-            "GlobalKey", "NotGlobalKey",
-            "HasBuff", "NotHasBuff",
-            "SkillMore", "SkillLess",
-            "CustomPlayerKeyMore", "CustomPlayerKeyLess",
-            "HealthMore", "HealthLess",
-            "MaxHealthMore", "MaxHealthLess",
-            "StaminaMore", "StaminaLess",
-            "MaxStaminaMore", "MaxStaminaLess",
-            "EitrMore", "EitrLess",
-            "MaxEitrMore", "MaxEitrLess"
-        };
-
-        private static readonly Dictionary<string, string> ConditionHints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "HasItem",              "PrefabName,Amount[,Level]" },
-            { "NotHasItem",           "PrefabName,Amount[,Level]" },
-            { "HasQuest",             "QuestID" },
-            { "NotHasQuest",          "QuestID" },
-            { "QuestFinished",        "QuestID" },
-            { "QuestNotFinished",     "QuestID" },
-            { "QuestProgressDone",    "QuestID" },
-            { "QuestProgressNotDone", "QuestID" },
-            { "HasPlayerKey",         "KeyName" },
-            { "NotHasPlayerKey",      "KeyName" },
-            { "GlobalKey",            "KeyName" },
-            { "NotGlobalKey",         "KeyName" },
-            { "HasBuff",              "StatusEffectName" },
-            { "NotHasBuff",           "StatusEffectName" },
-            { "SkillMore",            "SkillName,Amount" },
-            { "SkillLess",            "SkillName,Amount" },
-            { "CustomPlayerKeyMore",  "Key,Amount" },
-            { "CustomPlayerKeyLess",  "Key,Amount" },
-            { "HealthMore",           "Amount" },
-            { "HealthLess",           "Amount" },
-            { "MaxHealthMore",        "Amount" },
-            { "MaxHealthLess",        "Amount" },
-            { "StaminaMore",          "Amount" },
-            { "StaminaLess",          "Amount" },
-            { "MaxStaminaMore",       "Amount" },
-            { "MaxStaminaLess",       "Amount" },
-            { "EitrMore",             "Amount" },
-            { "EitrLess",             "Amount" },
-            { "MaxEitrMore",          "Amount" },
-            { "MaxEitrLess",          "Amount" }
-        };
-
-        private static readonly Dictionary<string, string> CommandHints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "GiveItem",         "PrefabName,Amount,Level" },
-            { "RemoveItem",       "PrefabName,Amount" },
-            { "GiveQuest",        "QuestID" },
-            { "RemoveQuest",      "QuestID" },
-            { "FinishQuest",      "QuestID" },
-            { "Teleport",         "X,Y,Z  or  X,Y,Z,true" },
-            { "Spawn",            "PrefabName,Amount,Level" },
-            { "SpawnRaw",         "PrefabName,Amount,Level" },
-            { "SpawnXYZ",         "PrefabName,Amt,Lvl,X,Y,Z,MaxDist" },
-            { "Damage",           "Amount" },
-            { "Heal",             "Amount" },
-            { "GiveBuff",         "StatusEffectName  or  SE,Duration" },
-            { "AddPlayerKey",     "KeyName" },
-            { "RemovePlayerKey",  "KeyName" },
-            { "AddCustomPlayerKey",   "Key  or  Key/++[,Amount]  or  Key/--[,Amount]" },
-            { "RemoveCustomPlayerKey", "Key" },
-            { "PlayAnimation",    "TriggerName" },
-            { "PlaySound",        "ClipName" },
-            { "ConsoleCommand",   "command args" },
-            { "AddPin",           "Label,X,Y,Z" },
-            { "PingMap",          "Message,X,Y,Z" },
-            { "OpenUI",           "UIType,Profile" },
-            { "EnterPassword",    "Title,Password,OnSuccessUID,OnFailUID" },
-            { "SendWebhook",      "WebhookURL,\"Message with spaces\"" }
-        };
+        // ONE canonical vocabulary + hint set (BookOptionPopup owns it) — this editor aliases it so
+        // new engine verbs appear here automatically instead of drifting out of sync.
+        private static readonly string[] CommandNames = BookOptionPopup.CommandNames;
+        private static readonly string[] ConditionNames = BookOptionPopup.ConditionNames;
+        private static readonly Dictionary<string, string> ConditionHints = BookOptionPopup.ConditionHints;
+        private static readonly Dictionary<string, string> CommandHints = BookOptionPopup.CommandHints;
 
         private void Awake()  { Instance = this; }
         private void OnDestroy() { if (Instance == this) Instance = null; }
@@ -1173,6 +1098,15 @@ namespace FiresRPGmaker.UI.Screens
             condCsf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             _popupConditionsContainer = condContainer.transform;
 
+            // ��� Cooldown ���
+            _popupCooldownScopeDropdown = BuildPopupDropdownRow(_optionEditorPopup.transform, "Cooldown:",
+                new List<string> { "None", "Per-Player", "Global" });
+            _popupCooldownDurationInput = BuildPopupInputRow(_optionEditorPopup.transform, "Duration:", "0");
+            _popupCooldownUnitDropdown = BuildPopupDropdownRow(_optionEditorPopup.transform, "Unit:",
+                new List<string> { "Seconds", "Minutes", "Hours", "Days" });
+            _popupCooldownShowDropdown = BuildPopupDropdownRow(_optionEditorPopup.transform, "On cooldown:",
+                new List<string> { "Hide", "Show disabled" });
+
             // ��� Done Button ���
             var doneBtnGo = new GameObject("DoneBtn");
             doneBtnGo.transform.SetParent(_optionEditorPopup.transform, false);
@@ -1473,6 +1407,33 @@ namespace FiresRPGmaker.UI.Screens
                 }
             }
 
+            // Populate cooldown controls
+            int scopeIdx = 0;
+            switch (data.Cooldown)
+            {
+                case CooldownScope.PerPlayer: scopeIdx = 1; break;
+                case CooldownScope.Global:    scopeIdx = 2; break;
+            }
+            _popupCooldownScopeDropdown.SetValueWithoutNotify(scopeIdx);
+
+            // Split seconds back to the largest whole unit for display.
+            int totalSeconds = data.CooldownSeconds;
+            int unitIdx = 0;
+            int displayDuration = totalSeconds;
+            for (int u = CooldownUnitSeconds.Length - 1; u >= 0; u--)
+            {
+                int per = CooldownUnitSeconds[u];
+                if (totalSeconds > 0 && totalSeconds % per == 0)
+                {
+                    unitIdx = u;
+                    displayDuration = totalSeconds / per;
+                    break;
+                }
+            }
+            _popupCooldownUnitDropdown.SetValueWithoutNotify(unitIdx);
+            _popupCooldownDurationInput.SetTextWithoutNotify(displayDuration.ToString());
+            _popupCooldownShowDropdown.SetValueWithoutNotify(data.ShowWhileCooling ? 1 : 0);
+
             _optionEditorPopup.SetActive(true);
         }
 
@@ -1531,6 +1492,33 @@ namespace FiresRPGmaker.UI.Screens
                 conds.Add(new string[] { full });
             }
             data.Conditions = conds;
+
+            // Cooldown
+            int scopeIdx = _popupCooldownScopeDropdown?.value ?? 0;
+            data.Cooldown = scopeIdx == 1 ? CooldownScope.PerPlayer
+                          : scopeIdx == 2 ? CooldownScope.Global
+                          : CooldownScope.None;
+
+            int durationUnits = 0;
+            int.TryParse(_popupCooldownDurationInput?.text?.Trim(), out durationUnits);
+            int unitIdx = _popupCooldownUnitDropdown?.value ?? 0;
+            if (unitIdx < 0 || unitIdx >= CooldownUnitSeconds.Length) unitIdx = 0;
+            data.CooldownSeconds = data.Cooldown == CooldownScope.None
+                ? 0
+                : Math.Max(0, durationUnits) * CooldownUnitSeconds[unitIdx];
+
+            data.ShowWhileCooling = (_popupCooldownShowDropdown?.value ?? 0) == 1;
+
+            // Freeze a stable key so cooldowns survive later text/reward edits.
+            if (data.Cooldown != CooldownScope.None && string.IsNullOrEmpty(data.CooldownKey))
+            {
+                string uid = _uidInput?.text?.Trim() ?? string.Empty;
+                data.CooldownKey = DialogueKeyUtil.OptionKey(uid, data);
+            }
+            else if (data.Cooldown == CooldownScope.None)
+            {
+                data.CooldownKey = null;
+            }
         }
 
         private void ClearOptionRows()

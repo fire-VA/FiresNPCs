@@ -307,7 +307,7 @@ namespace FiresRPGmaker
             }
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "PrefabLocalizationDump.txt");
 
@@ -384,7 +384,7 @@ namespace FiresRPGmaker
                 sb.AppendLine($"{kv.Key}: {kv.Value}");
             }
 
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "ItemPrefabDump.txt");
             File.WriteAllText(outputPath, sb.ToString());

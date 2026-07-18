@@ -100,7 +100,7 @@ private const float ITEM_HEIGHT = 32f;
         private static Color TextColor => UIFontConfig.Colors.Gold;
         private static Color LabelColor => UIFontConfig.Colors.LabelGold;
 
-    private static string RuntimeSpritesFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "RuntimeSprites");
+    private static string RuntimeSpritesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestSprites);
         private static Dictionary<string, Texture2D> _spriteCache = new Dictionary<string, Texture2D>();
 
         public bool IsVisible => screenRoot != null && screenRoot.activeSelf;
@@ -129,7 +129,7 @@ private const float ITEM_HEIGHT = 32f;
  private void Update()
         {
    if (!gameObject.activeSelf || !IsVisible) return;
- if (Input.GetKeyDown(KeyCode.Escape)) Hide();
+ // Escape owned by the central Menu.Show hook (CloseAllPanels) — no self-close (avoids the menu-opens race).
         }
 
  public static QuestJournalController Create()
@@ -1176,21 +1176,8 @@ foreach (var ext in extensions)
       long playerId = localPlayer.GetPlayerID();
       if (playerId <= 0) return;
 
-     bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
-     if (!isServer)
-      {
-    var pkg = new ZPackage();
-pkg.Write(playerId);
-        pkg.Write(_selectedQuestId);
-    pkg.Write("active");
-  pkg.Write(false);
-       pkg.Write(false);
-  ZRoutedRpc.instance?.InvokeRoutedRPC(0L, "FiresRPGmaker_Vault_UpdateQuestFlag", pkg);
-       }
-     else
-  {
-       VaultOfKnowledge.Instance?.ApplyQuestFlagLocally(playerId, _selectedQuestId, "active", false);
-  }
+     // kg-parity: abandon is a local per-quest removal.
+     global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Abandon(_selectedQuestId);
 
       var questDef = QuestManager.Instance?.GetQuestDefinition(_selectedQuestId);
       string questName = questDef?.Name ?? _selectedQuestId;

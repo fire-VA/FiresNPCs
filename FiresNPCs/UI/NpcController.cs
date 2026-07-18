@@ -34,6 +34,7 @@ namespace FiresRPGmaker.UI
         public string marketplaceProfile;
         public string achievementProfile;
         public string leaderboardProfile;
+        public string bufferProfile;
         public string mailProfile;
         public string transmogProfile;
         public string teleporterProfile;
@@ -42,9 +43,13 @@ namespace FiresRPGmaker.UI
         // Empty = no patrol. Multiple NPCs can share one route name.
         public string patrolRouteName;
 
+        // Name of the DBSM speed preset selected on the assigned route. Empty = Default (flat base walk).
+        // Different NPCs sharing one route can run different presets.
+        public string patrolSpeedPreset;
+
         [Header("Overrides")]
         public string modelOverride;
-        public NpcType npcType = NpcType.QuestNpc;
+        public NpcType npcType = NpcType.None;
 
         [Header("Behavior")]
         public bool allowIdleWandering;
@@ -82,7 +87,8 @@ namespace FiresRPGmaker.UI
    private NpcVisEquipment _visEquipment;
 
      // Proximity detection for greet/bye animations
-        private const float ProximityRange = 10f;
+        private const float ProximityRange = 10f;      // greet when a player comes within this (kg: 10m)
+        private const float ProximityExitRange = 12f;  // bye only past this — hysteresis stops boundary flapping (kg: 12m)
       private bool _playerWasInRange = false;
   private float _proximityCheckTimer = 0f;
         private const float ProximityCheckInterval = 0.25f;
@@ -252,7 +258,7 @@ private void Update()
           if (fashionComp == null) return;
 
        float distance = Vector3.Distance(transform.position, player.transform.position);
-        bool playerInRange = distance <= ProximityRange;
+        bool playerInRange = _playerWasInRange ? distance <= ProximityExitRange : distance <= ProximityRange;
 
        if (playerInRange && !_playerWasInRange)
       {
@@ -498,9 +504,6 @@ if (_isFollowing && _followTarget == player)
       Debug.Log($"[NpcController] Applied visual equipment to {GetDisplayName()}");
         }
 
-        // TEMP [GreyDiag] delayed body-material dump (catches async effects like the 0.5s hair-color invoke).
-        public void DumpBodyMatDelayed() => global::FiresRPGmaker.NpcFashion.NpcFashionManager.DumpBodyMat("6-delayed", this);
-
         /// <summary>
         /// Attaches/refreshes the Core PatrolAssignment from <see cref="patrolRouteName"/>. A static NPC has
         /// normal companion physics, so no freeze/gravity flips are needed — PatrolBehavior just walks it.
@@ -511,16 +514,24 @@ if (_isFollowing && _followTarget == player)
             var pa = GetComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
             if (string.IsNullOrEmpty(patrolRouteName))
             {
-                if (pa != null) pa.RouteName = "";
+                if (pa != null) { pa.RouteName = ""; pa.PresetName = ""; }
                 return;
             }
             if (pa == null) pa = gameObject.AddComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
             pa.RouteName = patrolRouteName;
+            pa.PresetName = patrolSpeedPreset ?? "";
             // Patrol runs through CompanionIdleBehavior, which is disabled on a non-wandering static NPC —
             // enable it so the route actually drives. No physics changes needed: the NPC already has normal
             // companion physics (gravity on), so PatrolBehavior just walks it like any companion.
             var idle = GetComponent<CompanionIdleBehavior>();
             if (idle != null) idle.enabled = true;
+
+            // Ensure the body is dynamic so PatrolBehavior can actually walk it. On a client relog the route can
+            // resolve HERE after StaticNpcInitializer's willMove kinematic-clear already ran with no route yet,
+            // leaving the NPC kinematic → the companion movement prefixes drop its walk and it gets dragged.
+            // Clearing it whenever a route is present closes that race.
+            var rb = GetComponent<Rigidbody>();
+            if (rb != null && rb.isKinematic) { rb.isKinematic = false; rb.useGravity = true; }
         }
 
         /// <summary>Pushes the configured max health onto the Humanoid. Static NPCs are server-authoritative,
@@ -558,25 +569,11 @@ if (_isFollowing && _followTarget == player)
             FiresRPGmaker.Instance?.configSync?.IsAdmin == true;
 
             bool shiftHeld = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-            bool fKeyHeld = Input.GetKey(KeyCode.F);
 
-      Debug.Log($"[NpcController] Interact check - isAdmin: {isAdmin}, shiftHeld: {shiftHeld}, fKeyHeld: {fKeyHeld}");
-
-     // Admin Shift+F: Toggle follow mode
-            if (isAdmin && shiftHeld && fKeyHeld)
-       {
- ToggleFollowMode(player);
-                return true;
-          }
-
-       // Admin Shift: Open config panel
+       // Admin Shift: open the config book (the old flat NpcMainPanelController is retired).
             if (isAdmin && shiftHeld)
    {
- Debug.Log($"[NpcController] Admin config mode - opening panel");
-                bool useBook = true;
-                try { useBook = ConfigManager.Instance?.configUseBookAdminUI?.Value ?? true; } catch { }
-                if (useBook) NpcBookController.ShowForNpc(this);
-                else NpcMainPanelController.ShowForNpc(this);
+                NpcBookController.ShowForNpc(this);
     return true;
    }
 
@@ -619,17 +616,16 @@ if (_isFollowing && _followTarget == player)
       NpcType.InfoNpc => "Info",
           NpcType.DialogueNpc => "Talk",
    NpcType.Trader => "Trade",
+              NpcType.None => null,          // no role assigned — nothing to interact with
              _ => "Interact"
    };
 
-     text += $"\n[<color=yellow><b>$KEY_Use</b></color>] {interactionHint}";
+     if (interactionHint != null)
+         text += $"\n[<color=yellow><b>$KEY_Use</b></color>] {interactionHint}";
 
  if (isAdmin)
         {
   text += "\n[<color=#00FFFF><b>L.Shift + $KEY_Use</b></color>] Configure";
-       text += _isFollowing
-    ? "\n[<color=#FF00FF><b>L.Shift + F + $KEY_Use</b></color>] Stop Following"
-    : "\n[<color=#FF00FF><b>L.Shift + F + $KEY_Use</b></color>] Follow Me";
       }
 
          return Localization.instance.Localize(text);
@@ -664,10 +660,12 @@ if (_isFollowing && _followTarget == player)
             marketplaceProfile = zdo.GetString("npc_marketplace_profile", marketplaceProfile ?? "");
             achievementProfile = zdo.GetString("npc_achievement_profile", achievementProfile ?? "");
             leaderboardProfile = zdo.GetString("npc_leaderboard_profile", leaderboardProfile ?? "");
+            bufferProfile = zdo.GetString("npc_buffer_profile", bufferProfile ?? "");
             mailProfile = zdo.GetString("npc_mail_profile", mailProfile ?? "");
             transmogProfile = zdo.GetString("npc_transmog_profile", transmogProfile ?? "");
             teleporterProfile = zdo.GetString("npc_teleporter_profile", teleporterProfile ?? "");
             patrolRouteName = zdo.GetString("npc_patrol_route", patrolRouteName ?? "");
+            patrolSpeedPreset = zdo.GetString("npc_patrol_preset", patrolSpeedPreset ?? "");
             SyncPatrolAssignment();
    modelOverride = zdo.GetString("npc_model_override", modelOverride ?? "");
      npcType = (NpcType)zdo.GetInt("npc_type", (int)npcType);
@@ -680,6 +678,9 @@ if (_isFollowing && _followTarget == player)
             hideNameplate = zdo.GetBool("npc_name_hidden", false);
             nameplateScale = zdo.GetFloat("npc_text_size", 1f);
             nameplateYOffset = zdo.GetFloat("npc_text_height", 0f);
+            // kg-style hover-name label (NameplateStyle=HoverName). Self-managing: builds lazily,
+            // hides itself in the other modes and on a dedicated server (no camera).
+            if (GetComponent<NpcHoverNameplate>() == null) gameObject.AddComponent<NpcHoverNameplate>();
             ApplyMaxHealth();
 
       equipHelmet = zdo.GetString("npc_equip_helmet", "");
@@ -722,10 +723,12 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             zdo.Set("npc_marketplace_profile", marketplaceProfile ?? "");
             zdo.Set("npc_achievement_profile", achievementProfile ?? "");
             zdo.Set("npc_leaderboard_profile", leaderboardProfile ?? "");
+            zdo.Set("npc_buffer_profile", bufferProfile ?? "");
             zdo.Set("npc_mail_profile", mailProfile ?? "");
             zdo.Set("npc_transmog_profile", transmogProfile ?? "");
             zdo.Set("npc_teleporter_profile", teleporterProfile ?? "");
             zdo.Set("npc_patrol_route", patrolRouteName ?? "");
+            zdo.Set("npc_patrol_preset", patrolSpeedPreset ?? "");
     zdo.Set("npc_model_override", modelOverride ?? "");
    zdo.Set("npc_type", (int)npcType);
 
@@ -774,7 +777,13 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             // saved profile into its module (no-op without the companion mod installed).
             FiresCore.Bridge.NpcCompanionBridge.RaiseSyncSavedProfile(gameObject);
 
-  SavedNpcManager.SaveFromNpc(this);
+            // Re-resolve the body stage LIVE so an idle-wander toggle or patrol assignment takes
+            // effect immediately — previously the NPC stayed frozen/ghosted until a zone reload or a
+            // death-respawn re-ran the initializer. Idempotent and cheap; covers every book tab save.
+            try { GetComponent<global::FiresRPGmaker.Modules.Companions.NpcMode.StaticNpcInitializer>()?.ReapplyBodyStage(); }
+            catch (Exception ex) { Debug.LogWarning($"[NpcController] live stage re-apply failed: {ex.Message}"); }
+
+            SavedNpcManager.SaveFromNpc(this);
             Debug.Log($"[NpcController] Saved to ZDO - Name: {npcProfileName}, Type: {npcType}");
 
             // Tell any open config screen showing THIS NPC to re-read its profile field. There's one
@@ -800,6 +809,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             NpcType.Marketplace => marketplaceProfile ?? "",
             NpcType.Achievement => achievementProfile ?? "",
             NpcType.Leaderboard => leaderboardProfile ?? "",
+            NpcType.Buffer => bufferProfile ?? "",
             NpcType.Mail        => mailProfile ?? "",
             NpcType.Transmog    => transmogProfile ?? "",
             NpcType.Teleporter  => teleporterProfile ?? "",
@@ -819,6 +829,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
                 case NpcType.Marketplace: marketplaceProfile = profile; break;
                 case NpcType.Achievement: achievementProfile = profile; break;
                 case NpcType.Leaderboard: leaderboardProfile = profile; break;
+                case NpcType.Buffer:      bufferProfile = profile;      break;
                 case NpcType.Mail:        mailProfile = profile;        break;
                 case NpcType.Transmog:    transmogProfile = profile;    break;
                 case NpcType.Teleporter:  teleporterProfile = profile;  break;
@@ -850,6 +861,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
                     case NpcType.Marketplace: return MarketplaceListingManager.GetLoadedProfileNames();
                     case NpcType.Achievement: return AchievementProfileManager.GetLoadedProfileNames();
                     case NpcType.Leaderboard: return LeaderboardProfileManager.GetLoadedProfileNames();
+                    case NpcType.Buffer:      return global::FiresRPGmaker.Modules.Buffer.BufferManager.Profiles.Keys;
                     case NpcType.Teleporter:  return Bridges.WayshrinesBridge.GetProfileNames();
                     default: return Enumerable.Empty<string>();
                 }
@@ -919,10 +931,28 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             if (string.IsNullOrEmpty(modelPrefabName)) return;
      if (modelPrefabName == _appliedModelOverride) return;
 
-      GameObject sourcePrefab = ZNetScene.instance?.GetPrefab(modelPrefabName);
+            // kg-Marketplace name syntax (drop-in parity — kg NPC configs/ZDOs use these verbatim):
+            //   "<prefab>@humanoid"  → use the creature's MODEL but drive it with the PLAYER's animator
+            //                          controller, so player emotes (greet/bye/periodic) play on it.
+            //   "Player_Female"      → kg's virtual prefab: the Player model with the female body mesh.
+            string resolvedName = modelPrefabName;
+            bool forcePlayerController = false;
+            bool femalePlayerModel = false;
+            if (resolvedName.IndexOf("@humanoid", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                forcePlayerController = true;
+                resolvedName = System.Text.RegularExpressions.Regex.Replace(resolvedName, "@humanoid", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            }
+            if (string.Equals(resolvedName, "Player_Female", StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedName = "Player";
+                femalePlayerModel = true;
+            }
+
+      GameObject sourcePrefab = ZNetScene.instance?.GetPrefab(resolvedName);
             if (sourcePrefab == null)
             {
-       Debug.LogWarning($"[NpcController] Model prefab '{modelPrefabName}' not found");
+       Debug.LogWarning($"[NpcController] Model prefab '{resolvedName}' not found");
        return;
     }
 
@@ -972,20 +1002,40 @@ visualGO.transform.SetParent(transform, false);
         if (oldAnimator != null) DestroyImmediate(oldAnimator);
 
          Transform sourceVisual = sourcePrefab.transform.Find("Visual") ?? sourcePrefab.transform.Find("visual");
+         bool sourceIsCharacter = sourcePrefab.GetComponent<Character>() != null;
+         bool cloneWholeModel = false;
 
          if (sourceVisual == null)
-      {
-       foreach (Transform child in sourcePrefab.transform)
-    {
-    if (child.GetComponentInChildren<Renderer>(true) != null)
-     {
-    sourceVisual = child;
-               break;
-     }
-      }
-          }
+         {
+             // kg parity: a creature without a "Visual" child clones its Animator-bearing child (the rig
+             // root); a NON-Character prefab (props / Balrond IdleActors ms_npc_* etc.) clones the WHOLE
+             // model — every top-level child — because its meshes/armature can be split across siblings
+             // (the old first-renderer-child pick cloned partial models).
+             if (sourceIsCharacter)
+                 sourceVisual = sourcePrefab.GetComponentInChildren<Animator>(true)?.transform;
+             if (sourceVisual == null)
+                 cloneWholeModel = true;
+         }
 
-  if (sourceVisual != null)
+  if (cloneWholeModel)
+  {
+      var container = new GameObject("OverrideModel");
+      container.transform.SetParent(targetVisual, false);
+      container.layer = LayerMask.NameToLayer("character");
+      for (int i = 0; i < sourcePrefab.transform.childCount; i++)
+      {
+          var srcChild = sourcePrefab.transform.GetChild(i);
+          var childClone = Instantiate(srcChild.gameObject, container.transform);
+          childClone.name = srcChild.name;
+          childClone.transform.localPosition = srcChild.localPosition;
+          childClone.transform.localRotation = srcChild.localRotation;
+          childClone.transform.localScale = srcChild.localScale;
+          childClone.SetActive(true);
+      }
+      StripGameplayComponentsOnly(container);
+      CleanupModelCloneArtifacts(container, disableParticles: false);   // kg keeps prop particles (torches etc.)
+  }
+  else if (sourceVisual != null)
   {
       // CRITICAL: We need to DESTROY CharacterAnimEvent components on the SOURCE before cloning
       // Just disabling them doesn't work because Instantiate() creates new instances
@@ -1024,9 +1074,22 @@ visualGO.transform.SetParent(transform, false);
 
       // Remove player-specific visual effects that cause errors on NPCs
       CleanupPlayerModelEffects(clonedVisual);
+      // kg clone hygiene: kill LODGroups (they cull the clone oddly after the strip) and, for creature
+      // sources, stop particle emission (auras/trails don't belong on a shopkeeper).
+      CleanupModelCloneArtifacts(clonedVisual, disableParticles: sourceIsCharacter);
   }
 
          CopyAnimatorFromPrefab(sourcePrefab);
+
+            // kg parity post-steps:
+            //   @humanoid → the creature rig plays the PLAYER's animation set (emotes work).
+            //   Player_Female → swap in the female body mesh/textures from the Player's VisEquipment.
+            //   Always rebind ZSyncAnimation to whatever animator now drives the model, so networked
+            //   emote triggers (greet/bye/periodic) replicate on overridden models.
+            if (forcePlayerController) ApplyPlayerAnimatorController(targetVisual);
+            if (femalePlayerModel) ApplyFemalePlayerBodyModel(targetVisual);
+            RebindZSyncAnimation(targetVisual);
+
             // The animator controller changed — the dressing-room emote dropdowns are cached per NPC and
             // must rebuild against the new controller's emote params.
             DressingRoomScreenController.InvalidateAnimationCache();
@@ -1151,22 +1214,28 @@ HandleInfoNpcInteraction(player);
       case NpcType.Banker:
           Screens.PlayerPanels.BankerPlayerPanel.Show(bankerProfile, GetDisplayName());
       break;
+      case NpcType.Buffer:       Screens.PlayerPanels.BufferPlayerPanel.Show(bufferProfile, GetDisplayName());           break;
       case NpcType.Gambler:      Screens.PlayerPanels.GamblerPlayerPanel.Show(gamblerProfile, GetDisplayName());           break;
       case NpcType.Marketplace:  Screens.PlayerPanels.MarketplacePlayerPanel.Show(marketplaceProfile, GetDisplayName());   break;
       case NpcType.Mail:         Screens.PlayerPanels.MailPlayerPanel.Show(mailProfile, GetDisplayName());                 break;
       case NpcType.Transmog:     Screens.PlayerPanels.TransmogPlayerPanel.Show(transmogProfile, GetDisplayName());         break;
       case NpcType.Teleporter:   Bridges.WayshrinesBridge.OpenSelectionForProfile(player, teleporterProfile);            break;
-      // Achievement + Leaderboard NPC types are legacy — global panels now. If an old NPC still has the
-      // type stored on its ZDO, just fall through to the admin panel as a stub.
+      // Achievement + Leaderboard are legacy global panels now, and None = an unconfigured NPC
+      // (freshly hammer-placed template). Plain E must NEVER open a config UI — that's Shift+E's
+      // job (the book). A player poking an NPC with no player-facing role just gets a neutral line.
       case NpcType.Achievement:
       case NpcType.Leaderboard:
-          NpcMainPanelController.ShowForNpc(this);
-      break;
+      case NpcType.None:
           default:
-                 NpcMainPanelController.ShowForNpc(this);
+                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{GetDisplayName()} has nothing to say.");
    break;
      }
         }
+
+        /// <summary>Effective quest profile: explicit assignment if set, else recovered by matching this NPC's
+        /// name to a loaded profile (migrated kg quest NPCs commonly lost their profile assignment), else "default".</summary>
+        public string GetEffectiveQuestProfile()
+            => QuestProfileManager.ResolveProfileName(questProfile, GetDisplayName());
 
         private void HandleQuestNpcInteraction(Player player)
         {
@@ -1179,7 +1248,7 @@ HandleInfoNpcInteraction(player);
              }
   }
 
-         if (!string.IsNullOrEmpty(questProfile))
+         if (!string.IsNullOrEmpty(GetEffectiveQuestProfile()))
      {
              SuppressHoverHud(); QuestInteractionScreenController.ShowForNpc(this);
             }
@@ -1406,6 +1475,114 @@ private bool HasParameter(Animator animator, string paramName)
   targetAnimator.applyRootMotion = false;
   targetAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
      targetAnimator.Rebind();
+        }
+
+        // The animator that actually drives the override model — the clone's own animator when it has a
+        // controller (self-animated props / creature rigs), else the root animator CopyAnimatorFromPrefab set up.
+        private Animator FindActiveModelAnimator(Transform targetVisual)
+        {
+            if (targetVisual != null)
+            {
+                foreach (var anim in targetVisual.GetComponentsInChildren<Animator>(true))
+                {
+                    if (anim == null) continue;
+                    bool underHidden = false;
+                    Transform check = anim.transform;
+                    while (check != null && check != targetVisual)
+                    {
+                        if (check.name.StartsWith("__OriginalVisual_")) { underHidden = true; break; }
+                        check = check.parent;
+                    }
+                    if (!underHidden) return anim;
+                }
+            }
+            return GetComponent<Animator>();
+        }
+
+        // "<prefab>@humanoid" (kg syntax): drive the creature rig with the PLAYER's animator controller so
+        // the full player emote set (greet/bye/periodic) plays on it — kg Market_NPC.TryOverrideModel parity.
+        private void ApplyPlayerAnimatorController(Transform targetVisual)
+        {
+            try
+            {
+                var playerAnimator = ZNetScene.instance?.GetPrefab("Player")?.GetComponentInChildren<Animator>(true);
+                if (playerAnimator == null || playerAnimator.runtimeAnimatorController == null)
+                {
+                    Debug.LogWarning("[NpcController] @humanoid: Player animator controller unavailable");
+                    return;
+                }
+                var anim = FindActiveModelAnimator(targetVisual);
+                if (anim == null) return;
+                anim.runtimeAnimatorController = playerAnimator.runtimeAnimatorController;
+                anim.applyRootMotion = false;
+                anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                anim.Rebind();
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcController] @humanoid controller swap failed: " + ex.Message); }
+        }
+
+        // "Player_Female" (kg virtual prefab): swap the female body mesh + skin textures from the Player's
+        // VisEquipment model table onto the cloned PLAYER rig (same rig — safe; never done to bundle rigs).
+        private void ApplyFemalePlayerBodyModel(Transform targetVisual)
+        {
+            try
+            {
+                var vis = ZNetScene.instance?.GetPrefab("Player")?.GetComponent<VisEquipment>();
+                if (vis == null || vis.m_models == null || vis.m_models.Length < 2) return;
+                var female = vis.m_models[1];
+
+                SkinnedMeshRenderer body = null;
+                foreach (var smr in targetVisual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {
+                    if (smr == null) continue;
+                    bool hidden = false;
+                    Transform check = smr.transform;
+                    while (check != null && check != targetVisual)
+                    {
+                        if (check.name.StartsWith("__OriginalVisual_")) { hidden = true; break; }
+                        check = check.parent;
+                    }
+                    if (!hidden) { body = smr; break; }
+                }
+                if (body == null) return;
+
+                body.sharedMesh = female.m_mesh;
+                if (female.m_baseMaterial != null && body.materials.Length > 0)
+                {
+                    body.materials[0].SetTexture("_MainTex", female.m_baseMaterial.GetTexture("_MainTex"));
+                    body.materials[0].SetTexture("_SkinBumpMap", female.m_baseMaterial.GetTexture("_SkinBumpMap"));
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcController] Player_Female body swap failed: " + ex.Message); }
+        }
+
+        // Point ZSyncAnimation at whatever animator now drives the model (kg rebinds zanim.m_animator the
+        // same way) — otherwise networked emote triggers on an overridden model hit the destroyed original
+        // animator and silently no-op.
+        private void RebindZSyncAnimation(Transform targetVisual)
+        {
+            try
+            {
+                var zanim = GetComponent<ZSyncAnimation>();
+                if (zanim == null) return;
+                var anim = FindActiveModelAnimator(targetVisual);
+                if (anim != null) zanim.m_animator = anim;
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcController] ZSyncAnimation rebind failed: " + ex.Message); }
+        }
+
+        // LODGroups on a stripped clone mis-cull, and creature particle systems (auras/trails) shouldn't
+        // follow a model onto a shopkeeper. kg destroys/disables both in TryOverrideModel.
+        private static void CleanupModelCloneArtifacts(GameObject root, bool disableParticles)
+        {
+            foreach (var lod in root.GetComponentsInChildren<LODGroup>(true))
+                Destroy(lod);
+            if (!disableParticles) return;
+            foreach (var ps in root.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                var em = ps.emission;
+                em.enabled = false;
+            }
         }
 
         private void EnableAllRenderers(GameObject root)

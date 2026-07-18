@@ -911,6 +911,13 @@ var highlightRect = highlightGO.AddComponent<RectTransform>();
 
         public static void ShowForNpc(NpcController npc)
         {
+            // ADMIN ONLY — this is the actual Shift+E config panel; the synced flag is the server's
+            // verdict (fail-closed in Core). The book controller carries the same guard.
+            if (!(global::FiresRPGmaker.FiresRPGmaker.Instance?.configSync?.IsAdmin ?? false))
+            {
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Only admins can configure NPCs.");
+                return;
+            }
             if (Instance == null)
             {
                 Debug.LogWarning("[NpcMainPanelController] Instance is null - UI not initialized");

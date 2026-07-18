@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,10 +15,10 @@ namespace FiresRPGmaker.Modules.Quest
         public static QuestManager Instance { get; private set; }
 
         private Dictionary<string, QuestDefinition> questDatabase = new Dictionary<string, QuestDefinition>(StringComparer.OrdinalIgnoreCase);
-        private Dictionary<string, List<string>> questProfiles = new Dictionary<string, List<string>>();
+        private Dictionary<string, List<string>> questProfiles = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        private string QuestsDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Quests");
-        private string ProfilesDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "QuestProfiles");
+        private string QuestsDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestDatabase);
+        private string ProfilesDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestProfiles);
 
         private QuestManager() { }
 
@@ -129,6 +129,14 @@ Quests = KillBoarSample
             for (int i =0; i < targetParts.Count; i++)
             {
                 var part = targetParts[i];
+                // Objective-type prefix ("Item:"/"Kill:"/…) overrides the quest-level type for this objective.
+                string objType = null;
+                int kc = part.IndexOf(':');
+                if (kc > 0)
+                {
+                    var kind = QuestTarget.NormalizeObjectiveType(part.Substring(0, kc));
+                    if (kind != null) { objType = kind; part = part.Substring(kc + 1).Trim(); }
+                }
                 List<string> pieces = null;
                 if (part.Contains(",")) pieces = part.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
                 else if (part.Contains(":")) pieces = part.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
@@ -157,7 +165,8 @@ Quests = KillBoarSample
                     Prefab = prefab,
                     Amount = amount,
                     MinLevel = minLevel,
-                    NameFilter = nameFilter
+                    NameFilter = nameFilter,
+                    Type = objType
                 });
             }
             return targets;
@@ -166,13 +175,14 @@ Quests = KillBoarSample
         public void LoadQuestDatabase()
         {
             questDatabase.Clear();
-            var files = Directory.GetFiles(QuestsDir, "*.cfg");
-            foreach (var file in files)
+            // Pure clients parse the server-synced in-memory store (no config files on client disk);
+            // server/host reads its folder as before.
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("Quests"))
             {
                 try
                 {
-                    var lines = File.ReadAllLines(file);
-                    var fname = Path.GetFileName(file) ?? string.Empty;
+                    var lines = kv.Value;
+                    var fname = Path.GetFileName(kv.Key) ?? string.Empty;
                     bool forceKGPositional = false;
                     try
                     {
@@ -445,7 +455,7 @@ Quests = KillBoarSample
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[FiresRPGmaker] Failed to load quest file {file}: {ex.Message}");
+                    Debug.LogError($"[FiresRPGmaker] Failed to load quest file {kv.Key}: {ex.Message}");
                 }
             }
             FiresLogger.LogVerbose($"Loaded {questDatabase.Count} quests");
@@ -463,7 +473,7 @@ Quests = KillBoarSample
 
             var zns = ZNetScene.instance;
             var odb = ObjectDB.instance;
-            int issueCount = 0;
+            var issues = new List<string>();
 
             foreach (var kvp in questDatabase)
             {
@@ -495,8 +505,9 @@ Quests = KillBoarSample
                             reward.IsAvailable = validSkill;
                             if (!validSkill)
                             {
-                                Debug.LogWarning($"[QuestManager] Quest '{def.QuestId}' has invalid skill reward: Skill_Exp '{reward.Target}' is not a valid skill type");
-                                issueCount++;
+                                issues.Add($"{def.QuestId}: skill '{reward.Target}'");
+                                if (FiresLogger.VerboseEnabled)
+                                    FiresLogger.LogWarning($"[QuestManager] Quest '{def.QuestId}' has invalid skill reward: Skill_Exp '{reward.Target}' is not a valid skill type");
                             }
                         }
                         else
@@ -530,8 +541,9 @@ Quests = KillBoarSample
                             reward.IsAvailable = exists;
                             if (!exists)
                             {
-                                Debug.LogWarning($"[QuestManager] Quest '{def.QuestId}' has unavailable item reward: '{reward.Target}' not found in ZNetScene/ObjectDB (mod removed?)");
-                                issueCount++;
+                                issues.Add($"{def.QuestId}: item '{reward.Target}'");
+                                if (FiresLogger.VerboseEnabled)
+                                    FiresLogger.LogWarning($"[QuestManager] Quest '{def.QuestId}' has unavailable item reward: '{reward.Target}' not found in ZNetScene/ObjectDB (mod removed?)");
                             }
                         }
                     }
@@ -548,17 +560,32 @@ Quests = KillBoarSample
                             exists = zns.GetPrefab(target.Prefab) != null;
                         if (!exists)
                         {
-                            Debug.LogWarning($"[QuestManager] Quest '{def.QuestId}' has unavailable target: '{target.Prefab}' not found in ZNetScene (mod removed?)");
-                            issueCount++;
+                            issues.Add($"{def.QuestId}: target '{target.Prefab}'");
+                            if (FiresLogger.VerboseEnabled)
+                                FiresLogger.LogWarning($"[QuestManager] Quest '{def.QuestId}' has unavailable target: '{target.Prefab}' not found in ZNetScene (mod removed?)");
                         }
                     }
                 }
             }
 
-            if (issueCount > 0)
-                Debug.LogWarning($"[QuestManager] Quest validation complete: {issueCount} issue(s) found across {questDatabase.Count} quests");
+            if (issues.Count > 0)
+                EmitQuestValidationSummary(issues, questDatabase.Count);
             else
-                Debug.Log($"[QuestManager] Quest validation complete: all {questDatabase.Count} quests OK");
+                FiresLogger.LogVerbose($"[QuestManager] Quest validation complete: all {questDatabase.Count} quests OK");
+        }
+
+        // Summarizes unresolved-quest issues into ONE neat box (📖, quest-colored via FiresLogColorPatch) instead of
+        // a warning line per issue. Full per-issue detail stays available under verbose logging. Routes through
+        // LoadSummary → the mod log source, so it prints once (no Debug.Log stdout-echo duplicate).
+        private void EmitQuestValidationSummary(List<string> issues, int totalQuests)
+        {
+            const int maxRows = 16;
+            var lines = new List<string> { $"{issues.Count} issue(s) / {totalQuests} quests" };
+            int show = Math.Min(issues.Count, maxRows);
+            for (int i = 0; i < show; i++) lines.Add(issues[i]);
+            if (issues.Count > show) lines.Add($"…+{issues.Count - show} more");
+            lines.Add("(missing prefab = mod removed?)");
+            FiresCore.Logging.LoadSummary.EmitMiniBox("📖 QUEST ISSUES", lines.ToArray(), "[FiresRPGmaker] [LoadSummary]");
         }
 
         public void LoadQuestProfiles()
@@ -1011,6 +1038,60 @@ Quests = KillBoarSample
             }
         }
 
+        // Reliably ship every quest-profile .cfg to a peer — the blind counterpart to
+        // BroadcastQuestDatabaseToPeer. The quest DATABASE has a dedicated always-send broadcast, but
+        // profiles only had the manifest-gated folder diff-sync (SendFolderDiffed) which fires immediately
+        // at RPC_PeerInfo and races the client's handler registration — leaving clients with ZERO profiles
+        // → "no quests available" on every NPC. The DB blob works precisely because it sends on a delayed
+        // coroutine; profiles now do the same. Reuses FiresRPGmaker_FileUpdate, whose client handler already
+        // stores + parses QuestProfiles (ApplyProfileDataFromServer).
+        public void BroadcastQuestProfilesToPeer(long peerUid)
+        {
+            try
+            {
+                if (FiresRPGmaker.Instance != null)
+                {
+                    FiresRPGmaker.Instance.StartCoroutine(BroadcastQuestProfilesCoroutine(peerUid));
+                    return;
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Could not start quest-profile broadcast coroutine, sending immediately: {ex.Message}"); }
+            SendQuestProfilesBlind(peerUid);
+        }
+
+        private System.Collections.IEnumerator BroadcastQuestProfilesCoroutine(long peerUid)
+        {
+            // Give the client a beat to finish registering its routed-RPC handlers — an immediate fire at
+            // RPC_PeerInfo can race, which is exactly why the folder diff-sync was silently dropping profiles.
+            yield return new WaitForSeconds(1f);
+            SendQuestProfilesBlind(peerUid);
+        }
+
+        private void SendQuestProfilesBlind(long peerUid)
+        {
+            try
+            {
+                string dir = ProfilesDir;
+                if (!Directory.Exists(dir))
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] Quest-profile broadcast: profiles dir missing ({dir})");
+                    return;
+                }
+                int sent = 0;
+                foreach (var f in Directory.GetFiles(dir, "*.cfg", SearchOption.AllDirectories))
+                {
+                    string content;
+                    try { content = File.ReadAllText(f); }
+                    catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Quest-profile broadcast read {Path.GetFileName(f)} failed: {ex.Message}"); continue; }
+                    string rel = f.Length > dir.Length ? f.Substring(dir.Length).TrimStart('\\', '/').Replace('\\', '/') : Path.GetFileName(f);
+                    SendFileToPeer(peerUid, "QuestProfiles", rel, content);
+                    sent++;
+                }
+                Debug.Log($"[FiresRPGmaker] Broadcast {sent} quest-profile file(s) to peer {peerUid} (blind reliable send).");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] SendQuestProfilesBlind failed: {ex.Message}"); }
+        }
+
         /// <summary>
         /// Determines if a line looks like a quest targets specification rather than prose description.
         /// Targets lines look like: "Boar, 10" or "Boar, 10 | Neck, 5, 1"
@@ -1049,6 +1130,16 @@ Quests = KillBoarSample
             {
                 var p = part.Trim();
                 if (string.IsNullOrEmpty(p)) continue;
+
+                // Objective-type prefix (kg): "Item: X" (collect), "Kill: X", "Craft: X", … overrides the quest-level
+                // type for THIS objective. Strip it so the prefab parses clean and record the per-line verb.
+                string objType = null;
+                int kindColon = p.IndexOf(':');
+                if (kindColon > 0)
+                {
+                    var kind = QuestTarget.NormalizeObjectiveType(p.Substring(0, kindColon));
+                    if (kind != null) { objType = kind; p = p.Substring(kindColon + 1).Trim(); }
+                }
 
                 // Accept separators ',' or ':' or spaces
                 List<string> pieces = null;
@@ -1094,7 +1185,8 @@ Quests = KillBoarSample
                     Prefab = prefab,
                     Amount = amount,
                     MinLevel = minLevel,
-                    NameFilter = string.IsNullOrEmpty(nameFilter) ? null : nameFilter
+                    NameFilter = string.IsNullOrEmpty(nameFilter) ? null : nameFilter,
+                    Type = objType
                 });
             }
             return targets;
@@ -1191,6 +1283,22 @@ Quests = KillBoarSample
                 var partsGroup = reqRaw.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim());
                 foreach (var part in partsGroup)
                 {
+                    // kg progression gate: "QuestFinished: X" (or "QuestFinished, X") = quest X must already be
+                    // completed. This is what chains SnorriOne → SnorriOne2 etc. Handle it before the ',' tokenizer
+                    // since the arg is colon-separated.
+                    var trimmed = part.TrimStart();
+                    if (trimmed.StartsWith("QuestFinished", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var qraw = trimmed.Substring("QuestFinished".Length).TrimStart(':', ',', ' ').Trim();
+                        if (!string.IsNullOrEmpty(qraw))
+                        {
+                            var qid = GetQuestIdOrName(qraw);
+                            bool doneQ = pvd?.CompletedQuests != null && pvd.CompletedQuests.Keys.Any(k => string.Equals(k, qid, StringComparison.OrdinalIgnoreCase));
+                            if (FiresLogger.VerboseEnabled) FiresLogger.LogVerbose($"[FiresRPGmaker] Requirement QuestFinished('{qraw}') -> '{qid}' => {doneQ}");
+                            if (!doneQ) missing.Add($"Completed quest '{qraw}'");
+                        }
+                        continue;
+                    }
                     var tokens = part.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToArray();
                     if (tokens.Length ==0) continue;
                     var key = tokens[0];
@@ -1414,8 +1522,7 @@ Quests = KillBoarSample
                 // update ZDO/custom data as needed without frequent disk I/O. Servers still write files to disk.
                 bool isServer = (ZNet.instance != null && ZNet.instance.IsServer());
 
-                string baseDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker");
-                string targetDir = Path.Combine(baseDir, folder);
+                string targetDir = FiresCore.Storage.FiresConfigPaths.GroupedPath(folder);
                 string fullPath = Path.Combine(targetDir, fileName);
 
                 bool wrote = false;
@@ -1833,6 +1940,28 @@ foreach (var raw in lines)
         public int MinLevel { get; set; } = 0;
         // Optional filter for target display name (Character.m_name or Piece.m_name)
         public string NameFilter { get; set; } = null;
+        // Per-objective type from a "Kind:" prefix on the target line (Item→collect, Kill, Craft, Harvest, Build,
+        // Move, Talk). Null = fall back to the quest-level QuestType. This is what lets a mixed quest (e.g. a "Talk"
+        // quest whose objectives are "Item:" collects) show the correct verb per line instead of one quest verb.
+        public string Type { get; set; } = null;
+
+        /// <summary>Map a target-line prefix token to an objective type string (or null if it's not a known kind).</summary>
+        public static string NormalizeObjectiveType(string prefix)
+        {
+            if (string.IsNullOrEmpty(prefix)) return null;
+            switch (prefix.Trim().ToLowerInvariant())
+            {
+                case "item":    return "collect";   // kg "Item:" = have/collect the item
+                case "collect": return "collect";
+                case "kill":    return "kill";
+                case "craft":   return "craft";
+                case "harvest": return "harvest";
+                case "build":   return "build";
+                case "move":    return "move";
+                case "talk":    return "talk";
+                default:        return null;         // unknown prefix → not an objective-type marker
+            }
+        }
     }
 
     [Serializable]

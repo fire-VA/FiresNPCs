@@ -109,6 +109,19 @@ namespace FiresRPGmaker.Modules.Vault
             {
                 pkg.Write("");
             }
+
+            // Extended trailing block: per-objective quest progress. Appended at the very END so any reader
+            // that predates it simply stops after BankItems and never desyncs; a new reader detects it via
+            // GetPos() < Size(). Keyed by QuestId so it survives list reordering. (Wire-only path; disk +
+            // m_customData are JSON, where TargetProgress serializes as a normal property.)
+            pkg.Write(ActiveQuests.Count);
+            foreach (var q in ActiveQuests)
+            {
+                pkg.Write(q.QuestId ?? string.Empty);
+                var tp = q.TargetProgress;
+                pkg.Write(tp?.Count ?? 0);
+                if (tp != null) foreach (var v in tp) pkg.Write(v);
+            }
         }
 
         public static PlayerVaultData Deserialize(ZPackage pkg)
@@ -170,6 +183,33 @@ namespace FiresRPGmaker.Modules.Vault
                 if (!string.IsNullOrEmpty(bankJson))
                 {
                     data.BankItems = JsonConvert.DeserializeObject<List<object>>(bankJson) ?? new List<object>();
+                }
+            }
+            catch { }
+
+            // Extended trailing block (see Serialize): only present on newer senders. GetPos() < Size()
+            // guards against older packets that end after BankItems.
+            try
+            {
+                if (pkg.GetPos() < pkg.Size())
+                {
+                    int n = pkg.ReadInt();
+                    for (int i = 0; i < n; i++)
+                    {
+                        string qid = pkg.ReadString();
+                        int c = pkg.ReadInt();
+                        List<int> list = c > 0 ? new List<int>(c) : null;
+                        for (int j = 0; j < c; j++)
+                        {
+                            int v = pkg.ReadInt();
+                            list?.Add(v);
+                        }
+                        if (list == null) continue;
+                        foreach (var aq in data.ActiveQuests)
+                        {
+                            if (string.Equals(aq.QuestId, qid, StringComparison.Ordinal)) { aq.TargetProgress = list; break; }
+                        }
+                    }
                 }
             }
             catch { }

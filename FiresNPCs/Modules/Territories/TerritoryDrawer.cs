@@ -33,7 +33,7 @@ namespace FiresRPGmaker.Modules.Territories
         private const string FolderName = "drawn";
         private static bool _registered;
 
-        private static string DrawnDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Territories", FolderName);
+        private static string DrawnDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.Territories, FolderName);
 
         [HarmonyPatch(typeof(Terminal), "Awake")]
       [HarmonyPostfix]

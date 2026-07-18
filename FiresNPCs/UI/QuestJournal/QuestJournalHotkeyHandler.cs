@@ -89,7 +89,7 @@ if (_instance == this)
         {
    try
    {
-    QuestJournalController.Toggle();
+    global::FiresRPGmaker.UI.Books.QuestBookJournal.Toggle();
      }
   catch (System.Exception ex)
    {

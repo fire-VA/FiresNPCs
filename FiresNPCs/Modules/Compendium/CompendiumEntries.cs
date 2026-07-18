@@ -20,7 +20,7 @@ namespace FiresRPGmaker.Modules.Compendium
                 Title = "Welcome to Verdant's Ascent",
                 SortOrder = 0,
                 DiscoveryKey = "companion_recruited",
-                Content = @"<color=cyan>Verdant's Ascent</color> adds intelligent AI companions to Valheim!
+                Content = @"<color=#00E5FF>Verdant's Ascent</color> adds intelligent AI companions to Valheim!
 
 Your companions will:
 • Fight alongside you in combat
@@ -46,7 +46,7 @@ Check the other compendium entries to learn more about each system."
                 Title = "Companion Controls",
                 SortOrder = 1,
                 DiscoveryKey = "companion_recruited",
-                Content = @"<color=cyan>Companion Control Keybinds</color>
+                Content = @"<color=#00E5FF>Companion Control Keybinds</color>
 
 <color=yellow>Movement Commands:</color>
 <color=orange>Shift + Middle Mouse</color> - Direct companions to a location
@@ -55,21 +55,21 @@ Check the other compendium entries to learn more about each system."
 <color=orange>Shift + Right Click</color> - Whistle (summon closest companion)
 
 <color=yellow>Companion Management:</color>
-<color=orange>E</color> (on companion) - Open companion menu
-• View inventory
-• Check stats and attributes
+<color=orange>E</color> (on companion) - Open their inventory
+<color=orange>Shift + E</color> - Toggle Follow / Stay
+<color=orange>Hold R</color> (looking at a companion) - Companion menu:
+• Check stats and archetype
 • Manage equipment
-• Set behavior modes
+• Set Home / Dismiss / Guild access
+<color=orange>Hold H</color> - Idle-behavior radial
 
-<color=yellow>Group Commands:</color>
-<color=orange>Shift + 1-5</color> - Quick command slots (if configured)
-<color=orange>Hold Shift</color> - Show companion status overlay
+<color=yellow>Companion Status:</color>
+The party overlay below the minimap is always shown.
+Toggle it with the [GroupHud] ShowGroupHud config option.
 
 <color=yellow>Behavior Modes:</color>
 • <color=green>Follow</color> - Stay close and assist
-• <color=yellow>Guard</color> - Defend current location
-• <color=red>Aggressive</color> - Engage enemies proactively
-• <color=gray>Passive</color> - Avoid combat"
+• <color=yellow>Stay</color> - Hold current location"
             });
             
             // Leveling System
@@ -80,7 +80,7 @@ Check the other compendium entries to learn more about each system."
                 Title = "Companion Leveling",
                 SortOrder = 2,
                 DiscoveryKey = "companion_level_10",
-                Content = @"<color=cyan>Companion Progression</color>
+                Content = @"<color=#00E5FF>Companion Progression</color>
 
 Companions gain experience through combat and activities.
 
@@ -90,12 +90,12 @@ Companions gain experience through combat and activities.
 • Practicing skills during idle time
 
 <color=yellow>Level Milestones:</color>
-• <color=gray>Level 1-10:</color> Learning basics
+• <color=#9A9A9A>Level 1-10:</color> Learning basics
 • <color=green>Level 11-24:</color> Developing archetype
 • <color=yellow>Level 25:</color> Hybrid class unlocks!
 • <color=orange>Level 35-50:</color> Expert abilities
 • <color=red>Level 75:</color> Master abilities
-• <color=magenta>Level 100:</color> Ultimate ability
+• <color=#FF5CE1>Level 100:</color> Ultimate ability
 
 <color=yellow>Stat Growth:</color>
 Each level increases base stats:
@@ -115,7 +115,7 @@ Higher level companions are significantly more powerful!"
                 Title = "Companion Equipment",
                 SortOrder = 3,
                 DiscoveryKey = "inventory_opened",
-                Content = @"<color=cyan>Equipment System</color>
+                Content = @"<color=#00E5FF>Equipment System</color>
 
 Companions can equip weapons and armor just like players.
 
@@ -149,7 +149,7 @@ Upgrade your companion's gear as you progress!"
                 Title = "Idle Behaviors",
                 SortOrder = 4,
                 DiscoveryKey = "companion_recruited",
-                Content = @"<color=cyan>Companion Idle Behaviors</color>
+                Content = @"<color=#00E5FF>Companion Idle Behaviors</color>
 
 When not in combat, companions perform helpful tasks!
 
@@ -179,7 +179,7 @@ Leave companions at your base in Guard mode to have them help with chores while 
                 Title = "NPC Mode",
                 SortOrder = 5,
                 DiscoveryKey = "npc_mode_seen",
-                Content = @"<color=cyan>NPC Mode</color>
+                Content = @"<color=#00E5FF>NPC Mode</color>
 
 Convert companions into stationary NPCs for your bases!
 
@@ -189,14 +189,13 @@ Convert companions into stationary NPCs for your bases!
 • Can be assigned dialogue
 • Useful for roleplaying servers
 
-<color=yellow>Setting Up:</color>
-1. Open companion menu (E)
-2. Select 'NPC Mode'
-3. Position the companion
-4. Configure dialogue (optional)
+<color=yellow>Setting Up (admin):</color>
+1. Look at the companion and press Shift+P
+2. Place it with the hammer-style placement
+3. Configure dialogue (optional)
 
-<color=yellow>Returning to Combat:</color>
-Interact with the NPC and select 'Rejoin Party' to convert them back to an active companion.
+<color=yellow>Returning to Combat (admin):</color>
+Look at the stationed NPC and press Shift+U to convert it back to an active companion.
 
 <color=yellow>Server Uses:</color>
 Great for:
@@ -221,7 +220,7 @@ Great for:
                 Title = "Archetype System",
                 SortOrder = 10,
                 DiscoveryKey = "companion_recruited",
-                Content = @"<color=cyan>Companion Archetypes</color>
+                Content = @"<color=#00E5FF>Companion Archetypes</color>
 
 Each companion develops a unique archetype based on their equipment.
 
@@ -230,7 +229,7 @@ Each companion develops a unique archetype based on their equipment.
 • <color=yellow>Paladin</color> - Holy warrior with healing
 • <color=red>Berserker</color> - Aggressive damage dealer
 • <color=purple>Rogue</color> - Stealthy assassin
-• <color=cyan>Mage</color> - Elemental magic user
+• <color=#00E5FF>Mage</color> - Elemental magic user
 • <color=green>Cleric</color> - Support and restoration
 • <color=orange>Ranger</color> - Ranged specialist
 • <color=white>Monk</color> - Martial arts master
@@ -271,7 +270,8 @@ The stalwart defender who protects allies from harm.
 <color=yellow>Special Abilities:</color>
 • <color=orange>Taunt:</color> Force enemies to attack the guardian
 • <color=orange>Fortify:</color> Damage reduction buff
-• <color=orange>Shield Wall:</color> Block incoming projectiles
+• <color=orange>Iron Wall:</color> Greatly reduced block damage
+• <color=orange>Immortal Stance:</color> Brief damage immunity + AoE taunt
 
 <color=yellow>Combat Role:</color>
 Guardians excel at:
@@ -455,7 +455,7 @@ Guardians (to hold aggro), any melee"
                 Title = "Mage Archetype",
                 SortOrder = 16,
                 DiscoveryKey = "archetype_seen_mage",
-                Content = @"<color=cyan>Mage Archetype</color>
+                Content = @"<color=#00E5FF>Mage Archetype</color>
 
 Wielder of elemental magic and arcane power.
 
@@ -589,7 +589,7 @@ Any - very self-sufficient"
                 Title = "Hybrid Classes",
                 SortOrder = 20,
                 DiscoveryKey = "hybrid_system_seen",
-                Content = @"<color=cyan>Hybrid Class System</color>
+                Content = @"<color=#00E5FF>Hybrid Class System</color>
 
 At level 25, companions develop a secondary archetype!
 
@@ -614,7 +614,7 @@ The sub-archetype is based on:
 <color=yellow>Examples:</color>
 • Guardian + Paladin = <color=yellow>Crusader</color>
 • Berserker + Rogue = <color=red>Reaper</color>
-• Mage + Ranger = <color=cyan>Storm Caller</color>
+• Mage + Ranger = <color=#00E5FF>Storm Caller</color>
 
 Each hybrid has a unique special ability!"
             });
@@ -629,7 +629,7 @@ Each hybrid has a unique special ability!"
                 SortOrder = 21,
                 DiscoveryKey = "hybrid_unlocked_tank_paladin",
                 Content = @"<color=yellow>Crusader</color>
-<color=gray>Guardian + Paladin Hybrid</color>
+<color=#9A9A9A>Guardian + Paladin Hybrid</color>
 
 A holy warrior combining unwavering defense with divine power.
 
@@ -655,7 +655,7 @@ Crusaders excel at protecting groups while providing steady healing. Position th
                 SortOrder = 22,
                 DiscoveryKey = "hybrid_unlocked_tank_berserker",
                 Content = @"<color=red>Juggernaut</color>
-<color=gray>Guardian + Berserker Hybrid</color>
+<color=#9A9A9A>Guardian + Berserker Hybrid</color>
 
 An unstoppable force that grows stronger as battle rages.
 
@@ -682,7 +682,7 @@ Juggernauts thrive in prolonged fights. They deal more damage than typical guard
                 SortOrder = 23,
                 DiscoveryKey = "hybrid_unlocked_berserker_rogue",
                 Content = @"<color=red>Reaper</color>
-<color=gray>Berserker + Rogue Hybrid</color>
+<color=#9A9A9A>Berserker + Rogue Hybrid</color>
 
 A frenzied killer who strikes vital points in their rage.
 
@@ -708,14 +708,14 @@ Reapers are glass cannons that excel at burst damage. Keep them healed and they'
                 Title = "Storm Caller (Mage/Ranger)",
                 SortOrder = 24,
                 DiscoveryKey = "hybrid_unlocked_mage_ranger",
-                Content = @"<color=cyan>Storm Caller</color>
-<color=gray>Mage + Ranger Hybrid</color>
+                Content = @"<color=#00E5FF>Storm Caller</color>
+<color=#9A9A9A>Mage + Ranger Hybrid</color>
 
 A mage who commands lightning and wind.
 
 <color=yellow>Hybrid Bonuses:</color>
 • +18% Damage
-• +50% Eitr Regeneration
+• +1.5 Eitr/s Regeneration
 
 <color=yellow>Special Ability:</color>
 <color=orange>Chain Lightning</color>
@@ -741,15 +741,16 @@ Storm Callers excel at AoE damage. Position them where they can hit multiple ene
                 Title = "Ability System",
                 SortOrder = 30,
                 DiscoveryKey = "companion_level_10",
-                Content = @"<color=cyan>Companion Abilities</color>
+                Content = @"<color=#00E5FF>Companion Abilities</color>
 
 Companions unlock powerful abilities as they level up.
 
 <color=yellow>Ability Tiers:</color>
-• <color=gray>Basic (1-24):</color> Core archetype abilities
-• <color=green>Expert (35-50):</color> Advanced techniques
+• <color=#9A9A9A>Basic (1-15):</color> Core archetype abilities
+• <color=green>Advanced (15-35):</color> Specialized techniques
+• <color=green>Expert (35-50):</color> Expert techniques
 • <color=orange>Master (75):</color> Powerful signature moves
-• <color=magenta>Ultimate (100):</color> Game-changing abilities
+• <color=#FF5CE1>Ultimate (100):</color> Game-changing abilities
 
 <color=yellow>Ability Usage:</color>
 Companions use abilities automatically based on:
@@ -772,7 +773,7 @@ Check individual archetype entries for specific ability lists."
                 Title = "Group Synergies",
                 SortOrder = 31,
                 DiscoveryKey = "synergy_system_seen",
-                Content = @"<color=cyan>Group Synergy System</color>
+                Content = @"<color=#00E5FF>Group Synergy System</color>
 
 When multiple companions work together, their abilities can combine!
 
@@ -782,10 +783,10 @@ When multiple companions work together, their abilities can combine!
 • Timing matters - abilities must overlap
 
 <color=yellow>Example Synergies:</color>
-• <color=orange>Shield Wall:</color> Guardian + Paladin defensive combo
-• <color=orange>Elemental Storm:</color> Mage + Ranger ranged burst
-• <color=orange>Assassination:</color> Rogue + Berserker execute combo
-• <color=orange>Holy Ground:</color> Cleric + Paladin healing zone
+• <color=orange>Holy Bastion:</color> Tank + Paladin - group damage immunity + heal
+• <color=orange>Primal Storm:</color> Berserker + Mage - AoE elemental burst
+• <color=orange>Shadow Dance:</color> Rogue + Monk - stealth strike combo
+• <color=orange>Divine Harmony:</color> Paladin + Healer - group heal + protection
 
 <color=yellow>Building Synergies:</color>
 Consider your party composition:

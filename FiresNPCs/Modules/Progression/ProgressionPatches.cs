@@ -328,7 +328,7 @@ namespace FiresRPGmaker.Modules.Progression
         {
             var cfg = ProgressionConfig.Instance;
             if (cfg == null || !cfg.AdminBypass) return false;
-            return ZNet.instance != null && ZNet.instance.LocalPlayerIsAdminOrHost();
+            return FiresCore.Sync.AdminSyncing.IsLocalAdmin();
         }
 
         private static void ShowBlockedMessage()
@@ -366,6 +366,23 @@ namespace FiresRPGmaker.Modules.Progression
 
         private static bool IsValidEventForPlayer(RandomEvent re, HashSet<string> playerKeys)
         {
+            // Mirror vanilla RandEventSystem.HaveGlobalKeys' either/or: when an event carries any
+            // of the alt (PlayerEvents-mode) gating lists, its eligibility is decided ENTIRELY by
+            // those per-player conditions; otherwise it falls back to the required/not-required
+            // global-key lists. The original implementation only checked the global-key lists, so
+            // any event gated the correct player-based way (alt player keys) — or a modded event
+            // with no required global keys — passed for every player regardless of progression,
+            // firing raids like the Mistlands dvergr ambush minutes into a fresh character.
+            bool hasAltGating =
+                re.m_altRequiredKnownItems.Count > 0 ||
+                re.m_altRequiredNotKnownItems.Count > 0 ||
+                re.m_altNotRequiredPlayerKeys.Count > 0 ||
+                re.m_altRequiredPlayerKeysAny.Count > 0 ||
+                re.m_altRequiredPlayerKeysAll.Count > 0;
+
+            if (hasAltGating)
+                return PlayerReadyByKeys(re, playerKeys);
+
             foreach (var req in re.m_requiredGlobalKeys)
             {
                 if (!playerKeys.Contains(req.ToLower()))
@@ -377,6 +394,32 @@ namespace FiresRPGmaker.Modules.Progression
                     return false;
             }
             return true;
+        }
+
+        /// <summary>
+        /// Server-side mirror of vanilla RandEventSystem.PlayerIsReadyForEvent, evaluated against a
+        /// player's private key set instead of a live Player. Known-item conditions
+        /// (m_altRequiredKnownItems / m_altRequiredNotKnownItems) can't be resolved from keys alone
+        /// on the server, so they neither auto-qualify nor disqualify — the player-key lists decide.
+        /// </summary>
+        private static bool PlayerReadyByKeys(RandomEvent re, HashSet<string> playerKeys)
+        {
+            foreach (var notReqKey in re.m_altNotRequiredPlayerKeys)
+            {
+                if (playerKeys.Contains(notReqKey.ToLower()))
+                    return false;
+            }
+            foreach (var anyKey in re.m_altRequiredPlayerKeysAny)
+            {
+                if (playerKeys.Contains(anyKey.ToLower()))
+                    return true;
+            }
+            foreach (var allKey in re.m_altRequiredPlayerKeysAll)
+            {
+                if (!playerKeys.Contains(allKey.ToLower()))
+                    return false;
+            }
+            return re.m_altRequiredKnownItems.Count <= 0 && re.m_altRequiredPlayerKeysAny.Count <= 0;
         }
     }
 }

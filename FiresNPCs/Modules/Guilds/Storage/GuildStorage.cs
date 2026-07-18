@@ -22,7 +22,7 @@ namespace FiresRPGmaker.Modules.Guilds.Storage
     public static class GuildStorage
     {
         private static readonly string ConfigRoot =
-            Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "guilds");
+            Path.Combine(FiresCore.Storage.FiresConfigPaths.Guilds);
 
         public const int MAX_CHAT_HISTORY = 500;
 

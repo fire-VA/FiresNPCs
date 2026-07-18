@@ -25,6 +25,16 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         // PlayerInputPatches block movement/camera/M-key while one of these panels is on screen.
         private static int _openCount;
         public static bool AnyOpen => _openCount > 0;
+        // Live open instances so GUIManager.CloseAllPanels (fired from the Menu.Show Escape hook) can close
+        // them — these panels don't self-close on Escape anymore, the central hook owns it.
+        private static readonly System.Collections.Generic.List<BasePlayerModulePanel> _openInstances = new System.Collections.Generic.List<BasePlayerModulePanel>();
+        public static void CloseAny()
+        {
+            for (int i = _openInstances.Count - 1; i >= 0; i--)
+            {
+                try { _openInstances[i]?.Close(); } catch { }
+            }
+        }
         // Per-instance open flag: tracks whether THIS panel currently counts toward _openCount, so we
         // never double-increment on repeated Open() calls and never double-decrement on Close().
         private bool _opened;
@@ -58,6 +68,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             {
                 _opened = true;
                 _openCount++;
+                if (!_openInstances.Contains(this)) _openInstances.Add(this);
             }
             // CALL BLOCK INPUT EVERY OPEN (regression 2026-06-07): gating it on "wasOpen=false" missed the
             // first open because the just-built panel was already active=true by default → BlockInput never
@@ -73,6 +84,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             {
                 _opened = false;
                 _openCount = Mathf.Max(0, _openCount - 1);
+                _openInstances.Remove(this);
             }
             if (_openCount == 0)
             {
@@ -85,7 +97,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected virtual void Update()
         {
             if (!IsOpen) return;
-            if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+            // Escape is owned by the central Menu.Show hook (GUIManager.CloseAllPanels) — no self-close here,
+            // so the panel is still open when the hook intercepts the vanilla menu open (no race).
             // Per-frame cursor keep-alive — Valheim's Hud.Update / GUIManager hide the cursor again on
             // every frame, so a one-shot Cursor.visible=true in BlockInput isn't enough. Force it while
             // a player panel is open.
@@ -134,7 +147,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var close = FindBtn(root, "CloseButton");
             if (close != null) { close.onClick.RemoveAllListeners(); close.onClick.AddListener(Close); }
 
-            BindPrefab(_panelGo);
+            try { BindPrefab(_panelGo); }
+            catch (System.Exception ex) { Debug.LogError("[" + PanelTitle + "Panel] BindPrefab threw — panel may be partially wired: " + ex); }
             return true;
         }
 
@@ -404,6 +418,83 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             meta.minHeight = padding * 2f;
             meta.preferredHeight = rowSpacing; // re-purposed as "row spacing" by ReflowScroll
             meta.flexibleHeight = padding;     // re-purposed as "padding"
+        }
+
+        // ---- baked ScrollPool anchor -> live RectMask2D scroll (mirrors the main book's InputScroll) ----
+        //
+        // The book builders bake lists as an empty anchor container ("...Pool") holding an inactive "*Template"
+        // row (plus render-only sample rows). On first use this turns the anchor into a real ScrollRect whose
+        // viewport clips with RectMask2D (AssetBundle-safe; a baked stencil Mask renders invisible in-game) and
+        // whose Content uses a VerticalLayoutGroup + ContentSizeFitter. The template is moved under Content;
+        // the render-only samples are discarded. Returns the Content node (where clones are parented).
+        protected static RectTransform BuildPoolScroll(Transform anchor)
+        {
+            if (anchor == null) return null;
+            var existing = anchor.Find("InputScroll/Viewport/Content") as RectTransform;
+            if (existing != null) return existing;
+
+            var scrollGo = new GameObject("InputScroll", typeof(RectTransform), typeof(ScrollRect));
+            scrollGo.transform.SetParent(anchor, false);
+            var srt = (RectTransform)scrollGo.transform;
+            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one; srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+
+            var vpGo = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
+            vpGo.transform.SetParent(scrollGo.transform, false);
+            var vrt = (RectTransform)vpGo.transform;
+            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one; vrt.offsetMin = Vector2.zero; vrt.offsetMax = Vector2.zero;
+            vpGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f);
+
+            var cGo = new GameObject("Content", typeof(RectTransform));
+            cGo.transform.SetParent(vpGo.transform, false);
+            var crt = (RectTransform)cGo.transform;
+            crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f); crt.pivot = new Vector2(0.5f, 1f);
+            crt.anchoredPosition = Vector2.zero; crt.sizeDelta = Vector2.zero;
+            var vlg = cGo.AddComponent<VerticalLayoutGroup>();
+            vlg.childControlWidth = true; vlg.childForceExpandWidth = true; vlg.childControlHeight = true; vlg.childForceExpandHeight = false;
+            vlg.spacing = 3f; vlg.padding = new RectOffset(2, 2, 2, 2);
+            cGo.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var sr = scrollGo.GetComponent<ScrollRect>();
+            sr.viewport = vrt; sr.content = crt; sr.horizontal = false; sr.vertical = true; sr.scrollSensitivity = 26f;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+
+            for (int i = anchor.childCount - 1; i >= 0; i--)
+            {
+                var ch = anchor.GetChild(i);
+                if (ch == scrollGo.transform) continue;
+                if (ch.name.EndsWith("Template", System.StringComparison.Ordinal)) ch.SetParent(crt, false);
+                else { ch.gameObject.SetActive(false); Object.Destroy(ch.gameObject); } // render-only sample
+            }
+            return crt;
+        }
+
+        protected static void ClearRowClones(RectTransform content)
+        {
+            if (content == null) return;
+            for (int i = content.childCount - 1; i >= 0; i--)
+            {
+                var c = content.GetChild(i);
+                if (c.name == "Row") { c.gameObject.SetActive(false); Object.Destroy(c.gameObject); }
+            }
+        }
+
+        protected GameObject CloneRow(RectTransform content, GameObject template, float height)
+        {
+            if (content == null || template == null) return null;
+            var row = Instantiate(template, content);
+            row.name = "Row";
+            row.SetActive(true);
+            var le = row.GetComponent<LayoutElement>() ?? row.AddComponent<LayoutElement>();
+            le.preferredHeight = height; le.minHeight = height;
+            return row;
+        }
+
+        // Finds the TMP_InputField nested inside a named field container (the book's Field/ProfileField wrap the
+        // input under a "Transparent_*" box, so a direct GetComponent on the container name returns null).
+        protected static TMP_InputField FindInputUnder(Transform root, string containerName)
+        {
+            var go = Find(root, containerName);
+            return go != null ? go.GetComponentInChildren<TMP_InputField>(true) : null;
         }
 
         // ---- prefab node lookup (shared by every load-from-prefab panel) ----

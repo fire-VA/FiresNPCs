@@ -73,7 +73,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         }
 
         private static string Key(string player, string baseItem) => (player ?? "") + "::" + (baseItem ?? "");
-        private static string StorePath => Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "Transmogrifications", "_picks.csv");
+        private static string StorePath => Path.Combine(FiresCore.Storage.FiresConfigPaths.Transmogrifications, "_picks.csv");
 
         private static void EnsureLoaded()
         {

@@ -54,15 +54,20 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             _initialized = true;
             _byProfile.Clear();
-            var folder = GetProfileFolder();
-            if (!Directory.Exists(folder))
-                try { Directory.CreateDirectory(folder); } catch { }
-            // Always seed example.cfg if missing — see same fix in BankerProfileManager.
-            WriteExampleProfile(folder);
-            foreach (var file in Directory.GetFiles(folder, "*.cfg", SearchOption.AllDirectories))
+            // Pure clients parse the server-synced in-memory store (no config files on client disk);
+            // server/host reads + seeds its folder as before.
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
             {
-                try { LoadOne(file); }
-                catch (System.Exception ex) { Debug.LogError("[TransmogProfileManager] " + file + ": " + ex.Message); }
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder))
+                    try { Directory.CreateDirectory(folder); } catch { }
+                // Always seed example.cfg if missing — see same fix in BankerProfileManager.
+                WriteExampleProfile(folder);
+            }
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines(MarketplacePaths.Transmogs))
+            {
+                try { LoadOne(kv.Key, kv.Value); }
+                catch (System.Exception ex) { Debug.LogError("[TransmogProfileManager] " + kv.Key + ": " + ex.Message); }
             }
             Debug.Log("[TransmogProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
                       + " transmog(s) across " + _byProfile.Count + " profile(s)");
@@ -70,11 +75,11 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Transmogs);
 
-        private static void LoadOne(string file)
+        private static void LoadOne(string file, string[] lines)
         {
             string key = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             var pool = new List<TransmogOption>();
-            foreach (var raw in File.ReadAllLines(file))
+            foreach (var raw in lines)
             {
                 var line = raw.Trim();
                 if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
@@ -179,6 +184,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 File.WriteAllText(file, content);
                 _initialized = false;
                 EnsureLoaded();
+                global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Transmogrifications", safe + ".cfg", content);
                 Debug.Log($"[TransmogProfileManager] Saved transmog profile '{name}' -> {file}");
             }
             catch (System.Exception ex) { Debug.LogError("[TransmogProfileManager] SaveProfile failed: " + ex.Message); }

@@ -20,7 +20,7 @@ namespace FiresRPGmaker.Modules.Territories
         private static readonly List<Territory> _territories = new();
         private static readonly HashSet<string> _loggedColorNames = new(StringComparer.OrdinalIgnoreCase);
 
-        private static string BaseDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Territories");
+        private static string BaseDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.Territories);
         private static string LegacyDir => Path.Combine(BaseDir, "legacy");
         private static string OutlinesDir => Path.Combine(BaseDir, "outlines");
         private static string DrawnDir => Path.Combine(BaseDir, "drawn");

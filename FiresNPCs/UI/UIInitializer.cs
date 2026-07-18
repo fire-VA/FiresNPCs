@@ -21,7 +21,7 @@ namespace FiresRPGmaker.UI
         // Static constructor to ensure patches are applied
         static UIInitializer()
         {
-            Debug.Log("[UIInitializer] Static constructor called - patches should be registered");
+            FiresLogger.LogVerbose("[UIInitializer] Static constructor called - patches should be registered");
         }
 
         /// <summary>
@@ -36,21 +36,21 @@ namespace FiresRPGmaker.UI
             // pointless on a headless server anyway.
             if (UnityEngine.SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
             {
-                Debug.Log("[UIInitializer] Dedicated server detected (graphicsDeviceType=Null) — skipping UI initialization.");
+                FiresLogger.LogVerbose("[UIInitializer] Dedicated server detected (graphicsDeviceType=Null) — skipping UI initialization.");
                 return;
             }
 
             // Check if we need to reinitialize (panel was destroyed on logout)
             if (_initialized && _panelInstance == null)
             {
-                Debug.Log("[UIInitializer] Panel was destroyed (logout), reinitializing...");
+                FiresLogger.LogVerbose("[UIInitializer] Panel was destroyed (logout), reinitializing...");
                 _initialized = false;
             }
 
             if (_initialized) return;
             _initialized = true;
 
-            Debug.Log("[UIInitializer] Initialize() called");
+            FiresLogger.LogVerbose("[UIInitializer] Initialize() called");
 
             // Initialize GUIManager for font config change handling
             GUIManager.Initialize();
@@ -66,6 +66,9 @@ namespace FiresRPGmaker.UI
             // Initialize the Quest Journal hotkey handler
             QuestJournalHotkeyHandler.EnsureCreated();
 
+            // Initialize the Leaderboard hotkey handler (default L)
+            LeaderboardHotkeyHandler.EnsureCreated();
+
             // Group HUD (companion stat bars) removed — companion HUD belongs to FiresCompanions.
 
             // Initialize the Globe HUD overlay (Health/Eitr/Stamina/Adrenaline globes)
@@ -77,7 +80,7 @@ namespace FiresRPGmaker.UI
             FiresNpcsHelpContent.Install();
 
 
-            Debug.Log($"[UIInitializer] UI system initialized (AssetBundle: {_usingAssetBundle})");
+            FiresLogger.LogVerbose($"[UIInitializer] UI system initialized (AssetBundle: {_usingAssetBundle})");
         }
 
         /// <summary>
@@ -85,7 +88,7 @@ namespace FiresRPGmaker.UI
         /// </summary>
         public static void ResetInitialization()
         {
-            Debug.Log("[UIInitializer] Resetting initialization state (logout detected)");
+            FiresLogger.LogVerbose("[UIInitializer] Resetting initialization state (logout detected)");
             _initialized = false;
 
             // Each step wrapped in try/catch with a tagged label so we can see which cleanup the 6×
@@ -112,7 +115,7 @@ namespace FiresRPGmaker.UI
             DialogueManager.Reload();
             QuestProfileManager.Reload();
             NpcMainPanelController.Instance?.RefreshProfiles();
-            Debug.Log("[UIInitializer] UI config reloaded");
+            FiresLogger.LogVerbose("[UIInitializer] UI config reloaded");
         }
 
         /// <summary>
@@ -128,18 +131,18 @@ namespace FiresRPGmaker.UI
         {
             if (_panelInstance != null)
             {
-                Debug.Log("[UIInitializer] Panel instance already exists");
+                FiresLogger.LogVerbose("[UIInitializer] Panel instance already exists");
                 return;
             }
 
             // Wait for game UI to be ready
             if (Hud.instance == null)
             {
-                Debug.Log("[UIInitializer] Hud not ready, deferring UI creation");
+                FiresLogger.LogVerbose("[UIInitializer] Hud not ready, deferring UI creation");
                 return;
             }
 
-            Debug.Log("[UIInitializer] Creating panel instance via codegen...");
+            FiresLogger.LogVerbose("[UIInitializer] Creating panel instance via codegen...");
 
             // Log available fonts for debugging (remove after confirming fonts are found)
             UIFontConfig.LogAvailableFonts();
@@ -166,7 +169,7 @@ namespace FiresRPGmaker.UI
             canvasRect.offsetMin = Vector2.zero;
             canvasRect.offsetMax = Vector2.zero;
 
-            Debug.Log($"[UIInitializer] Created standalone NPC panel canvas (sortingOrder={canvas.sortingOrder})");
+            FiresLogger.LogVerbose($"[UIInitializer] Created standalone NPC panel canvas (sortingOrder={canvas.sortingOrder})");
 
             // Build the entire UI from codegen as a child of our standalone canvas.
             var root = CodegenUIWiring.CreateAndWireUI(canvasGo.transform);
@@ -192,7 +195,7 @@ namespace FiresRPGmaker.UI
 
             // Verify final state
             var controller = NpcMainPanelController.Instance;
-            Debug.Log($"[UIInitializer] NPC panel created via codegen. Instance: {(controller != null ? "SET" : "NULL")}, " +
+            FiresLogger.LogVerbose($"[UIInitializer] NPC panel created via codegen. Instance: {(controller != null ? "SET" : "NULL")}, " +
                       $"ContentParent: {(controller?.contentParent != null ? "SET" : "NULL")}, " +
                       $"CloseButton: {(controller?.closeButton != null ? "SET" : "NULL")}, " +
                       $"ApplyButton: {(controller?.applyButton != null ? "SET" : "NULL")}");
@@ -271,20 +274,62 @@ namespace FiresRPGmaker.UI
         }
 
         /// <summary>
-        /// Harmony patch to close our panels on Escape before game menu opens.
+        /// THE Escape hook. Valheim opens the pause menu ONLY through Menu.Show() (Menu.cs:264, when Escape is
+        /// pressed and no vanilla UI is open). We intercept Show() itself: if one of our UI panels is open, we
+        /// CLOSE the panel here and swallow the open (return false), so the menu never appears. Because the
+        /// close fires as a RESULT of intercepting the vanilla open — not from a separate per-UI Update reading
+        /// its own Escape — the timing is exact and there is no race: the panels no longer self-close on Escape,
+        /// so IsCustomPanelOpen() is reliably true at this point. A second Escape (nothing open) falls through
+        /// and the menu opens normally. Wrapped so an inspection error can never leak the menu through.
         /// </summary>
-        [HarmonyPatch(typeof(Menu), "Update")]
-        private static class Menu_Update_Patch
+        [HarmonyPatch(typeof(Menu), nameof(Menu.Show))]
+        private static class Menu_Show_Guard
         {
             private static bool Prefix()
             {
-                if (Input.GetKeyDown(KeyCode.Escape) && GUIManager.IsCustomPanelOpen())
+                try
                 {
-                    Debug.Log("[UIInitializer] Menu_Update_Patch - Escape pressed, closing panels");
-                    GUIManager.CloseAllPanels();
-                    return false;
+                    // Menu.Show() is the ONLY way Valheim opens the pause menu (Menu.cs:264 calls it when
+                    // ZInput.GetKeyDown(Escape) & flag). We do NOT read the Escape key ourselves — we let vanilla
+                    // decide, on vanilla's own input frame, then intercept the Show it produces. At that instant a
+                    // Fires panel that owns this Escape is still open (nothing self-closes it first), so close it
+                    // here and swallow the menu open. This is input-source agnostic — the earlier Menu.Update
+                    // guard read Input.GetKeyDown and closed the panel a frame BEFORE vanilla's ZInput fired, so
+                    // Show then saw no panel and let the menu through. Removed. A 2nd Escape (nothing open) → menu.
+                    bool open = GUIManager.IsCustomPanelOpen();
+                    if (open)
+                    {
+                        GUIManager.CloseAllPanels();
+                        return false;
+                    }
                 }
+                catch { }
                 return true;
+            }
+        }
+
+        /// <summary>kg's proven approach (Marketplace Dialogues_Main_Client: on Escape + dialogue visible it calls
+        /// Menu.instance.OnClose()). We run it as a POSTFIX on Menu.Update — AFTER vanilla has done any open — as
+        /// a state-based catch-all: whenever a Fires panel is open, the pause menu must NOT be, so if its root is
+        /// active, close it with OnClose() (== Hide()). This backstops the Menu.Show prevent-hook and catches any
+        /// path that activates the menu root without going through the Show we patched (the "menu opened but no
+        /// Show log" case in the logs). Reads no input, so there is no ZInput/Input frame skew. If Show already
+        /// blocked the open, the root is inactive and this is a no-op.</summary>
+        [HarmonyPatch(typeof(Menu), "Update")]
+        private static class Menu_Update_MutexPostfix
+        {
+            private static void Postfix()
+            {
+                try
+                {
+                    if (!GUIManager.IsCustomPanelOpen()) return;
+                    var m = Menu.instance;
+                    if (m != null && m.m_root != null && m.m_root.gameObject.activeSelf)
+                    {
+                        m.OnClose();
+                    }
+                }
+                catch { }
             }
         }
     }

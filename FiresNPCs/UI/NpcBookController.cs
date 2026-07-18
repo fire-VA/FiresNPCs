@@ -29,7 +29,7 @@ namespace FiresRPGmaker.UI
 
         // Mirrors the builder's tab list / Screen_<tab> names (FiresNpcBookBuild.Tabs).
         private static readonly string[] Tabs =
-        { "Dressing", "Quest", "Trader", "Info", "Dialogue", "Banker", "Gambler", "Leaderboard", "Transmog", "Marketplace", "Mail" };
+        { "Dressing", "Quest", "Trader", "Info", "Dialogue", "Banker", "Gambler", "Buffers", "Transmog", "Marketplace", "Mail" };
 
         private static readonly Color TAB = new Color(0.36f, 0.25f, 0.11f, 0.88f);
         private static readonly Color TAB_ON = new Color(0.62f, 0.45f, 0.16f, 0.92f);
@@ -50,9 +50,19 @@ namespace FiresRPGmaker.UI
         private bool _dressingWired;
         private bool _patrolBtnAdded;
         private RectTransform _patrolBtnRect;
+        private RectTransform _closeBtnRect;
+        private RectTransform _anchorBtnRect;
         private RectTransform _dragHandleRect;
         private bool _dragging;
         private Vector2 _dragOffset;
+
+        // Manual hover-help: the book runs under a swallowed EventSystem (see Update), so FiresHoverTip's
+        // IPointerEnter never fires here — we register each hinted field's rect and poll the mouse ourselves.
+        private readonly Dictionary<RectTransform, (string topic, string body)> _hoverFields =
+            new Dictionary<RectTransform, (string, string)>();
+        private RectTransform _hoverActive;
+        private float _hoverStart;
+        private bool _hoverShown;
 
         public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
 
@@ -60,6 +70,13 @@ namespace FiresRPGmaker.UI
         public static void ShowForNpc(NpcController npc)
         {
             if (npc == null) return;
+            // Inherent guard — this is the admin config surface. Callers (Shift+E) already gate, but
+            // the method is public static and must not be openable by any other path on a non-admin.
+            if (!(FiresRPGmaker.Instance?.configSync?.IsAdmin ?? false))
+            {
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Only admins can configure NPCs.");
+                return;
+            }
             if (Instance == null)
             {
                 var host = new GameObject("FiresNPCs_NpcBook");
@@ -98,6 +115,7 @@ namespace FiresRPGmaker.UI
             _bookOptionPopup?.Close();
             if (_optionPopup != null) _optionPopup.gameObject.SetActive(false);
             _editingOptionIndex = -1;
+            if (_hoverShown) { _hoverShown = false; _hoverActive = null; try { FiresCore.UI.FiresHoverTip.HideTip(); } catch { } }
             if (_panelGo != null) _panelGo.SetActive(false);
             _npc = null;
             try { if (!GUIManager.IsCustomPanelOpen()) GUIManager.BlockInput(false); } catch { }
@@ -116,7 +134,8 @@ namespace FiresRPGmaker.UI
             if (!IsOpen) return;
             // The Hud may re-enable the crosshair raycast on its own update; keep it off while the book is open.
             FiresCore.UI.CrosshairRaycast.Reassert(_crosshairRaycasts);
-            if (Input.GetKeyDown(KeyCode.Escape)) { Hide(); return; }
+            // Escape owned by the central Menu.Show hook (CloseAllPanels → NpcBookController.Hide) — no
+            // self-close here (avoids the menu-opens race).
             // Valheim hides/relocks the cursor every frame while a panel is up — force it visible.
             if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
             { Cursor.visible = true; Cursor.lockState = CursorLockMode.None; }
@@ -128,7 +147,65 @@ namespace FiresRPGmaker.UI
             if (_activeTab == "Dressing" && Input.GetMouseButtonDown(0))
                 HandleManualTabClick();
 
+            // The X (close) and Show Anchor buttons are driven by manual hit-testing on EVERY tab —
+            // the baked CloseButton's onClick has never fired reliably (event-system swallowing +
+            // overlay ordering), so raw Input + RectangleContainsScreenPoint is the one path that
+            // always works (same pattern as the tabs / Set Patrol / drag handle).
+            if (Input.GetMouseButtonDown(0) && !PatrolRoutePopup.IsOpen)
+            {
+                Vector2 mouse = Input.mousePosition;
+                if (_closeBtnRect != null && _closeBtnRect.gameObject.activeInHierarchy
+                    && RectTransformUtility.RectangleContainsScreenPoint(_closeBtnRect, mouse, null))
+                {
+                    Hide();
+                    return;
+                }
+                if (_anchorBtnRect != null && _anchorBtnRect.gameObject.activeInHierarchy
+                    && RectTransformUtility.RectangleContainsScreenPoint(_anchorBtnRect, mouse, null))
+                {
+                    // Close the book FIRST (patrol-flow UX — you need to see the world), then show
+                    // the orb. Capture the NPC before Hide clears the panel state.
+                    var npc = _npc;
+                    Hide();
+                    if (npc != null) NpcAnchorOrbViz.Show(npc);
+                    return;
+                }
+            }
+
             HandleDrag();
+            TickHover();
+        }
+
+        // Manual hover-help poll — the swallowed EventSystem means IPointerEnter never fires on book
+        // fields, so we hit-test each registered rect against the cursor and drive the shared tooltip
+        // ourselves (0.3s dwell, hidden on move-off). Honors the ShowAdminHints toggle via ShowAt.
+        private void TickHover()
+        {
+            if (!FiresCore.UI.FiresHoverTip.Enabled)
+            {
+                if (_hoverShown) { _hoverShown = false; _hoverActive = null; FiresCore.UI.FiresHoverTip.HideTip(); }
+                return;
+            }
+            Vector2 mouse = Input.mousePosition;
+            RectTransform hit = null;
+            foreach (var kv in _hoverFields)
+            {
+                var rt = kv.Key;
+                if (rt == null || !rt.gameObject.activeInHierarchy) continue;
+                if (RectTransformUtility.RectangleContainsScreenPoint(rt, mouse, null)) { hit = rt; break; }
+            }
+            if (hit != _hoverActive)
+            {
+                _hoverActive = hit;
+                _hoverStart = Time.unscaledTime;
+                if (_hoverShown) { _hoverShown = false; FiresCore.UI.FiresHoverTip.HideTip(); }
+            }
+            if (_hoverActive != null && !_hoverShown && Time.unscaledTime - _hoverStart >= 0.3f)
+            {
+                _hoverShown = true;
+                var info = _hoverFields[_hoverActive];
+                FiresCore.UI.FiresHoverTip.ShowAt(info.topic, info.body, mouse);
+            }
         }
 
         // Manual hit-test of the left-page tab buttons, used while InventoryGui blocks the event system.
@@ -192,6 +269,11 @@ namespace FiresRPGmaker.UI
             WireToggleVisuals();
             WireDialogueExtras();
             NormalizeInteractive(_panelGo.transform);
+
+            // Manual-hit-test targets (see Update): the baked X, and the runtime Show Anchor button
+            // on the left page beside the tree emblem.
+            _closeBtnRect = FindRec(_root, "CloseButton") as RectTransform;
+            EnsureAnchorButton();
             AddDragHandle();
             _panelGo.SetActive(false);
             _built = true;
@@ -278,7 +360,14 @@ namespace FiresRPGmaker.UI
             Hook("InfoApply", SaveInfo);
             Hook("BankerApply", SaveBanker);
             Hook("GamblerApply", SaveGambler);
-            Hook("LeaderboardApply", SaveLeaderboard);
+            Hook("BufferApply", SaveBuffer);
+            Hook("BufferEditButton", () => Screens.PlayerPanels.BufferAdminPanel.Show());
+            Hook("BufferPreviewButton", () =>
+            {
+                string p = GetScreenInput("Buffers", "BufferProfile")?.Trim()?.ToLowerInvariant();
+                if (string.IsNullOrEmpty(p)) p = "default";
+                Screens.PlayerPanels.BufferPlayerPanel.Show(p, _npc != null ? _npc.GetDisplayName() : "Buffs");
+            });
             Hook("TransmogApply", SaveTransmog);
             Hook("MarketplaceApply", SaveMarketplace);
             Hook("MailApply", SaveMail);
@@ -349,8 +438,43 @@ namespace FiresRPGmaker.UI
                 _patrolBtnAdded = true;
                 var btn = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(screen.transform, "Set Patrol Route",
                     new Vector2(0.66f, 0.935f), new Vector2(1.0f, 0.985f), null);
+                StyleBookGoldButton(btn);
                 _patrolBtnRect = btn.GetComponent<RectTransform>();
             }
+        }
+
+        /// <summary>
+        /// "Show Anchor" — RIGHT page, just left of the right page's tree emblem (Set Patrol sits to
+        /// the tree's right). Clicking CLOSES the book (patrol-flow UX) and shows the golden anchor
+        /// orb for the NPC being configured; the orb's hold-Alt right-click menu offers Move /
+        /// permanent Remove. onClick=null: driven by the manual hit-test in Update so it works on
+        /// every tab (incl. Dressing with InventoryGui open).
+        /// </summary>
+        private void EnsureAnchorButton()
+        {
+            if (_anchorBtnRect != null || _rightPage == null) return;
+            var btn = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(_rightPage, "Show Anchor",
+                new Vector2(0.02f, 0.935f), new Vector2(0.32f, 0.985f), null);
+            StyleBookGoldButton(btn);
+            _anchorBtnRect = btn.GetComponent<RectTransform>();
+        }
+
+        /// <summary>Restyles a runtime parchment button to the BAKED book-button palette (the warm
+        /// gold of Apply Setup / Save Quest Changes) so runtime controls match the prefab's.</summary>
+        private static void StyleBookGoldButton(UnityEngine.UI.Button btn)
+        {
+            if (btn == null) return;
+            var normal = new Color(0.53f, 0.42f, 0.19f, 0.95f);
+            var colors = btn.colors;
+            colors.normalColor = normal;
+            colors.highlightedColor = new Color(0.63f, 0.51f, 0.25f, 1f);
+            colors.pressedColor = new Color(0.40f, 0.31f, 0.14f, 1f);
+            colors.selectedColor = normal;
+            btn.colors = colors;
+            var img = btn.GetComponent<UnityEngine.UI.Image>();
+            if (img != null) img.color = normal;
+            var label = btn.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+            if (label != null) label.color = new Color(0.95f, 0.90f, 0.75f, 1f);
         }
 
         private static string TabForType(NpcType t) => t switch
@@ -366,6 +490,7 @@ namespace FiresRPGmaker.UI
             NpcType.Leaderboard => "Leaderboard",
             NpcType.Mail => "Mail",
             NpcType.Transmog => "Transmog",
+            NpcType.Buffer => "Buffers",
             _ => "Dressing",
         };
 
@@ -383,6 +508,16 @@ namespace FiresRPGmaker.UI
                 name => { _npc.SetActiveProfile(name); });
             EnsureNpcTypeDropdown();
             SetInput(_leftPage, "Container_ModelOverrideInput", _npc.modelOverride);
+            void Ph(string node, string hint)
+            {
+                var i = InputIn(_leftPage, node);
+                if (i == null) return;
+                if (i.placeholder is TMP_Text p2) p2.text = hint;
+                RegisterHover(i.gameObject, CleanFieldLabel(node), hint);
+            }
+            Ph("Container_NameOverrideInput", "display name, e.g. Ylva the Trader");
+            Ph("Container_ProfileInput", "active profile for the selected Type");
+            Ph("Container_ModelOverrideInput", "creature prefab, e.g. Greydwarf - empty = human");
             var idle = Tog(_leftPage, "AllowIdleWander_chk");
             if (idle != null) idle.isOn = FiresCore.Bridge.NpcCompanionBridge.GetIdleWander(_npc.gameObject) ?? _npc.allowIdleWandering;
             var head = FindRec(_leftPage, "Header")?.GetComponent<TMP_Text>();
@@ -396,7 +531,13 @@ namespace FiresRPGmaker.UI
         {
             var dd = ScreenDd(_leftPage, "NpcType_C");
             if (dd == null) return;
+            // The baked prefab predates the None role — inject it at the top so roleless (decorative)
+            // NPCs are selectable, and so unknown values fall back to None (index 0) instead of Quest.
+            if (!dd.options.Exists(o => string.Equals(o.text, "None", StringComparison.OrdinalIgnoreCase)))
+                dd.options.Insert(0, new TMP_Dropdown.OptionData("None"));
             SetScreenDropdown(_leftPage, "NpcType_C", _npc.npcType.ToString());
+            AttachTip(_leftPage, "NpcType_C", "NPC Type",
+                "The role this NPC plays. None = decorative (no [E] interaction). Pick a type, then set its profile on the matching tab.");
             if (_npcTypeDdWired) return;
             _npcTypeDdWired = true;
             dd.onValueChanged.AddListener(idx =>
@@ -468,7 +609,7 @@ namespace FiresRPGmaker.UI
                 case "Quest": PopulateQuest(); break;
                 case "Dialogue": PopulateDialogue(); break;
                 case "Info": PopulateInfo(); break;
-                case "Leaderboard": PopulateLeaderboard(); break;
+                case "Buffers": PopulateBuffer(); break;
                 case "Marketplace": PopulateMarketplace(); break;
                 case "Mail": PopulateMail(); break;
                 case "Dressing": PopulateDressing(); break;
@@ -489,6 +630,13 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Trader", "Restock (h)_C", p != null && p.DefaultRestockSeconds != 0 ? (p.DefaultRestockSeconds / 3600).ToString() : "");
             SetScreenInput("Trader", "Max Gold_C", p != null && p.MaxGold != -1 ? p.MaxGold.ToString() : "");
             SetScreenInput("Trader", "Gold Restock_C", p != null && p.GoldRestockSeconds != 0 ? p.GoldRestockSeconds.ToString() : "");
+            SetInputPlaceholder("Trader", "Trades", "Wood, 10, Coins, 5    one trade per line: cost, amount, reward, amount[, level]");
+            SetInputPlaceholder("Trader", "Stock_C", "empty = unlimited");
+            SetInputPlaceholder("Trader", "Restock (h)_C", "hours, empty = never");
+            SetInputPlaceholder("Trader", "Max Gold_C", "empty = unlimited");
+            SetInputPlaceholder("Trader", "Gold Restock_C", "seconds, empty = never");
+            EnsureTraderExtras();
+            UpdateTraderStatus(null);
         }
 
         private void SaveTrader()
@@ -508,16 +656,68 @@ namespace FiresRPGmaker.UI
             if (restockS != 0) header += $",Restock={restockS}";
             if (maxGold != -1) header += $",MaxGold={maxGold}";
             if (goldRestock != 0) header += $",GoldRestock={goldRestock}";
-            var folder = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Traders");
+            var folder = Path.Combine(FiresCore.Storage.FiresConfigPaths.Traders);
+            string traderContent = $"[{header}]\n{trades}\n";
             try
             {
                 Directory.CreateDirectory(folder);
-                File.WriteAllText(Path.Combine(folder, SafeFileName(name) + ".cfg"), $"[{header}]\n{trades}\n");
+                File.WriteAllText(Path.Combine(folder, SafeFileName(name) + ".cfg"), traderContent);
                 TraderProfileManager.Reset(); TraderProfileManager.Initialize();
+                global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Traders", SafeFileName(name) + ".cfg", traderContent);
             }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveTrader: " + ex.Message); Msg("Save failed (see log)"); return; }
             _npc.traderProfile = name; _npc.npcType = NpcType.Trader; _npc.SaveToZDO();
-            Msg("Saved trader profile '" + name + "'");
+
+            var unknown = UnknownItemsInTradeLines(trades);
+            UpdateTraderStatus(unknown);
+            Msg(unknown.Count == 0
+                ? "Saved trader profile '" + name + "'"
+                : "Saved '" + name + "' - unknown items: " + string.Join(", ", unknown));
+        }
+
+        private void EnsureTraderExtras()
+        {
+            // Trader's Save sits at y 0.10-0.175 with open space below, so Save shrinks left, Reload
+            // fills the right of that same row, and the status line goes in the band beneath them.
+            SetNodeRect(Screen("Trader"), "TraderApply", 0.05f, 0.10f, 0.62f, 0.175f);
+            EnsureStatusLabel("Trader", "TraderStatus", 0.025f, 0.09f);
+            EnsureReloadButton("Trader", "TraderReload", "TraderApply", 0.10f, 0.175f, () =>
+            {
+                TraderProfileManager.Reset();
+                TraderProfileManager.Initialize();
+                PopulateTrader();
+                Msg("Trader profiles reloaded from disk");
+            });
+        }
+
+        private void UpdateTraderStatus(List<string> unknownItems)
+        {
+            int trades = 0;
+            foreach (var line in (GetScreenInput("Trader", "Trades") ?? "").Split('\n'))
+                if (!string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("#")) trades++;
+            string text = trades > 0 ? $"{trades} trade{(trades == 1 ? "" : "s")}" : "No trades yet - one per line";
+            if (unknownItems != null && unknownItems.Count > 0)
+                text = "Unknown items: " + string.Join(", ", unknownItems) + " (saved anyway)";
+            SetStatusLabel("Trader", "TraderStatus", text);
+        }
+
+        // Walks every trade line's tokens (both the simple cost,amt,reward,amt[,lvl] form and the
+        // multi-item costs : rewards form) — non-numeric tokens are item names, validated as prefabs.
+        private List<string> UnknownItemsInTradeLines(string trades)
+        {
+            var unknown = new List<string>();
+            foreach (var rawLine in (trades ?? "").Split('\n'))
+            {
+                var line = rawLine.Trim();
+                if (line.Length == 0 || line.StartsWith("#")) continue;
+                foreach (var rawToken in line.Replace(":", ",").Split(','))
+                {
+                    var token = rawToken.Trim();
+                    if (token.Length == 0 || int.TryParse(token, out _)) continue;
+                    if (!ItemPrefabExists(token) && !unknown.Contains(token)) unknown.Add(token);
+                }
+            }
+            return unknown;
         }
 
         // ════════════════════════════ BANKER ════════════════════════════════
@@ -532,6 +732,16 @@ namespace FiresRPGmaker.UI
             if (p != null && p.CurrencyLimits.Count > 0)
                 foreach (var kv in p.CurrencyLimits) AddCurrencyRow(kv.Key, kv.Value);
             else AddCurrencyRow("Coins", 1000000);
+            SetInputPlaceholder("Banker", "Interest %/min_C", "e.g. 0.5   empty = no interest");
+            RaisePoolBottom("Banker", "CurrencyPool", 0.155f);
+            SetNodeRect(Screen("Banker"), "BankerApply", 0.05f, 0.005f, 0.62f, 0.075f);
+            SetNodeRect(Screen("Banker"), "BankerStatus", 0.06f, 0.085f, 0.94f, 0.14f);
+            EnsureReloadButton("Banker", "BankerReload", "AddCurrencyButton", 0.005f, 0.075f, () =>
+            {
+                BankerProfileManager.ReloadAll();
+                PopulateBanker();
+                Msg("Banker profiles reloaded from disk");
+            });
             SetBankerStatus("");
         }
 
@@ -560,8 +770,19 @@ namespace FiresRPGmaker.UI
             }
             BankerProfileManager.SaveProfile(name, sb.ToString().TrimEnd());
             _npc.bankerProfile = name; _npc.npcType = NpcType.Banker; _npc.SaveToZDO();
-            SetBankerStatus("Saved '" + name + "'");
-            Msg("Saved banker profile '" + name + "'");
+
+            var unknown = new List<string>();
+            foreach (var row in LiveInputRows("Banker", "CurrencyPool"))
+            {
+                string cur = RowCell(row, "CurrencyCell")?.Trim();
+                if (!string.IsNullOrEmpty(cur) && !ItemPrefabExists(cur) && !unknown.Contains(cur)) unknown.Add(cur);
+            }
+            SetBankerStatus(unknown.Count == 0
+                ? "Saved '" + name + "'"
+                : "Unknown currencies: " + string.Join(", ", unknown) + " (saved anyway)");
+            Msg(unknown.Count == 0
+                ? "Saved banker profile '" + name + "'"
+                : "Saved '" + name + "' - unknown currencies: " + string.Join(", ", unknown));
         }
 
         private void SetBankerStatus(string s) { var t = FindRec(Screen("Banker"), "BankerStatus")?.GetComponent<TMP_Text>(); if (t != null) t.text = s ?? ""; }
@@ -578,9 +799,14 @@ namespace FiresRPGmaker.UI
             SetToggle("Gambler", "Runes_chk", p != null && p.Games.Contains(GamblerGames.Runes));
             SetToggle("Gambler", "Wheel_chk", p != null && p.Games.Contains(GamblerGames.Wheel));
             SetScreenInput("Gambler", "Cost Item_C", p != null ? p.RequiredItem.Prefab : "Coins");
-            SetScreenInput("Gambler", "Amount_C", p != null ? p.RequiredItem.Min.ToString() : "100");
+            SetScreenInput("Gambler", "Amount_C",
+                p == null ? "100"
+                : p.RequiredItem.Min == p.RequiredItem.Max ? p.RequiredItem.Min.ToString()
+                : p.RequiredItem.Min + "-" + p.RequiredItem.Max);
             ClearInputRows("Gambler", "RewardPool");
             if (p != null) foreach (var r in p.Rewards) AddRewardRow(r);
+            EnsureGamblerExtras();
+            UpdateGamblerStatus(null);
         }
 
         private void SaveGambler()
@@ -594,12 +820,17 @@ namespace FiresRPGmaker.UI
             if (GetToggle("Gambler", "Runes_chk")) games.Add(GamblerGames.Runes);
             if (GetToggle("Gambler", "Wheel_chk")) games.Add(GamblerGames.Wheel);
 
-            int cost = ParseInt(GetScreenInput("Gambler", "Amount_C"), 1);
+            // "Amount" accepts a fixed cost ("100") or a range ("100-250") — the cfg's Min[-Max] grammar.
+            string amountRaw = GetScreenInput("Gambler", "Amount_C")?.Trim() ?? "";
+            var amountParts = amountRaw.Split('-');
+            int costMin = ParseInt(amountParts[0], 1);
+            int costMax = amountParts.Length > 1 ? ParseInt(amountParts[1], costMin) : costMin;
+            if (costMax < costMin) costMax = costMin;
             var profile = new GamblerProfile
             {
                 Name = name,
                 MaxRolls = maxRolls,
-                RequiredItem = new GamblerItemEntry { Prefab = GetScreenInput("Gambler", "Cost Item_C")?.Trim() ?? "Coins", Min = cost, Max = cost },
+                RequiredItem = new GamblerItemEntry { Prefab = GetScreenInput("Gambler", "Cost Item_C")?.Trim() ?? "Coins", Min = costMin, Max = costMax },
                 Rewards = new List<GamblerItemEntry>(),
             };
             foreach (var row in LiveInputRows("Gambler", "RewardPool"))
@@ -613,7 +844,15 @@ namespace FiresRPGmaker.UI
             string body = GamblerProfileManager.Serialize(profile);
             GamblerProfileManager.SaveProfile(name, maxRolls, body, games);
             _npc.gamblerProfile = name; _npc.npcType = NpcType.Gambler; _npc.SaveToZDO();
-            Msg("Saved gambler profile '" + name + "'");
+
+            var unknown = new List<string>();
+            if (!ItemPrefabExists(profile.RequiredItem.Prefab)) unknown.Add(profile.RequiredItem.Prefab);
+            foreach (var r in profile.Rewards)
+                if (!ItemPrefabExists(r.Prefab) && !unknown.Contains(r.Prefab)) unknown.Add(r.Prefab);
+            UpdateGamblerStatus(unknown);
+            Msg(unknown.Count == 0
+                ? "Saved gambler profile '" + name + "'"
+                : "Saved '" + name + "' - unknown items: " + string.Join(", ", unknown));
         }
 
         // ════════════════════════════ TRANSMOG ══════════════════════════════
@@ -624,6 +863,8 @@ namespace FiresRPGmaker.UI
             ClearInputRows("Transmog", "OfferingPool");
             var opts = string.IsNullOrEmpty(name) ? null : TransmogProfileManager.GetProfileOptions(name);
             if (opts != null) foreach (var o in opts) AddOfferingRow(o);
+            EnsureTransmogExtras();
+            UpdateTransmogStatus(null);
         }
 
         private void SaveTransmog()
@@ -631,6 +872,7 @@ namespace FiresRPGmaker.UI
             string name = GetScreenInput("Transmog", "TmProfile")?.Trim();
             if (string.IsNullOrEmpty(name)) { Msg("Enter a transmog profile name"); return; }
             var sb = new StringBuilder();
+            var unknown = new List<string>();
             foreach (var row in LiveInputRows("Transmog", "OfferingPool"))
             {
                 string app = RowCell(row, "AppearanceCell")?.Trim();
@@ -638,11 +880,216 @@ namespace FiresRPGmaker.UI
                 string slot = RowCell(row, "SlotCell")?.Trim(); if (string.IsNullOrEmpty(slot)) slot = "Helmet";
                 string cur = RowCell(row, "CurrencyCell")?.Trim(); if (string.IsNullOrEmpty(cur)) cur = "Coins";
                 int price = ParseInt(RowCell(row, "PriceCell"), 0);
+                if (!ItemPrefabExists(app) && !unknown.Contains(app)) unknown.Add(app);
+                if (!ItemPrefabExists(cur) && !unknown.Contains(cur)) unknown.Add(cur);
                 sb.AppendLine($"{slot}|{app}|{cur}|{price}");
             }
             TransmogProfileManager.SaveProfile(name, sb.ToString().TrimEnd());
             _npc.transmogProfile = name; _npc.npcType = NpcType.Transmog; _npc.SaveToZDO();
-            Msg("Saved transmog profile '" + name + "'");
+            UpdateTransmogStatus(unknown);
+            Msg(unknown.Count == 0
+                ? "Saved transmog profile '" + name + "'"
+                : "Saved '" + name + "' - unknown items: " + string.Join(", ", unknown));
+        }
+
+        // ── Gambler/Transmog editor extras (approved 2026-07-07 mockups): odds/status line,
+        //    prefab validation, reload-from-disk, slot dropdown ────────────────────────────
+        private static readonly string[] TransmogSlots =
+            { "Helmet", "Chest", "Legs", "Cape", "Shoulder", "Shield", "Bow", "Tool", "OneHandedWeapon", "TwoHandedWeapon" };
+
+        // These tabs have Save at the very bottom with a scroll above it, so the scroll bottom is
+        // raised to open a clean band for the status line between the scroll and the buttons.
+        private void EnsureGamblerExtras()
+        {
+            AttachTip(Screen("Gambler"), "Cards_chk", "Cards", "Offer the card-flip game on this gambler");
+            AttachTip(Screen("Gambler"), "Bones_chk", "Bones", "Offer the dice/bones game");
+            AttachTip(Screen("Gambler"), "Runes_chk", "Runes", "Offer the rune-draw game");
+            AttachTip(Screen("Gambler"), "Wheel_chk", "Wheel", "Offer the spin-the-wheel game");
+            RaisePoolBottom("Gambler", "RewardPool", 0.155f);
+            SetNodeRect(Screen("Gambler"), "GamblerApply", 0.05f, 0.005f, 0.62f, 0.075f);
+            EnsureStatusLabel("Gambler", "GamblerStatus", 0.085f, 0.14f);
+            EnsureReloadButton("Gambler", "GamblerReload", "AddRewardButton", 0.005f, 0.075f, () =>
+            {
+                GamblerProfileManager.ReloadAll();
+                PopulateGambler();
+                Msg("Gambler profiles reloaded from disk");
+            });
+        }
+
+        private void EnsureTransmogExtras()
+        {
+            RaisePoolBottom("Transmog", "OfferingPool", 0.155f);
+            SetNodeRect(Screen("Transmog"), "TransmogApply", 0.05f, 0.005f, 0.62f, 0.075f);
+            EnsureStatusLabel("Transmog", "TransmogStatus", 0.085f, 0.14f);
+            EnsureReloadButton("Transmog", "TransmogReload", "AddOfferingButton", 0.005f, 0.075f, () =>
+            {
+                TransmogProfileManager.ReloadAll();
+                PopulateTransmog();
+                Msg("Transmog profiles reloaded from disk");
+            });
+        }
+
+        // Registers hover help for a named control (dropdown/checkbox/button) inside a scope.
+        private void AttachTip(Transform scope, string node, string topic, string body)
+        {
+            var t = FindRec(scope, node);
+            if (t != null) RegisterHover(t.gameObject, topic, body);
+        }
+
+        private void SetNodeRect(Transform scope, string node, float xMin, float yMin, float xMax, float yMax)
+        {
+            var rt = FindRec(scope, node)?.GetComponent<RectTransform>();
+            if (rt == null) return;
+            rt.anchorMin = new Vector2(xMin, yMin);
+            rt.anchorMax = new Vector2(xMax, yMax);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        // Raise a baked scroll pool's bottom edge so a status line fits below it. Anchor-only move
+        // (the baked pools use zero offsets), idempotent.
+        private void RaisePoolBottom(string tab, string poolName, float newBottom)
+        {
+            var rt = FindRec(Screen(tab), poolName)?.GetComponent<RectTransform>();
+            if (rt == null) return;
+            var min = rt.anchorMin;
+            if (min.y >= newBottom) return;
+            min.y = newBottom;
+            rt.anchorMin = min;
+            rt.offsetMin = new Vector2(rt.offsetMin.x, 0f);
+        }
+
+        // Status line cloned from the Banker screen's baked BankerStatus label (styling only) and
+        // positioned into a clear band. Idempotent — repositions the existing clone on reopen.
+        private void EnsureStatusLabel(string tab, string labelName, float yMin, float yMax)
+        {
+            var scr = Screen(tab);
+            if (scr == null) return;
+            var existing = FindRec(scr, labelName);
+            RectTransform rt;
+            if (existing != null) rt = existing.GetComponent<RectTransform>();
+            else
+            {
+                var donor = FindRec(Screen("Banker"), "BankerStatus");
+                if (donor == null) return;
+                var go = Instantiate(donor.gameObject, scr);
+                go.name = labelName;
+                var t = go.GetComponent<TMP_Text>();
+                if (t != null) { t.text = ""; t.alignment = TextAlignmentOptions.MidlineLeft; }
+                rt = go.GetComponent<RectTransform>();
+            }
+            rt.anchorMin = new Vector2(0.06f, yMin);
+            rt.anchorMax = new Vector2(0.94f, yMax);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        private void SetStatusLabel(string tab, string labelName, string text)
+        {
+            var t = FindRec(Screen(tab), labelName)?.GetComponent<TMP_Text>();
+            if (t != null) t.text = text ?? "";
+        }
+
+        // Reload button cloned from the tab's own baked "+ Add"/Save button, positioned bottom-right
+        // beside the (repositioned) Save button. Idempotent.
+        private void EnsureReloadButton(string tab, string buttonName, string donorName, float yMin, float yMax, UnityEngine.Events.UnityAction onClick)
+        {
+            var scr = Screen(tab);
+            if (scr == null) return;
+            var existing = FindRec(scr, buttonName);
+            RectTransform rt;
+            if (existing != null) rt = existing.GetComponent<RectTransform>();
+            else
+            {
+                var donor = FindRec(scr, donorName);
+                if (donor == null) return;
+                var go = Instantiate(donor.gameObject, donor.parent);
+                go.name = buttonName;
+                var label = go.GetComponentInChildren<TMP_Text>(true);
+                if (label != null) label.text = "Reload";
+                var b = go.GetComponent<Button>();
+                if (b != null) { b.onClick.RemoveAllListeners(); b.onClick.AddListener(onClick); }
+                rt = go.GetComponent<RectTransform>();
+            }
+            rt.anchorMin = new Vector2(0.66f, yMin);
+            rt.anchorMax = new Vector2(0.95f, yMax);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        private void UpdateGamblerStatus(List<string> unknownItems)
+        {
+            int rewards = 0;
+            foreach (var row in LiveInputRows("Gambler", "RewardPool"))
+                if (!string.IsNullOrEmpty(RowCell(row, "ItemCell")?.Trim())) rewards++;
+            int rolls = ParseInt(GetScreenInput("Gambler", "Max Rolls_C"), 1);
+            string text = rewards > 0
+                ? $"{rewards} reward{(rewards == 1 ? "" : "s")} - each ~{Mathf.RoundToInt(100f / rewards)}% per roll, {rolls} roll{(rolls == 1 ? "" : "s")}/spin"
+                : "No rewards yet - add at least one";
+            if (unknownItems != null && unknownItems.Count > 0)
+                text = "Unknown items: " + string.Join(", ", unknownItems) + " (saved anyway)";
+            SetStatusLabel("Gambler", "GamblerStatus", text);
+        }
+
+        private void UpdateTransmogStatus(List<string> unknownItems)
+        {
+            int offers = 0;
+            foreach (var row in LiveInputRows("Transmog", "OfferingPool"))
+                if (!string.IsNullOrEmpty(RowCell(row, "AppearanceCell")?.Trim())) offers++;
+            string text = offers > 0 ? $"{offers} offering{(offers == 1 ? "" : "s")}" : "No offerings yet - add at least one";
+            if (unknownItems != null && unknownItems.Count > 0)
+                text = "Unknown items: " + string.Join(", ", unknownItems) + " (saved anyway)";
+            SetStatusLabel("Transmog", "TransmogStatus", text);
+        }
+
+        private static bool ItemPrefabExists(string prefab)
+        {
+            if (string.IsNullOrEmpty(prefab)) return false;
+            if (ObjectDB.instance != null && ObjectDB.instance.GetItemPrefab(prefab) != null) return true;
+            return ZNetScene.instance != null && ZNetScene.instance.GetPrefab(prefab) != null;
+        }
+
+        // Replaces an offering row's free-text SlotCell with a dropdown of the known slots. The hidden
+        // input stays as the value store (FindRec/RowCell read inactive nodes), so SaveTransmog and
+        // foreign slot strings keep working; unknown current values are preserved as an extra option.
+        // The dropdown itself is a clone of the dialogue popup's baked NameDropdown — book styling
+        // without a runtime builder or a prefab rebake.
+        private void AttachSlotDropdown(Transform row)
+        {
+            if (row == null || FindRec(row, "SlotDD") != null) return;
+            var cell = FindRec(row, "SlotCell");
+            var input = cell != null ? cell.GetComponentInChildren<TMP_InputField>(true) : null;
+            if (cell == null || input == null) return;
+            var donor = FindRec(_root, "NameDropdown");
+            if (donor == null || donor.GetComponent<TMP_Dropdown>() == null) return;
+
+            string current = string.IsNullOrEmpty(input.text) ? "Helmet" : input.text.Trim();
+            var go = Instantiate(donor.gameObject, cell.parent);
+            go.name = "SlotDD";
+            go.SetActive(true);
+            var rt = go.GetComponent<RectTransform>();
+            var crt = cell.GetComponent<RectTransform>();
+            rt.anchorMin = crt.anchorMin; rt.anchorMax = crt.anchorMax;
+            rt.offsetMin = crt.offsetMin; rt.offsetMax = crt.offsetMax;
+            rt.pivot = crt.pivot;
+            rt.SetSiblingIndex(cell.GetSiblingIndex() + 1);
+
+            var dd = go.GetComponent<TMP_Dropdown>();
+            var options = new List<string>(TransmogSlots);
+            if (!options.Exists(o => string.Equals(o, current, StringComparison.OrdinalIgnoreCase)))
+                options.Insert(0, current);
+            dd.ClearOptions();
+            dd.AddOptions(options);
+            int idx = options.FindIndex(o => string.Equals(o, current, StringComparison.OrdinalIgnoreCase));
+            dd.SetValueWithoutNotify(Mathf.Max(0, idx));
+            if (dd.captionText != null) dd.captionText.text = options[Mathf.Max(0, idx)];
+            dd.onValueChanged.RemoveAllListeners();
+            dd.onValueChanged.AddListener(i =>
+            {
+                if (i >= 0 && i < dd.options.Count) input.SetTextWithoutNotify(dd.options[i].text);
+            });
+            input.SetTextWithoutNotify(current);
+            cell.gameObject.SetActive(false);
         }
 
         // ════════════════════════════ QUEST ═════════════════════════════════
@@ -650,7 +1097,529 @@ namespace FiresRPGmaker.UI
         // [questId] (editing an existing one in place by typing its id). A profile→quest picker is a later pass.
         private void PopulateQuest()
         {
-            SetScreenInput("Quest", "Save To Profile_C", _npc.questProfile);
+            if (_npc == null) return;
+            string profileName = _npc.questProfile;
+            SetScreenInput("Quest", "Save To Profile_C", profileName);
+
+            // Load the NPC's current quest into the authoring form. Without this the form keeps whatever text
+            // was last shown (baked blanks on a fresh open), so a reopen looked like the save was lost, and a
+            // partial edit (change one field, Save) wrote empty QuestName/Description/Target over the rest —
+            // wiping the quest. We read the raw [questId] block so the round-trip matches SaveQuest byte-for-byte.
+            string questId = ResolveNpcQuestId(profileName);
+            if (!LoadQuestBlockIntoForm(questId))
+            {
+                // Fresh NPC with no quest yet — seed the id field from the profile so the first Save has a key,
+                // and leave the rest blank for authoring.
+                if (!string.IsNullOrEmpty(profileName)) SetScreenInput("Quest", "Profile ID_C", questId ?? profileName);
+            }
+            ApplyQuestHints();
+            EnsureQuestFieldArrows();
+        }
+
+        /// <summary>Fills the quest form from the raw [questId] cfg block (byte-for-byte round-trip with SaveQuest),
+        /// falling back to the synced in-memory QuestDefinition when the raw block is missing on this machine or is a
+        /// kg POSITIONAL block (no '='/':' lines → the raw map parses empty and used to blank the whole form).
+        /// Returns false when the quest can't be resolved at all.</summary>
+        private bool LoadQuestBlockIntoForm(string questId)
+        {
+            if (string.IsNullOrEmpty(questId)) return false;
+            var block = ReadQuestBlockRaw(questId);
+            bool rawUsable = block != null && (block.ContainsKey("QuestType") || block.ContainsKey("QuestName") || block.ContainsKey("Description"));
+            if (!rawUsable)
+            {
+                var def = global::FiresRPGmaker.Modules.Quest.QuestManager.Instance?.GetQuestDefinition(questId);
+                if (def == null) return false;
+                FillQuestFormFromDef(questId, def);
+                return true;
+            }
+
+            string V(string key) => block.TryGetValue(key, out var v) ? v : "";
+
+            SetScreenInput("Quest", "Profile ID_C", questId);
+            SetScreenInput("Quest", "Quest Name_C", block.TryGetValue("QuestName", out var qn) ? qn : V("Name"));
+
+            string type = V("QuestType");
+            if (type.Equals("Move", StringComparison.OrdinalIgnoreCase)) type = "Go To";   // internal name -> display
+            if (!string.IsNullOrEmpty(type)) SetScreenDropdown(Screen("Quest"), "Type_C", type);
+
+            SetToggle("Quest", "Auto-Complete_chk", V("Autocomplete").Equals("true", StringComparison.OrdinalIgnoreCase));
+            SetScreenInput("Quest", "Desc", V("Description"));
+
+            // QuestTarget = prefab,amount[,minLvl]
+            string tPrefab = "", tAmount = "", tMin = "";
+            string tline = V("QuestTarget");
+            if (!string.IsNullOrEmpty(tline))
+            {
+                var parts = tline.Split(',');
+                if (parts.Length > 0) tPrefab = parts[0].Trim();
+                if (parts.Length > 1) tAmount = parts[1].Trim();
+                if (parts.Length > 2) tMin = parts[2].Trim();
+            }
+            SetScreenInput("Quest", "Target_C", tPrefab);
+            SetScreenInput("Quest", "Amount_C", tAmount);
+            SetScreenInput("Quest", "Min Lvl_C", tMin);
+
+            SetScreenInput("Quest", "Cooldown Days_C", V("CooldownDays"));
+            SetScreenInput("Quest", "Limit Mins_C", V("TimeLimitMinutes"));
+            SetScreenInput("Quest", "Rewards_C", V("QuestReward"));
+            SetScreenInput("Quest", "Required_C", V("Requirement"));
+            SetScreenInput("Quest", "On Start Event_C", V("OnAcceptQuest"));
+            SetScreenInput("Quest", "On Complete_C", V("OnCompleteQuest"));
+            SetScreenInput("Quest", "Preview PNG_C", V("PreviewImage"));
+            return true;
+        }
+
+        // Synthesize form values from the synced QuestDefinition (kg positional quests, or quests whose cfg
+        // lives only server-side). Saving converts the quest to key-value format — the server merge upserts it.
+        private void FillQuestFormFromDef(string questId, global::FiresRPGmaker.Modules.Quest.QuestDefinition def)
+        {
+            SetScreenInput("Quest", "Profile ID_C", questId);
+            SetScreenInput("Quest", "Quest Name_C", def.Name ?? "");
+            string type = def.QuestType ?? "Kill";
+            if (type.Equals("Move", StringComparison.OrdinalIgnoreCase)) type = "Go To";
+            SetScreenDropdown(Screen("Quest"), "Type_C", type);
+            SetToggle("Quest", "Auto-Complete_chk", def.Autocomplete);
+            SetScreenInput("Quest", "Desc", def.Description ?? "");
+            var t0 = (def.QuestTargets != null && def.QuestTargets.Count > 0) ? def.QuestTargets[0] : null;
+            SetScreenInput("Quest", "Target_C", t0?.Prefab ?? "");
+            SetScreenInput("Quest", "Amount_C", t0 != null ? t0.Amount.ToString() : "");
+            SetScreenInput("Quest", "Min Lvl_C", (t0?.MinLevel ?? 0) > 0 ? t0.MinLevel.ToString() : "");
+            SetScreenInput("Quest", "Cooldown Days_C", def.CooldownDays.ToString());
+            SetScreenInput("Quest", "Limit Mins_C", def.TimeLimitMinutes.ToString());
+            SetScreenInput("Quest", "Rewards_C", def.Rewards != null
+                ? string.Join(" | ", def.Rewards.Select(r => $"{(string.IsNullOrEmpty(r.Type) ? "item" : r.Type)}: {r.Target}, {r.Amount}" + (r.Level > 1 ? $", {r.Level}" : "")))
+                : "");
+            SetScreenInput("Quest", "Required_C", def.Requirements != null ? string.Join(" | ", def.Requirements) : "");
+            SetScreenInput("Quest", "On Start Event_C", LifecycleJoinBook(def, "OnAcceptQuest"));
+            SetScreenInput("Quest", "On Complete_C", LifecycleJoinBook(def, "OnCompleteQuest"));
+            SetScreenInput("Quest", "Preview PNG_C", def.PreviewImage ?? "");
+            Debug.Log($"[NpcBookController] '{questId}' loaded from synced quest DB (no raw cfg block on this machine)");
+        }
+
+        private static string LifecycleJoinBook(global::FiresRPGmaker.Modules.Quest.QuestDefinition def, string key)
+        {
+            if (def?.LifecycleEvents == null) return "";
+            return def.LifecycleEvents.TryGetValue(key, out var cmds) && cmds != null ? string.Join(" | ", cmds) : "";
+        }
+
+        // ── Quest screen extras ───────────────────────────────────────────────────────────────────────────
+        // Quest ID arrow = THIS NPC's offered quests (right-click an entry to REMOVE it from the profile).
+        // "Add Quest" dropdown (Type's old slot) = every saved quest — pick to load; Save then asks whether
+        // to save the quest alone (library) or also add it to the profile so this NPC offers it.
+        private TMP_Dropdown _questIdArrowDd;
+        private TMP_Dropdown _allQuestsDd;
+        private readonly List<string> _questArrowIds = new List<string>();
+        private readonly List<string> _allQuestIds = new List<string>();
+        private readonly Dictionary<string, string> _questArrowLabelToId = new Dictionary<string, string>(StringComparer.Ordinal);
+        private bool _questLayoutMoved;
+        private Vector3 _oldTypeWorldPos;
+        private Transform _oldTypeSlotParent;
+
+        private void EnsureQuestFieldArrows()
+        {
+            var scr = Screen("Quest");
+            if (scr == null) return;
+
+            // The baked header says "Quest Profile ID:" / "Profile ID" but the field IS the quest id
+            // (SaveQuest reads it as questId) — relabel so admins stop typing profile names into it.
+            foreach (var t in scr.GetComponentsInChildren<TMP_Text>(true))
+                if (t != null && t.text != null && t.text.Trim().TrimEnd(':') == "Profile ID") { t.text = "Quest ID"; break; }
+
+            MoveTypeUnderName(scr);
+            EnsureAllQuestsDropdown(scr);
+
+            if (_questIdArrowDd != null) { RefreshQuestIdArrow(); return; }
+
+            var idNode = FindRec(scr, "Profile ID_C");
+            var saveNode = FindRec(scr, "Save To Profile_C");
+            var srcDd = saveNode != null ? FindRec(saveNode, "ProfileDD") : null;
+            if (srcDd == null) srcDd = FindRec(scr, "ProfileDD");   // fallback: any baked arrow on this screen
+            if (idNode == null || srcDd == null)
+            { Debug.LogWarning("[NpcBookController] quest-id arrow: baked refs missing (Profile ID_C / ProfileDD)"); return; }
+
+            // Clone the baked arrow into the Quest ID field at the same in-field spot it occupies on the
+            // profile field — identical look, identical placement, no coordinate guessing.
+            var clone = UnityEngine.Object.Instantiate(srcDd.gameObject, idNode);
+            clone.name = "QuestIdDD";
+            var srt = (RectTransform)srcDd.transform;
+            var rt = (RectTransform)clone.transform;
+            rt.anchorMin = srt.anchorMin; rt.anchorMax = srt.anchorMax; rt.pivot = srt.pivot;
+            rt.anchoredPosition = srt.anchoredPosition; rt.sizeDelta = srt.sizeDelta;
+            _questIdArrowDd = clone.GetComponent<TMP_Dropdown>();
+            if (_questIdArrowDd == null) { UnityEngine.Object.Destroy(clone); return; }
+            _questIdArrowDd.onValueChanged.RemoveAllListeners();
+
+            // Right-click on a list entry removes that quest from the NPC's profile: the handler component
+            // rides the item TEMPLATE, so every cloned row gets it when the dropdown opens.
+            var itemToggle = _questIdArrowDd.template != null ? _questIdArrowDd.template.GetComponentInChildren<Toggle>(true) : null;
+            if (itemToggle != null && itemToggle.GetComponent<QuestArrowItemRightClick>() == null)
+                itemToggle.gameObject.AddComponent<QuestArrowItemRightClick>();
+            QuestArrowItemRightClick.OnRightPick = OnQuestArrowRightClick;
+
+            RefreshQuestIdArrow();
+            _questIdArrowDd.onValueChanged.AddListener(idx =>
+            {
+                if (_questIdArrowDd == null || idx <= 0) return;
+                _questIdArrowDd.SetValueWithoutNotify(0);   // the arrow just picks (ProfileDD idiom)
+                int qi = idx - 1;
+                if (qi < 0 || qi >= _questArrowIds.Count) return;
+                string id = _questArrowIds[qi];
+                if (LoadQuestBlockIntoForm(id)) Msg("Loaded '" + id + "' — edit, then Save Quest Changes");
+                else Msg("Quest '" + id + "' not found in the quest DB");
+            });
+            clone.SetActive(true);
+        }
+
+        // Approved layout (user mockup): Type → right column, column-aligned under Quest Name (same row it
+        // was on); Type's old slot → the "Add Quest" all-quests dropdown; Auto-Complete shrinks to label
+        // size and sits inline RIGHT of the "Quest Description" caption. ALL moves are WORLD-space
+        // (transform.position / GetWorldCorners) — the first attempt copied anchoredPosition between nodes
+        // with different anchor setups, which moved nothing and overprinted the labels.
+        private void MoveTypeUnderName(Transform scr)
+        {
+            if (_questLayoutMoved) return;
+            var typeNode = FindRec(scr, "Type_C") as RectTransform;
+            var acNode = FindRec(scr, "Auto-Complete_chk") as RectTransform;
+            var nameNode = FindRec(scr, "Quest Name_C") as RectTransform;
+            if (typeNode == null || acNode == null || nameNode == null)
+            { Debug.LogWarning("[NpcBookController] quest layout: Type_C / Auto-Complete_chk / Quest Name_C missing"); return; }
+            _questLayoutMoved = true;
+            Canvas.ForceUpdateCanvases();
+
+            var c = new Vector3[4];
+            typeNode.GetWorldCorners(c); float typeLeft = c[0].x; float typeCy = (c[0].y + c[1].y) * 0.5f;
+            _oldTypeWorldPos = typeNode.position;
+            _oldTypeSlotParent = typeNode.parent;
+            nameNode.GetWorldCorners(c); float nameLeft = c[0].x;
+
+            // Type: keep its row, align its left edge with the Quest Name column.
+            float shiftX = nameLeft - typeLeft;
+            typeNode.position += new Vector3(shiftX, 0f, 0f);
+
+            // Labels: the old "Type" caption stays put and captions the Add Quest dropdown; a clone
+            // follows the moved Type dropdown with the same world shift.
+            foreach (var t in scr.GetComponentsInChildren<TMP_Text>(true))
+            {
+                if (t == null || t.text == null || t.text.Trim().TrimEnd(':') != "Type") continue;
+                var newLbl = UnityEngine.Object.Instantiate(t.gameObject, t.rectTransform.parent);
+                newLbl.name = "Lbl_Type_Moved";
+                ((RectTransform)newLbl.transform).position = t.rectTransform.position + new Vector3(shiftX, 0f, 0f);
+                newLbl.GetComponent<TMP_Text>().text = "Type";
+                t.text = "Add Quest";
+                break;
+            }
+
+            // Auto-Complete: shrink to caption size and park it inline right of "Quest Description".
+            TMP_Text descLbl = null;
+            foreach (var t in scr.GetComponentsInChildren<TMP_Text>(true))
+                if (t != null && t.text != null && t.text.Trim().TrimEnd(':') == "Quest Description") { descLbl = t; break; }
+            var acLbl = acNode.GetComponentInChildren<TMP_Text>(true);
+            if (descLbl != null)
+            {
+                float scale = 1f;
+                if (acLbl != null && acLbl.fontSize > 0.1f)
+                    scale = Mathf.Clamp(descLbl.fontSize / acLbl.fontSize, 0.4f, 1f);
+                acNode.localScale = acNode.localScale * scale;
+                Canvas.ForceUpdateCanvases();
+
+                var dc = new Vector3[4]; descLbl.rectTransform.GetWorldCorners(dc);
+                float descRight = dc[3].x; float descCy = (dc[0].y + dc[1].y) * 0.5f;
+                var ac = new Vector3[4]; acNode.GetWorldCorners(ac);
+                float acLeft = ac[0].x; float acCy = (ac[0].y + ac[1].y) * 0.5f;
+                float gap = Mathf.Abs(dc[3].x - dc[0].x) * 0.12f + 6f;
+                acNode.position += new Vector3((descRight + gap) - acLeft, descCy - acCy, 0f);
+                Debug.Log($"[NpcBookController] quest layout: shiftX={shiftX:F1} acScale={scale:F2} descRight={descRight:F1} acPos={acNode.position}");
+            }
+            else
+            {
+                // No caption found — leave AC where the bake put it rather than guessing.
+                Debug.LogWarning("[NpcBookController] quest layout: 'Quest Description' caption not found — Auto-Complete left in place");
+            }
+        }
+
+        // "Add Quest" dropdown in Type's old slot: every saved quest; pick → load into the editor.
+        private void EnsureAllQuestsDropdown(Transform scr)
+        {
+            if (_allQuestsDd != null) { RefreshAllQuestsDropdown(); return; }
+            if (!_questLayoutMoved || _oldTypeSlotParent == null) return;
+            var typeDd = ScreenDd(scr, "Type_C");
+            if (typeDd == null) return;
+
+            var go = UnityEngine.Object.Instantiate(typeDd.gameObject, _oldTypeSlotParent);
+            go.name = "AllQuestsDD";
+            // World-space drop into Type's ORIGINAL slot — pivot-to-pivot of an identical control = exact.
+            ((RectTransform)go.transform).position = _oldTypeWorldPos;
+            _allQuestsDd = go.GetComponent<TMP_Dropdown>();
+            if (_allQuestsDd == null) { UnityEngine.Object.Destroy(go); return; }
+            _allQuestsDd.onValueChanged.RemoveAllListeners();
+            RefreshAllQuestsDropdown();
+            _allQuestsDd.onValueChanged.AddListener(idx =>
+            {
+                if (_allQuestsDd == null || idx <= 0) return;
+                _allQuestsDd.SetValueWithoutNotify(0);
+                int qi = idx - 1;
+                if (qi < 0 || qi >= _allQuestIds.Count) return;
+                string id = _allQuestIds[qi];
+                if (LoadQuestBlockIntoForm(id)) Msg("Loaded '" + id + "' — Save to add it to this NPC's profile");
+                else Msg("Quest '" + id + "' not found in the quest DB");
+            });
+            go.SetActive(true);
+        }
+
+        // Quest ID arrow list: ONLY the current NPC's profile quests (its live offer list).
+        private void RefreshQuestIdArrow()
+        {
+            if (_questIdArrowDd == null) return;
+            _questArrowIds.Clear();
+            _questArrowLabelToId.Clear();
+            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData("—") };
+            var qm = global::FiresRPGmaker.Modules.Quest.QuestManager.Instance;
+            string prof = _npc?.questProfile;
+            if (!string.IsNullOrEmpty(prof))
+            {
+                var p = QuestProfileManager.GetProfile(prof);
+                var ids = (p?.QuestIds != null && p.QuestIds.Count > 0)
+                    ? p.QuestIds
+                    : (qm?.GetQuestsForProfile(prof) ?? new List<string>());
+                foreach (var id in ids)
+                {
+                    var d = qm?.GetQuestDefinition(id);
+                    string label = (d != null && !string.IsNullOrEmpty(d.Name)) ? $"{d.Name}  ({id})" : id;
+                    _questArrowIds.Add(id);
+                    _questArrowLabelToId[label] = id;
+                    opts.Add(new TMP_Dropdown.OptionData(label));
+                }
+            }
+            _questIdArrowDd.ClearOptions();
+            _questIdArrowDd.AddOptions(opts);
+            _questIdArrowDd.SetValueWithoutNotify(0);
+            _questIdArrowDd.RefreshShownValue();
+            if (_questIdArrowDd.template != null)
+                _questIdArrowDd.template.sizeDelta = new Vector2(_questIdArrowDd.template.sizeDelta.x, Mathf.Clamp(opts.Count, 3, 10) * 24 + 8);
+        }
+
+        // Every saved quest, sorted by display name — the "Add Quest" list.
+        private void RefreshAllQuestsDropdown()
+        {
+            if (_allQuestsDd == null) return;
+            _allQuestIds.Clear();
+            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData("—") };
+            var qm = global::FiresRPGmaker.Modules.Quest.QuestManager.Instance;
+            var all = qm != null ? qm.GetAllQuests() : new List<(string QuestId, string Name)>();
+            foreach (var q in all.OrderBy(q => string.IsNullOrEmpty(q.Name) ? q.QuestId : q.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                _allQuestIds.Add(q.QuestId);
+                opts.Add(new TMP_Dropdown.OptionData(string.IsNullOrEmpty(q.Name) ? q.QuestId : $"{q.Name}  ({q.QuestId})"));
+            }
+            _allQuestsDd.ClearOptions();
+            _allQuestsDd.AddOptions(opts);
+            _allQuestsDd.SetValueWithoutNotify(0);
+            _allQuestsDd.RefreshShownValue();
+            if (_allQuestsDd.template != null)
+            {
+                // The clone inherited Type_C's skinny list template (sized for "Kill"/"Collect") — quest
+                // names garbled into each other. Open at ~2.5x the control width (like the Quest ID list),
+                // expanding rightward over the page; it's a popup, overlap while open is fine.
+                var tpl = _allQuestsDd.template;
+                float ctrlW = ((RectTransform)_allQuestsDd.transform).rect.width;
+                float targetW = Mathf.Max(300f, ctrlW * 2.5f);
+                bool stretch = Mathf.Abs(tpl.anchorMin.x - tpl.anchorMax.x) > 0.01f;
+                tpl.pivot = new Vector2(0f, tpl.pivot.y);
+                tpl.sizeDelta = new Vector2(stretch ? targetW - ctrlW : targetW, Mathf.Clamp(opts.Count, 3, 10) * 24 + 8);
+            }
+        }
+
+        // Right-click on a Quest ID arrow entry → FAP-style context menu (Core FiresContextMenu.OpenCustom,
+        // self-pumped parchment menu): Edit / Remove, with Remove behind an are-you-sure second menu.
+        private void OnQuestArrowRightClick(string label)
+        {
+            if (_npc == null || string.IsNullOrEmpty(label)) return;
+            if (!_questArrowLabelToId.TryGetValue(label.Trim(), out var qid)) return;
+            string prof = _npc.questProfile;
+            try { _questIdArrowDd?.Hide(); } catch { }
+
+            Vector2 pos = UnityEngine.Input.mousePosition;
+            var items = new List<global::FiresCore.UI.ContextMenu.ContextMenuItem>
+            {
+                global::FiresCore.UI.ContextMenu.ContextMenuItem.Row("Edit quest", () =>
+                {
+                    if (LoadQuestBlockIntoForm(qid)) Msg("Loaded '" + qid + "' — edit, then Save Quest Changes");
+                    else Msg("Quest '" + qid + "' not found in the quest DB");
+                }),
+                global::FiresCore.UI.ContextMenu.ContextMenuItem.Sep(),
+                global::FiresCore.UI.ContextMenu.ContextMenuItem.Row("Remove from profile", () =>
+                {
+                    // Second step: explicit are-you-sure before anything is deleted.
+                    var confirm = new List<global::FiresCore.UI.ContextMenu.ContextMenuItem>
+                    {
+                        global::FiresCore.UI.ContextMenu.ContextMenuItem.Row("Yes — remove it", () =>
+                        {
+                            if (QuestProfileManager.RemoveQuestFromProfile(prof, qid))
+                            {
+                                RefreshQuestIdArrow();
+                                Msg($"Removed '{qid}' from profile '{prof}' — players no longer see it on this NPC");
+                            }
+                            else Msg($"'{qid}' is not in profile '{prof}'");
+                        }),
+                        global::FiresCore.UI.ContextMenu.ContextMenuItem.Row("No — keep it", () => { })
+                    };
+                    global::FiresCore.UI.ContextMenu.FiresContextMenu.OpenCustom(
+                        $"Remove '{qid}' from '{prof}'?", confirm, UnityEngine.Input.mousePosition);
+                }, enabled: !string.IsNullOrEmpty(prof))
+            };
+            global::FiresCore.UI.ContextMenu.FiresContextMenu.OpenCustom(qid, items, pos);
+        }
+
+        // Rides the dropdown item template so every cloned row reports right-clicks with its label text.
+        private sealed class QuestArrowItemRightClick : MonoBehaviour, UnityEngine.EventSystems.IPointerClickHandler
+        {
+            public static Action<string> OnRightPick;
+            public void OnPointerClick(UnityEngine.EventSystems.PointerEventData e)
+            {
+                if (e.button != UnityEngine.EventSystems.PointerEventData.InputButton.Right) return;
+                var label = GetComponentInChildren<TMP_Text>(true);
+                if (label != null) OnRightPick?.Invoke(label.text);
+            }
+        }
+
+        // ── save-choice popup: save the quest alone, or also add it to the profile ──────────────────────
+        private GameObject _saveChoicePopup;
+        private string _pendingSaveQuestId, _pendingSaveProfile, _pendingSaveCfg;
+
+        private void ShowSaveChoicePopup()
+        {
+            CloseSaveChoice();
+            if (_rightPage == null) { DoSaveQuest(true); return; }
+            var go = new GameObject("QuestSaveChoice", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(_rightPage, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = new Vector2(0.07f, 0.34f); rt.anchorMax = new Vector2(0.93f, 0.62f);
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var img = go.GetComponent<Image>(); img.color = new Color(0.12f, 0.085f, 0.05f, 0.97f); img.raycastTarget = true;
+            _saveChoicePopup = go;
+
+            var title = new GameObject("Title", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+            title.transform.SetParent(go.transform, false);
+            var trt = title.rectTransform;
+            trt.anchorMin = new Vector2(0.04f, 0.58f); trt.anchorMax = new Vector2(0.96f, 0.97f);
+            trt.offsetMin = trt.offsetMax = Vector2.zero;
+            title.text = $"Save '{_pendingSaveQuestId}' — also add it to profile '{_pendingSaveProfile}' so this NPC offers it?";
+            title.fontSize = 14f; title.color = new Color(0.93f, 0.83f, 0.62f);
+            title.alignment = TextAlignmentOptions.Center; title.enableWordWrapping = true;
+            try { var refTmp = Screen("Quest")?.GetComponentInChildren<TMP_Text>(true); if (refTmp != null) title.font = refTmp.font; } catch { }
+
+            var b1 = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(go.transform, "Save + Add",
+                new Vector2(0.04f, 0.08f), new Vector2(0.35f, 0.48f), () => { CloseSaveChoice(); DoSaveQuest(true); });
+            var b2 = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(go.transform, "Save Only",
+                new Vector2(0.37f, 0.08f), new Vector2(0.66f, 0.48f), () => { CloseSaveChoice(); DoSaveQuest(false); });
+            var b3 = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(go.transform, "Cancel",
+                new Vector2(0.68f, 0.08f), new Vector2(0.96f, 0.48f), CloseSaveChoice);
+            StyleBookGoldButton(b1); StyleBookGoldButton(b2); StyleBookGoldButton(b3);
+        }
+
+        private void CloseSaveChoice()
+        {
+            if (_saveChoicePopup != null) { UnityEngine.Object.Destroy(_saveChoicePopup); _saveChoicePopup = null; }
+        }
+
+        // The actual write: quest block → local DB + server push; optionally profile membership too.
+        private void DoSaveQuest(bool addToProfile)
+        {
+            string questId = _pendingSaveQuestId, profileName = _pendingSaveProfile, cfg = _pendingSaveCfg;
+            if (string.IsNullOrEmpty(questId) || string.IsNullOrEmpty(cfg)) return;
+            string questDbPath = Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestDatabase, "QuestDatabase.cfg");
+            if (!WriteBlockInPlace(questDbPath, questId, cfg)) { Msg("Quest save failed (see log)"); return; }
+            try { global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Quests", "QuestDatabase.cfg", File.ReadAllText(questDbPath)); }
+            catch (Exception ex) { Debug.LogWarning("[NpcBookController] quest DB push: " + ex.Message); }
+            if (addToProfile)
+            {
+                try
+                {
+                    QuestProfileManager.EnsureProfileExists(profileName);
+                    QuestProfileManager.AddQuestToProfile(profileName, questId);
+                }
+                catch (Exception ex) { Debug.LogWarning("[NpcBookController] quest profile: " + ex.Message); }
+            }
+            // Deliberately NOT touching the NPC: profile assignment is the LEFT page's job (Apply Setup).
+            try { global::FiresRPGmaker.Modules.Quest.QuestManager.Instance?.LoadQuestDatabase(); } catch { }
+            RefreshQuestIdArrow();
+            RefreshAllQuestsDropdown();
+            Msg(addToProfile ? $"Saved '{questId}' + added to profile '{profileName}'"
+                             : $"Saved quest '{questId}' (library only — no profile changed)");
+        }
+
+        // P1 hint pass: every quest field teaches its grammar while empty.
+        private void ApplyQuestHints()
+        {
+            SetInputPlaceholder("Quest", "Profile ID_C", "unique quest id, e.g. wolf_hunt");
+            SetInputPlaceholder("Quest", "Quest Name_C", "title players see in the journal");
+            SetInputPlaceholder("Quest", "Desc", "journal description - supports <color=#hex>");
+            SetInputPlaceholder("Quest", "Target_C", "prefab name, e.g. Wolf (Kill) or Raspberry (Collect)");
+            SetInputPlaceholder("Quest", "Amount_C", "how many, e.g. 10");
+            SetInputPlaceholder("Quest", "Min Lvl_C", "min star level, 0 = any");
+            SetInputPlaceholder("Quest", "Cooldown Days_C", "in-game days before repeatable, empty = once");
+            SetInputPlaceholder("Quest", "Limit Mins_C", "time limit in minutes, empty = none");
+            SetInputPlaceholder("Quest", "Rewards_C", "Item,prefab,amount[,level] ; Skill,name,xp - comma rows, ; separated");
+            SetInputPlaceholder("Quest", "Required_C", "conditions to accept, e.g. QuestFinished,intro ; SkillMore,Bows,20");
+            SetInputPlaceholder("Quest", "On Start Event_C", "dialogue commands on accept, e.g. GiveItem,Torch,1,1");
+            SetInputPlaceholder("Quest", "On Complete_C", "dialogue commands on completion, e.g. GiveBuff,GP_Eikthyr");
+            SetInputPlaceholder("Quest", "Preview PNG_C", "optional PNG path or URL for the journal");
+            SetInputPlaceholder("Quest", "Save To Profile_C", "profile this quest belongs to");
+        }
+
+        // The quest the book's single-quest editor should load for this NPC: prefer a quest whose id matches
+        // the profile name (SaveQuest's default id==profile), else the profile's first quest. Null = nothing yet.
+        private string ResolveNpcQuestId(string profileName)
+        {
+            if (string.IsNullOrEmpty(profileName)) return null;
+            try
+            {
+                var qm = global::FiresRPGmaker.Modules.Quest.QuestManager.Instance;
+                if (qm != null && qm.GetQuestDefinition(profileName) != null) return profileName;
+            }
+            catch { }
+            var profile = QuestProfileManager.GetProfile(profileName);
+            var first = profile?.QuestIds?.FirstOrDefault();
+            return string.IsNullOrEmpty(first) ? null : first;
+        }
+
+        // Reads the raw [questId] block from the quest database files as key->value pairs (accepts '=' or ':'
+        // delimited lines, matching both the book's own saves and KG-style packs). Returns null if not found.
+        private Dictionary<string, string> ReadQuestBlockRaw(string questId)
+        {
+            try
+            {
+                string dir = FiresCore.Storage.FiresConfigPaths.QuestDatabase;
+                if (!Directory.Exists(dir)) return null;
+                foreach (var file in Directory.GetFiles(dir, "*.cfg"))
+                {
+                    var lines = File.ReadAllLines(file);
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        string t = lines[i].Trim();
+                        if (!t.StartsWith("[") || !t.EndsWith("]")) continue;
+                        string hdr = t.Substring(1, t.Length - 2).Split('=')[0].Trim();   // [id] or [id=autocomplete]
+                        if (!string.Equals(hdr, questId, StringComparison.OrdinalIgnoreCase)) continue;
+
+                        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        for (int j = i + 1; j < lines.Length; j++)
+                        {
+                            string b = lines[j].Trim();
+                            if (b.StartsWith("[") && b.EndsWith("]")) break;
+                            if (b.Length == 0 || b.StartsWith("#") || b.StartsWith(";")) continue;
+                            int sep = b.IndexOf('=');
+                            if (sep < 0) sep = b.IndexOf(':');
+                            if (sep <= 0) continue;
+                            string k = b.Substring(0, sep).Trim();
+                            string v = b.Substring(sep + 1).Trim();
+                            if (!map.ContainsKey(k)) map[k] = v;
+                        }
+                        return map;
+                    }
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcBookController] ReadQuestBlockRaw: " + ex.Message); }
+            return null;
         }
 
         private void SaveQuest()
@@ -699,17 +1668,21 @@ namespace FiresRPGmaker.UI
             if (!string.IsNullOrEmpty(onComplete)) sb.AppendLine($"OnCompleteQuest = {onComplete}");
             if (!string.IsNullOrEmpty(preview)) sb.AppendLine($"PreviewImage = {preview}");
 
-            if (!WriteBlockInPlace(Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Quests", "QuestDatabase.cfg"),
-                                   questId, sb.ToString())) { Msg("Quest save failed (see log)"); return; }
+            // Stage the save. If the quest is ALREADY in the target profile (normal "edit this NPC's
+            // quest" flow) just save — membership unchanged. Otherwise ask: save the quest alone
+            // (library, usable later), or also add it to the profile so this NPC starts offering it.
+            _pendingSaveQuestId = questId;
+            _pendingSaveProfile = profileName;
+            _pendingSaveCfg = sb.ToString();
+            bool inProfile = false;
             try
             {
-                QuestProfileManager.EnsureProfileExists(profileName);
-                QuestProfileManager.AddQuestToProfile(profileName, questId);
+                var existing = QuestProfileManager.GetProfile(profileName);
+                inProfile = existing?.QuestIds != null && existing.QuestIds.Contains(questId, StringComparer.OrdinalIgnoreCase);
             }
-            catch (Exception ex) { Debug.LogWarning("[NpcBookController] quest profile: " + ex.Message); }
-            _npc.questProfile = profileName; _npc.npcType = NpcType.QuestNpc; _npc.SaveToZDO();
-            try { global::FiresRPGmaker.Modules.Quest.QuestManager.Instance?.LoadQuestDatabase(); } catch { }
-            Msg("Saved quest '" + questId + "'");
+            catch { }
+            if (inProfile) DoSaveQuest(false);
+            else ShowSaveChoicePopup();
         }
 
         // ════════════════════════════ DIALOGUE ══════════════════════════════
@@ -722,24 +1695,10 @@ namespace FiresRPGmaker.UI
         private int _editingOptionIndex = -1;
         private Transform _optionPopup;
         private static readonly string[] OptionTypeNames = { "Option", "Interaction", "InRange", "OutRange" };
-        // Ported verbatim from DialogueEditorScreenController (the command/condition dropdown vocabularies).
-        private static readonly string[] CommandNames =
-        {
-            "GiveItem", "RemoveItem", "GiveQuest", "RemoveQuest", "FinishQuest",
-            "Teleport", "Spawn", "SpawnRaw", "SpawnXYZ", "Damage", "Heal", "GiveBuff",
-            "AddPlayerKey", "RemovePlayerKey", "AddCustomPlayerKey", "RemoveCustomPlayerKey",
-            "PlayAnimation", "PlaySound", "ConsoleCommand", "AddPin", "PingMap", "OpenUI",
-            "EnterPassword", "SendWebhook"
-        };
-        private static readonly string[] ConditionNames =
-        {
-            "HasItem", "NotHasItem", "HasQuest", "NotHasQuest", "QuestFinished", "QuestNotFinished",
-            "QuestProgressDone", "QuestProgressNotDone", "HasPlayerKey", "NotHasPlayerKey",
-            "GlobalKey", "NotGlobalKey", "HasBuff", "NotHasBuff", "SkillMore", "SkillLess",
-            "CustomPlayerKeyMore", "CustomPlayerKeyLess", "HealthMore", "HealthLess",
-            "MaxHealthMore", "MaxHealthLess", "StaminaMore", "StaminaLess", "MaxStaminaMore",
-            "MaxStaminaLess", "EitrMore", "EitrLess", "MaxEitrMore", "MaxEitrLess"
-        };
+        // ONE canonical vocabulary (BookOptionPopup owns it) — aliased here so the baked popup's
+        // dropdowns always list every verb the engine accepts.
+        private static readonly string[] CommandNames = BookOptionPopup.CommandNames;
+        private static readonly string[] ConditionNames = BookOptionPopup.ConditionNames;
 
         // popup list machinery — FUC scroll pools ("<key>Pool" ScrollView inside the popup), rows cloned
         // under the scroll Content + positioned by ReflowScroll (same pattern as the screen pools).
@@ -910,7 +1869,8 @@ namespace FiresRPGmaker.UI
                 _bookOptionPopup = host.AddComponent<BookOptionPopup>();
             }
             var bookRect = _panelGo.GetComponent<RectTransform>();
-            _bookOptionPopup.Open(_dlgOptions[index], bookRect, () => { _editingOptionIndex = -1; RebuildOptionRows(); SetDlgDirty(); });
+            string dlgUid = (GetScreenInput("Dialogue", "UID_C") ?? "").Trim().ToLowerInvariant();
+            _bookOptionPopup.Open(_dlgOptions[index], bookRect, () => { _editingOptionIndex = -1; RebuildOptionRows(); SetDlgDirty(); }, dlgUid);
         }
 
         private void LoadPopupLists(RawPlayerOption o)
@@ -1089,20 +2049,23 @@ namespace FiresRPGmaker.UI
         // ════════════════════════════ INFO ══════════════════════════════════
         private void PopulateInfo()
         {
-            string profileName = string.IsNullOrEmpty(_npc.infoProfile) ? _npc.npcProfileName : _npc.infoProfile;
+            string profileName = InfoNpcScreenController.DefaultProfileNameFor(_npc);
             SetScreenInput("Info", "Info Profile_C", profileName);
             InfoNpcScreenController.InfoProfile p = null;
             try { p = InfoNpcScreenController.GetProfileForName(profileName); } catch { }
             SetScreenInput("Info", "Header Text_C", p?.HeaderText ?? "");
             SetScreenInput("Info", "Image (PNG)_C", p?.PngPath ?? "");
             SetScreenInput("Info", "InfoText", p?.InfoText ?? "");
+            SetInputPlaceholder("Info", "Header Text_C", "title shown above the text");
+            SetInputPlaceholder("Info", "Image (PNG)_C", "optional PNG path or URL");
+            SetInputPlaceholder("Info", "InfoText", "body text - supports <color=#hex> and \\n line breaks");
         }
 
         private void SaveInfo()
         {
             string profileName = GetScreenInput("Info", "Info Profile_C")?.Trim();
             if (string.IsNullOrEmpty(profileName))
-                profileName = string.IsNullOrEmpty(_npc.infoProfile) ? SafeName(_npc.npcProfileName) : _npc.infoProfile;
+                profileName = InfoNpcScreenController.DefaultProfileNameFor(_npc);
             var profile = new InfoNpcScreenController.InfoProfile
             {
                 HeaderText = GetScreenInput("Info", "Header Text_C")?.Trim() ?? "",
@@ -1112,42 +2075,31 @@ namespace FiresRPGmaker.UI
             try { InfoNpcScreenController.SaveInfoProfile(profileName, profile); }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveInfo: " + ex.Message); Msg("Save failed"); return; }
             _npc.infoProfile = profileName; _npc.npcType = NpcType.InfoNpc; _npc.SaveToZDO();
+            // Push the ServerInfos.cfg CONTENT to the server (on a dedi the admin is a client) — without this
+            // the server never gets the edit. SaveToZDO already pushes the NPC's infoProfile via SavedNpcManager;
+            // this pushes the profile body. The non-empty unique profileName rides the authoritative push so the
+            // server reload no longer reverts it to a blank/shared profile.
+            InfoNpcScreenController.PushServerInfosToServer();
             Msg("Saved info profile '" + profileName + "'");
         }
 
-        // ════════════════════════════ LEADERBOARD ═══════════════════════════
-        // Authors a single achievement (6-line KG block) into the profile cfg; overwrite-by-Name else append.
-        private void PopulateLeaderboard()
+        // ════════════════════════════ BUFFERS ═══════════════════════════════
+        // Assigns which buffer profile this NPC sells; the profile's buffs are built in the standalone
+        // Buff Builder (BufferAdminPanel). Interacting with this NPC opens the buff shop for the profile.
+        private void PopulateBuffer()
         {
-            string profile = string.IsNullOrEmpty(_npc.leaderboardProfile) ? "server" : _npc.leaderboardProfile;
-            SetScreenInput("Leaderboard", "AchProfile", profile);
-            SetScreenDropdown(Screen("Leaderboard"), "Trigger Type_C", "MonstersKilled");
+            string profile = string.IsNullOrEmpty(_npc.bufferProfile) ? "default" : _npc.bufferProfile;
+            SetScreenInput("Buffers", "BufferProfile", profile);
+            SetInputPlaceholder("Buffers", "BufferProfile", "buff profile name - build its buffs in the Buff Builder");
         }
 
-        private void SaveLeaderboard()
+        private void SaveBuffer()
         {
-            string profile = GetScreenInput("Leaderboard", "AchProfile")?.Trim();
-            if (string.IsNullOrEmpty(profile)) profile = string.IsNullOrEmpty(_npc.leaderboardProfile) ? "server" : _npc.leaderboardProfile;
+            string profile = GetScreenInput("Buffers", "BufferProfile")?.Trim();
+            if (string.IsNullOrEmpty(profile)) profile = string.IsNullOrEmpty(_npc.bufferProfile) ? "default" : _npc.bufferProfile;
             profile = profile.ToLowerInvariant();
-            string trigger = GetScreenDropdown(Screen("Leaderboard"), "Trigger Type_C");
-            string name = GetScreenInput("Leaderboard", "AchName")?.Trim() ?? "";
-            if (string.IsNullOrEmpty(name)) { Msg("Enter an achievement name"); return; }
-            string desc = GetScreenInput("Leaderboard", "AchDesc")?.Trim() ?? "";
-            string prefab = GetScreenInput("Leaderboard", "Target Prefab_C")?.Trim() ?? "";
-            string amount = GetScreenInput("Leaderboard", "Amount_C")?.Trim() ?? "0";
-            string r = GetScreenInput("Leaderboard", "R_C")?.Trim() ?? "190";
-            string g = GetScreenInput("Leaderboard", "G_C")?.Trim() ?? "190";
-            string b = GetScreenInput("Leaderboard", "B_C")?.Trim() ?? "190";
-            string score = GetScreenInput("Leaderboard", "Score_C")?.Trim() ?? "0";
-            string target = string.IsNullOrEmpty(prefab) ? amount : (prefab + ", " + amount);
-            string block = trigger + "\n" + name + "\n" + desc + "\n" + target + "\n" + r + ", " + g + ", " + b + "\n" + score;
-
-            string folder = AchievementProfileManager.GetProfileFolder();
-            if (!WriteAchievementBlock(Path.Combine(folder, profile + ".cfg"), profile, name, block))
-            { Msg("Achievement save failed (see log)"); return; }
-            try { AchievementProfileManager.ReloadAll(); } catch { }
-            _npc.leaderboardProfile = profile; _npc.npcType = NpcType.Leaderboard; _npc.SaveToZDO();
-            Msg("Saved achievement '" + name + "' to " + profile);
+            _npc.bufferProfile = profile; _npc.npcType = NpcType.Buffer; _npc.SaveToZDO();
+            Msg("Saved buffer NPC (profile '" + profile + "')");
         }
 
         // ════════════════════════════ MAIL ══════════════════════════════════
@@ -1162,6 +2114,9 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Mail", "Recipient_C", profile);
             SetScreenInput("Mail", "Post Cost_C", ReadCfgValue(MarketplaceCfgPath, "MailPostRecipe"));
             SetScreenInput("Mail", "Wait (s)_C", ReadCfgValue(MarketplaceCfgPath, "MailPostWaitTime"));
+            SetInputPlaceholder("Mail", "Recipient_C", "player name, or * for everyone");
+            SetInputPlaceholder("Mail", "Post Cost_C", "e.g. Coins:5 - cost to send (empty = free)");
+            SetInputPlaceholder("Mail", "Wait (s)_C", "delivery delay in seconds (empty = instant)");
             PopulateMailEntries(profile);
             ClearMailEditFields();
         }
@@ -1261,6 +2216,7 @@ namespace FiresRPGmaker.UI
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveMail: " + ex.Message); }
             WriteCfgValue(MarketplaceCfgPath, "Main", "MailPostRecipe", GetScreenInput("Mail", "Post Cost_C")?.Trim());
             WriteCfgValue(MarketplaceCfgPath, "Main", "MailPostWaitTime", GetScreenInput("Mail", "Wait (s)_C")?.Trim());
+            try { global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("MarketplaceCfg", "MarketPlace.cfg", File.ReadAllText(MarketplaceCfgPath)); } catch { }
             _npc.mailProfile = recipient; _npc.npcType = NpcType.Mail; _npc.SaveToZDO();
             PopulateMailEntries(recipient);
             ClearMailEditFields();
@@ -1284,6 +2240,13 @@ namespace FiresRPGmaker.UI
                 SetScreenInput("Marketplace", "BlockPrefabs", cfg.Bind("Main", "MarketSellBlockedPrefabs", "Coins, SwordCheat", "").Value);
             }
             catch (Exception ex) { Debug.LogWarning("[NpcBookController] PopulateMarketplace: " + ex.Message); }
+            SetInputPlaceholder("Marketplace", "Item Slot Limit_C", "max listings per player, e.g. 10");
+            SetInputPlaceholder("Marketplace", "Market Tax %_C", "seller tax 0-100");
+            SetInputPlaceholder("Marketplace", "VIP Tax %_C", "reduced tax for VIP players");
+            SetInputPlaceholder("Marketplace", "Currencies_C", "accepted currency prefabs, comma separated");
+            SetInputPlaceholder("Marketplace", "VipList", "player names or SteamID64s, comma separated");
+            SetInputPlaceholder("Marketplace", "BlockList", "players banned from the market");
+            SetInputPlaceholder("Marketplace", "BlockPrefabs", "items that can never be listed");
         }
 
         private void SaveMarketplace()
@@ -1306,6 +2269,7 @@ namespace FiresRPGmaker.UI
                 eBlock.Value = JoinList(GetScreenInput("Marketplace", "BlockList"));
                 ePref.Value = JoinList(GetScreenInput("Marketplace", "BlockPrefabs"));
                 cfg.Save();
+                try { global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("MarketplaceCfg", "MarketPlace.cfg", File.ReadAllText(MarketplaceCfgPath)); } catch { }
             }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveMarketplace: " + ex.Message); Msg("Save failed"); return; }
             _npc.npcType = NpcType.Marketplace; _npc.SaveToZDO();
@@ -1460,7 +2424,7 @@ namespace FiresRPGmaker.UI
                 { "Gambler",     ("Profile Name_C",    NpcType.Gambler) },
                 { "Transmog",    ("TmProfile",         NpcType.Transmog) },
                 { "Quest",       ("Save To Profile_C", NpcType.QuestNpc) },
-                { "Leaderboard", ("AchProfile",        NpcType.Leaderboard) },
+                { "Buffers",     ("BufferProfile",     NpcType.Buffer) },
                 { "Mail",        ("Recipient_C",       NpcType.Mail) },
                 { "Info",        ("Info Profile_C",    NpcType.InfoNpc) },
             };
@@ -1475,6 +2439,14 @@ namespace FiresRPGmaker.UI
             if (_npc == null || string.IsNullOrEmpty(_activeTab)) return;
             if (!ProfileInputNodes.TryGetValue(_activeTab, out var pi)) return;
             NpcType type = pi.type;
+            // Quest tab: "Save To Profile" is only the SAVE TARGET for authoring — picking one must NOT
+            // reassign the NPC (that's the left page's Apply Setup) and must NOT re-populate the screen
+            // (which would clobber the quest the admin is mid-editing). The arrow just fills the input.
+            if (_activeTab == "Quest")
+            {
+                EnsureProfileDropdown(_activeTab, Screen(_activeTab), pi.node, type, null);
+                return;
+            }
             EnsureProfileDropdown(_activeTab, Screen(_activeTab), pi.node, type, name =>
             {
                 // Picking a saved profile loads it into the form: point the NPC at it (in memory) and
@@ -1545,7 +2517,8 @@ namespace FiresRPGmaker.UI
                 SetRowCell(row.transform, "MinCell", data.Min.ToString());
                 SetRowCell(row.transform, "MaxCell", data.Max.ToString());
             }
-            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); });
+            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); UpdateGamblerStatus(null); });
+            UpdateGamblerStatus(null);
         }
 
         private void AddOfferingRow(TransmogOption data)
@@ -1559,7 +2532,9 @@ namespace FiresRPGmaker.UI
                 SetRowCell(row.transform, "CurrencyCell", data.PricePrefab);
                 SetRowCell(row.transform, "PriceCell", data.PriceAmount.ToString());
             }
-            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); });
+            AttachSlotDropdown(row.transform);
+            HookRow(row.transform, "RemoveButton", () => { row.SetActive(false); Destroy(row); UpdateTransmogStatus(null); });
+            UpdateTransmogStatus(null);
         }
 
         private GameObject AddRow(string tab, string poolName, string templateName)
@@ -1763,6 +2738,42 @@ namespace FiresRPGmaker.UI
         private string GetInput(Transform scope, string container) { var i = InputIn(scope, container); return i != null ? i.text : null; }
         private void SetScreenInput(string tab, string container, string val) { var i = InputIn(Screen(tab), container); if (i != null) i.text = val ?? ""; }
         private string GetScreenInput(string tab, string container) { var i = InputIn(Screen(tab), container); return i != null ? i.text : null; }
+        // Format hints on baked inputs (the P1 admin-UX pass): shown while the field is empty AND as a
+        // hover tooltip over the field (toggle: UI/ShowAdminHints). Topic = the field's clean label.
+        private void SetInputPlaceholder(string tab, string container, string hint)
+        {
+            var i = InputIn(Screen(tab), container);
+            if (i == null) return;
+            if (i.placeholder is TMP_Text ph) ph.text = hint ?? "";
+            RegisterHover(i.gameObject, CleanFieldLabel(container), hint);
+        }
+
+        // Records a field's rect + help for the manual hover poll (TickHover). Deduped by rect, so
+        // re-populating a tab just refreshes the text; inactive-tab fields are skipped at poll time.
+        private void RegisterHover(GameObject go, string topic, string body)
+        {
+            if (go == null || string.IsNullOrEmpty(body)) return;
+            var rt = go.GetComponent<RectTransform>();
+            if (rt != null) _hoverFields[rt] = (topic, body);
+        }
+
+        // "Cost Item_C" → "Cost Item", "Container_ModelOverrideInput" → "Model Override", etc.
+        private static string CleanFieldLabel(string node)
+        {
+            if (string.IsNullOrEmpty(node)) return "";
+            string s = node;
+            if (s.EndsWith("_C")) s = s.Substring(0, s.Length - 2);
+            if (s.StartsWith("Container_")) s = s.Substring("Container_".Length);
+            if (s.EndsWith("Input")) s = s.Substring(0, s.Length - "Input".Length);
+            var sb = new StringBuilder();
+            for (int k = 0; k < s.Length; k++)
+            {
+                char c = s[k];
+                if (k > 0 && char.IsUpper(c) && !char.IsUpper(s[k - 1]) && s[k - 1] != ' ') sb.Append(' ');
+                sb.Append(c);
+            }
+            return sb.ToString().Replace('_', ' ').Trim();
+        }
 
         // Checkboxes have no checkmark graphic, so give each Toggle a color swap on its box for visible state.
         private static readonly Color CHK_ON = new Color(0.60f, 0.44f, 0.16f, 0.95f);

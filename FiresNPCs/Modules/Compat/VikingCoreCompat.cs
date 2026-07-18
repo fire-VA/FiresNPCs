@@ -39,5 +39,26 @@ namespace FiresRPGmaker.Modules.Compat
                 return _present;
             }
         }
+
+        // The standalone FiresGuilds mod also owns guilds when present. Detected the same way
+        // (Chainloader presence, cached-once positive). Kept SEPARATE from Present because FiresGuilds owns
+        // ONLY guilds — groups/parties/leaderboards/achievements still defer to TDV (Present) alone.
+        private const string FiresGuildsGUID = "com.Fire.FiresGuilds";
+        private static bool _firesGuilds;
+
+        public static bool FiresGuildsPresent
+        {
+            get
+            {
+                if (_firesGuilds) return true;
+                try { _firesGuilds = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(FiresGuildsGUID); }
+                catch { _firesGuilds = false; }
+                return _firesGuilds;
+            }
+        }
+
+        // True when an external mod owns the GUILD system specifically (TDV or FiresGuilds). RPG Maker then
+        // stands its guild down — RPCs, UI, G hotkey, and the /g chat command — so the two never duplicate.
+        public static bool GuildsDeferred => Present || FiresGuildsPresent;
     }
 }

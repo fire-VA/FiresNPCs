@@ -7,12 +7,18 @@ using BepInEx;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using FiresRPGmaker.Modules.Quest;
 
 namespace FiresRPGmaker.UI.Screens
 {
     /// <summary>
-    /// Controller for the Quest NPC configuration screen (admin edit mode).
-    /// Creates a clean, simple form layout with warm orange/gold color scheme.
+    /// ██ RETIRED — DO NOT EXTEND. ██
+    /// The quest admin UI is the NPC BOOK (NpcBookController, Quest tab). This flat screen is no longer
+    /// wired (CodegenUIWiring.WireQuestConfigScreen returns null and deactivates the baked GO) — it exists
+    /// only so legacy references compile. Any new quest-admin feature (pickers, fields, save logic)
+    /// belongs in NpcBookController. Do not add UI here again.
+    ///
+    /// (Was: controller for the flat Quest NPC configuration screen, admin edit mode.)
     /// </summary>
   public class QuestConfigScreenController : MonoBehaviour
     {
@@ -38,6 +44,11 @@ namespace FiresRPGmaker.UI.Screens
         public TMP_InputField previewImageInput;
         public TMP_Dropdown questProfileDropdown;
         public TMP_InputField questProfileInput;
+        public TMP_Dropdown profilePickerDropdown;                     // top-left of form: pick which quest profile to load quests from
+        public TMP_Dropdown questPickerDropdown;                       // top-right of form: pick an existing quest in the selected profile to load + edit
+        private readonly List<string> _pickerQuestIds = new List<string>();
+        private bool _suppressPicker;                                  // guard so programmatic field loads don't re-fire the picker
+        private bool _suppressProfilePicker;                           // guard so programmatic profile syncs don't re-fire the profile picker
       public Button applyButton;
   public TMP_Text statusText;
 
@@ -76,8 +87,8 @@ private static readonly Color InputBgColor = new Color(0.06f, 0.06f, 0.08f, 0.6f
         private static readonly Color LabelColor = new Color(0.9f, 0.75f, 0.45f);
       private static readonly Color PlaceholderColor = new Color(0.5f, 0.4f, 0.25f, 0.6f);
 
-     private static string QuestsConfigFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Quests");
-        private static string QuestProfilesFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "QuestProfiles");
+     private static string QuestsConfigFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestDatabase);
+        private static string QuestProfilesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestProfiles);
  
         // Quest types - "Move" renamed to "Go To"
 private static readonly string[] QuestTypes = { "Kill", "Collect", "Harvest", "Craft", "Talk", "Build", "Go To" };
@@ -162,6 +173,11 @@ private static readonly string[] QuestTypes = { "Kill", "Collect", "Harvest", "C
             _levelLabelGO = t.childCount > 13 ? t.GetChild(13).gameObject : null;
             _levelInputGO = t.childCount > 14 ? t.GetChild(14).gameObject : null;
 
+            // The baked prefab renders child-0 as "Quest Profile ID:" but that field holds the QUEST id
+            // (NpcBookController writes questId into it) — relabel it accurately.
+            var _idLabel = GetTMPAtChild(t, 0);
+            if (_idLabel != null) _idLabel.text = "Quest ID:";
+
             // Status text is the last child
             statusText = GetTMPAtChild(t, 34);
 
@@ -183,6 +199,7 @@ private static readonly string[] QuestTypes = { "Kill", "Collect", "Harvest", "C
             }
 
             WireChangeListeners();
+            BuildQuestPicker(t);
             OnQuestTypeChanged(0);
             _initialized = true;
 
@@ -1333,6 +1350,7 @@ checkRect.offsetMax = Vector2.zero;
             templateRect.sizeDelta = new Vector2(0, itemCount * 24 + 6);
        }
             }
+            RefreshProfilePicker();   // keep the top-left profile picker in sync with the refreshed list
         }
 
         #endregion
@@ -1357,7 +1375,7 @@ questTypeDropdown?.onValueChanged.AddListener(OnQuestTypeDropdownChanged);
      onStartEventInput?.onValueChanged.AddListener(_ => MarkDirty());
         onCompleteEventInput?.onValueChanged.AddListener(_ => MarkDirty());
   questProfileInput?.onValueChanged.AddListener(_ => MarkDirty());
-            questProfileDropdown?.onValueChanged.AddListener(_ => MarkDirty());
+            questProfileDropdown?.onValueChanged.AddListener(_ => { MarkDirty(); SyncProfilePickerValue(); RepopulatePicker(); });
         }
 
 private void OnQuestTypeDropdownChanged(int value)
@@ -1518,6 +1536,7 @@ try
      questProfileDropdown.value = idx;
  }
    }
+            RepopulatePicker(); // fill the quest picker with this NPC's profile quests
         }
 
         private void ClearAllFields()
@@ -1539,6 +1558,186 @@ try
          if (onCompleteEventInput != null) onCompleteEventInput.text = "";
          if (questProfileInput != null) questProfileInput.text = "";
          if (questProfileDropdown != null) questProfileDropdown.value = 0;
+        }
+
+        // ── Quest picker: load an existing quest from the selected profile into the fields for editing ─────────
+        private void BuildQuestPicker(Transform t)
+        {
+            if (questProfileDropdown == null || t == null) return;
+            try
+            {
+                // The form's fields begin at y=-45, so the top band is empty. Drop two loaders there: Profile (left)
+                // and Quest (right). Added LAST (no SetSiblingIndex) so they draw ON TOP of the form and stay clickable —
+                // the previous SetSiblingIndex(0) made the clone the first child, drawn behind every field (invisible).
+                var pclone = UnityEngine.Object.Instantiate(questProfileDropdown.gameObject, t);
+                pclone.name = "ProfilePickerDropdown";
+                profilePickerDropdown = pclone.GetComponent<TMP_Dropdown>();
+                var pprt = (RectTransform)pclone.transform;
+                pprt.anchorMin = pprt.anchorMax = pprt.pivot = new Vector2(0.5f, 1f);
+                pprt.sizeDelta = new Vector2(196f, 28f);
+                pprt.anchoredPosition = new Vector2(-102f, -8f);
+                if (profilePickerDropdown != null)
+                {
+                    profilePickerDropdown.onValueChanged.RemoveAllListeners();
+                    profilePickerDropdown.onValueChanged.AddListener(OnProfilePickerSelected);
+                }
+
+                var clone = UnityEngine.Object.Instantiate(questProfileDropdown.gameObject, t);
+                clone.name = "QuestPickerDropdown";
+                questPickerDropdown = clone.GetComponent<TMP_Dropdown>();
+                var prt = (RectTransform)clone.transform;
+                prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 1f);
+                prt.sizeDelta = new Vector2(196f, 28f);
+                prt.anchoredPosition = new Vector2(102f, -8f);
+                if (questPickerDropdown != null)
+                {
+                    questPickerDropdown.onValueChanged.RemoveAllListeners();
+                    questPickerDropdown.onValueChanged.AddListener(OnPickerSelected);
+                }
+
+                RefreshProfilePicker();
+                RepopulatePicker();
+            }
+            catch (Exception ex) { Debug.LogWarning($"[QuestConfigScreenController] BuildQuestPicker failed: {ex.Message}"); }
+        }
+
+        // Mirror the profile list into the top-left profile picker (shares _availableProfiles with the save-target dropdown).
+        internal void RefreshProfilePicker()
+        {
+            if (profilePickerDropdown == null) return;
+            _suppressProfilePicker = true;
+            profilePickerDropdown.onValueChanged.RemoveListener(OnProfilePickerSelected);
+            profilePickerDropdown.ClearOptions();
+            profilePickerDropdown.AddOptions(_availableProfiles);
+            int idx = (questProfileDropdown != null && questProfileDropdown.value < _availableProfiles.Count) ? questProfileDropdown.value : 0;
+            profilePickerDropdown.value = idx;
+            profilePickerDropdown.RefreshShownValue();
+            profilePickerDropdown.onValueChanged.AddListener(OnProfilePickerSelected);
+            _suppressProfilePicker = false;
+        }
+
+        private void OnProfilePickerSelected(int idx)
+        {
+            if (_suppressProfilePicker) return;
+            // Drive the save-target dropdown to match (its listener also repopulates the quest picker), then reload.
+            if (questProfileDropdown != null && idx >= 0 && idx < _availableProfiles.Count)
+            {
+                questProfileDropdown.value = idx;
+                questProfileDropdown.RefreshShownValue();
+            }
+            RepopulatePicker();
+        }
+
+        // Mirror the save-target dropdown's value up into the top-left profile picker without re-firing its handler.
+        private void SyncProfilePickerValue()
+        {
+            if (profilePickerDropdown == null || questProfileDropdown == null) return;
+            if (profilePickerDropdown.value == questProfileDropdown.value) return;
+            _suppressProfilePicker = true;
+            profilePickerDropdown.value = questProfileDropdown.value;
+            profilePickerDropdown.RefreshShownValue();
+            _suppressProfilePicker = false;
+        }
+
+        private string SelectedProfileName()
+        {
+            if (profilePickerDropdown != null && profilePickerDropdown.value > 0 && profilePickerDropdown.value < _availableProfiles.Count)
+                return _availableProfiles[profilePickerDropdown.value];
+            if (questProfileDropdown != null && questProfileDropdown.value > 0 && questProfileDropdown.value < _availableProfiles.Count)
+                return _availableProfiles[questProfileDropdown.value];
+            return _currentNpc?.questProfile;
+        }
+
+        // Fill the picker with the quests in the currently-selected profile.
+        internal void RepopulatePicker()
+        {
+            if (questPickerDropdown == null) return;
+            _pickerQuestIds.Clear();
+            var options = new List<string> { "— load a quest from this profile —" };
+            string profile = SelectedProfileName();
+            if (!string.IsNullOrEmpty(profile))
+            {
+                var qm = QuestManager.Instance;
+                var prof = QuestProfileManager.GetProfile(profile);
+                var ids = (prof != null && prof.QuestIds != null && prof.QuestIds.Count > 0)
+                    ? prof.QuestIds
+                    : (qm?.GetQuestsForProfile(profile) ?? new List<string>());
+                foreach (var id in ids)
+                {
+                    var def = qm?.GetQuestDefinition(id);
+                    _pickerQuestIds.Add(id);
+                    options.Add(def != null && !string.IsNullOrEmpty(def.Name) ? $"{def.Name}  ({id})" : id);
+                }
+            }
+            _suppressPicker = true;
+            questPickerDropdown.onValueChanged.RemoveListener(OnPickerSelected);
+            questPickerDropdown.ClearOptions();
+            questPickerDropdown.AddOptions(options);
+            questPickerDropdown.value = 0;
+            questPickerDropdown.RefreshShownValue();
+            questPickerDropdown.onValueChanged.AddListener(OnPickerSelected);
+            _suppressPicker = false;
+        }
+
+        private void OnPickerSelected(int idx)
+        {
+            if (_suppressPicker) return;
+            int qi = idx - 1; // option 0 is the placeholder
+            if (qi < 0 || qi >= _pickerQuestIds.Count) return;
+            string questId = _pickerQuestIds[qi];
+            var def = QuestManager.Instance?.GetQuestDefinition(questId);
+            if (def == null) { SetStatus($"Quest '{questId}' not found", true); return; }
+            LoadQuestIntoFields(questId, def);
+            SetStatus($"Loaded '{def.Name ?? questId}' — edit, then Save Quest Changes", false);
+        }
+
+        private void LoadQuestIntoFields(string questId, QuestDefinition def)
+        {
+            _suppressPicker = true;
+            try
+            {
+                if (questIdInput != null) questIdInput.text = questId;
+                if (questNameInput != null) questNameInput.text = def.Name ?? "";
+                if (questTypeDropdown != null) { questTypeDropdown.value = QuestTypeIndex(def.QuestType); questTypeDropdown.RefreshShownValue(); }
+                if (autoCompleteToggle != null) autoCompleteToggle.isOn = def.Autocomplete;
+                if (descriptionInput != null) descriptionInput.text = def.Description ?? "";
+                var t0 = (def.QuestTargets != null && def.QuestTargets.Count > 0) ? def.QuestTargets[0] : null;
+                if (targetPrefabInput != null) targetPrefabInput.text = t0?.Prefab ?? "";
+                if (targetAmountInput != null) targetAmountInput.text = (t0?.Amount ?? 1).ToString();
+                if (targetLevelInput != null) targetLevelInput.text = (t0?.MinLevel ?? 0).ToString();
+                if (cooldownInput != null) cooldownInput.text = def.CooldownDays.ToString();
+                if (timeLimitInput != null) timeLimitInput.text = def.TimeLimitMinutes.ToString();
+                if (rewardsInput != null) rewardsInput.text = def.Rewards != null ? string.Join(" | ", def.Rewards.Select(FormatReward)) : "";
+                if (requirementsInput != null) requirementsInput.text = (def.Requirements != null && def.Requirements.Count > 0) ? string.Join(" | ", def.Requirements) : "";
+                if (previewImageInput != null) previewImageInput.text = def.PreviewImage ?? "";
+                if (onStartEventInput != null) onStartEventInput.text = LifecycleJoin(def, "OnAcceptQuest");
+                if (onCompleteEventInput != null) onCompleteEventInput.text = LifecycleJoin(def, "OnCompleteQuest");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[QuestConfigScreenController] LoadQuestIntoFields failed: {ex.Message}"); }
+            _suppressPicker = false;
+            _hasUnsavedChanges = false;
+        }
+
+        private static int QuestTypeIndex(string questType)
+        {
+            if (!string.IsNullOrEmpty(questType))
+                for (int i = 0; i < QuestTypeConfigNames.Length; i++)
+                    if (string.Equals(QuestTypeConfigNames[i], questType, StringComparison.OrdinalIgnoreCase)) return i;
+            return 0;
+        }
+
+        private static string FormatReward(QuestReward r)
+        {
+            if (r == null) return "";
+            string s = $"{r.Type}: {r.Target}, {r.Amount}";
+            if (r.Level > 1) s += $", {r.Level}";
+            return s;
+        }
+
+        private static string LifecycleJoin(QuestDefinition def, string key)
+        {
+            if (def?.LifecycleEvents == null) return "";
+            return def.LifecycleEvents.TryGetValue(key, out var cmds) && cmds != null ? string.Join(" | ", cmds) : "";
         }
 
         private string BuildQuestConfig(string questId)

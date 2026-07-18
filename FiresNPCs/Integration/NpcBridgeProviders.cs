@@ -31,6 +31,17 @@ namespace FiresRPGmaker.Integration
             NpcConfigBridge.GetBoolValue = (key, fallback) => GetConfigValue(key, fallback);
             NpcConfigBridge.AdminCheck = () => FiresRPGmaker.Instance?.configSync?.IsAdmin ?? false;
 
+            // anchor⇄body payload copier (appearance + module profiles + config) for the NPC anchor system
+            NpcAnchorDataBridge.Register();
+
+            // anchor orb context menu (Move/Remove) — client-side UI, admin-gated rows + server-gated RPCs
+            if (!UnityEngine.Application.isBatchMode)
+            {
+                FiresCore.UI.ContextMenu.FiresContextMenu.Register(new UI.ContextMenu.NpcAnchorContextProvider());
+                // static NPC BODY menu (pick up / show anchor / show route / edit) — same driver, same gating
+                FiresCore.UI.ContextMenu.FiresContextMenu.Register(new UI.ContextMenu.NpcBodyContextProvider());
+            }
+
             // companion prefab bundle (ships in the host mod)
             NpcAssetBridge.LoadPrefab = path =>
                 FiresRPGmaker.assetBundle != null ? FiresRPGmaker.assetBundle.LoadAsset<GameObject>(path) : null;
@@ -122,7 +133,7 @@ namespace FiresRPGmaker.Integration
             var module = npc.GetComponent<CompanionNpcModule>();
             if (module == null) return;
             var controller = GetOrCreateNpcControllerWrapper(module);
-            if (controller != null) NpcMainPanelController.ShowForNpc(controller);
+            if (controller != null) global::FiresRPGmaker.UI.NpcBookController.ShowForNpc(controller);   // book UI; old flat panel retired
         }
 
         private static bool HandleInteraction(GameObject npc, Player player)
@@ -230,6 +241,9 @@ namespace FiresRPGmaker.Integration
                         return;
                     }
                 }
+                // Name the broken link instead of failing silently: is the codex empty (sync problem)
+                // or does it just not contain this uid (data problem)?
+                Debug.LogWarning($"[NpcBridge] '{module.DisplayName}' dialogue '{module.dialogueProfile}' NOT FOUND - DialogueCodex holds {DialogueCodex.Dialogues.Count} dialogue(s) on this machine");
             }
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{module.DisplayName} has nothing to say.");
         }

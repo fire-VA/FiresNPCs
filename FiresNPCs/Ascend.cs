@@ -17,24 +17,26 @@ using FiresCore.Npc.Archetypes;
 using FiresRPGmaker.Modules.Compendium;
 using FiresRPGmaker.Modules.ChatSystem;
 using FiresRPGmaker.Modules.Guilds;
-using FiresRPGmaker.Utilities;
 
 using FiresCore.Sync;
 using FiresCore.Lifecycle;
 
 namespace FiresRPGmaker
 {
-    [BepInPlugin("com.Fire.FiresRPGmaker", "FiresRPGmaker", "0.0.182")]
+    [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency("com.Fire.FiresWayshrines", BepInDependency.DependencyFlags.SoftDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.182";
+        public const string PluginVersion = "0.0.416";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
+        public static AssetBundle booksBundle;   // book models (props + the animated UI book), embedded alongside firesnpcsui
+        public static AssetBundle chessBundle;   // the in-world chess table piece (vaitems_chessboard)
+        public static AssetBundle propsBundle;   // mailbox + sign/board props (firesnpcs_props)
         public static readonly List<GameObject> piecePrefabs = [];
         public static readonly List<GameObject> itemPrefabs = [];
         public static GameObject RootObject;
@@ -45,14 +47,23 @@ namespace FiresRPGmaker
         private readonly System.Action<bool> _refreshConfigLockOnAdminChange =
             _ => ConfigManager.Instance?.OnConfigLockChanged();
         private static ILogHandler _originalLogHandler;
+        internal static BepInEx.Logging.ManualLogSource Log;
+        private static long _bundleLoadMs;
 
         protected override void Setup()
         {
+            Log = Logger;
+            try { FiresRPGmakerBanner.PrintBig(); } catch { }
+
             // Diagnostic Ã¢â‚¬â€ fires before any other init code or log filter install.
             // If this line doesn't appear in the log even though BepInEx says
             // "Loading [FiresRPGmaker X.X.X]", then Awake() never executed
             // (Unity scheduling issue, plugin instantiation failure, etc).
             Debug.Log($"[{PluginName}] Awake() entered Ã¢â‚¬â€ version {PluginVersion}");
+
+            // Consolidate the old scattered config folders (firesnpcs/, FiresNPCs_Sounds/) into FiresRPGmaker/
+            // before anything reads them this session.
+            Managers.FiresConfigMigration.Run();
 
             // Install log filter FIRST, before any asset loading that might generate shader warnings
         InstallLogFilter();
@@ -75,6 +86,38 @@ namespace FiresRPGmaker
             AdminSyncing.AdminStatusChanged += _refreshConfigLockOnAdminChange;
 
             ConfigManager.Instance.Initialize(Config);
+            try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.TurnSecondsCfg = Config.Bind("Poker", "PlayerTurnSeconds", 60, "Seconds a seated human has to act at the poker table before auto-fold (min 10)."); } catch { }
+            try { global::FiresRPGmaker.Modules.Poker.PokerAI.DifficultyCfg = Config.Bind("Poker", "Difficulty", "Medium", new BepInEx.Configuration.ConfigDescription("Poker AI table strength (hot-reloads).", new BepInEx.Configuration.AcceptableValueList<string>("Easy", "Medium", "Hard", "Master"))); } catch { }
+            try
+            {
+                global::FiresRPGmaker.Modules.Poker.PokerCashTables.CurrencyCfg = Config.Bind("Poker", "CashCurrency", "Coins", "Currency item played at open (cash) tables — bank it with the Banker to buy in.");
+                global::FiresRPGmaker.Modules.Poker.PokerCashTables.BuyInCfg = Config.Bind("Poker", "CashBuyIn", 500, "Open-table buy-in, withdrawn from your bank when you sit down.");
+                global::FiresRPGmaker.Modules.Poker.PokerCashTables.BigBlindCfg = Config.Bind("Poker", "CashBigBlind", 10, "Open-table big blind.");
+            }
+            catch { }
+            try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.DifficultyCfg = Config.Bind("Chess", "Difficulty", "Medium", new BepInEx.Configuration.ConfigDescription("Chess AI strength (hot-reloads; a firesnpcs_chess depth argument overrides it).", new BepInEx.Configuration.AcceptableValueList<string>("Easy", "Medium", "Hard", "Master"))); } catch { }
+            try { global::FiresRPGmaker.UI.Books.FiresBookView.DebugCapture = Config.Bind("Debug", "BookViewCaptures", false, "Dev tool (off by default): when a 3D book view opens, dump render PNGs + a state file to Tools/bookview. Off avoids the login capture stall + [FiresBookView] log spam.").Value; } catch { }
+            try
+            {
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.UiScaleCfg = Config.Bind("Poker", "UiScale", 1.0f, new BepInEx.Configuration.ConfigDescription("Poker window scale (drag the corner grip in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 1.6f)));
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.OffsetXCfg = Config.Bind("Poker", "OffsetX", 0f, "Poker window horizontal position (drag the title bar in-game).");
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.OffsetYCfg = Config.Bind("Poker", "OffsetY", 0f, "Poker window vertical position (drag the title bar in-game).");
+            }
+            catch { }
+            try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.UiScaleCfg = Config.Bind("Chess", "UiScale", 1.0f, new BepInEx.Configuration.ConfigDescription("Chess window scale — stretches the whole board UI (hot-reloads).", new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 1.6f))); } catch { }
+            try
+            {
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.OffsetXCfg = Config.Bind("Chess", "OffsetX", 0f, "Chess window horizontal position (drag the title bar in-game).");
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.OffsetYCfg = Config.Bind("Chess", "OffsetY", 0f, "Chess window vertical position (drag the title bar in-game).");
+            }
+            catch { }
+            try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.UiScaleCfg = Config.Bind("Fanorona", "UiScale", 1.0f, new BepInEx.Configuration.ConfigDescription("Fanorona window scale — stretches the whole board UI (hot-reloads).", new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 1.6f))); } catch { }
+            try
+            {
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.OffsetXCfg = Config.Bind("Fanorona", "OffsetX", 0f, "Fanorona window horizontal position (drag the title bar in-game).");
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.OffsetYCfg = Config.Bind("Fanorona", "OffsetY", 0f, "Fanorona window vertical position (drag the title bar in-game).");
+            }
+            catch { }
  BindConfigsToSync();
 
 
@@ -87,16 +130,20 @@ namespace FiresRPGmaker
             // Wire the Core NPC engine's host-service bridges to RPGMaker implementations.
             Integration.NpcBridgeProviders.RegisterAll();
 
-            // Register the patrol-route node-editing context-menu provider (client-only — the context menu is a
-            // client UI). Hold-Alt + right-click a visualized route node to move/nudge/insert/delete it.
+            // Patrol route editing (client-only): Shift+Right-click a visualized route node to open the baked
+            // Patrol Route Editor book — stop times, section speed sliders, node + route (hide/save) actions.
             if (!Application.isBatchMode)
-                FiresCore.UI.ContextMenu.FiresContextMenu.Register(new UI.ContextMenu.PatrolNodeContextProvider());
+                UI.Screens.Patrol.PatrolEditorDriver.Ensure();
 
-            // Load custom NPC mp3 sounds from BepInEx/config/FiresNPCs_Sounds (KG-style). The coroutine
+            // Admin map-painting territory editor (client-only): Shift+Alt+Right-click the open map to toggle.
+            if (!Application.isBatchMode)
+                Modules.Territories.Paint.TerritoryPaintDriver.Ensure();
+
+            // Load custom NPC mp3 sounds from BepInEx/config/FiresRPGmaker/Sounds (KG-style). The coroutine
             // self-guards on a headless/dedicated server (no audio output there).
             try
             {
-                string soundsFolder = Path.Combine(BepInEx.Paths.ConfigPath, "FiresNPCs_Sounds");
+                string soundsFolder = Path.Combine(FiresCore.Storage.FiresConfigPaths.Sounds);
                 Directory.CreateDirectory(soundsFolder);
                 StartCoroutine(FiresCore.Audio.FiresCustomAudioStore.LoadAllCoroutine(soundsFolder));
             }
@@ -150,6 +197,11 @@ namespace FiresRPGmaker
             "FiresRPGmaker.UI.Patches.InventoryGui_OnDropOutside_Patch",
             "FiresRPGmaker.UI.Patches.InventoryGui_SetupDragItem_Patch",
             "FiresCore.UI.UIOverrideInventoryPatches",
+            // Factions nameplate (EnemyHud is client UI) + local-player-only restriction patches
+            // (InventoryGui client type; all gate the local player's own actions)
+            "FiresRPGmaker.Modules.Factions.FactionNameplatePatches",
+            "FiresRPGmaker.Modules.Factions.FactionRestrictionPatches",
+            "FiresRPGmaker.Modules.PlayersTag.PlayerTagNameplatePatches",
             // Companions (only client-only nested classes, server patches stay active)
             "FiresRPGmaker.Modules.Companions.CompanionPatches+CompanionClientPatches_FejdStartup",
             "FiresRPGmaker.Modules.Companions.CompanionPatches+CompanionClientPatches_EnemyHud",
@@ -171,6 +223,9 @@ namespace FiresRPGmaker
             // PatchAll's IL rewrite (the cause of an ErrorConnectFailed handshake).
             "FiresRPGmaker.Modules.Marketplace.LeaderboardFeedPatches+InventoryGui_DoCrafting",
             "FiresRPGmaker.Modules.Marketplace.LeaderboardFeedPatches+Minimap_Explore",
+            // Leaderboard window modal input-capture (PlayerController/GameCamera/ZInput/Minimap/Player placement)
+            // — all client-only types; on a headless server these would native-crash Mono's IL rewriter.
+            "FiresRPGmaker.UI.Leaderboard.FiresLeaderboardInputPatches",
             // Marketplace console commands â€” Terminal exists server-side too, but the patch class registers
             // a player-side flow only; keeping it client-skipped is harmless.
             "FiresRPGmaker.Modules.Marketplace.MarketplaceConsoleCommands",
@@ -207,6 +262,10 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Quest.QuestLifecyclePatches+Player_OnDeath_Patch",
             // Per-NPC nameplate controls â€” references EnemyHud (client UI), absent server-side.
             "FiresRPGmaker.UI.Patches.NpcNameplatePatches",
+            "FiresRPGmaker.UI.Patches.NpcNameplatePatches+EnemyHud_TestShow_NameplateMode",
+            // Long-range board interact â€” GameCamera/Hud/Minimap/InventoryGui touches, local-player only.
+            "FiresRPGmaker.Modules.TableGames.LongRange_Player_Update_Patch",
+            "FiresRPGmaker.Modules.TableGames.LongRange_Hud_Crosshair_Patch",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server
@@ -214,19 +273,48 @@ namespace FiresRPGmaker
         /// rewriter headless). Replaces the old hand-rolled PatchAll loop.</summary>
         protected override System.Collections.Generic.IReadOnlyCollection<string> DedicatedServerSkipPatchTypes => _clientOnlyPatchTypes;
 
-        // RPGMaker self-gates its world init via the WaitForZNetReady coroutine started in Setup, so these
-        // FiresMod lifecycle hooks are intentionally empty.
-        protected override void WorldStart() { }
+        // RPGMaker self-gates its world init via the WaitForZNetReady coroutine started in Setup;
+        // WorldStart only announces readiness (compact banner + summary box).
+        protected override void WorldStart()
+        {
+            FiresRPGmakerBanner.Print();
+            EmitWorldStartSummary();
+        }
         protected override void TitleScene(bool isFirstBoot) { }
+
+        private static void EmitWorldStartSummary()
+        {
+            try
+            {
+                string guildSync = global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred
+                    ? "deferred"
+                    : (global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.ClientNeedsSync ? "pending" : "ok");
+                FiresCore.Logging.LoadSummary.For(PluginName).EmitMiniBox("📖 RPG MAKER", new[]
+                {
+                    $"saved npcs   {SavedNpcManager.GetAllSavedNpcs().Count()}",
+                    $"territories  {TerritorySyncedState.ClientTerritories.Count}",
+                    $"vault        {(VaultOfKnowledge.Instance != null ? "ok" : "off")}",
+                    $"guild sync   {guildSync}",
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[{PluginName}] World-start summary failed: {ex.Message}");
+            }
+        }
 
         private void FinishInit()
         {
-            // Register file sync RPC
+            // Register sync RPCs.
+            // NOTE: "FiresRPGmaker_SyncFiles" is intentionally NOT registered here. It is owned
+            // by DialogueSyncRPC.Register (ZNet.Awake postfix), the single canonical registration
+            // that binds reliably on every host (client, listen-server, dedicated). Registering it
+            // here as well would throw — ZRoutedRpc.Register uses Dictionary.Add, which rejects a
+            // duplicate key — and that throw would abort the registrations queued after it.
             try
             {
                 if (ZRoutedRpc.instance != null)
                 {
-                    ZRoutedRpc.instance.Register<ZPackage>("FiresRPGmaker_SyncFiles", new Action<long, ZPackage>(RPC_SyncFiles));
                     SavedNpcManager.RegisterRPCs();
                     FiresCore.UI.UILayoutSyncRPC.EnsureRpcsRegistered();
 
@@ -256,7 +344,7 @@ namespace FiresRPGmaker
             // at FinishInit time.
             try
             {
-                if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
                 {
                     // VikingLands.Core (TDV) owns guilds â€” stand ours down. Our guild-dependent
                     // features (chat / dialogue conditions / territory) read TDV via RpgMakerApi.
@@ -281,6 +369,20 @@ namespace FiresRPGmaker
                 Debug.LogError($"[FiresRPGmaker] GuildModule.Initialize threw: {ex}");
             }
 
+            // Banker + Mail + Marketplace are server-authoritative over Core's LiteDB vault. Register in their own
+            // guard so a guild throw above can't skip them; idempotent + instance-tracked, re-run by Game.Start.
+            try
+            {
+                if (ZRoutedRpc.instance != null)
+                {
+                    global::FiresRPGmaker.Modules.Marketplace.BankerNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Marketplace.MailNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Marketplace.MarketplaceNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Poker.PokerLobby.EnsureRegistered();
+                }
+            }
+            catch (Exception ex) { Debug.LogError($"[FiresRPGmaker] Banker/Mail/Market Initialize threw: {ex}"); }
+
 
             // RPC registration is centralized in VaultOfKnowledge.EnsureRpcsRegistered to avoid duplicates
 
@@ -301,9 +403,19 @@ namespace FiresRPGmaker
         {
             private static void Postfix()
             {
+                // Banker + Mail + Marketplace RPCs bind regardless of the guild ownership branch below.
                 try
                 {
-                    if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present) return; // TDV owns guilds
+                    global::FiresRPGmaker.Modules.Marketplace.BankerNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Marketplace.MailNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Marketplace.MarketplaceNetwork.Initialize();
+                    global::FiresRPGmaker.Modules.Poker.PokerLobby.EnsureRegistered();
+                }
+                catch (Exception ex) { Debug.LogError($"[FiresRPGmaker] Game.Start backup Banker/Mail/Market Initialize threw: {ex}"); }
+
+                try
+                {
+                    if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred) return; // TDV/FiresGuilds owns guilds
                     GuildModule.Initialize();
                 }
                 catch (Exception ex)
@@ -323,6 +435,10 @@ namespace FiresRPGmaker
             configSync.AddConfigEntry(cm.configAdminBypassTerritory);
             configSync.AddConfigEntry(cm.configTerritoryVisualizers);
             configSync.AddConfigEntry(cm.configTerritoryOverlay);
+
+            // Leaderboard — clients must adopt the server's achievement profile so local and synced
+            // counts score against the same def set (the server is the single source of truth).
+            configSync.AddConfigEntry(cm.configAchievementProfile);
 
             // Progression (all synced)
             configSync.AddConfigEntry(cm.configUsePrivateKeys);
@@ -385,6 +501,11 @@ namespace FiresRPGmaker
                     assetBundle = null;
                 }
             }
+            if (chessBundle != null)
+            {
+                try { chessBundle.Unload(true); } catch { }
+                chessBundle = null;
+            }
 
             if (RootObject != null)
             {
@@ -442,6 +563,8 @@ namespace FiresRPGmaker
 
             try
             {
+                var bundleTimer = System.Diagnostics.Stopwatch.StartNew();
+
                 // ORDER MATTERS: firesnpcsui declares a Dependency on firesnpcs (per its manifest), so
                 // firesnpcs MUST load FIRST or firesnpcsui's cross-bundle refs (Image sprites etc.) don't
                 // resolve at deserialize-time â†’ Image components get stripped from prefabs at runtime
@@ -450,11 +573,17 @@ namespace FiresRPGmaker
                 if (assetBundle == null) throw new Exception("Bundle not found");
 
                 uiBundle = GetAssetBundleFromResources("firesnpcsui");
+                booksBundle = GetAssetBundleFromResources("firesbooks");   // self-contained (ships Custom/Piece); no cross-bundle deps
+                chessBundle = GetAssetBundleFromResources("vaitems_chessboard");   // self-contained vanilla-clone chess table
 
                 global::FiresRPGmaker.UI.FiresNpcsUIBuilderHost.Install();
 
                 VAItemManager.LoadItems("Assets/Custom/NPCs/", this);
                 VAPieceManager.LoadPieces("Assets/Custom/NPCs/", PluginName);
+                Modules.Chess.ChessTablePiece.Load(chessBundle);   // appends to piecePrefabs → rides ZNetScene + hammer passes
+                propsBundle = GetAssetBundleFromResources("firesnpcs_props");
+                Modules.Props.FiresPropsModule.Load(propsBundle);  // mailboxes -> hammer + mail UI; boards -> ZNetScene-only
+                _bundleLoadMs = bundleTimer.ElapsedMilliseconds;
 
      // Companion prefabs (CompanionNpc/BaseNpc/Wild) are owned by FiresCompanions now
      // (they live in the firescompanions bundle and FiresCompanions loads + registers them).
@@ -492,8 +621,14 @@ namespace FiresRPGmaker
                 return null;
             }
 
+            // Read the bundle fully into memory: AssetBundle.LoadFromStream reads assets LAZILY, but the `using`
+            // disposes the stream on return — under memory pressure Unity re-reads the evicted bundle from that
+            // disposed stream → "ManagedStream must be readable" → "Size overflow in allocator" native crash.
             using var stream = assembly.GetManifestResourceStream(resourceName);
-            return AssetBundle.LoadFromStream(stream);
+            if (stream == null) return null;
+            using var ms = new System.IO.MemoryStream();
+            stream.CopyTo(ms);
+            return AssetBundle.LoadFromMemory(ms.ToArray());
         }
 
         private static bool _prefabsRegisteredThisSession;
@@ -693,7 +828,7 @@ if (hashDict != null)
                 if (local == null || localPlayerId == 0L) continue;
 
                 attempts++;
-                Debug.Log($"[FiresRPGmaker] Guild sync retry #{attempts} - cache still empty, re-requesting (likely dropped packet).");
+                Debug.Log($"[FiresRPGmaker] Guild sync retry #{attempts} - no FullSync received yet, re-requesting (likely dropped packet).");
                 global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.RequestSync();
             }
         }
@@ -728,6 +863,15 @@ if (hashDict != null)
             Debug.Log($"{PluginName}: Waiting for ZNetScene & ObjectDB...");
             while (ZNetScene.instance == null || ObjectDB.instance == null)
                 yield return null;
+
+            // Warm the territory ledger on the server as soon as ZNetScene/ObjectDB are ready, so the (large)
+            // legacy load is done before clients request territory sync. Server-only; reads cfg, registers nothing.
+            try
+            {
+                if (ZNet.instance != null && ZNet.instance.IsServer())
+                    global::FiresRPGmaker.Modules.Territories.TerritoryLedger.Init();
+            }
+            catch (System.Exception ex) { Debug.LogWarning($"[FiresRPGmaker] early ledger warm failed: {ex.Message}"); }
 
             yield return new WaitForEndOfFrame();
 
@@ -787,7 +931,7 @@ if (hashDict != null)
                                // (TDV) is present it owns guild membership, so requesting our own sync just
                                // produced the misleading "RequestSync ... 0 guild(s)" spam. When deferring,
                                // log what TDV actually resolves so the hand-off is verifiable in the log.
-                               if (!global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+                               if (!global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
                                {
                                    FiresCore.Lifecycle.PlayerSpawnGate.RunWhenLocalReady(
                                        60f,
@@ -875,6 +1019,14 @@ if (hashDict != null)
                 Debug.LogWarning($"[{PluginName}] Failed to initialize ServerConfigFileWatcher: {ex.Message}");
             }
 
+            FiresCore.Logging.LoadSummary.For(PluginName).EmitMiniBox("📦 ASSETS", new[]
+            {
+                $"items      {itemPrefabs.Count}",
+                $"pieces     {piecePrefabs.Count}",
+                $"npcs       {VAPieceManager.NpcPrefabNames.Count}",
+                $"bundle     {_bundleLoadMs} ms",
+            });
+
             Debug.Log($"{PluginName}: All items & pieces fully registered Ã¢â‚¬â€ ready!");
         }
 
@@ -956,6 +1108,9 @@ if (hashDict != null)
 
                 // Initialize the compendium system for in-game documentation
                 CompendiumManager.Initialize();
+
+                // Factions: player affiliations (membership + nameplate + dialogue verbs/conditions).
+                global::FiresRPGmaker.Modules.Factions.FactionModule.Initialize();
 
                 Debug.Log($"{PluginName}: Companion archetype system initialized (Taunt, StatusEffects, FX, Synergies, Compendium)");
             }
@@ -1098,96 +1253,6 @@ if (hashDict != null)
             }
         }
 
-        private static void RPC_SyncFiles(long sender, ZPackage pkg)
-        {
-            if (!ZNet.instance.IsServer())
-   {
-                Debug.LogWarning("[FiresRPGmaker] SyncFiles RPC received on client - ignoring");
-                return;
-            }
-
-  if (!AdminSyncing.IsAdmin(sender))
-       {
-        Debug.LogWarning($"[FiresRPGmaker] Non-admin {sender} tried to sync file - rejected");
-            return;
-        }
-
-         string folderName = pkg.ReadString();
-      string fileName = pkg.ReadString();
-            string content = pkg.ReadString();
-
-            if (string.IsNullOrEmpty(folderName) || string.IsNullOrEmpty(fileName) || string.IsNullOrEmpty(content))
-    {
-                Debug.LogWarning("[FiresRPGmaker] Invalid SyncFiles payload");
-   return;
- }
-
-     var allowedFolders = new[] { "Quests", "QuestProfiles", "QuestEvents", "Dialogues", "Traders", "Territories", "ServerInfos", "SavedNPCs" };
-    if (!allowedFolders.Contains(folderName))
-        {
-   Debug.LogWarning($"[FiresRPGmaker] Invalid folder in SyncFiles: {folderName}");
-return;
-}
-
-  fileName = fileName.Replace("..", "").Replace("/", "").Replace("\\", "");
-      if (!fileName.EndsWith(".cfg", StringComparison.OrdinalIgnoreCase) &&
-          !fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-      {
-          Debug.LogWarning($"[FiresRPGmaker] Invalid file extension in SyncFiles: {fileName}");
-          return;
-      }
-
-            string baseDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker");
-       string targetDir = Path.Combine(baseDir, folderName);
-            string fullPath = Path.Combine(targetDir, fileName);
-
-   try
-            {
-                // Mark this file as admin-synced BEFORE writing so the FileWatcher knows to exclude this sender
-                ServerConfigFileWatcher.MarkFileAsAdminSynced(folderName, fileName, sender);
-                
-                // Create target directory
-                Directory.CreateDirectory(targetDir);
-         File.WriteAllText(fullPath, content);
-      Debug.Log($"[FiresRPGmaker] Admin {sender} synced file: {fullPath} ({content.Length} bytes)");
-
-                // Handle folder-specific reloads
-              if (string.Equals(folderName, "Territories", StringComparison.OrdinalIgnoreCase))
-                {
-             try
-        {
-      global::FiresRPGmaker.Modules.Territories.TerritorySyncedState.ScheduleDebouncedReload();
-              }
- catch (Exception ex)
-     {
-      Debug.LogWarning($"[FiresRPGmaker] Territory reload/broadcast failed: {ex.Message}");
-       }
-      }
-     else if (string.Equals(folderName, "ServerInfos", StringComparison.OrdinalIgnoreCase))
-             {
-             try
-               {
-     // Reload the info profile cache on the server
-            global::FiresRPGmaker.UI.Screens.InfoNpcScreenController.ReloadCache();
-               Debug.Log("[FiresRPGmaker] ServerInfos cache reloaded");
-           }
-    catch (Exception ex)
-  {
-       Debug.LogWarning($"[FiresRPGmaker] ServerInfos reload failed: {ex.Message}");
-    }
-      }
-      else if (string.Equals(folderName, "SavedNPCs", StringComparison.OrdinalIgnoreCase))
-      {
-          // Don't call OnServerFileChanged here Ã¢â‚¬â€ the File.WriteAllText above will
-          // trigger the FileWatcher, which calls OnServerFileChanged with debouncing.
-          // Calling it directly here causes double-processing.
-      }
-  }
-        catch (Exception ex)
-     {
-       Debug.LogError($"[FiresRPGmaker] Failed to write synced file {fullPath}: {ex.Message}");
-       }
-        }
     }
 
     /// <summary>

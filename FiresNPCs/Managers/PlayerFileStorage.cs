@@ -28,8 +28,11 @@ namespace FiresRPGmaker.Modules.Vault
         /// Version identifier for debugging - change this when deploying new builds.
         /// </summary>
         public const string VERSION = "2.1.0-HARDENED";
-        
+
         private static readonly object FileLock = new object();
+        // Filenames we've already dumped a caller stack for (one-shot, avoids per-tick spam).
+        private static readonly System.Collections.Generic.HashSet<string> _rejectStackDumped =
+            new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
         
         /// <summary>
         /// Gets the players directory path. Computed fresh each time to handle edge cases.
@@ -40,7 +43,7 @@ namespace FiresRPGmaker.Modules.Vault
             {
                 try
                 {
-                    return Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "players");
+                    return Path.Combine(FiresCore.Storage.FiresConfigPaths.Players);
                 }
                 catch (Exception ex)
                 {
@@ -142,10 +145,15 @@ namespace FiresRPGmaker.Modules.Vault
 
             var fileName = Path.GetFileName(filePath);
 
-            // Reject Unknown_* files
-            if (fileName.StartsWith("Unknown_", StringComparison.OrdinalIgnoreCase))
+            // Reject ANY Unknown* placeholder file (Unknown_, Unknown-, "Unknown ", …). The prior check was
+            // Unknown_ only, so an "Unknown-<id>" variant slipped through / the source producing it stayed
+            // hidden. On the FIRST rejection this session, dump the caller stack + the value so we can fix the
+            // upstream timing that let an unresolved name reach here — the whole point is this call never happens.
+            if (fileName.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase))
             {
-                Debug.LogWarning($"[PlayerFileStorage v{VERSION}] REJECTED: Cannot save file with Unknown_ prefix: {fileName}");
+                Debug.LogWarning($"[PlayerFileStorage v{VERSION}] REJECTED: Cannot save file with Unknown prefix: {fileName}");
+                if (_rejectStackDumped.Add(fileName))
+                    Debug.LogWarning($"[PlayerFileStorage] ↑ FIRST reject for '{fileName}' — caller stack so we can fix the timing:\n{Environment.StackTrace}");
                 return false;
             }
 

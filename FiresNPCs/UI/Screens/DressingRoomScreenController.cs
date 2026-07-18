@@ -52,6 +52,8 @@ namespace FiresRPGmaker.UI.Screens
         private TMP_Dropdown _interactAnimationDropdown;
         private TMP_Dropdown _greetAnimationDropdown;
       private TMP_Dropdown _byeAnimationDropdown;
+        private TMP_InputField _greetTextInput;   // speech bubble on player approach (kg GreetText parity)
+        private TMP_InputField _byeTextInput;     // speech bubble on player leave (kg ByeText parity)
         private TMP_Dropdown _hairItemDropdown;
         private TMP_Dropdown _beardItemDropdown;
         private TMP_Dropdown _hairColorDropdown;
@@ -600,6 +602,13 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
                 if (_greetAnimationDropdown != null) _dropdowns.Add(_greetAnimationDropdown);
                 if (_byeAnimationDropdown != null) _dropdowns.Add(_byeAnimationDropdown);
                 if (_periodicSoundDropdown != null) _dropdowns.Add(_periodicSoundDropdown);
+
+                // Greet/Bye TEXT rows (kg speech-bubble parity). Runtime addition — the baked panel is never
+                // rebaked; we retile the existing anchor-stacked rows a little tighter and clone the interval
+                // input container twice for the two free-text fields.
+                EnsureGreetByeTextRows(fashionRight);
+                if (_greetTextInput != null) _inputFields.Add(_greetTextInput);
+                if (_byeTextInput != null) _inputFields.Add(_byeTextInput);
             }
 
             // Fashion Panel Left (appearance)
@@ -726,6 +735,99 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
                 }
             }
             return null;
+        }
+
+        // Finds the nth direct child with the given name (containers can share names, e.g. the two
+        // "Interval(seconds)_Container" rows).
+        private static Transform FindNthChild(Transform parent, string childName, int nth)
+        {
+            int count = 0;
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                var child = parent.GetChild(i);
+                if (child.name != childName) continue;
+                if (count == nth) return child;
+                count++;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Adds the Greet Text / Bye Text input rows to the baked FashionPanel_Right at runtime (never
+        /// rebake). The panel's rows are anchor-stacked (no layout group), so we retile the 7 baked rows
+        /// plus the 2 clones into a 9-row grid, keeping the original top/bottom span. The clones are copies
+        /// of the interval input container with the label retitled and the input switched to free text.
+        /// </summary>
+        private void EnsureGreetByeTextRows(Transform fashionRight)
+        {
+            try
+            {
+                if (fashionRight == null || fashionRight.Find("Greet Text_Container") != null) return;
+
+                var intervalDonor = FindNthChild(fashionRight, "Interval(seconds)_Container", 0);
+                if (intervalDonor == null) return;
+
+                _greetTextInput = CloneTextRow(fashionRight, intervalDonor, "Greet Text_Container", "Greet Text", "Shown when a player walks up");
+                _byeTextInput = CloneTextRow(fashionRight, intervalDonor, "Bye Text_Container", "Bye Text", "Shown when a player leaves");
+
+                // Row order top→bottom, greet/bye text grouped under their animation rows.
+                var rows = new List<Transform>
+                {
+                    fashionRight.Find("Periodic Anim_Container"),
+                    FindNthChild(fashionRight, "Interval(seconds)_Container", 0),
+                    fashionRight.Find("Interact Anim_Container"),
+                    fashionRight.Find("Greet Anim_Container"),
+                    fashionRight.Find("Greet Text_Container"),
+                    fashionRight.Find("Bye Anim_Container"),
+                    fashionRight.Find("Bye Text_Container"),
+                    fashionRight.Find("Periodic Sound_Container"),
+                    FindNthChild(fashionRight, "Interval(seconds)_Container", 1),
+                };
+
+                const float top = 0.96f, bottom = 0.02f;
+                float step = (top - bottom) / rows.Count;
+                float rowH = step * 0.9f;
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var rect = rows[i] != null ? rows[i].GetComponent<RectTransform>() : null;
+                    if (rect == null) continue;
+                    float yMax = top - i * step;
+                    rect.anchorMin = new Vector2(rect.anchorMin.x, yMax - rowH);
+                    rect.anchorMax = new Vector2(rect.anchorMax.x, yMax);
+                    rect.offsetMin = new Vector2(rect.offsetMin.x, 0f);
+                    rect.offsetMax = new Vector2(rect.offsetMax.x, 0f);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[DressingRoomScreen] Greet/Bye text row setup failed: {ex.Message}");
+            }
+        }
+
+        // Clone an input container row, retitle its label, and convert the input to free text.
+        private static TMP_InputField CloneTextRow(Transform parent, Transform donor, string containerName, string label, string placeholder)
+        {
+            var clone = UnityEngine.Object.Instantiate(donor.gameObject, parent, false).transform;
+            clone.name = containerName;
+
+            // Retitle: the row label is the TMP that is NOT part of the input field's own hierarchy.
+            var input = clone.GetComponentInChildren<TMP_InputField>(true);
+            foreach (var tmp in clone.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                if (input != null && tmp.transform.IsChildOf(input.transform)) continue;
+                tmp.text = label;
+                break;
+            }
+
+            if (input != null)
+            {
+                input.contentType = TMP_InputField.ContentType.Standard;
+                input.lineType = TMP_InputField.LineType.SingleLine;
+                input.characterLimit = 120;
+                input.text = "";
+                if (input.placeholder is TextMeshProUGUI ph) ph.text = placeholder;
+            }
+            return input;
         }
 
         private static Toggle FindToggleInContainer(Transform parent, string containerName)
@@ -1259,7 +1361,7 @@ itemLabel.raycastTarget = false;
    }
 
         // Helper to create input field BELOW hint text (stacked layout) - INCREASED HEIGHT
-        TMP_InputField CreateStackedInputField(Transform parentTransform, string hintText, ref float yPos, float lineHeight)
+        TMP_InputField CreateStackedInputField(Transform parentTransform, string hintText, ref float yPos, float lineHeight, bool freeText = false)
 {
          var container = new GameObject(hintText.Replace(" ", "") + "_Container");
        container.transform.SetParent(parentTransform, false);
@@ -1340,7 +1442,8 @@ placeholder.raycastTarget = false;
       input.fontAsset = text.font;
           input.pointSize = 11;
             input.lineType = TMP_InputField.LineType.SingleLine;
-     input.contentType = TMP_InputField.ContentType.DecimalNumber;
+     input.contentType = freeText ? TMP_InputField.ContentType.Standard : TMP_InputField.ContentType.DecimalNumber;
+     if (freeText) input.characterLimit = 120;
      input.caretColor = new Color(1f, 0.9f, 0.6f);
     input.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 input.interactable = true;
@@ -1357,6 +1460,8 @@ _inputFields.Add(input);
         _interactAnimationDropdown = CreateLabeledDropdown(panelGO.transform, "Interact Anim", ref yRight, lineH);
         _greetAnimationDropdown = CreateLabeledDropdown(panelGO.transform, "Greet Anim", ref yRight, lineH);
         _byeAnimationDropdown = CreateLabeledDropdown(panelGO.transform, "Bye Anim", ref yRight, lineH);
+        _greetTextInput = CreateStackedInputField(panelGO.transform, "Greet Text", ref yRight, lineH, freeText: true);
+        _byeTextInput = CreateStackedInputField(panelGO.transform, "Bye Text", ref yRight, lineH, freeText: true);
      _periodicSoundDropdown = CreateLabeledDropdown(panelGO.transform, "Periodic Sound", ref yRight, lineH);
      _periodicSoundTimeInput = CreateStackedInputField(panelGO.transform, "Interval (seconds)", ref yRight, lineH);
 
@@ -1376,6 +1481,65 @@ _inputFields.Add(input);
         PopulateEyeColorDropdown(_eyeColorDropdown);
 
    Debug.Log("[DressingRoomScreen] Created fashion panels with inputs/dropdowns");
+        }
+
+        /// <summary>
+        /// Fills an animation dropdown with the vanilla player emote set — the exact animations kg's
+        /// Marketplace drives via SetTrigger("emote_&lt;name&gt;") on the player rig, sourced live from the
+        /// game's Emotes enum so patches that add emotes show up automatically. "(none)" first.
+        /// </summary>
+        private static void PopulateEmoteDropdown(TMP_Dropdown dropdown)
+        {
+            if (dropdown == null) return;
+            var options = new List<string> { "(none)" };
+            foreach (var name in Enum.GetNames(typeof(Emotes)))
+            {
+                if (name == "Count") continue;   // enum sentinel, not an emote
+                options.Add(name);
+            }
+            RepopulateKeepingSelection(dropdown, options);
+        }
+
+        /// <summary>
+        /// Fills the periodic-sound dropdown with the admin's custom sound clips
+        /// (BepInEx/config/FiresRPGmaker/Sounds mp3s via FiresCustomAudioStore — the kg-style custom
+        /// audio folder). Refreshed on every screen open since clips load async at startup.
+        /// </summary>
+        private static void PopulateSoundDropdown(TMP_Dropdown dropdown)
+        {
+            if (dropdown == null) return;
+            var options = new List<string> { "(none)" };
+            try
+            {
+                var keys = new List<string>(FiresCore.Audio.FiresCustomAudioStore.Clips.Keys);
+                keys.Sort(StringComparer.OrdinalIgnoreCase);
+                options.AddRange(keys);
+            }
+            catch { }
+            RepopulateKeepingSelection(dropdown, options);
+        }
+
+        // Swap a dropdown's option list and reset to "(none)". Runs at screen open, BEFORE the per-NPC
+        // selection restore — resetting here means an NPC with no saved fashion shows clean defaults
+        // instead of leaking the previously-edited NPC's picks.
+        private static void RepopulateKeepingSelection(TMP_Dropdown dropdown, List<string> options)
+        {
+            dropdown.ClearOptions();
+            dropdown.AddOptions(options);
+            dropdown.value = 0;
+            dropdown.RefreshShownValue();
+        }
+
+        /// <summary>Fills the greet/bye/interact/periodic animation dropdowns + the periodic sound list.</summary>
+        private void PopulateFashionBehaviorDropdowns()
+        {
+            PopulateEmoteDropdown(_periodicAnimationDropdown);
+            PopulateEmoteDropdown(_interactAnimationDropdown);
+            PopulateEmoteDropdown(_greetAnimationDropdown);
+            PopulateEmoteDropdown(_byeAnimationDropdown);
+            PopulateSoundDropdown(_periodicSoundDropdown);
+            if (_greetTextInput != null) _greetTextInput.text = "";
+            if (_byeTextInput != null) _byeTextInput.text = "";
         }
 
         /// <summary>
@@ -1429,6 +1593,7 @@ _inputFields.Add(input);
             if (npc != null) npc.LoadFromZDO();   // ensure worn-gear fields are populated before reading
             LoadEquipmentFromNpc(npc);
   PopulateDropdowns(npc);
+            PopulateFashionBehaviorDropdowns();   // emote + custom-sound lists (before selections restore)
     RestoreFashionSelectionsFromNpc(npc);
             RestoreStatControlsFromNpc(npc);
 
@@ -1570,6 +1735,10 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
      // Restore model scale
               if (_modelScaleInput != null && !string.IsNullOrEmpty(fashion.ModelScale))
           _modelScaleInput.text = fashion.ModelScale;
+
+                // Restore greet/bye speech text
+                if (_greetTextInput != null) _greetTextInput.text = fashion.GreetText ?? "";
+                if (_byeTextInput != null) _byeTextInput.text = fashion.ByeText ?? "";
 
            // Restore animation dropdowns
 if (_periodicAnimationDropdown != null && !string.IsNullOrEmpty(fashion.PeriodicAnimation))
@@ -2114,6 +2283,8 @@ if (itemDrop == null) return prefabName;
  InteractAnimation = _interactAnimationDropdown?.options[_interactAnimationDropdown.value].text,
       GreetAnimation = _greetAnimationDropdown?.options[_greetAnimationDropdown.value].text,
      ByeAnimation = _byeAnimationDropdown?.options[_byeAnimationDropdown.value].text,
+      GreetText = _greetTextInput?.text,
+      ByeText = _byeTextInput?.text,
         HairItem = _hairItemDropdown?.options[_hairItemDropdown.value].text,
    HairColor = _hairColorDropdown?.options[_hairColorDropdown.value].text,
     BeardItem = _beardItemDropdown?.options[_beardItemDropdown.value].text,
@@ -2143,11 +2314,6 @@ if (itemDrop == null) return prefabName;
 
             _currentNpc.SaveToZDO();
  Debug.Log("[DressingRoomScreen] Called SaveToZDO");
-
-            // TEMP [GreyDiag] — probe the body material at the dressing boundary + after async settles.
-            NpcFashionManager.DumpBodyMat("7-dressingAfterSave", _currentNpc);
-            _currentNpc.CancelInvoke(nameof(NpcController.DumpBodyMatDelayed));
-            _currentNpc.Invoke(nameof(NpcController.DumpBodyMatDelayed), 1.5f);
 
           int equippedCount = 0;
   foreach (var kvp in _pendingEquipment)

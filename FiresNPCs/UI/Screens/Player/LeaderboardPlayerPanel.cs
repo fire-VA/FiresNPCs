@@ -3,6 +3,7 @@ using FiresRPGmaker.Modules.Marketplace;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Pal = FiresCore.UI.UIFontConfig.Colors;
 
 namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
@@ -90,6 +91,23 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             WireSort(t, "SortCrafted",  "ItemsCrafted");
             WireSort(t, "SortDeaths",   "Died");
             WireSort(t, "SortExplored", "MapExplored");
+
+            if (_summaryText != null) _summaryText.color = Pal.ParchmentInk;
+            if (_achSummary  != null) _achSummary.color  = Pal.ParchmentLabel;
+            ApplyConfigurableBackground(root);
+        }
+
+        // Optional user-supplied background PNG (BepInEx/config/FiresUIBackgrounds/), VA-Inventory style. When the
+        // config toggle is off / the file is missing, the panel keeps its baked default art.
+        private void ApplyConfigurableBackground(GameObject root)
+        {
+            var cm = global::FiresRPGmaker.Managers.ConfigManager.Instance;
+            if (cm?.configLeaderboardBackgroundToggle == null || !cm.configLeaderboardBackgroundToggle.Value) return;
+            var sprite = FiresCore.UI.UIBackgroundLoader.Load(cm.configLeaderboardBackground?.Value);
+            if (sprite == null) return;
+            var bgGo = Find(root.transform, "Background");
+            var img = bgGo != null ? bgGo.GetComponent<Image>() : root.GetComponent<Image>();
+            if (img != null) { img.sprite = sprite; img.type = Image.Type.Sliced; img.color = Color.white; }
         }
 
         private void WireSort(Transform root, string node, string sortKey)
@@ -101,7 +119,18 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected override void OnOpen(string profileName, string npcDisplayName)
         {
             _leaderboardProfile = profileName;
+            EnsureBoardSubscription();
+            LeaderboardBoard.RequestBoard();   // async; the snapshot arrives via EntryPublished and re-Refreshes
             Refresh();
+        }
+
+        private bool _boardSubscribed;
+        private void EnsureBoardSubscription()
+        {
+            if (_boardSubscribed) return;
+            _boardSubscribed = true;
+            // The singleton lives for the session, so a one-time subscription is fine (no unsubscribe needed).
+            FiresCore.Bridge.LeaderboardBridge.EntryPublished += _ => { if (_statsRowContent != null) Refresh(); };
         }
 
         private void Refresh()
@@ -121,9 +150,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         {
             if (btn == null) return;
             var img = btn.GetComponent<Image>();
-            if (img != null) img.color = active
-                ? new Color(0.32f, 0.22f, 0.14f, 0.95f)
-                : new Color(0.18f, 0.14f, 0.08f, 0.95f);
+            if (img != null) img.color = active ? Pal.ParchmentButtonHover : Pal.ParchmentButton;
         }
 
         private void RefreshStats()
@@ -131,19 +158,23 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_statsRowContent == null || _statRowTemplate == null) return;
             ClearClones(_statsRowContent, _statRowTemplate);
 
-            var sample = LeaderboardProfileManager.GetSampleEntries(_leaderboardProfile);
-            var entries = new List<LeaderboardEntry>(sample);
-            foreach (var live in LeaderboardTracker.All.Values)
-            {
-                bool replaced = false;
-                for (int i = 0; i < entries.Count; i++)
-                    if (string.Equals(entries[i].PlayerName, live.PlayerName, System.StringComparison.OrdinalIgnoreCase))
-                    { entries[i] = ToEntry(live); replaced = true; break; }
-                if (!replaced) entries.Add(ToEntry(live));
-            }
+            // Live server board (Core LiteDB vault), fetched via LeaderboardBoard.RequestBoard() on open and
+            // pushed back through LeaderboardBridge.EntryPublished. Replaces the old sample + client-CSV source.
+            var entries = new List<LeaderboardEntry>(LeaderboardBoard.Rows.Count);
+            foreach (var r in LeaderboardBoard.Rows)
+                entries.Add(new LeaderboardEntry
+                {
+                    PlayerName = r.PlayerName,
+                    KilledCreatures = r.Monsters,
+                    KilledPlayers = r.PlayersKilled,
+                    BuiltStructures = r.Structures,
+                    ItemsCrafted = r.Crafted,
+                    Died = r.Deaths,
+                    MapExplored = r.MapExplored,
+                });
             if (entries.Count == 0)
             {
-                _summaryText.text = "No leaderboard data for profile '" + _leaderboardProfile + "'. Drop a .cfg into config\\firesnpcs\\leaderboard\\.";
+                _summaryText.text = "No leaderboard data yet — kill, build, craft, and explore to climb the board.";
                 return;
             }
             var sorted = LeaderboardProfileManager.SortBy(entries, _sortBy);
@@ -160,14 +191,6 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             ReflowScroll(_statsRowContent);
         }
 
-        private static LeaderboardEntry ToEntry(LeaderboardTracker.Stats s) => new LeaderboardEntry
-        {
-            PlayerName = s.PlayerName,
-            KilledCreatures = s.KilledCreatures, KilledPlayers = s.KilledPlayers,
-            BuiltStructures = s.BuiltStructures, ItemsCrafted = s.ItemsCrafted,
-            Died = s.Died, MapExplored = s.MapExplored,
-        };
-
         private void BuildStatRow(int rank, LeaderboardEntry e, bool isMe)
         {
             var rowGo = Instantiate(_statRowTemplate, _statsRowContent);
@@ -176,8 +199,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             SetRowHeight(rowGo, 26f);
 
             var img = rowGo.GetComponent<Image>();
-            if (img != null) img.color = isMe ? new Color(0.32f, 0.22f, 0.10f, 0.95f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
-            var nameColor = isMe ? new Color(1f, 0.95f, 0.55f) : new Color(0.96f, 0.91f, 0.76f);
+            if (img != null) img.color = isMe ? Pal.ParchmentItemSelected : Pal.ParchmentPanel;
+            var nameColor = Pal.ParchmentInk;
 
             string[] vals = {
                 rank.ToString(),
@@ -231,12 +254,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             SetRowHeight(rowGo, 56f);
 
             var img = rowGo.GetComponent<Image>();
-            if (img != null) img.color = done ? new Color(0.12f, 0.20f, 0.10f, 0.92f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            if (img != null) img.color = done ? Pal.ParchmentItemSelected : Pal.ParchmentPanel;
 
             var nameLabel = FindTmp(rowGo.transform, "NameLabel");
-            if (nameLabel != null) { nameLabel.text = (done ? "[X] " : "[  ] ") + def.Name; nameLabel.color = done ? new Color(0.70f, 1f, 0.70f) : new Color(0.96f, 0.91f, 0.76f); }
+            if (nameLabel != null) { nameLabel.text = (done ? "[X] " : "[  ] ") + def.Name; nameLabel.color = done ? new Color(0.13f, 0.42f, 0.13f) : Pal.ParchmentInk; }
             var descLabel = FindTmp(rowGo.transform, "DescLabel");
-            if (descLabel != null) descLabel.text = def.Description;
+            if (descLabel != null) { descLabel.text = def.Description; descLabel.color = Pal.ParchmentLabel; }
 
             float pct = def.MinAmount <= 0 ? 0f : Mathf.Clamp01((float)progress / def.MinAmount);
             var barFill = FindRect(rowGo.transform, "BarFill");
@@ -245,13 +268,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 barFill.anchorMin = new Vector2(0f, barFill.anchorMin.y);
                 barFill.anchorMax = new Vector2(pct, barFill.anchorMax.y);
                 var fillImg = barFill.GetComponent<Image>();
-                if (fillImg != null) fillImg.color = done ? new Color(0.35f, 0.75f, 0.30f, 0.95f) : new Color(0.55f, 0.40f, 0.20f, 0.95f);
+                if (fillImg != null) fillImg.color = done ? new Color(0.30f, 0.62f, 0.25f, 0.95f) : Pal.ParchmentButton;
             }
             var progressLabel = FindTmp(rowGo.transform, "ProgressLabel");
-            if (progressLabel != null) progressLabel.text = progress + "/" + def.MinAmount;
+            if (progressLabel != null) { progressLabel.text = progress + "/" + def.MinAmount; progressLabel.color = Pal.ParchmentLabel; }
 
             var scoreLabel = FindTmp(rowGo.transform, "ScoreLabel");
-            if (scoreLabel != null) scoreLabel.text = def.Score.ToString();
+            if (scoreLabel != null) { scoreLabel.text = def.Score.ToString(); scoreLabel.color = Pal.ParchmentInk; }
         }
     }
 }

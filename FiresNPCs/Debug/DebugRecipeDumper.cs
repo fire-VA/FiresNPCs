@@ -173,7 +173,7 @@ namespace FiresRPGmaker
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "RecipeDump.txt");
 

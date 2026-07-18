@@ -80,10 +80,12 @@ namespace FiresRPGmaker.Modules.Guilds.Network
         private static bool _registered;
         private static List<GuildData> _guilds = new List<GuildData>();
 
-        // Client-side: have we already asked the server to (re)push state on
-        // this ZRoutedRpc instance? Reset whenever we re-register against a
-        // new instance (world change / reconnect).
-        private static bool _clientSyncRequested;
+        // Client-side: have we received a FullSync response yet on this ZRoutedRpc instance? Set true the
+        // moment ANY FullSync is applied — even an empty one, because 0 guilds is a legitimate synced state.
+        // This is what the retry loop watches: it distinguishes "no response came back" (a dropped packet,
+        // worth retrying) from "cache simply has no guilds" (done), so the retry stops on a guild-less server.
+        // Reset whenever we re-register against a new instance (world change / reconnect).
+        private static bool _clientSyncReceived;
 
         // Pending invite state on the client side.
         private static string _pendingInviteGuildId;
@@ -102,7 +104,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
         public static void Initialize()
         {
             var current = ZRoutedRpc.instance;
-            Debug.Log($"{LogPrefix} Initialize() entered — _registered={_registered}, sameInstanceAsLast={(current == _registeredOn && current != null)}, ZRoutedRpc.instance={(current != null ? "ready" : "NULL")}");
+            FiresLogger.LogVerbose($"{LogPrefix} Initialize() entered — _registered={_registered}, sameInstanceAsLast={(current == _registeredOn && current != null)}, ZRoutedRpc.instance={(current != null ? "ready" : "NULL")}");
 
             if (current == null)
             {
@@ -121,7 +123,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
             current.Register<ZPackage>(RpcInvite, new Action<long, ZPackage>(RPC_GuildInvite));
             _registered    = true;
             _registeredOn  = current;
-            _clientSyncRequested = false;
+            _clientSyncReceived = false;
 
             // If this is the server (listen-server or dedicated), load from disk.
             // Clients DON'T request sync from here — Game.Start fires before
@@ -132,7 +134,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
             if (ZNet.instance != null && ZNet.instance.IsServer())
                 ServerLoad();
 
-            Debug.Log($"{LogPrefix} Initialized — registered handlers for '{RpcRoute}', '{RpcMsg}', '{RpcInvite}' on ZRoutedRpc instance {current.GetHashCode()}.");
+            FiresLogger.LogVerbose($"{LogPrefix} Initialized — registered handlers for '{RpcRoute}', '{RpcMsg}', '{RpcInvite}' on ZRoutedRpc instance {current.GetHashCode()}.");
         }
 
         /// <summary>
@@ -168,20 +170,21 @@ namespace FiresRPGmaker.Modules.Guilds.Network
             var pkg = new ZPackage();
             pkg.Write((byte)MsgType.RequestSync);
             SendRoute(pkg);
-            _clientSyncRequested = true;
             long localPlayerId = Player.m_localPlayer != null
                 ? Player.m_localPlayer.GetPlayerID()
                 : 0L;
-            Debug.Log($"{LogPrefix} RequestSync sent to server (have {_guilds.Count} cached, localPlayerId={localPlayerId}).");
+            FiresLogger.LogVerbose($"{LogPrefix} RequestSync sent to server (have {_guilds.Count} cached, localPlayerId={localPlayerId}).");
         }
 
-        /// <summary>True when the client cache is empty and we should retry.</summary>
+        /// <summary>True until a FullSync response has been received — NOT merely when the cache is empty,
+        /// since 0 guilds is a valid synced state. The retry loop watches this so it stops once any response
+        /// (even an empty one) arrives, instead of re-requesting forever on a server that has no guilds.</summary>
         public static bool ClientNeedsSync
         {
             get
             {
                 if (ZNet.instance == null || ZNet.instance.IsServer()) return false;
-                return _guilds.Count == 0;
+                return !_clientSyncReceived;
             }
         }
 
@@ -414,7 +417,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
             // player actually has a real ID, the next retry will go through.
             if (localPlayerId == 0L)
             {
-                Debug.Log($"{LogPrefix} SendRoute deferred: localPlayerId still 0 (player not fully spawned). Will retry.");
+                FiresLogger.LogVerbose($"{LogPrefix} SendRoute deferred: localPlayerId still 0 (player not fully spawned). Will retry.");
                 return;
             }
 
@@ -452,7 +455,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
         {
             var payload = new ZPackage();
             payload.Write(GuildStorage.Serialize(_guilds));
-            Debug.Log($"{LogPrefix} SendFullSync → peer {peerUid}, {_guilds.Count} guild(s).");
+            FiresLogger.LogVerbose($"{LogPrefix} SendFullSync → peer {peerUid}, {_guilds.Count} guild(s).");
             SendMsg(peerUid, MsgType.FullSync, payload);
         }
 
@@ -461,7 +464,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
             var payload = new ZPackage();
             payload.Write(GuildStorage.Serialize(_guilds));
             int peerCount = ZNet.instance?.GetPeers()?.Count ?? 0;
-            Debug.Log($"{LogPrefix} BroadcastFullSync → {peerCount} peer(s), {_guilds.Count} guild(s).");
+            FiresLogger.LogVerbose($"{LogPrefix} BroadcastFullSync → {peerCount} peer(s), {_guilds.Count} guild(s).");
             BroadcastMsg(MsgType.FullSync, payload);
         }
 
@@ -469,7 +472,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
 
         private static void RPC_GuildRoute(long senderId, ZPackage pkg)
         {
-            Debug.Log($"{LogPrefix} RPC_GuildRoute received — senderId={senderId}, pkg={(pkg != null ? "ok" : "NULL")}, isServer={(ZNet.instance != null && ZNet.instance.IsServer())}");
+            FiresLogger.LogVerbose($"{LogPrefix} RPC_GuildRoute received — senderId={senderId}, pkg={(pkg != null ? "ok" : "NULL")}, isServer={(ZNet.instance != null && ZNet.instance.IsServer())}");
             // Only the server processes routes.
             if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
             if (pkg == null) return;
@@ -490,7 +493,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
                     ? clientPlayerId
                     : ResolveSenderPlayerId(senderId);
 
-                Debug.Log($"{LogPrefix} RPC_GuildRoute decoded — type={type}, clientPlayerId={clientPlayerId}, clientName='{clientPlayerName}', resolvedPlayerId={senderPlayerId}");
+                FiresLogger.LogVerbose($"{LogPrefix} RPC_GuildRoute decoded — type={type}, clientPlayerId={clientPlayerId}, clientName='{clientPlayerName}', resolvedPlayerId={senderPlayerId}");
 
                 if (senderPlayerId == 0
                     && type != MsgType.InviteAccept
@@ -559,7 +562,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
                 var type    = (MsgType)pkg.ReadByte();
                 var b64     = pkg.ReadString();
                 var payload = string.IsNullOrEmpty(b64) ? new ZPackage() : new ZPackage(b64);
-                Debug.Log($"{LogPrefix} RPC_GuildMsg received — type={type}, payloadBytes={(b64 == null ? 0 : b64.Length)}, senderId={senderId}");
+                FiresLogger.LogVerbose($"{LogPrefix} RPC_GuildMsg received — type={type}, payloadBytes={(b64 == null ? 0 : b64.Length)}, senderId={senderId}");
                 ProcessGuildMsg(type, payload);
             }
             catch (Exception ex)
@@ -576,7 +579,8 @@ namespace FiresRPGmaker.Modules.Guilds.Network
                 {
                     var json = payload.ReadString();
                     _guilds = GuildStorage.Deserialize(json);
-                    Debug.Log($"{LogPrefix} FullSync applied — {_guilds.Count} guild(s) in cache.");
+                    _clientSyncReceived = true;   // a response arrived — even 0 guilds means we're synced, so stop retrying
+                    FiresLogger.LogVerbose($"{LogPrefix} FullSync applied — {_guilds.Count} guild(s) in cache.");
                     GuildAPI.FireGuildsUpdated(_guilds);
                     break;
                 }
@@ -1097,7 +1101,7 @@ namespace FiresRPGmaker.Modules.Guilds.Network
             payload.Write(guild.Name);
             payload.Write(GuildStorage.SerializeChatList(list));
             SendMsg(peerUid, MsgType.ChatHistory, payload);
-            Debug.Log($"{LogPrefix} SendChatHistoryTo peer {peerUid} → {list.Count} messages.");
+            FiresLogger.LogVerbose($"{LogPrefix} SendChatHistoryTo peer {peerUid} → {list.Count} messages.");
         }
 
         private static void Server_TransferLeadership(long actorId, ZPackage pkg)

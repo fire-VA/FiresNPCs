@@ -187,6 +187,16 @@ namespace FiresRPGmaker.Modules.Vault
                     Debug.LogWarning("[FiresRPGmaker] RPC_PeerInfo: peerUid is still 0, deferring to OnSpawned");
                     return;
                 }
+
+                // Create this character's leaderboard row the moment it connects, so a freshly-made character shows
+                // on the board immediately (at 0) instead of only after its first recorded stat — the only passive
+                // stat is the 30s map-explore tick, so without this a new char is invisible for ~30s. Keyed by name
+                // (== OwnerKey), so two characters from one Steam ID each get their own row.
+                if (!string.IsNullOrEmpty(playerName))
+                {
+                    try { FiresCore.Storage.LeaderboardRepository.GetOrCreate(playerName.Trim(), playerName); }
+                    catch (Exception lex) { Debug.LogWarning($"[FiresRPGmaker] Leaderboard GetOrCreate on connect failed: {lex.Message}"); }
+                }
                 
                 // We don't have playerId yet (character not spawned), but we can send quest files now.
                 //
@@ -201,6 +211,9 @@ namespace FiresRPGmaker.Modules.Vault
                     {
                         QuestManager.Instance.SendAllQuestFilesToPeer(peerUid);
                         try { QuestManager.Instance.BroadcastQuestDatabaseToPeer(peerUid); } catch { }
+                        // Profiles get the same reliable always-send treatment as the DB — the folder
+                        // diff-sync above was leaving clients with 0 profiles ("no quests available").
+                        try { QuestManager.Instance.BroadcastQuestProfilesToPeer(peerUid); } catch { }
                         Debug.Log($"[FiresRPGmaker] Sent quest files and QuestDB to peer {peerUid} ({playerName}) eagerly at RPC_PeerInfo");
                     }
 
@@ -254,7 +267,7 @@ namespace FiresRPGmaker.Modules.Vault
                 if (__instance != Player.m_localPlayer) return;
 
                 // DIAG (login-freeze)
-                Debug.Log("[LoginFreeze][DIAG] ENTER VaultPatches.Player_OnSpawned_LoadVaultData.Postfix");
+                FiresLogger.LogVerbose("[LoginFreeze][DIAG] ENTER VaultPatches.Player_OnSpawned_LoadVaultData.Postfix");
 
                 // SINGLE-PLAYER / LISTEN-SERVER GUARD.
                 //
@@ -294,7 +307,7 @@ namespace FiresRPGmaker.Modules.Vault
                 PlayerSpawnGate.RunWhenReady(__instance, 30f, RunLoadVaultData);
 
                 // DIAG (login-freeze)
-                Debug.Log("[LoginFreeze][DIAG] EXIT VaultPatches.Player_OnSpawned_LoadVaultData.Postfix (RunLoadVaultData scheduled via PlayerSpawnGate)");
+                FiresLogger.LogVerbose("[LoginFreeze][DIAG] EXIT VaultPatches.Player_OnSpawned_LoadVaultData.Postfix (RunLoadVaultData scheduled via PlayerSpawnGate)");
             }
             catch (Exception ex)
             {
@@ -324,6 +337,11 @@ namespace FiresRPGmaker.Modules.Vault
                     Debug.LogWarning("[FiresRPGmaker] Player_OnSpawned_LoadVaultData: VaultOfKnowledge not initialized yet, skipping announce/request (will retry from periodic sync)");
                     return;
                 }
+
+                // kg-parity: hydrate the client-local active-quest store from per-quest m_customData keys, and
+                // one-time migrate any quests still in the old vault blob. Runs before the tracker/book read.
+                try { global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Load(player); }
+                catch (Exception ex) { Debug.LogWarning("[QuestPipe] ActiveQuestStore.Load failed: " + ex.Message); }
 
                 long playerId = player.GetPlayerID();
                 string playerName = null;

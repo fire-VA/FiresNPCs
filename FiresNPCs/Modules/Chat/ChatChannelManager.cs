@@ -30,6 +30,16 @@ namespace FiresRPGmaker.Modules.ChatSystem
         private static Channel _activeChannel = Channel.Local;
         private static ConfigEntry<Channel> _savedChannel;
 
+        /// <summary>Chat panel size multiplier — bigger for readability. Hot-reloads live.</summary>
+        public static ConfigEntry<float> UiScale;
+        /// <summary>Horizontal / vertical nudge of the chat panel, in pixels. Hot-reloads live.</summary>
+        public static ConfigEntry<float> OffsetX;
+        public static ConfigEntry<float> OffsetY;
+        /// <summary>Hotkey to toggle chat arrange mode — frees the cursor to drag / resize the panel.</summary>
+        public static ConfigEntry<KeyboardShortcut> ArrangeKey;
+        /// <summary>Replace the vanilla chat window with the Fires chat panel. Off = untouched vanilla chat.</summary>
+        public static ConfigEntry<bool> CustomWindow;
+
         /// <summary>
         /// Call once during plugin init (after Config is available) to
         /// bind the persistent config entry and restore the saved channel.
@@ -38,6 +48,16 @@ namespace FiresRPGmaker.Modules.ChatSystem
         {
             _savedChannel = config.Bind("Chat", "ActiveChannel", Channel.Local,
                 "Last-selected chat channel. Persisted between sessions.");
+
+            UiScale = config.Bind("Chat", "PanelScale", 1.0f,
+                new ConfigDescription("Chat panel size multiplier — larger is easier to read.",
+                    new AcceptableValueRange<float>(0.6f, 2.5f)));
+            OffsetX = config.Bind("Chat", "PanelOffsetX", 0f, "Horizontal nudge of the chat panel (pixels).");
+            OffsetY = config.Bind("Chat", "PanelOffsetY", 0f, "Vertical nudge of the chat panel (pixels).");
+            ArrangeKey = config.Bind("Chat", "ArrangeHotkey", new KeyboardShortcut(KeyCode.C, KeyCode.LeftAlt),
+                "Toggle chat arrange mode — frees the cursor to drag the panel and drag its corner grip to resize.");
+            CustomWindow = config.Bind("Chat", "CustomChatWindow", true,
+                "Replace the vanilla chat window with the Fires chat panel (tabs, styling, drag/resize). Off = untouched vanilla chat.");
 
             // Restore without triggering the screen message � just set the
             // backing field directly so we don't flash a notification on load.

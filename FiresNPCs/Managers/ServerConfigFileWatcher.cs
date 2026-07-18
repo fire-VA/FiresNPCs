@@ -82,6 +82,14 @@ namespace FiresRPGmaker.Managers
             "Territories",
             "ServerInfos",
             "SavedNPCs",
+            "Buffers",
+            "BufferProfiles",
+            "Bankers",
+            "Gamblers",
+            "Transmogrifications",
+            "Mail",
+            "LeaderboardAchievements",
+            "Factions",
             "UILayouts"
         };
 
@@ -111,10 +119,47 @@ namespace FiresRPGmaker.Managers
                 string captured = folder; // closure-safe
                 ManifestDiffSync.RegisterFolder(
                     ManifestNamespaceFor(captured),
-                    () => Path.Combine(BaseConfigDir, captured),
+                    () => FiresCore.Storage.FiresConfigPaths.GroupedPath(captured),
                     "*.cfg",
                     SearchOption.AllDirectories);
+                // Pure clients keep no config files on disk — they answer the login diff-sync from
+                // the in-memory SyncedConfigStore instead, so reconnects still skip unchanged files.
+                // Returning null on the server/host falls through to the folder registration above.
+                ManifestDiffSync.RegisterManifestProvider(
+                    ManifestNamespaceFor(captured),
+                    () => FiresConfigFiles.UseStore ? SyncedConfigStore.BuildManifest(captured) : null);
             }
+        }
+
+        /// <summary>
+        /// Admin raw-file pull: streams EVERY watched .cfg from the server's grouped tree to the
+        /// requesting admin via FiresRPGmaker_FileDownload — the only channel that materializes
+        /// config files on a client machine. Returns the number of files sent.
+        /// </summary>
+        public static int SendAllConfigFilesForDownload(long peerUid)
+        {
+            int sent = 0;
+            foreach (var folder in WatchedFolders)
+            {
+                if (folder.Equals("UILayouts", StringComparison.OrdinalIgnoreCase)) continue;
+                if (folder.Equals("SavedNPCs", StringComparison.OrdinalIgnoreCase)) continue;
+
+                string dir = FiresCore.Storage.FiresConfigPaths.GroupedPath(folder);
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
+                string[] files;
+                try { files = Directory.GetFiles(dir, "*.cfg", SearchOption.AllDirectories); }
+                catch { continue; }
+                foreach (var f in files)
+                {
+                    string content;
+                    try { content = File.ReadAllText(f); }
+                    catch { continue; }
+                    string rel = f.Length > dir.Length ? f.Substring(dir.Length).TrimStart('\\', '/').Replace('\\', '/') : Path.GetFileName(f);
+                    SendFileToClient(peerUid, "FiresRPGmaker_FileDownload", folder, rel, content);
+                    sent++;
+                }
+            }
+            return sent;
         }
 
         private ServerConfigFileWatcher() { }
@@ -127,7 +172,7 @@ namespace FiresRPGmaker.Managers
         {
             if (_instance != null && _instance._isInitialized)
             {
-                Debug.Log("[FiresRPGmaker] ServerConfigFileWatcher already initialized");
+                FiresLogger.LogVerbose("[FiresRPGmaker] ServerConfigFileWatcher already initialized");
                 return;
             }
 
@@ -143,7 +188,7 @@ namespace FiresRPGmaker.Managers
             _instance.SetupWatchers();
             _instance._isInitialized = true;
             
-            Debug.Log("[FiresRPGmaker] ServerConfigFileWatcher initialized - watching config folders");
+            FiresLogger.LogVerbose("[FiresRPGmaker] ServerConfigFileWatcher initialized - watching config folders");
         }
 
         /// <summary>
@@ -166,7 +211,7 @@ namespace FiresRPGmaker.Managers
 
                 foreach (var folder in WatchedFolders)
                 {
-                    string folderPath = Path.Combine(BaseConfigDir, folder);
+                    string folderPath = FiresCore.Storage.FiresConfigPaths.GroupedPath(folder);
                     
                     try
                     {
@@ -320,7 +365,7 @@ namespace FiresRPGmaker.Managers
             }
 
             // Get relative file name for subfolders (e.g., Dialogues/legacy/sample.cfg)
-            string baseFolder = Path.Combine(BaseConfigDir, folderName);
+            string baseFolder = FiresCore.Storage.FiresConfigPaths.GroupedPath(folderName);
             string relativePath = fileName;
             try
             {
@@ -498,6 +543,29 @@ namespace FiresRPGmaker.Managers
                         SavedNpcManager.Reload();
                         Debug.Log($"[FiresRPGmaker] Reloaded SavedNPCs from disk");
                         break;
+
+                    case "buffers":
+                    case "bufferprofiles":
+                        global::FiresRPGmaker.Modules.Buffer.BufferManager.Reload();
+                        Debug.Log("[FiresRPGmaker] Reloaded buffer configs from disk");
+                        break;
+
+                    case "bankers":
+                        global::FiresRPGmaker.Modules.Marketplace.BankerProfileManager.ReloadAll();
+                        break;
+                    case "gamblers":
+                        global::FiresRPGmaker.Modules.Marketplace.GamblerProfileManager.ReloadAll();
+                        break;
+                    case "transmogrifications":
+                        global::FiresRPGmaker.Modules.Marketplace.TransmogProfileManager.ReloadAll();
+                        break;
+                    case "mail":
+                        global::FiresRPGmaker.Modules.Marketplace.MailProfileManager.ReloadAll();
+                        break;
+                    case "leaderboardachievements":
+                        global::FiresRPGmaker.Modules.Marketplace.AchievementProfileManager.ReloadAll();
+                        global::FiresRPGmaker.Modules.Marketplace.LeaderboardProfileManager.ReloadAll();
+                        break;
                 }
             }
             catch (Exception ex)
@@ -571,7 +639,7 @@ namespace FiresRPGmaker.Managers
         /// Single-message format:  folder, fileName, content  (totalChunks=0, no chunk header)
         /// Chunked format:         folder, fileName, chunkContent, chunkIndex (0-based), totalChunks (>0)
         /// </summary>
-        private static void SendFileToClient(long peerUid, string rpcName, string folderName, string fileName, string content)
+        internal static void SendFileToClient(long peerUid, string rpcName, string folderName, string fileName, string content)
         {
             if (ZRoutedRpc.instance == null) return;
             content = content ?? string.Empty;
@@ -739,7 +807,7 @@ namespace FiresRPGmaker.Managers
             {
                 yield return ManifestDiffSync.WaitForManifest(peerUid, firstNs, 10f);
                 bool firstArrived = ManifestDiffSync.TryGetManifest(peerUid, firstNs, out _);
-                Debug.Log($"[FiresRPGmaker] Config-sync pre-wait for peer {peerUid}: first manifest '{firstNs}' arrived={firstArrived}");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Config-sync pre-wait for peer {peerUid}: first manifest '{firstNs}' arrived={firstArrived}");
             }
 
             foreach (var folder in WatchedFolders)
@@ -748,7 +816,11 @@ namespace FiresRPGmaker.Managers
                 if (folder.Equals("SavedNPCs", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                string folderPath = Path.Combine(BaseConfigDir, folder);
+                // GROUPED path — the real tree (NPCs/Dialogues, Marketplace/Traders, ...). The old
+                // flat Path.Combine(BaseConfigDir, folder) pointed at directories that don't exist,
+                // so Directory.Exists failed and the login sync silently sent NOTHING for most
+                // folders — clients had empty stores ("has nothing to say", empty traders).
+                string folderPath = FiresCore.Storage.FiresConfigPaths.GroupedPath(folder);
                 if (!Directory.Exists(folderPath)) continue;
 
                 string rpcName = GetRpcNameForFolder(folder);
@@ -840,7 +912,7 @@ namespace FiresRPGmaker.Managers
                 }
 
                 if (haveManifest && (sent > 0 || skipped > 0))
-                    Debug.Log($"[FiresRPGmaker] Folder '{folder}' diff-sync to peer {peerUid}: sent {sent}, skipped {skipped} unchanged.");
+                    FiresLogger.LogVerbose($"[FiresRPGmaker] Folder '{folder}' diff-sync to peer {peerUid}: sent {sent}, skipped {skipped} unchanged.");
             }
 
             // Also send territory data and quest database
@@ -870,7 +942,7 @@ namespace FiresRPGmaker.Managers
             string[] uiLayoutFiles = null;
             try
             {
-                string uiLayoutsDir = Path.Combine(BaseConfigDir, "UILayouts");
+                string uiLayoutsDir = FiresCore.Storage.FiresConfigPaths.GroupedPath("UILayouts");
                 if (Directory.Exists(uiLayoutsDir))
                     uiLayoutFiles = Directory.GetFiles(uiLayoutsDir, "*.json", SearchOption.AllDirectories);
             }
@@ -881,7 +953,7 @@ namespace FiresRPGmaker.Managers
 
             if (uiLayoutFiles != null)
             {
-                string uiLayoutsDir = Path.Combine(BaseConfigDir, "UILayouts");
+                string uiLayoutsDir = FiresCore.Storage.FiresConfigPaths.GroupedPath("UILayouts");
 
                 // Ask the client for its existing UILayouts manifest so we can skip files
                 // whose SHA256 already matches. Wait briefly for the reply; if it never
@@ -949,9 +1021,9 @@ namespace FiresRPGmaker.Managers
                 FiresCore.UI.UILayoutSyncRPC.ForgetPeerManifest(peerUid);
 
                 if (clientManifest != null)
-                    Debug.Log($"[FiresRPGmaker] UILayout sync to peer {peerUid}: sent {sent}, cached/skipped {skipped} (of {uiLayoutFiles.Length})");
+                    FiresLogger.LogVerbose($"[FiresRPGmaker] UILayout sync to peer {peerUid}: sent {sent}, cached/skipped {skipped} (of {uiLayoutFiles.Length})");
                 else
-                    Debug.Log($"[FiresRPGmaker] Sent {uiLayoutFiles.Length} UILayout file(s) to client {peerUid} (no manifest reply)");
+                    FiresLogger.LogVerbose($"[FiresRPGmaker] Sent {uiLayoutFiles.Length} UILayout file(s) to client {peerUid} (no manifest reply)");
             }
 
             if (FiresLogger.VerboseEnabled)
@@ -961,7 +1033,7 @@ namespace FiresRPGmaker.Managers
             // CompanionRestoreService gates on this so companion ZDO writes don't
             // race the config push.
             _peersWithConfigSyncComplete.Add(peerUid);
-            Debug.Log($"[FiresRPGmaker] Config sync complete for peer {peerUid} — companion restore can now proceed.");
+            FiresLogger.LogVerbose($"[FiresRPGmaker] Config sync complete for peer {peerUid} — companion restore can now proceed.");
         }
 
         public void Dispose()

@@ -399,23 +399,16 @@ namespace FiresRPGmaker.UI
 
         public static QuestConfigScreenController WireQuestConfigScreen(Transform panelRoot)
         {
+            // RETIRED (user directive): the NPC BOOK (NpcBookController, Quest tab) is the ONLY quest admin
+            // panel. This flat screen is never wired or shown anymore — every _questConfigScreenController
+            // call site is null-safe, so returning null makes the whole legacy path inert. Deactivate the
+            // baked GO so nothing can stumble into an unwired form.
             var screenGo = GeneratedUI_completecompanionsui.FindByTag("QuestConfigScreen");
-            if (screenGo == null)
-            {
-                Debug.LogWarning("[CodegenUIWiring] QuestConfigScreen not found in codegen hierarchy");
-                return null;
-            }
-
-            // Find the apply button (sibling tagged "QuestApplyButton")
+            if (screenGo != null) screenGo.SetActive(false);
             var applyGo = GeneratedUI_completecompanionsui.FindByTag("QuestApplyButton");
-            Button applyButton = applyGo != null ? applyGo.GetComponent<Button>() : null;
-
-            var controller = screenGo.AddComponent<QuestConfigScreenController>();
-            controller.WireFromCodegen(screenGo, applyButton);
-            ClearSecondTabRow(screenGo);
-
-            Debug.Log("[CodegenUIWiring] QuestConfigScreen wired via WireFromCodegen");
-            return controller;
+            if (applyGo != null) applyGo.SetActive(false);
+            Debug.Log("[CodegenUIWiring] QuestConfigScreen retired — quest admin lives in the NPC book (NpcBookController)");
+            return null;
         }
 
         public static DressingRoomScreenController WireDressingRoomScreen(Transform panelRoot)

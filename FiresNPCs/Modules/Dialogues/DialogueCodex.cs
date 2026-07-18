@@ -22,7 +22,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static bool _initialized;
         private static readonly Dictionary<string, RawDialogue> _dialogues = new Dictionary<string, RawDialogue>(StringComparer.OrdinalIgnoreCase);
 
-        private static string BaseDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Dialogues");
+        private static string BaseDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.Dialogues);
         private static string LegacyDir => Path.Combine(BaseDir, "legacy");
         private static string SamplePath => Path.Combine(LegacyDir, "SampleDialogue.cfg");
 
@@ -37,8 +37,13 @@ namespace FiresRPGmaker.Modules.Dialogues
             _initialized = true;
             try
             {
-                Directory.CreateDirectory(LegacyDir);
-                WriteSampleIfMissing();
+                // Pure clients parse the server-synced in-memory store (no config files on client disk);
+                // server/host reads + seeds its folder as before.
+                if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
+                {
+                    Directory.CreateDirectory(LegacyDir);
+                    WriteSampleIfMissing();
+                }
                 LoadAllDialogues();
                 Debug.Log($"[FiresRPGmaker] DialogueCodex loaded {_dialogues.Count} dialogues");
             }
@@ -123,16 +128,15 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static void LoadAllDialogues()
         {
             _dialogues.Clear();
-            if (!Directory.Exists(BaseDir)) return;
-            foreach (var file in Directory.GetFiles(BaseDir, "*.cfg", SearchOption.AllDirectories))
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("Dialogues"))
             {
                 try
                 {
-                    ParseFile(file);
+                    ParseFile(kv.Key, kv.Value);
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[FiresRPGmaker] Dialogue parse failed {file}: {ex.Message}");
+                    Debug.LogWarning($"[FiresRPGmaker] Dialogue parse failed {kv.Key}: {ex.Message}");
                 }
             }
         }
@@ -152,12 +156,13 @@ namespace FiresRPGmaker.Modules.Dialogues
             AlwaysVisible,
             Color,
             RandomTransition,
-            OverrideError
+            OverrideError,
+            Cooldown,
+            CooldownKey
         }
 
-        private static void ParseFile(string path)
+        private static void ParseFile(string path, string[] lines)
         {
-            var lines = File.ReadAllLines(path);
             ParseLines(lines);
         }
 
@@ -357,6 +362,23 @@ namespace FiresRPGmaker.Modules.Dialogues
                         case InputType.OverrideError:
                             opt.OverrideError = payload.Trim();
                             break;
+                        case InputType.Cooldown:
+                        {
+                            // Scope | Scope,seconds | Scope,seconds,show  (comma-separated, no spaces)
+                            var parts2 = payload.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts2.Length > 0 && Enum.TryParse(parts2[0].Trim(), true, out CooldownScope scope))
+                            {
+                                opt.Cooldown = scope;
+                                if (parts2.Length > 1 && int.TryParse(parts2[1].Trim(), out int secs))
+                                    opt.CooldownSeconds = secs;
+                                if (parts2.Length > 2)
+                                    opt.ShowWhileCooling = parts2[2].Trim().Equals("show", StringComparison.OrdinalIgnoreCase);
+                            }
+                            break;
+                        }
+                        case InputType.CooldownKey:
+                            opt.CooldownKey = payload.Trim();
+                            break;
                     }
                 }
 
@@ -504,6 +526,14 @@ Text: I'll keep that in mind | Transition: sample_merchant
         OutRange
     }
 
+    /// <summary>How a dialogue option's cooldown is tracked on the server.</summary>
+    public enum CooldownScope
+    {
+        None,
+        PerPlayer,
+        Global
+    }
+
     [Serializable]
     public class RawDialogue
     {
@@ -532,6 +562,18 @@ Text: I'll keep that in mind | Transition: sample_merchant
         public bool AlwaysVisible = true;
         public Color32 Color = new Color32(255, 255, 255, 255);
         public string OverrideError;
+
+        /// <summary>Cooldown scope for this option's reward commands. None = no cooldown (default).</summary>
+        public CooldownScope Cooldown = CooldownScope.None;
+        /// <summary>Cooldown duration in seconds. Only meaningful when <see cref="Cooldown"/> != None.</summary>
+        public int CooldownSeconds = 0;
+        /// <summary>If true, the option stays visible (disabled) while cooling; if false it is hidden.</summary>
+        public bool ShowWhileCooling = false;
+        /// <summary>
+        /// Stable hidden key frozen into the .cfg on first save so cooldowns survive later text/reward edits.
+        /// Empty until frozen; resolved via <see cref="DialogueKeyUtil.OptionKey"/>.
+        /// </summary>
+        public string CooldownKey;
 
         /// <summary>
         /// Gets the next transition UID, picking randomly from RandomTransition if NextUID is empty.

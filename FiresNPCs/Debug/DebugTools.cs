@@ -8,7 +8,6 @@ using FiresCore.Npc;
 using FiresCore.Lifecycle;
 using FiresRPGmaker.Managers;
 using FiresRPGmaker.UI;
-using FiresRPGmaker.Utilities;
 using BepInEx;
 using System.IO;
 using Newtonsoft.Json;
@@ -652,6 +651,8 @@ if (QuestManager.Instance == null)
 
             // Ensure client HUD exists for quest timers
     try { global::FiresRPGmaker.Modules.Vault.QuestTimerHUD.EnsureCreated(); } catch { }
+            // Ensure the right-side quest tracker HUD exists (collapsible; hides at zero quests / Ctrl+F3)
+    try { global::FiresRPGmaker.UI.QuestTrackerHud.EnsureCreated(); } catch { }
 
      // Command: vaultclean <playerName>
          new Terminal.ConsoleCommand("vaultclean", "Clears quests and bank items for the named player's vault file (admin only). Usage: vaultclean <playerName>", (Terminal.ConsoleEventArgs args) =>
@@ -687,7 +688,7 @@ if (QuestManager.Instance == null)
       return;
     }
 
-     var playersDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "players");
+     var playersDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Players);
       if (!Directory.Exists(playersDir))
      {
      args.Context.AddString("[FiresRPGmaker] Players directory does not exist");
@@ -775,6 +776,51 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
           }
     });
 
+        // Command: firesnpcs_dialogue_cooldown_reset [optionKeyOrUID]
+        // Clears dialogue-option cooldowns from the server store. With no arg, clears everything;
+        // with an arg, clears just that option key. Server-side only; admin-gated on a client.
+        new Terminal.ConsoleCommand("firesnpcs_dialogue_cooldown_reset",
+            "Clears dialogue option cooldowns on the server (admin only). Usage: firesnpcs_dialogue_cooldown_reset [optionKey]",
+            (Terminal.ConsoleEventArgs args) =>
+        {
+            try
+            {
+                if (ZNet.instance == null || !ZNet.instance.IsServer())
+                {
+                    args.Context.AddString("[FiresRPGmaker] Dialogue cooldowns are stored on the server - run this on the server/host.");
+                    return;
+                }
+
+                // Permission check on a listen-server host (the local player must be admin).
+                if (!ZNet.instance.IsDedicated() && Player.m_localPlayer != null && VaultOfKnowledge.Instance != null)
+                {
+                    var localVault = VaultOfKnowledge.Instance.GetPlayerData(Player.m_localPlayer.GetPlayerID());
+                    if (localVault == null || !localVault.IsAdmin)
+                    {
+                        args.Context.AddString("[FiresRPGmaker] Permission denied - admin required");
+                        return;
+                    }
+                }
+
+                string arg = (args.Args != null && args.Args.Length > 1) ? string.Join(" ", args.Args.Skip(1)).Trim() : string.Empty;
+                if (string.IsNullOrEmpty(arg))
+                {
+                    global::FiresRPGmaker.Modules.Dialogues.DialogueCooldownManager.ClearAll();
+                    args.Context.AddString("[FiresRPGmaker] Cleared ALL dialogue option cooldowns.");
+                }
+                else
+                {
+                    global::FiresRPGmaker.Modules.Dialogues.DialogueCooldownManager.ClearKey(arg);
+                    args.Context.AddString($"[FiresRPGmaker] Cleared dialogue cooldowns for key '{arg}'.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FiresRPGmaker] dialogue_cooldown_reset handler exception: {ex.Message}");
+                try { args.Context.AddString($"[FiresRPGmaker] reset exception: {ex.Message}"); } catch { }
+            }
+        });
+
         // Command: pushcfgs - send local Quests, QuestProfiles, and Territories cfgs to server (admin only)
      Terminal.ConsoleEvent pushCfgHandler = (Terminal.ConsoleEventArgs args) =>
           {
@@ -800,6 +846,16 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
    return;
         }
     }
+
+                    // Fires family: also push FAP's preset/EWP yaml (and any
+                    // other registered mod's server data) up to the server, so
+                    // one pushcfgs ships everything. Client-side only — the
+                    // bridge no-ops on the server/host.
+                    if (!isServer)
+                    {
+                        try { FiresCore.Bridge.ServerPushBridge.InvokeAll(s => args.Context.AddString(s)); }
+                        catch (System.Exception ex) { args.Context.AddString($"[FiresRPGmaker] FAP push bridge failed: {ex.Message}"); }
+                    }
 
  var baseDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker");
      var questsDir = Path.Combine(baseDir, "Quests");
@@ -2455,7 +2511,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "SkyboxEnvironmentReference.txt");
             
@@ -2677,7 +2733,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine();
             
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "ShaderReference.txt");
             
@@ -2906,7 +2962,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "EnvironmentReference.txt");
             
@@ -3294,7 +3350,7 @@ while paint mask only gives dirt/cultivated/paved appearances.
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "BiomeVisualsReference.txt");
             
@@ -3324,7 +3380,7 @@ while paint mask only gives dirt/cultivated/paved appearances.
         {
             args.Context.AddString("[FiresRPGmaker] Exporting terrain textures...");
 
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug", "TerrainTextures");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug, "TerrainTextures");
             Directory.CreateDirectory(outputDir);
 
             Heightmap nearbyHeightmap = null;
@@ -3613,7 +3669,7 @@ IMPLEMENTATION FOR ENV BOX:
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "GlobalShaderProperties.txt");
             
@@ -3825,7 +3881,7 @@ IMPLEMENTATION FOR ENV BOX:
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "MineRockPrefabs.txt");
 
@@ -3918,7 +3974,7 @@ IMPLEMENTATION FOR ENV BOX:
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "PickablePrefabs.txt");
 
@@ -4011,7 +4067,7 @@ IMPLEMENTATION FOR ENV BOX:
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "TreeBasePrefabs.txt");
 
@@ -4103,7 +4159,7 @@ IMPLEMENTATION FOR ENV BOX:
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "TreeLogPrefabs.txt");
 
@@ -4485,7 +4541,7 @@ public static Sprite GetHudSprite(string elementName)
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "SpriteReference.txt");
 
@@ -4786,7 +4842,7 @@ public static Sprite FindSprite(string spriteName)
             sb.AppendLine();
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "IconReference.txt");
 
@@ -4930,7 +4986,7 @@ public static Sprite FindSprite(string spriteName)
             }
 
             // Write to file
-            string outputDir = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Debug");
+            string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "ChatUIHierarchy.txt");
             File.WriteAllText(outputPath, sb.ToString());

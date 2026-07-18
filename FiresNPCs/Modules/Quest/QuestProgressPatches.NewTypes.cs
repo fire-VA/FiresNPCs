@@ -154,22 +154,15 @@ namespace FiresRPGmaker.Modules.Quest
             {
                 var local = Player.m_localPlayer;
                 if (local == null || string.IsNullOrEmpty(questType) || string.IsNullOrEmpty(prefab)) return;
-                long pid = local.GetPlayerID();
 
-                // Single-player / listen server: take the fast path and process inline server-side.
-                if (ZNet.instance == null || ZNet.instance.IsServer())
-                {
-                    VaultOfKnowledge.ApplyQuestProgressLocal(pid, questType, prefab, amount);
-                    return;
-                }
+                // Collect is inventory-based — QuestProgressTracker.GetCollectProgress reads live inventory, so bumping
+                // a stored counter here would double-count and stay stuck after a drop. Every OTHER type is event-driven.
+                if (string.Equals(questType, "Collect", StringComparison.OrdinalIgnoreCase)) return;
 
-                if (ZRoutedRpc.instance == null) return;
-                var pkg = new ZPackage();
-                pkg.Write(pid);
-                pkg.Write(questType);
-                pkg.Write(prefab);
-                pkg.Write(amount);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_QuestProgressEvent", pkg);
+                // kg-parity: active quests are CLIENT-LOCAL (ActiveQuestStore, per-quest m_customData). Apply progress
+                // directly to that store. The old path routed to the server (or inline server data), which held NO copy
+                // of these quests — so craft/harvest/build/talk objectives silently never counted.
+                VaultOfKnowledge.ApplyQuestProgressClientLocal(questType, prefab, amount);
             }
             catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] SendProgress failed: " + ex.Message); }
         }

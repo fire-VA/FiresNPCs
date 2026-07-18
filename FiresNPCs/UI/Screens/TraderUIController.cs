@@ -200,11 +200,8 @@ namespace FiresRPGmaker.UI.Screens
         private void Update()
         {
             if (!IsVisible) return;
-            if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                if (_confirmRoot != null && _confirmRoot.activeSelf) { _confirmRoot.SetActive(false); _pendingTradeAction = null; }
-                else Hide();
-            }
+            // Escape owned by the central Menu.Show hook → CloseAllPanels → HideIfVisible. No self-close here
+            // (avoids the menu-opens race). The confirm dialog closes with the panel; its Cancel button remains.
         }
 
         #endregion

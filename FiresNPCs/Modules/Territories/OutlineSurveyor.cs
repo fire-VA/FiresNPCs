@@ -48,7 +48,7 @@ namespace FiresRPGmaker.Modules.Territories
       private static int _colorR = 0, _colorG = 255, _colorB = 0;
         private static string _flags = "None";
 
-        private static string OutlineDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Territories", FolderName);
+        private static string OutlineDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.Territories, FolderName);
 
   [HarmonyPatch(typeof(Terminal), "Awake")]
         [HarmonyPostfix]
@@ -273,7 +273,7 @@ if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
     }
         }
 
-      private static List<Vector3> FillWithCircles(List<Vector3> pts)
+      internal static List<Vector3> FillWithCircles(List<Vector3> pts)
         {
           // Project to XZ plane
        var poly = pts.Select(p => new Vector2(p.x, p.z)).ToList();

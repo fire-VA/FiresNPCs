@@ -45,7 +45,7 @@ namespace FiresRPGmaker.Modules.Territories
         private static int _colorR = 255, _colorG = 0, _colorB = 0;
         private static string _conditions = "None";
 
-        private static string LegacyDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Territories", "legacy");
+        private static string LegacyDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.Territories, "legacy");
         private static string AutoPath => Path.Combine(LegacyDir, "AutoMarker.cfg");
 
         [HarmonyPatch(typeof(Terminal), "Awake")]

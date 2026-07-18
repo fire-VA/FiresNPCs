@@ -17,15 +17,15 @@ namespace FiresRPGmaker.Modules.Vault
     {
         public static VaultOfKnowledge Instance { get; private set; }
 
-        private string BaseSavePath => Path.Combine(Paths.ConfigPath, "FiresRPGmaker");
-        private string ServerFilePath => Path.Combine(BaseSavePath, "server.json");
-        private string PlayersDir => Path.Combine(BaseSavePath, "players");
+        private string BaseSavePath => FiresCore.Storage.FiresConfigPaths.Root;
+        private string ServerFilePath => FiresCore.Storage.FiresConfigPaths.ServerJson;
+        private string PlayersDir => FiresCore.Storage.FiresConfigPaths.Players;
 
         // Per-world path for the shared Core LiteDB vault (config/FiresRPGmaker/Worlds/<world>/vault.db).
         // Per-world (NOT profile-global) so guild / leaderboard / player-identity data can't bleed across
         // worlds on a shared r2modman profile — the same cross-server-pollution class server.json guards against.
         private string VaultDbPath =>
-            Path.Combine(BaseSavePath, "Worlds", SanitizeWorldName(ZNet.instance?.GetWorldName()), "vault.db");
+            Path.Combine(FiresCore.Storage.FiresConfigPaths.Worlds, SanitizeWorldName(ZNet.instance?.GetWorldName()), "vault.db");
 
         private static string SanitizeWorldName(string name)
         {
@@ -83,7 +83,7 @@ namespace FiresRPGmaker.Modules.Vault
                 try
                 {
                     FiresCore.Storage.VaultDatabase.Configure(Instance.VaultDbPath);
-                    Debug.Log($"[FiresRPGmaker] VaultDatabase configured (per-world): {FiresCore.Storage.VaultDatabase.DatabasePath}");
+                    FiresLogger.LogVerbose($"[FiresRPGmaker] VaultDatabase configured (per-world): {FiresCore.Storage.VaultDatabase.DatabasePath}");
                 }
                 catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] VaultDatabase.Configure failed: {ex.Message}"); }
             }
@@ -95,16 +95,32 @@ namespace FiresRPGmaker.Modules.Vault
             // Load persisted timers into runtime manager
             try { QuestTimerManager.LoadPersistedTimers(Instance.serverData.Timers); } catch { }
 
-            Debug.Log("[FiresRPGmaker] VaultOfKnowledge initialized (hybrid ZDO + JSON)");
+            FiresLogger.LogVerbose("[FiresRPGmaker] VaultOfKnowledge initialized (hybrid ZDO + JSON)");
         }
 
-        // Ensure RPCs are registered - minimal set for hybrid approach
-        private static bool rpcsRegistered = false;
+        // Ensure RPCs are registered - minimal set for hybrid approach. Registration is bound to the CURRENT
+        // ZRoutedRpc.instance: when that instance changes (reconnect / world change) the handlers on the old
+        // one are dead, so we re-register on the new instance. A one-shot bool used to leave a reconnected
+        // CLIENT unable to RECEIVE server pushes — the leaderboard snapshot showed empty until a full relaunch.
+        // The ZNet.Start postfix (RpcReRegisterOnConnect) re-invokes this every session.
+        private static ZRoutedRpc _rpcInstance;
 
-        private static void EnsureRpcsRegistered()
+        // Re-bind the routed-RPC handlers on every ZNet session start (initial connect AND reconnect / world
+        // change). The one-time WaitForZNetReady coroutine fires only once per process, so without this a
+        // reconnected client keeps dead handlers on the previous ZRoutedRpc.instance and drops server pushes
+        // (that is why the leaderboard board showed empty until a full relaunch). EnsureRpcsRegistered no-ops
+        // when the instance is unchanged, so firing it redundantly is harmless.
+        [HarmonyPatch(typeof(ZNet), "Start")]
+        private static class RpcReRegisterOnConnect
         {
-            if (rpcsRegistered) return;
+            [HarmonyPostfix]
+            private static void Postfix() => EnsureRpcsRegistered();
+        }
+
+        internal static void EnsureRpcsRegistered()
+        {
             if (ZRoutedRpc.instance == null) return;
+            if (ReferenceEquals(_rpcInstance, ZRoutedRpc.instance)) return;
 
             try
             {
@@ -114,6 +130,11 @@ namespace FiresRPGmaker.Modules.Vault
                 ZRoutedRpc.instance.Register("FiresRPGmaker_QuestMoveCheck", new Action<long, ZPackage>(RPC_QuestMoveCheck));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_UpdateStat", new Action<long, ZPackage>(RPC_UpdateStat));
                 Marketplace.LeaderboardServerFeed.RegisterRpc(ZRoutedRpc.instance);
+                Marketplace.LeaderboardBoard.RegisterRpcs(ZRoutedRpc.instance);
+                Marketplace.LeaderboardAppearanceFeed.RegisterRpc(ZRoutedRpc.instance);
+                Marketplace.LeaderboardAppearanceBoard.RegisterRpcs(ZRoutedRpc.instance);
+                Marketplace.LeaderboardAchievementBoard.RegisterRpcs(ZRoutedRpc.instance);
+                Marketplace.LeaderboardSkillFeed.RegisterRpc(ZRoutedRpc.instance);
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_AnnouncePlayerInfo", new Action<long, ZPackage>(RPC_AnnouncePlayerInfo));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_RequestPlayerData", new Action<long, ZPackage>(RPC_RequestPlayerData));
                 ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_ReceivePlayerData", new Action<long, ZPackage>(RPC_ReceivePlayerData));
@@ -126,8 +147,14 @@ namespace FiresRPGmaker.Modules.Vault
                 try
                 {
                     ZRoutedRpc.instance.Register("FiresRPGmaker_QuestDB", new Action<long, ZPackage>(global::FiresRPGmaker.Modules.Quest.QuestManager.HandleQuestDB));
-                    // File update RPC: server pushes individual files to clients
-                    ZRoutedRpc.instance.Register("FiresRPGmaker_FileUpdate", new Action<long, ZPackage>(global::FiresRPGmaker.Modules.Quest.QuestManager.HandleFileUpdate));
+                    // Quest reward overflow (inventory full → Mail/Bank via server; result → client message)
+                    ZRoutedRpc.instance.Register(global::FiresRPGmaker.Modules.Quest.QuestRewardDispatcher.RpcOverflow, new Action<long, ZPackage>(global::FiresRPGmaker.Modules.Quest.QuestRewardDispatcher.RPC_Overflow));
+                    ZRoutedRpc.instance.Register(global::FiresRPGmaker.Modules.Quest.QuestRewardDispatcher.RpcOverflowResult, new Action<long, ZPackage>(global::FiresRPGmaker.Modules.Quest.QuestRewardDispatcher.RPC_OverflowResult));
+                    // NOTE: "FiresRPGmaker_FileUpdate" is deliberately NOT registered here.
+                    // DialogueSyncRPC.Register (ZNet.Awake — runs BEFORE this ZNet.Start hook) owns that
+                    // name for every config family; a second Register is a Dictionary.Add throw, and
+                    // because it sat mid-try it silently skipped every registration BELOW it (quest
+                    // start/timer + companion sync RPCs) on all hosts.
                     // Quest start response RPC: server -> client to report requirement failure/success message
                     ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_QuestStartResponse", new Action<long, ZPackage>(RPC_QuestStartResponse));
                     // Quest timer expiry notification: server -> client to inform timer expired
@@ -140,8 +167,8 @@ namespace FiresRPGmaker.Modules.Vault
                     ZRoutedRpc.instance.Register("FiresRPGmaker_Vault_RemoveCompanion", new Action<long, ZPackage>(RPC_RemoveCompanionRPC));
                 }
                 catch { }
-                rpcsRegistered = true;
-                Debug.Log("[FiresRPGmaker] Vault RPCs registered (hybrid)");
+                _rpcInstance = ZRoutedRpc.instance;
+                FiresLogger.LogVerbose("[FiresRPGmaker] Vault RPCs registered (hybrid)");
             }
             catch (Exception ex)
             {
@@ -372,7 +399,7 @@ namespace FiresRPGmaker.Modules.Vault
                     Instance.SavePlayerData(playerId, data); // write to disk for later
                 }
 
-                Debug.Log($"[FiresRPGmaker] Processed AnnouncePlayerInfo for {data.PlayerName} (ID {playerId})");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Processed AnnouncePlayerInfo for {data.PlayerName} (ID {playerId})");
 
                 // Player announced and their vault data is ready — let the Core NPC engine's
                 // restore service trigger companion restoration for this peer.
@@ -991,15 +1018,22 @@ namespace FiresRPGmaker.Modules.Vault
         {
             if (playerId == 0) return new PlayerVaultData(0);
 
+            PlayerVaultData d = null;
             var player = Player.GetPlayer(playerId);
-            if (player != null)
-            {
-                var d = DeserializeFromCustomData(player);
-                if (d != null) return d;
-            }
+            if (player != null) d = DeserializeFromCustomData(player);
+            if (d == null) d = LoadPlayerData(playerId);
 
-            // fallback to on-disk
-            return LoadPlayerData(playerId);
+            // kg-parity: a player's ACTIVE quests live client-local in ActiveQuestStore (per-quest m_customData
+            // keys), not this vault blob. For the local player, surface the store as the authoritative active set so
+            // every reader (HasQuest / tracker / book / dialogue) agrees and a stale blob can never wipe it.
+            if (d != null && ActiveQuestStore.IsLoadedFor(playerId))
+            {
+                d.ActiveQuests = ActiveQuestStore.Active.ToList();
+                // Completions are client-local too (SavePlayerData no-ops on clients) — overlay them so
+                // CheckRequirements / HasCompletedQuest see a turn-in immediately and QuestFinished chains unlock.
+                ActiveQuestStore.ApplyCompletedTo(d);
+            }
+            return d;
         }
 
         public PlayerVaultData GetPlayerQuestData(long playerId)
@@ -1088,6 +1122,9 @@ namespace FiresRPGmaker.Modules.Vault
         // abort the save rather than substituting a placeholder.
         private string GetPlayerFileName(long playerId, string playerName)
         {
+            // Final gate: an unresolved/placeholder name yields NULL (= do not save), so no code path —
+            // guarded or not — can ever mint an "Unknown*"/"Player_*"/"..." file.
+            if (IsUnresolvedPlayerName(playerName)) return null;
             var safe = SanitizeFileName(playerName);
             return safe == null ? null : $"{safe}_{playerId}.json";
         }
@@ -1109,6 +1146,28 @@ namespace FiresRPGmaker.Modules.Vault
         // exists in scope of this method while the player is genuinely offline
         // and not in the local scene â€” exactly the case where no JSON file
         // should be created.
+        // A name is "unresolved" (must NOT become a save filename) when it's blank, the "Unknown" placeholder
+        // in ANY shape (Unknown, Unknown_<id>, Unknown-<id>, "Unknown 123"), the vanilla mid-load "..." name,
+        // or a synthetic "Player_<id>". Centralized so every save gate + the resolver agree — the exact-equals
+        // "Unknown" checks let dash/id variants slip straight through to the PlayerFileStorage reject spam.
+        public static bool IsUnresolvedPlayerName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return true;
+            string t = name.Trim();
+            if (t == "...") return true;
+            if (t.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                // exact "Unknown", or "Unknown" followed only by a separator + digits (placeholder id).
+                string rest = t.Substring("Unknown".Length);
+                if (rest.Length == 0) return true;
+                rest = rest.TrimStart('_', '-', ' ');
+                if (rest.Length == 0 || rest.All(char.IsDigit)) return true;
+            }
+            if (t.StartsWith("Player_", StringComparison.OrdinalIgnoreCase)
+                && t.Substring("Player_".Length).All(char.IsDigit)) return true;
+            return false;
+        }
+
         private static string TryResolvePlayerNameById(long playerId)
         {
             if (playerId == 0) return null;
@@ -1120,7 +1179,7 @@ namespace FiresRPGmaker.Modules.Vault
                     if (p != null && p.GetPlayerID() == playerId)
                     {
                         var nm = p.GetPlayerName();
-                        if (!string.IsNullOrWhiteSpace(nm)) return nm;
+                        if (!IsUnresolvedPlayerName(nm)) return nm;
                     }
                 }
             }
@@ -1134,7 +1193,7 @@ namespace FiresRPGmaker.Modules.Vault
                     foreach (var entry in list)
                     {
                         if (entry.m_characterID.UserID == playerId
-                            && !string.IsNullOrWhiteSpace(entry.m_name))
+                            && !IsUnresolvedPlayerName(entry.m_name))
                         {
                             return entry.m_name;
                         }
@@ -1417,14 +1476,27 @@ namespace FiresRPGmaker.Modules.Vault
                 }
 
                 // Even if DeserializeFromCustomData returned a record, it might
-                // have an empty PlayerName (stale customData, partial init).
-                // Apply the same contract: real name or nothing.
-                if (string.IsNullOrWhiteSpace(data.PlayerName))
+                // have an empty PlayerName (stale customData, partial init) or the
+                // legacy RealmLedger placeholder "Unknown" — which sanitizes to a
+                // perfectly valid filename and used to sail through to the
+                // "Unknown_<id>.json REJECTED" loop (and because the reject aborts
+                // before the dirty-marker clear, it retried every cycle forever).
+                // Treat the placeholder as unresolved and re-resolve; real name or nothing.
+                if (IsUnresolvedPlayerName(data.PlayerName))
                 {
-                    if (FiresLogger.VerboseEnabled)
-                        FiresLogger.LogVerbose(
-                            $"SavePlayerDataFromZDO: player {playerId} customData had no PlayerName â€” skipping save.");
-                    return;
+                    string reResolved = null;
+                    try { reResolved = player.GetPlayerName(); } catch { reResolved = null; }
+                    if (IsUnresolvedPlayerName(reResolved))
+                        reResolved = TryResolvePlayerNameById(playerId);
+
+                    if (IsUnresolvedPlayerName(reResolved))
+                    {
+                        if (FiresLogger.VerboseEnabled)
+                            FiresLogger.LogVerbose(
+                                $"SavePlayerDataFromZDO: player {playerId} has no resolvable PlayerName (customData had '{data.PlayerName}') â€” skipping save.");
+                        return;
+                    }
+                    data.PlayerName = reResolved;
                 }
 
                 // CRITICAL FIX: Preserve companions from disk!
@@ -1665,15 +1737,18 @@ namespace FiresRPGmaker.Modules.Vault
                     var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
                     if (def == null || def.QuestType != "Kill") continue;
 
-                    foreach (var targetDef in def.QuestTargets)
+                    for (int ti = 0; ti < def.QuestTargets.Count; ti++)
                     {
+                        var targetDef = def.QuestTargets[ti];
                         if (!string.Equals(targetDef.Prefab, prefab, StringComparison.OrdinalIgnoreCase)) continue;
+                        int cur = active.GetTargetProgress(ti, def.QuestTargets.Count);
+                        if (cur >= targetDef.Amount) continue; // objective already done — try another matching target
 
-                        active.Progress++;
+                        active.SetTargetProgress(ti, cur + 1, def.QuestTargets.Count);
                         anyChange = true;
-                        FiresLogger.LogVerbose($"[FiresRPGmaker] Server: Progress +1 for quest {active.QuestId} (player {playerId}): {active.Progress}/{targetDef.Amount}");
+                        FiresLogger.LogVerbose($"[FiresRPGmaker] Server: Progress +1 for quest {active.QuestId} objective {ti} (player {playerId}): {active.GetTargetProgress(ti, def.QuestTargets.Count)}/{targetDef.Amount}");
 
-                        if (active.Progress >= targetDef.Amount && def.Autocomplete)
+                        if (active.AllTargetsComplete(def) && def.Autocomplete)
                         {
                             data.AddCompletedQuest(active.QuestId, 1);
                             data.ActiveQuests.RemoveAt(i);
@@ -1826,13 +1901,15 @@ namespace FiresRPGmaker.Modules.Vault
                 var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
                 if (def == null) continue;
                 if (!string.Equals(def.QuestType, questType, StringComparison.OrdinalIgnoreCase)) continue;
-                foreach (var t in def.QuestTargets)
+                for (int ti = 0; ti < def.QuestTargets.Count; ti++)
                 {
+                    var t = def.QuestTargets[ti];
                     if (!string.Equals(t.Prefab, prefab, StringComparison.OrdinalIgnoreCase)) continue;
-                    if (active.Progress >= t.Amount) continue;
-                    active.Progress = Math.Min(t.Amount, active.Progress + Math.Max(1, amount));
+                    int cur = active.GetTargetProgress(ti, def.QuestTargets.Count);
+                    if (cur >= t.Amount) continue;
+                    active.SetTargetProgress(ti, Math.Min(t.Amount, cur + Math.Max(1, amount)), def.QuestTargets.Count);
                     anyChange = true;
-                    if (active.Progress >= t.Amount && def.Autocomplete)
+                    if (active.AllTargetsComplete(def) && def.Autocomplete)
                     {
                         data.AddCompletedQuest(active.QuestId, 1);
                         data.ActiveQuests.RemoveAt(i);
@@ -1852,6 +1929,55 @@ namespace FiresRPGmaker.Modules.Vault
             }
         }
 
+        /// <summary>CLIENT-LOCAL quest progress. kg-parity moved active quests into <see cref="ActiveQuestStore"/>
+        /// (per-quest m_customData), so craft/harvest/build/talk events must bump THAT store — routing them to a
+        /// server that holds no copy of these quests silently dropped every non-kill objective. Mirrors
+        /// <see cref="ApplyQuestProgressLocal"/>'s matching but writes through the store so it persists + displays.</summary>
+        public static void ApplyQuestProgressClientLocal(string questType, string prefab, int amount)
+        {
+            try
+            {
+                if (QuestManager.Instance == null) return;
+                var player = Player.m_localPlayer;
+                if (player == null) return;
+                PlayerVaultData data = null;
+
+                foreach (var active in ActiveQuestStore.Active.ToList())
+                {
+                    var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
+                    if (def?.QuestTargets == null) continue;
+                    int tc = def.QuestTargets.Count;
+                    for (int ti = 0; ti < tc; ti++)
+                    {
+                        var t = def.QuestTargets[ti];
+                        if (t == null || string.IsNullOrEmpty(t.Prefab)) continue;
+                        // Per-objective type ("Item:" collect line etc.) wins over the quest-level type.
+                        string objType = !string.IsNullOrEmpty(t.Type) ? t.Type : def.QuestType;
+                        if (!string.Equals(objType, questType, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (!string.Equals(t.Prefab, prefab, StringComparison.OrdinalIgnoreCase)) continue;
+                        int cur = active.GetTargetProgress(ti, tc);
+                        if (cur >= t.Amount) break;
+                        int next = Math.Min(t.Amount, cur + Math.Max(1, amount));
+                        ActiveQuestStore.SetTargetProgress(active.QuestId, ti, next, tc);
+                        Debug.Log($"[QuestPipe] Progress {active.QuestId} obj{ti} {objType}:{prefab} {cur}->{next}/{t.Amount}");
+
+                        if (def.Autocomplete && active.AllTargetsComplete(def))
+                        {
+                            ActiveQuestStore.MarkCompleted(active.QuestId);
+                            ActiveQuestStore.Abandon(active.QuestId);
+                            if (data == null) data = Instance?.GetPlayerData(player.GetPlayerID());
+                            try { if (def.Rewards != null && def.Rewards.Count > 0) QuestRewardDispatcher.GrantAll(data, player, def.Rewards); } catch { }
+                            try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.OnCompleted(def, data, player); } catch { }
+                            try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
+                            Debug.Log($"[QuestPipe] Autocomplete {active.QuestId}");
+                        }
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] ApplyQuestProgressClientLocal failed: " + ex.Message); }
+        }
+
         /// <summary>Move-quest distance check (KG parity, every 3s on client). Target stored as
         /// "x,y,z" string in <c>QuestTarget.Prefab</c>; within 10m counts as one progress tick.</summary>
         public static void ApplyMoveQuestCheckLocal(long playerId, Vector3 position)
@@ -1869,18 +1995,20 @@ namespace FiresRPGmaker.Modules.Vault
                 var active = data.ActiveQuests[i];
                 var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
                 if (def == null || !string.Equals(def.QuestType, "Move", StringComparison.OrdinalIgnoreCase)) continue;
-                foreach (var t in def.QuestTargets)
+                for (int ti = 0; ti < def.QuestTargets.Count; ti++)
                 {
-                    if (active.Progress >= t.Amount) continue;
+                    var t = def.QuestTargets[ti];
+                    int cur = active.GetTargetProgress(ti, def.QuestTargets.Count);
+                    if (cur >= t.Amount) continue;
                     if (string.IsNullOrEmpty(t.Prefab)) continue;
                     var bits = t.Prefab.Split(',');
                     if (bits.Length < 3) continue;
                     if (!float.TryParse(bits[0], out var tx) || !float.TryParse(bits[1], out var ty) || !float.TryParse(bits[2], out var tz)) continue;
                     var target = new Vector3(tx, ty, tz);
                     if (Vector2.Distance(new Vector2(position.x, position.z), new Vector2(target.x, target.z)) > 10f) continue;
-                    active.Progress = Math.Min(t.Amount, active.Progress + 1);
+                    active.SetTargetProgress(ti, Math.Min(t.Amount, cur + 1), def.QuestTargets.Count);
                     anyChange = true;
-                    if (active.Progress >= t.Amount && def.Autocomplete)
+                    if (active.AllTargetsComplete(def) && def.Autocomplete)
                     {
                         data.AddCompletedQuest(active.QuestId, 1);
                         data.ActiveQuests.RemoveAt(i);
@@ -1905,6 +2033,9 @@ namespace FiresRPGmaker.Modules.Vault
         {
             try
             {
+                // Accepts/abandons are rare — log receipt unconditionally so a dropped RPC is diagnosable from logs.
+                Debug.Log($"[FiresRPGmaker] RPC_UpdateQuestFlag received from {sender} (isServer={(ZNet.instance != null && ZNet.instance.IsServer())})");
+
                 // Ensure ZNet is available
                 if (ZNet.instance == null)
                 {
@@ -2070,6 +2201,8 @@ namespace FiresRPGmaker.Modules.Vault
 
                                 if (!ok)
                                 {
+                                    // This was a fully SILENT server-side exit — log it so failed accepts are diagnosable.
+                                    Debug.Log($"[FiresRPGmaker] RPC_UpdateQuestFlag: rejecting '{questId}' for player {playerId} — missing: {string.Join(", ", missing)}");
                                     // Send rejection to requester with missing items
                                     try
                                     {
@@ -2172,15 +2305,31 @@ namespace FiresRPGmaker.Modules.Vault
                     var active = data.ActiveQuests.FirstOrDefault(q => q.QuestId == questId);
                     if (active != null)
                     {
-                        active.Progress += delta;
-
                         // refresh def if needed
                         def = QuestManager.Instance?.GetQuestDefinition(questId) ?? def;
+
+                        // Generic progress bump (no specific objective/prefab context): advance the first
+                        // not-yet-complete objective so multi-objective quests progress one at a time.
+                        if (def?.QuestTargets != null && def.QuestTargets.Count > 0)
+                        {
+                            int tc = def.QuestTargets.Count;
+                            for (int ti = 0; ti < tc; ti++)
+                            {
+                                int cur = active.GetTargetProgress(ti, tc);
+                                if (cur >= def.QuestTargets[ti].Amount) continue;
+                                active.SetTargetProgress(ti, Math.Min(def.QuestTargets[ti].Amount, cur + delta), tc);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            active.Progress += delta;
+                        }
 
                         if (def != null)
                         {
                             var target = def.QuestTargets.FirstOrDefault();
-                            if (target != null && active.Progress >= target.Amount && def.Autocomplete)
+                            if (target != null && active.AllTargetsComplete(def) && def.Autocomplete)
                             {
                                 data.AddCompletedQuest(active.QuestId, 1);
                                 data.ActiveQuests.RemoveAll(q => q.QuestId == active.QuestId);
@@ -2518,7 +2667,7 @@ namespace FiresRPGmaker.Modules.Vault
                 var sendPkg = new ZPackage();
                 data.Serialize(sendPkg);
                 SafeInvokeRoutedRPC(sender, "FiresRPGmaker_Vault_ReceivePlayerData", sendPkg);
-                Debug.Log($"[FiresRPGmaker] Responded to RequestPlayerData for {playerId} to {sender}");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Responded to RequestPlayerData for {playerId} to {sender}");
 
                 // NOTE: quest-files / QuestDB are NOT re-sent here. They're already pushed:
                 //   1. VaultPatches.RPC_PeerInfo (T+0) â€” eager SendAllQuestFilesToPeer +
@@ -2765,7 +2914,7 @@ namespace FiresRPGmaker.Modules.Vault
                 data = data ?? LoadPlayerData(idToUse);
                 data.Serialize(pkg);
                 SafeInvokeRoutedRPC(peerUid, "FiresRPGmaker_Vault_ReceivePlayerData", pkg);
-                try { Debug.Log($"[FiresRPGmaker] Sent pending player data to peer {peerUid} (ID {idToUse})"); } catch { }
+                try { FiresLogger.LogVerbose($"[FiresRPGmaker] Sent pending player data to peer {peerUid} (ID {idToUse})"); } catch { }
             }
         }
 
@@ -2789,14 +2938,21 @@ namespace FiresRPGmaker.Modules.Vault
             // An unresolved PlayerName used to fall through to "Unknown_<id>.json"
             // and get rejected downstream â€” that produced the recurring
             // "REJECTED: Cannot save file with Unknown_ prefix" + "SavePlayerData
-            // skipped/failed" warning pair. Refuse the save up here so the
-            // file-write path never even attempts a placeholder filename.
-            if (string.IsNullOrWhiteSpace(data.PlayerName))
+            // skipped/failed" warning pair. The literal "Unknown" (legacy
+            // RealmLedger default) counts as unresolved too — it sanitizes to a
+            // valid filename and previously slipped straight through this guard.
+            // Try to re-resolve the real name (player may be online); otherwise skip.
+            if (IsUnresolvedPlayerName(data.PlayerName))
             {
-                if (FiresLogger.VerboseEnabled)
-                    FiresLogger.LogVerbose(
-                        $"SavePlayerData: player {playerId} has no resolved PlayerName â€” skipping save (caller responsibility to populate PlayerName before invoking).");
-                return;
+                string resolved = TryResolvePlayerNameById(playerId);
+                if (IsUnresolvedPlayerName(resolved))
+                {
+                    if (FiresLogger.VerboseEnabled)
+                        FiresLogger.LogVerbose(
+                            $"SavePlayerData: player {playerId} has no resolvable PlayerName (had '{data.PlayerName}') â€” skipping save (caller responsibility to populate PlayerName before invoking).");
+                    return;
+                }
+                data.PlayerName = resolved;
             }
 
             // Only the server should write JSON files

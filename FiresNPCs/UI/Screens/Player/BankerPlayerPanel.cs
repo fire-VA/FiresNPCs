@@ -62,24 +62,33 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected override void OnOpen(string profileName, string npcDisplayName)
         {
             _profileName = profileName;
+            BankerNetwork.OnResult = OnBankResult;
             RebuildRows();
+            BankerNetwork.RequestBalance(_profileName);
         }
 
         protected override void Update()
         {
             base.Update();
             if (!IsOpen) return;
-            BankerInterestAccrual.Tick(Time.unscaledDeltaTime, _profileName);
             _refreshTimer += Time.unscaledDeltaTime;
             if (_refreshTimer > 5f)
             {
                 _refreshTimer = 0f;
-                // Structure is stable once built — only refresh the live numbers (no destroy/rebuild,
-                // so the +/- buttons no longer flash). Rebuild only if rows haven't been built yet
-                // (e.g. the profile loaded after the panel opened).
+                // Pull the authoritative balance from the server (this also ticks server-side interest at the
+                // profile's rate). Rebuild rows if the profile only finished loading after the panel opened.
                 if (_rows.Count == 0) RebuildRows();
-                else UpdateValues();
+                BankerNetwork.RequestBalance(_profileName);
             }
+        }
+
+        // Fired on the local client when a server reply lands (sync, deposit, or withdraw). The reply handler
+        // has already updated the cache + granted/refunded items; here we just surface the status and repaint.
+        private static void OnBankResult(string status)
+        {
+            if (_instance == null || !_instance.IsOpen) return;
+            if (!string.IsNullOrEmpty(status) && _instance._statusText != null) _instance._statusText.text = status;
+            _instance.UpdateValues();
         }
 
         /// <summary>Full row (re)build — destroys + recreates the currency rows. Called on open and when
@@ -139,6 +148,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.name = "Curr_" + currency;
             rowGo.SetActive(true);
             SetRowHeight(rowGo, 40f);
+            EnsureRowIcon(rowGo, currency);   // kg parity: show the item's icon at the left of the row
 
             int balance = BankerBalanceStore.Get(playerName, currency);
             int inventory = CountInInventory(currency);
@@ -173,8 +183,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             int room = Mathf.Max(0, limit - balance);
             if (amount > room) { _statusText.text = "Bank only has room for " + room + " more " + currency + "."; return; }
             if (!ConsumeFromInventory(player.GetInventory(), currency, amount)) { _statusText.text = "Consume failed."; return; }
-            BankerBalanceStore.Set(name, currency, balance + amount);
-            _statusText.text = "Deposited " + amount + " " + currency + ".";
+            BankerNetwork.RequestDeposit(_profileName, currency, amount);
             input.text = "";
             UpdateValues();
         }
@@ -191,11 +200,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (drop == null) { _statusText.text = "Unknown prefab '" + currency + "'."; return; }
             var inv = player.GetInventory();
             if (!inv.CanAddItem(drop.m_itemData, amount)) { _statusText.text = "No room in your inventory."; return; }
-            inv.AddItem(currency, amount, 1, 0, 0L, "");
-            BankerBalanceStore.Set(name, currency, balance - amount);
-            _statusText.text = "Withdrew " + amount + " " + currency + ".";
+            BankerNetwork.RequestWithdraw(_profileName, currency, amount);
             input.text = "";
-            UpdateValues();
         }
 
         /// <summary>KG's PutAll: sweeps every stack of every accepted currency from the player's inventory into the bank.</summary>
@@ -214,12 +220,59 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 int take = Mathf.Min(held, room);
                 if (take <= 0) continue;
                 if (!ConsumeFromInventory(inv, kv.Key, take)) continue;
-                BankerBalanceStore.Set(name, kv.Key, balance + take);
+                BankerNetwork.RequestDeposit(_profileName, kv.Key, take);
                 totalDeposited += take; currenciesTouched++;
             }
             _statusText.text = currenciesTouched == 0 ? "Nothing to deposit." :
                 "Deposited " + totalDeposited + " item(s) across " + currenciesTouched + " currency(ies).";
             UpdateValues();
+        }
+
+        // kg's Banker_UI sets each row's "Icon/IconItem" sprite from component.m_itemData.GetIcon(). Our baked
+        // row template has no icon slot, so create one on first build (left edge, 30px) and push the name label
+        // clear of it. Resolves the sprite from the item prefab (ObjectDB first, ZNetScene fallback).
+        private static Sprite ResolveItemIcon(string prefabName)
+        {
+            try
+            {
+                GameObject pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefabName) : null;
+                if (pf == null && ZNetScene.instance != null) pf = ZNetScene.instance.GetPrefab(prefabName);
+                var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
+                var icon = drop != null && drop.m_itemData != null ? drop.m_itemData.GetIcon() : null;
+                if (icon != null) return icon;
+            }
+            catch { }
+            return null;
+        }
+
+        private void EnsureRowIcon(GameObject rowGo, string prefab)
+        {
+            var iconTf = rowGo.transform.Find("Icon");
+            Image img;
+            if (iconTf == null)
+            {
+                var go = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+                go.transform.SetParent(rowGo.transform, false);
+                go.transform.SetAsFirstSibling();
+                var rt = (RectTransform)go.transform;
+                rt.anchorMin = new Vector2(0f, 0.5f); rt.anchorMax = new Vector2(0f, 0.5f); rt.pivot = new Vector2(0f, 0.5f);
+                rt.sizeDelta = new Vector2(30f, 30f);
+                rt.anchoredPosition = new Vector2(6f, 0f);
+                img = go.GetComponent<Image>();
+                img.preserveAspect = true; img.raycastTarget = false;
+                // Push the name label right so it clears the icon (only if it currently starts too far left).
+                var lbl = FindTmp(rowGo.transform, "CurrencyLabel");
+                if (lbl != null) { var lr = lbl.rectTransform; if (lr.offsetMin.x < 42f) lr.offsetMin = new Vector2(42f, lr.offsetMin.y); }
+            }
+            else img = iconTf.GetComponent<Image>() ?? iconTf.gameObject.AddComponent<Image>();
+
+            var sprite = ResolveItemIcon(prefab);
+            if (img != null)
+            {
+                img.sprite = sprite;
+                img.color = Color.white;
+                img.enabled = sprite != null;   // hide the box when no icon resolves (e.g. a non-item currency)
+            }
         }
 
         private static int CountInInventory(string prefab)

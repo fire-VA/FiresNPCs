@@ -94,7 +94,7 @@ namespace FiresRPGmaker.Managers
         private static readonly Dictionary<string, TraderProfile> _profiles = new(StringComparer.OrdinalIgnoreCase);
         private static bool _initialized;
 
-        private static string TraderProfilesFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Traders");
+        private static string TraderProfilesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.Traders);
         private static bool IsServer => ZNet.instance?.IsServer() == true;
 
         public static void Initialize()
@@ -102,7 +102,10 @@ namespace FiresRPGmaker.Managers
             if (_initialized) return;
             _initialized = true;
 
-            EnsureFolderExists();
+            // Pure clients parse the server-synced in-memory store (no config files on client disk);
+            // server/host reads + seeds its folder as before.
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
+                EnsureFolderExists();
 
             if (IsServer)
             {
@@ -117,7 +120,8 @@ namespace FiresRPGmaker.Managers
             }
 
             // Drop-in: layer Marketplace's own Trader configs (config/Marketplace/Configs/Traders) on top when present.
-            LoadMarketplaceProfiles();
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
+                LoadMarketplaceProfiles();
         }
 
         public static void Reset()
@@ -176,18 +180,15 @@ namespace FiresRPGmaker.Managers
 
         private static void LoadAllProfiles()
         {
-            if (!Directory.Exists(TraderProfilesFolder)) return;
-
-            foreach (var file in Directory.GetFiles(TraderProfilesFolder, "*.cfg"))
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("Traders"))
             {
                 try
                 {
-                    var lines = File.ReadAllLines(file);
-                    ParseProfileLines(lines, Path.GetFileName(file));
+                    ParseProfileLines(kv.Value, kv.Key);
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[TraderProfileManager] Error loading {file}: {ex.Message}");
+                    Debug.LogWarning($"[TraderProfileManager] Error loading {kv.Key}: {ex.Message}");
                 }
             }
         }

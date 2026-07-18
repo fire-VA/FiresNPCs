@@ -42,12 +42,16 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static readonly int[] DiedScore = { 5, 25, 50, 100, 500 };
         private static readonly int[] ExplThr = { 10, 25, 50, 75, 100 };
         private static readonly int[] ExplScore = { 10, 50, 100, 500, 1000 };
+        // Tool-use ladders. Terraforming/cultivating are counted per terrain tick (coalesced), so the counts climb
+        // fast — higher thresholds than the gather ladder. Cultivator is slower than the hoe, so a gentler ladder.
+        private static readonly int[] TerraformThr = { 50, 250, 1000, 5000, 15000 };
+        private static readonly int[] CultivateThr = { 10, 50, 250, 1000, 5000 };
         // Bosses: 3 tiers using ladder indices 0,2,4 (Novice/Seasoned/Master) at thresholds 1/3/5.
         private static readonly int[] BossIdx = { 0, 2, 4 };
         private static readonly int[] BossThr = { 1, 3, 5 };
 
         private static readonly HashSet<string> ModNpcNames = new(System.StringComparer.OrdinalIgnoreCase)
-        { "StaticNpc", "CompanionNpc", "CompanionNpc_Wild", "BaseNpc", "NPC", "Static Quest NPC" };
+        { "StaticNpc", "CompanionNpc", "CompanionNpc_Wild", "BaseNpc", "NPC", "Static Quest NPC", "Static NPC" };
 
         // Vanilla ships no PieceCategory -> string map; this is generator-owned.
         private static readonly Dictionary<string, string> CatName = new()
@@ -75,10 +79,11 @@ namespace FiresRPGmaker.Modules.Marketplace
             int h = WriteFile(folder, "AutoGen_Harvest.cfg", profile, BuildHarvest());
             int b = WriteFile(folder, "AutoGen_Build.cfg", profile, BuildBuild());
             int g = WriteFile(folder, "AutoGen_Generic.cfg", profile, BuildGeneric());
-            int total = m + sk + h + b + g;
+            int tu = WriteFile(folder, "AutoGen_ToolUse.cfg", profile, BuildToolUse());
+            int total = m + sk + h + b + g + tu;
 
             AchievementProfileManager.ReloadAll();
-            Say($"monsters={m} skills={sk} harvest={h} build={b} generic={g}");
+            Say($"monsters={m} skills={sk} harvest={h} build={b} generic={g} tooluse={tu}");
             Say($"-> {total} achievements under profile '{profile}' in {folder}");
             return $"generated {total} achievements (profile '{profile}'). View with: firesnpcs_achievements {profile}";
         }
@@ -188,6 +193,18 @@ namespace FiresRPGmaker.Modules.Marketplace
             return list;
         }
 
+        // Hoe + cultivator ladders. These read the leaderboard's Terraformed / Cultivated tallies (kept OUT of
+        // the build count), so terraforming a mountain earns a Landscaper tier instead of inflating "Builder".
+        private static List<Ach> BuildToolUse()
+        {
+            var list = new List<Ach>();
+            Add5(list, "Terraformed", "Landscaper", "", "", TerraformThr, GatherScore,
+                 (n, i) => "Reshaped the land " + n + " times" + Honor(i, false));
+            Add5(list, "Cultivated", "Farmer", "", "", CultivateThr, GatherScore,
+                 (n, i) => "Worked the soil " + n + " times" + Honor(i, false));
+            return list;
+        }
+
         // ---- helpers ----
 
         private static void Add5(List<Ach> list, string trigger, string role, string subject, string key,
@@ -230,7 +247,13 @@ namespace FiresRPGmaker.Modules.Marketplace
                 sb.Append(a.Score).Append('\n');
                 sb.Append('\n');
             }
-            try { File.WriteAllText(Path.Combine(folder, filename), sb.ToString()); }
+            try
+            {
+                File.WriteAllText(Path.Combine(folder, filename), sb.ToString());
+                global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig(
+                    Path.GetFileName(folder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                    filename, sb.ToString());
+            }
             catch (System.Exception ex) { Debug.LogError("[gen_achievements] write " + filename + ": " + ex.Message); }
             return achs.Count;
         }

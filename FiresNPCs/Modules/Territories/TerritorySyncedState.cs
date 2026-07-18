@@ -117,8 +117,10 @@ namespace FiresRPGmaker.Modules.Territories
         public static void Init()
         {
             EnsureRpcs();
+            bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
+            Debug.Log($"[FiresRPGmaker] TerritorySyncedState.Init — ZNet={(ZNet.instance != null)} IsServer={isServer}; {(isServer ? "loading territory ledger from disk" : "client: hydrating from per-server cache")}");
             // server loads data once
-            if (ZNet.instance != null && ZNet.instance.IsServer())
+            if (isServer)
             {
                 TerritoryLedger.Init();
             }
@@ -211,7 +213,7 @@ namespace FiresRPGmaker.Modules.Territories
                 var pkg = new ZPackage();
                 WriteClientManifest(pkg);
                 ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcRequest, pkg);
-                Debug.Log($"[FiresRPGmaker] Territory RequestFromServer sent to server (attempt {_requestRetryCount}, have {ClientTerritories.Count} in cache)");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Territory RequestFromServer sent to server (attempt {_requestRetryCount}, have {ClientTerritories.Count} in cache)");
             }
             catch (System.Exception ex)
             {
@@ -264,7 +266,7 @@ namespace FiresRPGmaker.Modules.Territories
 
             try
             {
-                string baseDir = System.IO.Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Territories");
+                string baseDir = System.IO.Path.Combine(FiresCore.Storage.FiresConfigPaths.Territories);
                 if (!System.IO.Directory.Exists(baseDir)) { pkg.Write(0); return; }
                 var files = System.IO.Directory.GetFiles(baseDir, "*.cfg", System.IO.SearchOption.AllDirectories);
                 pkg.Write(files.Length);
@@ -345,7 +347,7 @@ namespace FiresRPGmaker.Modules.Territories
                     string serverFingerprint = ComputeTerritoriesFingerprint(data);
                     if (string.Equals(clientBlobHash, serverFingerprint, StringComparison.OrdinalIgnoreCase))
                     {
-                        Debug.Log($"[FiresRPGmaker] Territory RPC_Request from {sender}: blob fingerprint matches ({data.Count} territories), sending up-to-date ack");
+                        FiresLogger.LogVerbose($"[FiresRPGmaker] Territory RPC_Request from {sender}: blob fingerprint matches ({data.Count} territories), sending up-to-date ack");
                         var ackPkg = new ZPackage();
                         ackPkg.Write(0);
                         ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcReceive, ackPkg);
@@ -355,7 +357,7 @@ namespace FiresRPGmaker.Modules.Territories
 
                 // Check if client has matching territory data by comparing config file hashes
                 bool needsUpdate = false;
-                string baseDir = System.IO.Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Territories");
+                string baseDir = System.IO.Path.Combine(FiresCore.Storage.FiresConfigPaths.Territories);
                 if (System.IO.Directory.Exists(baseDir))
                 {
                     var serverFiles = System.IO.Directory.GetFiles(baseDir, "*.cfg", System.IO.SearchOption.AllDirectories);
@@ -409,7 +411,7 @@ namespace FiresRPGmaker.Modules.Territories
                 // If client is up-to-date, send empty response to acknowledge
                 if (!needsUpdate && clientHashes.Count > 0)
                 {
-                    Debug.Log($"[FiresRPGmaker] Territory RPC_Request from {sender}: client is up-to-date ({clientHashes.Count} files match), skipping send");
+                    FiresLogger.LogVerbose($"[FiresRPGmaker] Territory RPC_Request from {sender}: client is up-to-date ({clientHashes.Count} files match), skipping send");
 
                     // Send empty acknowledgement so client knows request was processed
                     // This resets the client's retry counter
@@ -419,7 +421,7 @@ namespace FiresRPGmaker.Modules.Territories
                     return;
                 }
 
-                Debug.Log($"[FiresRPGmaker] Territory RPC_Request from {sender}: sending {data.Count} territories (client needs update)");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Territory RPC_Request from {sender}: sending {data.Count} territories (client needs update)");
                 SendTerritoryChunks(sender, data);
 
                 // Admin-only cfg sync
@@ -535,7 +537,7 @@ namespace FiresRPGmaker.Modules.Territories
                     SaveClientCacheToDisk();
 
                     sw.Stop();
-                    Debug.Log($"[FiresRPGmaker] Received {ClientTerritories.Count} territories from server (chunked) in {sw.ElapsedMilliseconds}ms. First: {(ClientTerritories.Count > 0 ? ClientTerritories[0].Name : "none")}");
+                    FiresLogger.LogVerbose($"[FiresRPGmaker] Received {ClientTerritories.Count} territories from server (chunked) in {sw.ElapsedMilliseconds}ms. First: {(ClientTerritories.Count > 0 ? ClientTerritories[0].Name : "none")}");
                     OnTerritoriesReceived();
                 }
                 return;
@@ -547,7 +549,7 @@ namespace FiresRPGmaker.Modules.Territories
                 ResetRetryState();
                 HasReceivedThisSession = true;
                 sw.Stop();
-                Debug.Log($"[FiresRPGmaker] Territory sync: client is up-to-date ({ClientTerritories.Count} territories cached)");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Territory sync: client is up-to-date ({ClientTerritories.Count} territories cached)");
 
                 // Still trigger map overlay update in case it wasn't initialized yet
                 try
@@ -572,7 +574,7 @@ namespace FiresRPGmaker.Modules.Territories
             SaveClientCacheToDisk();
 
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] Received {ClientTerritories.Count} territories from server in {sw.ElapsedMilliseconds}ms. First: {(ClientTerritories.Count > 0 ? ClientTerritories[0].Name : "none")}");
+            FiresLogger.LogVerbose($"[FiresRPGmaker] Received {ClientTerritories.Count} territories from server in {sw.ElapsedMilliseconds}ms. First: {(ClientTerritories.Count > 0 ? ClientTerritories[0].Name : "none")}");
             OnTerritoriesReceived();
         }
 
@@ -613,7 +615,7 @@ namespace FiresRPGmaker.Modules.Territories
                 Debug.LogWarning($"[FiresRPGmaker] Territory paint application after sync failed: {ex}");
             }
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] OnTerritoriesReceived post-processing took {sw.ElapsedMilliseconds}ms");
+            FiresLogger.LogVerbose($"[FiresRPGmaker] OnTerritoriesReceived post-processing took {sw.ElapsedMilliseconds}ms");
         }
 
         /// <summary>
@@ -654,7 +656,7 @@ namespace FiresRPGmaker.Modules.Territories
                 sw.Stop();
                 if (refreshed > 0)
                 {
-                    Debug.Log($"[FiresRPGmaker] RefreshLoadedHeightmaps refreshed {refreshed} heightmaps in {sw.ElapsedMilliseconds}ms");
+                    FiresLogger.LogVerbose($"[FiresRPGmaker] RefreshLoadedHeightmaps refreshed {refreshed} heightmaps in {sw.ElapsedMilliseconds}ms");
                 }
             }
             catch (Exception ex)
@@ -728,6 +730,16 @@ namespace FiresRPGmaker.Modules.Territories
                 string name = pkg.ReadString();
                 string content = pkg.ReadString();
                 if (!string.Equals(folder, "Territories", StringComparison.OrdinalIgnoreCase)) return;
+
+                // Server: only admins may write/delete territory cfgs (mirrors DialogueSyncRPC.RPC_SyncFiles).
+                // Clients receiving the server's broadcast write freely (isServer == false).
+                bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
+                if (isServer && !AdminSyncing.IsAdmin(sender))
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] Non-admin {sender} attempted territory cfg write — denied");
+                    return;
+                }
+                if (string.IsNullOrEmpty(name) || name.Contains("..") || System.IO.Path.IsPathRooted(name)) return;
 
                 string baseDir = System.IO.Path.Combine(Paths.ConfigPath, "FiresRPGmaker", folder);
                 System.IO.Directory.CreateDirectory(baseDir);
@@ -897,7 +909,7 @@ namespace FiresRPGmaker.Modules.Territories
             }
 
             if (sent > 0 || skipped > 0)
-                Debug.Log($"[FiresRPGmaker] Territory diff-sync: sent to {sent} peer(s), skipped {skipped} unchanged.");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Territory diff-sync: sent to {sent} peer(s), skipped {skipped} unchanged.");
         }
 
         private static void SendTerritoryChunks(long target, IReadOnlyList<Territory> data)
@@ -1029,7 +1041,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             try
             {
-                string cacheDir = System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "cache");
+                string cacheDir = System.IO.Path.Combine(FiresCore.Storage.FiresConfigPaths.Cache);
                 string legacyBin = System.IO.Path.Combine(cacheDir, "territories.bin");
                 if (System.IO.File.Exists(legacyBin)) System.IO.File.Delete(legacyBin);
                 string legacyHash = System.IO.Path.Combine(cacheDir, "manifests", "Territories.hash");
@@ -1044,7 +1056,7 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 string key = CurrentServerKey();
                 string file = !string.IsNullOrEmpty(key) ? $"territories_{key}.bin" : "territories_unknown.bin";
-                return System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "cache", file);
+                return System.IO.Path.Combine(FiresCore.Storage.FiresConfigPaths.Cache, file);
             }
         }
 
@@ -1097,7 +1109,7 @@ namespace FiresRPGmaker.Modules.Territories
                 for (int i = 0; i < n; i++) list.Add(Territory.Deserialize(pkg));
                 ClientTerritories = list;
                 RebuildCombinedClient();
-                Debug.Log($"[FiresRPGmaker] Loaded {ClientTerritories.Count} territories from {System.IO.Path.GetFileName(ClientCachePath)}");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Loaded {ClientTerritories.Count} territories from {System.IO.Path.GetFileName(ClientCachePath)}");
                 // No persisted fingerprint to refresh: it is computed live from the
                 // (now per-server) ClientTerritories whenever the manifest is built.
             }

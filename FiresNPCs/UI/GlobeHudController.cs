@@ -245,8 +245,8 @@ namespace FiresRPGmaker.UI
             if (_wireframeRoot != null && _wireframeRoot.activeSelf != _isResizeMode)
                 _wireframeRoot.SetActive(_isResizeMode);
 
-            // Only hide on full-screen map or build-mode piece selection
-            bool shouldShow = !Minimap.IsOpen() && !Hud.IsPieceSelectionVisible();
+            // Hide on full-screen map, build-mode piece selection, or the vanilla hide-HUD toggle (Ctrl+F3).
+            bool shouldShow = !Minimap.IsOpen() && !Hud.IsPieceSelectionVisible() && !Hud.IsUserHidden();
             if (_root.activeSelf != shouldShow)
                 _root.SetActive(shouldShow);
 

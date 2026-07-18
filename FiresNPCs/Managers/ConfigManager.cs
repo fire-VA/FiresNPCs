@@ -13,6 +13,15 @@ using FiresCore.Sync;
 
 namespace FiresRPGmaker.Managers
 {
+    /// <summary>Overhead identity display for static NPCs. HealthBar = the vanilla EnemyHud plate;
+    /// HoverName = kg-Marketplace-style raised world-space name text; Hide = nothing.</summary>
+    public enum StaticNpcNameplateMode
+    {
+        HealthBar,
+        HoverName,
+        Hide,
+    }
+
     /// <summary>
     /// Available font options for UI configuration.
     /// These names are displayed in the BepInEx config dropdown.
@@ -43,6 +52,18 @@ namespace FiresRPGmaker.Managers
 
         public bool _isProcessingSync = false;
         private FileSystemWatcher configWatcher;
+        // Stamped on every ConfigEntry write we make (SettingChanged fires on .Value sets and
+        // SaveOnConfigSet rewrites the .cfg on the same set) - lets the watcher tell our own
+        // file writes from an external/admin edit, so interactive UI writes can't loop us into
+        // endless self-reloads (+ synced-entry rebroadcasts).
+        private DateTime _lastSelfWriteUtc = DateTime.MinValue;
+        private const double SelfWriteSuppressSeconds = 3.0;
+
+        private void SelfWriteStamp(object sender, BepInEx.Configuration.SettingChangedEventArgs e)
+            => _lastSelfWriteUtc = DateTime.UtcNow;
+
+        private bool IsRecentSelfWrite()
+            => (DateTime.UtcNow - _lastSelfWriteUtc).TotalSeconds < SelfWriteSuppressSeconds;
         private bool _isShuttingDown = false;
         private DateTime _lastConfigUpdate = DateTime.MinValue;
         private Coroutine _reloadCoroutine;
@@ -53,7 +74,13 @@ namespace FiresRPGmaker.Managers
 
         // ────── Hotkeys ──────
         public ConfigEntry<KeyCode> configQuestJournalHotkey;
+        public ConfigEntry<float> configQuestBookOpenSpeed;
+        public ConfigEntry<string> configQuestRewardOverflow;
         public ConfigEntry<KeyCode> configGuildHotkey;
+        public ConfigEntry<KeyCode> configLeaderboardHotkey;
+        public ConfigEntry<bool> configLeaderboardBackgroundToggle;
+        public ConfigEntry<string> configLeaderboardBackground;
+        public ConfigEntry<string> configAchievementProfile;
 
         // ────── Guilds ──────
         public ConfigEntry<bool> configGuildsEnabled;
@@ -72,12 +99,27 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<bool> configShowGroupHud;
         public ConfigEntry<bool> configUseGlobeHud;
         public ConfigEntry<bool> configUseBookAdminUI;
+        public ConfigEntry<bool> configShowAdminHints;
+        public ConfigEntry<string> configFeedbackWebhook;
+        public ConfigEntry<float> configExtendedInteractRange;
 
         // Group HUD layout / position
         public ConfigEntry<int>   configGroupHudMaxRowsPerColumn;
         public ConfigEntry<int>   configGroupHudColumns;
         public ConfigEntry<float> configGroupHudDefaultPosX;
         public ConfigEntry<float> configGroupHudDefaultPosY;
+
+        // Quest tracker HUD (client-local personal HUD)
+        public ConfigEntry<bool>  configShowQuestTracker;
+        public ConfigEntry<float> configQuestTrackerPosX;
+        public ConfigEntry<float> configQuestTrackerPosY;
+        public ConfigEntry<bool>  configQuestTrackerCollapsed;
+        public ConfigEntry<bool>  configQuestTrackerUserPositioned;
+
+        // Territory HUD box position (client-local; drag with the pause menu open to reposition)
+        public ConfigEntry<float> configTerritoryHudPosX;
+        public ConfigEntry<float> configTerritoryHudPosY;
+        public ConfigEntry<bool> configHideMinimapBackdrop;
 
         // Companion Behavior Settings
         public ConfigEntry<float> configCompanionIdleWanderRadius;
@@ -95,11 +137,18 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<bool> configPersistentCompanions;
         public ConfigEntry<bool> configKeepZonesLoadedForOfflinePlayers;
 
-        // When true, hammer-placed static NPCs cannot be killed (immune to all damage). When false,
-        // they are killable and respawn at their placed position after 60s. Server-authoritative.
+        // Master switch (default true): when true, hammer-placed static NPCs cannot be killed (immune to all
+        // damage) AND both resurrection paths are off (no death-respawn, no reconciler auto-revive) so an admin
+        // delete is permanent. When false, they are killable + respawn at their placed position after 60s.
+        // Server-authoritative.
         public ConfigEntry<bool> configStaticNpcInvulnerable;
 
+        // Overhead display style for static NPCs: vanilla plate, kg-style hover name, or nothing.
+        public ConfigEntry<StaticNpcNameplateMode> configStaticNpcNameplateMode;
 
+        // Client-side background opacities for the dialogue + info NPC panels.
+        public ConfigEntry<float> configDialogueBgOpacity;
+        public ConfigEntry<float> configInfoBgOpacity;
 
         // ────── UI Fonts ──────
         // These allow swapping the font used for different UI text categories
@@ -153,8 +202,24 @@ namespace FiresRPGmaker.Managers
             // ────── Hotkeys ──────
             configQuestJournalHotkey = config.Bind("Hotkeys", "QuestJournalKey", KeyCode.J,
                 "Hotkey to open the Quest Journal. Set to None to disable.");
+            configQuestBookOpenSpeed = config.Bind("UI", "QuestBookOpenSpeed", 1f,
+                "Speed multiplier for the quest book's opening animation (1 = normal, 2 = twice as fast). The UI reveal delay scales with it automatically.");
+            configQuestRewardOverflow = config.Bind("Quests", "RewardOverflowDelivery", "Mail",
+                new BepInEx.Configuration.ConfigDescription(
+                    "Where quest reward items go when your inventory is FULL. Mail = mailed to you with attachments (check a mailbox), Bank = queued into your bank items (visit a banker), Ground = dropped at your feet (kg Marketplace behavior). Rewards that fit in your inventory always go there first.",
+                    new BepInEx.Configuration.AcceptableValueList<string>("Mail", "Bank", "Ground")));
             configGuildHotkey = config.Bind("Hotkeys", "GuildScreenKey", KeyCode.G,
                 "Hotkey to open the Guild screen. Set to None to disable.");
+            configLeaderboardHotkey = config.Bind("Hotkeys", "LeaderboardKey", KeyCode.L,
+                "Hotkey to open the Leaderboard. Set to None to disable.");
+            configLeaderboardBackgroundToggle = config.Bind("UI", "LeaderboardBackgroundToggle", false,
+                "If true, the Leaderboard panel uses a PNG/JPG you drop into BepInEx/config/FiresUIBackgrounds/ as its background instead of the built-in art.");
+            configLeaderboardBackground = config.Bind("UI", "LeaderboardBackground", "",
+                "Filename (e.g. parchment.png) inside BepInEx/config/FiresUIBackgrounds/. Only used when LeaderboardBackgroundToggle is on.");
+            configAchievementProfile = config.Bind("Leaderboard", "AchievementProfile", "server",
+                "Name of the achievement profile (.cfg under BepInEx/config/FiresRPGmaker/LeaderboardAchievements/) the " +
+                "leaderboard scores against. The generator writes to 'server' by default. If the named profile is empty, " +
+                "the first non-empty loaded profile is used (else 'example'). [Synced with Server]");
 
             // ────── Guilds ──────
             configGuildsEnabled = config.Bind("Guilds", "GuildsEnabled", true,
@@ -192,6 +257,17 @@ namespace FiresRPGmaker.Managers
             configUseBookAdminUI = config.Bind("UI", "UseBookAdminPanel", true,
                 "Use the new two-page parchment 'book' NPC admin config panel (structured per-module forms). " +
                 "When disabled, the legacy completecompanionsui admin panel is used instead.");
+            configShowAdminHints = config.Bind("UI", "ShowAdminHints", true,
+                "Show hover-help tooltips over admin config fields (dialogue editor, trader/banker/gambler/" +
+                "transmog/quest forms). Turn off if you already know the formats and find them distracting.");
+            configShowAdminHints.SettingChanged += (_, __) =>
+                FiresCore.UI.FiresHoverTip.Enabled = configShowAdminHints.Value;
+            FiresCore.UI.FiresHoverTip.Enabled = configShowAdminHints.Value;
+            configFeedbackWebhook = config.Bind("Feedback", "WebhookUrl", "",
+                "Discord webhook URL that /feedback posts to (with or without the https:// prefix). Empty = disabled.");
+            configExtendedInteractRange = config.Bind("UI", "ExtendedInteractRange", 0f,
+                "DistancedUI: if > 0, sets the player's max interaction distance (meters) so NPCs/objects can be " +
+                "used from further away. 0 = vanilla (~5m).");
 
             // Group HUD layout — panel stretches to fit the actual group up to MaxRowsPerColumn,
             // then becomes scrollable. Columns 1 = single list, 2 = side-by-side.
@@ -207,6 +283,28 @@ namespace FiresRPGmaker.Managers
             configGroupHudDefaultPosY = config.Bind("UI.GroupHud", "DefaultPosY", -200f,
                 "Default panel Y offset from the screen's top-right anchor (negative = below anchor). " +
                 "Used when the player has not yet dragged the panel, and when ResetPosition is invoked.");
+
+            // Quest tracker HUD — right side, under the territory box. Client-local personal HUD.
+            configShowQuestTracker = config.Bind("UI.QuestTracker", "ShowQuestTracker", true,
+                "Show the on-screen quest tracker (right side, under the territory box). Hides when you have no accepted quests and on the vanilla Ctrl+F3 hide-HUD toggle.");
+            configQuestTrackerPosX = config.Bind("UI.QuestTracker", "PosX", -12f,
+                "Quest tracker X offset from the screen's top-right anchor. Set by dragging the panel with the pause menu open.");
+            configQuestTrackerPosY = config.Bind("UI.QuestTracker", "PosY", -410f,
+                "Quest tracker Y offset from the screen's top-right anchor (negative = below anchor). Set by dragging the panel with the pause menu open.");
+            configQuestTrackerCollapsed = config.Bind("UI.QuestTracker", "Collapsed", false,
+                "When true the tracker starts collapsed to just the book icon; click the icon to expand. Toggling in-game persists here.");
+            configQuestTrackerUserPositioned = config.Bind("UI.QuestTracker", "UserPositioned", false,
+                "Once you drag the tracker it stops auto-stacking under the group HUD and stays where you dropped it (PosX/PosY). " +
+                "Set back to false to resume auto-stacking below the group HUD.");
+
+            // Territory HUD box — drag to reposition with the pause menu open.
+            configTerritoryHudPosX = config.Bind("UI.Territory", "HudPosX", -8f,
+                "Territory box X offset from the minimap's bottom-right anchor. Set by dragging with the pause menu open.");
+            configTerritoryHudPosY = config.Bind("UI.Territory", "HudPosY", -8f,
+                "Territory box Y offset from the minimap's bottom-right anchor. Set by dragging with the pause menu open.");
+            configHideMinimapBackdrop = config.Bind("UI.Territory", "HideMinimapBackdrop", true,
+                "Hide the faint square backdrop (Unity's InputFieldBackground sprite) baked into the small minimap prefab, " +
+                "whose corners poke past the circular map and read as an empty box behind the territory UI. Vanilla code never uses it.");
 
             // Companion Behavior Settings
             configCompanionIdleWanderRadius = config.Bind("Companions.Behavior", "IdleWanderRadius", 20f,
@@ -260,11 +358,27 @@ namespace FiresRPGmaker.Managers
                 "to total tamed-companion count. Disable for low-spec servers; companions still " +
                 "persist as dormant ZDOs and reanimate when somebody is nearby. [Synced with Server]");
 
-            configStaticNpcInvulnerable = config.Bind("Companions.StaticNpcs", "StaticNpcInvulnerable", false,
-                "When enabled, hammer-placed static NPCs are invulnerable — they cannot be killed by " +
-                "combat, the K/killall debug commands, or anything else. When disabled (default), static " +
-                "NPCs are killable and automatically respawn at their placed position after 60 seconds. " +
-                "Admin-controlled, server-authoritative. [Synced with Server]");
+            configStaticNpcInvulnerable = config.Bind("Companions.StaticNpcs", "StaticNpcInvulnerable", true,
+                "The master switch for whether hammer-placed static NPCs can die. When enabled (default), " +
+                "static NPCs are invulnerable — they cannot be killed by combat, the K/killall debug commands, " +
+                "or anything else — AND the death-respawn + never-vanish auto-revive are both OFF, so an admin " +
+                "hammer-delete stays permanent no matter which tool removed it. When disabled, static NPCs are " +
+                "killable and automatically respawn at their placed position after 60 seconds (the old behavior, " +
+                "kept so the respawn method can be refined later). Admin-controlled, server-authoritative. [Synced with Server]");
+
+            configStaticNpcNameplateMode = config.Bind("Companions.StaticNpcs", "NameplateStyle", StaticNpcNameplateMode.HealthBar,
+                "How static NPCs display their overhead identity. HealthBar = the vanilla floating plate " +
+                "(name + health bar; each NPC's hide/TextSize/TextHeight settings still apply). HoverName = " +
+                "the Marketplace-style raised world-space name text above the head (the vanilla plate is fully " +
+                "hidden; each NPC's TextSize/TextHeight tune the label exactly like kg's). Hide = no overhead " +
+                "display at all. Applies live, no restart needed. [Synced with Server]");
+
+            configDialogueBgOpacity = config.Bind("UI.Dialogue", "DialogueBackgroundOpacity", 1.0f,
+                "Background opacity of the NPC dialogue panel (0.1 = nearly transparent, 1.0 = solid). " +
+                "Per-player visual preference; applies the next time a dialogue opens.");
+            configInfoBgOpacity = config.Bind("UI.Dialogue", "InfoBackgroundOpacity", 1.0f,
+                "Background opacity of the Info NPC panel (0.1 = nearly transparent, 1.0 = solid). " +
+                "Per-player visual preference; applies the next time the panel opens.");
 
             // ────── UI Fonts ──────
             // Font options appear as dropdowns in config managers
@@ -373,6 +487,9 @@ namespace FiresRPGmaker.Managers
             string directory = Path.GetDirectoryName(configPath);
             string fileName = Path.GetFileName(configPath);
 
+            config.SettingChanged -= SelfWriteStamp;
+            config.SettingChanged += SelfWriteStamp;
+
             configWatcher = new FileSystemWatcher
             {
                 Path = directory,
@@ -384,6 +501,7 @@ namespace FiresRPGmaker.Managers
             configWatcher.Changed += (sender, e) =>
             {
                 if (_isShuttingDown || ConfigSync.ProcessingServerUpdate) return;
+                if (IsRecentSelfWrite()) return;
                 if (_reloadCoroutine != null) return;
                 _reloadCoroutine = FiresRPGmaker.Instance.StartCoroutine(ReloadConfigAfterDelay());
             };
@@ -391,6 +509,7 @@ namespace FiresRPGmaker.Managers
             configWatcher.Renamed += (sender, e) =>
             {
                 if (_isShuttingDown || ConfigSync.ProcessingServerUpdate) return;
+                if (IsRecentSelfWrite()) return;
                 if (_reloadCoroutine != null) return;
                 _reloadCoroutine = FiresRPGmaker.Instance.StartCoroutine(ReloadConfigAfterDelay());
             };
@@ -406,6 +525,7 @@ namespace FiresRPGmaker.Managers
                 yield break;
             }
 
+            if (IsRecentSelfWrite()) { _reloadCoroutine = null; yield break; }
             if ((DateTime.Now - _lastConfigUpdate).TotalMilliseconds < 2000)
             {
                 _reloadCoroutine = null;

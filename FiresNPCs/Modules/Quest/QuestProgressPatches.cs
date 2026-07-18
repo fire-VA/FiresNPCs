@@ -299,7 +299,12 @@ namespace FiresRPGmaker.Modules.Quest
                                         var kind = target is Player
                                             ? Marketplace.LeaderboardStat.KilledPlayer
                                             : Marketplace.LeaderboardStat.KilledCreature;
-                                        Marketplace.LeaderboardServerFeed.Send(kind, creditName, statKey, 1);
+                                        // Feed the leaderboard with the RAW prefab name (PascalCase, e.g. "Greydwarf"),
+                                        // NOT the lowercased m_name token used for the internal kills.<statKey> stat above.
+                                        // The leaderboard's KilledCreatures key must equal AchievementDef.Prefab (the
+                                        // generator writes prefab.name) or every MonstersKilled achievement reads 0.
+                                        // (For KilledPlayer the server hardcodes the "Player" key, so this arg is ignored.)
+                                        Marketplace.LeaderboardServerFeed.Send(kind, creditName, prefab, 1);
                                     }
                                 }
                                 catch { }
@@ -422,10 +427,12 @@ namespace FiresRPGmaker.Modules.Quest
                                         var local = Player.m_localPlayer;
                                         if (local != null && local.GetPlayerID() == playerId && vaultData != null)
                                         {
-                                            // Only increment if below required amount
-                                            if (active.Progress < targetDef.Amount)
+                                            // Only increment if this objective is below its required amount
+                                            int optIdx = def.QuestTargets.IndexOf(targetDef);
+                                            int optCur = active.GetTargetProgress(optIdx, def.QuestTargets.Count);
+                                            if (optCur < targetDef.Amount)
                                             {
-                                                active.Progress++;
+                                                active.SetTargetProgress(optIdx, optCur + 1, def.QuestTargets.Count);
                                                 // write into local customData so DeserializeFromCustomData will reflect change.
                                                 // Optimistic â€” server resyncs via RPC_ReceivePlayerData if this gets dropped.
                                                 var capturedVaultData = vaultData;
@@ -457,19 +464,21 @@ namespace FiresRPGmaker.Modules.Quest
                                 // If we're running as server/host, apply change authoritatively
                                 try
                                 {
-                                    // Only increment server-side if we haven't already reached the required amount
-                                    if (active.Progress < targetDef.Amount)
+                                    // Only increment server-side if this objective hasn't reached its required amount
+                                    int srvIdx = def.QuestTargets.IndexOf(targetDef);
+                                    int srvCur = active.GetTargetProgress(srvIdx, def.QuestTargets.Count);
+                                    if (srvCur < targetDef.Amount)
                                     {
-                                        active.Progress++;
+                                        active.SetTargetProgress(srvIdx, srvCur + 1, def.QuestTargets.Count);
                                         anyChange = true;
                                         if (FiresLogger.VerboseEnabled)
                                         {
                                             string killerInfo = killingCompanion != null ? $"companion {killingCompanion.GetDisplayName()}" : "player";
-                                            FiresLogger.LogVerbose($"Server applied progress +1 for quest {active.QuestId}: now {active.Progress}/{targetDef.Amount} (killer: {killerInfo})");
+                                            FiresLogger.LogVerbose($"Server applied progress +1 for quest {active.QuestId} objective {srvIdx}: now {active.GetTargetProgress(srvIdx, def.QuestTargets.Count)}/{targetDef.Amount} (killer: {killerInfo})");
                                         }
 
-                                        // If reached required amount, handle completion for autocomplete quests
-                                        if (active.Progress >= targetDef.Amount)
+                                        // If ALL objectives are now complete, handle completion for autocomplete quests
+                                        if (active.AllTargetsComplete(def))
                                         {
                                             if (def.Autocomplete)
                                             {

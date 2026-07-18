@@ -733,7 +733,32 @@
       "PowerShell($p = Get-Command python -ErrorAction SilentlyContinue; if \\($p\\) { & $p.Source --version } else { \"no python\" }; Get-ChildItem C:\\\\ -Filter \"python.exe\" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 3 FullName)",
       "Bash(xxd)",
       "Bash(grep -a -A1 -E \"m_BoneName: \\(Spine|Spine1|Spine2|LeftArm|LeftUpLeg|LeftLeg|Neck|Head|Jaw\\)$\" player_femAvatar.asset)",
-      "Bash(grep -v \"/\\\\.vs\\\\|/bin\\\\|/obj\\\\|/packages\")"
+      "Bash(grep -v \"/\\\\.vs\\\\|/bin\\\\|/obj\\\\|/packages\")",
+      "Bash(echo \"=== type/method names the HU DLL references \\(what it patches\\) ===\")",
+      "Bash(strings -n 5 '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/Verdants Ascent 2026/BepInEx/plugins/Digitalroot-Heightmap_Unlimited_Remake/HeightmapUnlimited.dll')",
+      "Bash(cygpath -w '/c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/Verdants Ascent 2026/BepInEx/plugins/Digitalroot-Heightmap_Unlimited_Remake/HeightmapUnlimited.dll')",
+      "Bash(powershell.exe -NoProfile -Command '$b=[IO.File]::ReadAllBytes\\('\\\\''__CMDSUB_OUTPUT__'\\\\''\\); $s=\\([Text.Encoding]::ASCII.GetString\\($b\\) -split '\\\\''[^\\\\x20-\\\\x7E]+'\\\\''\\) | Where-Object { $_.Length -ge 5 } | Where-Object { $_ -match '\\\\''ZoneSystem|CreateObjects|activeArea|CreateLocalZones|Heightmap|TerrainComp|TerrainModifier|ApplyOperation|SetActiveArea|Clamp|GenerateClamp|PokeLocalZone|Patch|HarmonyPatch'\\\\'' } | Sort-Object -Unique; $s | Select-Object -First 40')",
+      "Bash(cygpath -w /c/Users/travi/AppData/Roaming/r2modmanPlus-local/Valheim/profiles/BlueHills/BepInEx/plugins/JereKuusela-Render_Limits/RenderLimits.dll)",
+      "Bash(powershell.exe -NoProfile -Command '$b=[IO.File]::ReadAllBytes\\('\\\\''__CMDSUB_OUTPUT__'\\\\''\\); \\(\\([Text.Encoding]::ASCII.GetString\\($b\\) -split '\\\\''[^\\\\x20-\\\\x7E]+'\\\\''\\) | Where-Object { $_.Length -ge 5 -and $_ -match '\\\\''ZoneSystem|activeArea|activeDistantArea|m_active|Heightmap|ZNetScene|CreateObjects|Patch|Awake|Start|m_load|RenderDistance|ObjectsDistance|terrain'\\\\'' }\\) | Sort-Object -Unique | Select-Object -First 50')",
+      "Bash(awk '/^\\\\* v1\\\\.3\\\\.8/{f=1} /^\\\\* v1\\\\.3\\\\.7/{f=0} f' C:/Users/travi/OneDrive/Desktop/FiresModsRelease/FiresGhettoNetworking/thunderstore/CHANGELOG.md)",
+      "Bash('/c/Program Files/GitHub CLI/gh.exe' release edit v1.3.8 --repo fire-VA/FiresGhettoNetworking --notes-file /tmp/fgn138.md)",
+      "Bash(sed -i 's/PluginVersion = \"0.6.10\"/PluginVersion = \"0.6.11\"/' Ascend.cs)",
+      "Bash(sed -i 's/\"version_number\": \"0.6.10\"/\"version_number\": \"0.6.11\"/' ../_package/manifest.json)",
+      "Bash(cd /d \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\")",
+      "Bash(findstr /r /s \"MovementRampConfig.Initialize\" *.cs)",
+      "Bash(grep -n \"Npc\\\\\\\\\\\\\\\\Patrol\\\\|PatrolRoute.cs\\\\|PatrolAssignment.cs\\\\|CompanionSpeedRamp.cs\\\\|DbsmEnvelope\\\\|PatrolSpeedState\" ./FiresUnifiedCore/FiresUnifiedCore/FiresUnifiedCore.csproj)",
+      "Bash(grep -n \"Compile Include=\\\\\"Modules\\\\\\\\\\\\\\\\Spectator\\\\|Compile Include=\\\\\"Modules\\\\\\\\\\\\\\\\FreeCam\\\\|Compile Include=\\\\\"Modules\\\\\\\\\\\\\\\\Podcast\" FiresValcast.csproj)",
+      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\\\\FiresUnifiedCore\\\\FiresUnifiedCore.csproj\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /clp:ErrorsOnly /v:m; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\FiresRPGmaker.csproj\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /clp:ErrorsOnly /v:m; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresUnifiedCore\\\\FiresUnifiedCore\\\\FiresUnifiedCore.csproj\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /clp:ErrorsOnly /v:m; \"CORE_EXIT=$LASTEXITCODE\")",
+      "PowerShell($msb = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\"; & $msb \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresNPCs\\\\FiresNPCs\\\\FiresRPGmaker.csproj\" /p:Configuration=Release /p:UseSharedCompilation=false /nodeReuse:false /m:1 /clp:ErrorsOnly /v:m; \"RPG_EXIT=$LASTEXITCODE\")",
+      "Bash(grep -n \"Npc\\\\\\\\\\\\\\\\Patrol\\\\\\\\\\\\\\\\Patrol\" ./FiresUnifiedCore/FiresUnifiedCore/FiresUnifiedCore.csproj)",
+      "Bash(cp -f __TRACKED_VAR__/FiresRPGmaker.dll __TRACKED_VAR__/FiresRPGmaker.dll)",
+      "Bash([ -f \"$SRC/FiresRPGmaker.pdb\" ])",
+      "Bash(cp -f __TRACKED_VAR__/FiresRPGmaker.pdb __TRACKED_VAR__/FiresRPGmaker.pdb)",
+      "Bash(cd \"/c/Users/travi/OneDrive/Desktop/valheimRip2/FiresValcast/FiresValcast\" *)",
+      "Bash(ls -d \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\"/Fires* 2>/dev/null | head -20)",
+      "Bash(awk 'NR>=660 && NR<=830' \"C:\\\\Users\\\\travi\\\\OneDrive\\\\Desktop\\\\valheimRip2\\\\FiresAdminTerrain\\\\FiresAdminTerrain\\\\Modules\\\\CustomWater\\\\Core\\\\WaterCombinerCache.cs\")"
     ]
   }
 }

@@ -33,6 +33,10 @@ namespace FiresRPGmaker.Modules.Guilds.GuildChat
         {
             if (string.IsNullOrWhiteSpace(input)) return false;
 
+            // Defer to an external guild mod (TDV / FiresGuilds): don't intercept /g when RPG Maker's guild
+            // is stood down, or this would answer "not in a guild" for a guild owned by the other system.
+            if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred) return false;
+
             string trimmed = input.Trim();
             string text    = null;
 

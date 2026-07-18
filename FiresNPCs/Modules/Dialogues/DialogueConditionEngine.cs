@@ -198,6 +198,10 @@ namespace FiresRPGmaker.Modules.Dialogues
                 case "notmodinstalled":             return CheckModInstalled(parts, true);
                 case "irongatestatmore":            return CheckIronGateStat(parts, true);
                 case "irongatestatless":            return CheckIronGateStat(parts, false);
+                case "hasfaction":                  return CheckHasFaction(parts, false);
+                case "nothasfaction":               return CheckHasFaction(parts, true);
+                case "hasanyfaction":               return CheckHasAnyFaction(false);
+                case "nothasanyfaction":            return CheckHasAnyFaction(true);
                 default:
                     Debug.LogWarning($"[DialogueConditionEngine] Unknown condition type: {typeName}");
                     return ConditionResult.Pass();
@@ -261,10 +265,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             try
             {
-                // VikingLands.Core owns guilds → ask it; otherwise our own GuildAPI.
-                bool hasGuild = global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally
-                    ? global::FiresRPGmaker.RpgMakerApi.LocalGuildName() != null
-                    : GuildAPI.GetOwnGuild() != null;
+                bool hasGuild = FiresCore.Bridge.GuildBridge.LocalGuildName() != null;
                 return hasGuild != invert ? ConditionResult.Pass() : ConditionResult.Fail(invert ? "Must not be in a guild" : "Must be in a guild");
             }
             catch { return ConditionResult.Pass(); }
@@ -276,9 +277,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             string target = parts[1].Trim();
             try
             {
-                string guildName = global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally
-                    ? global::FiresRPGmaker.RpgMakerApi.LocalGuildName()
-                    : GuildAPI.GetOwnGuild()?.Name;
+                string guildName = FiresCore.Bridge.GuildBridge.LocalGuildName();
                 bool match = guildName != null && string.Equals(guildName, target, StringComparison.OrdinalIgnoreCase);
                 return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Need to be in guild '{target}'");
             }
@@ -301,11 +300,16 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckIsVIP(Player player, bool invert)
         {
-            // VIP === admin for now (no separate VIP tier yet). Matches KG behavior on servers without VIP cfg.
-            bool isAdmin = false;
-            try { isAdmin = global::FiresRPGmaker.FiresRPGmaker.Instance?.configSync?.IsAdmin == true; } catch { }
-            if (ZNet.instance != null && ZNet.instance.IsServer()) isAdmin = true;
-            return isAdmin != invert ? ConditionResult.Pass() : ConditionResult.Fail(invert ? "Cannot be VIP" : "VIP required");
+            // The real VIP list (MarketPlace.cfg VIPplayersList, synced) — admins are also treated as
+            // VIP so a server owner testing a VIP branch always sees it.
+            bool isVip = false;
+            try { isVip = global::FiresRPGmaker.Modules.Marketplace.VipManager.IsLocalPlayerVip(); } catch { }
+            if (!isVip)
+            {
+                try { isVip = global::FiresRPGmaker.FiresRPGmaker.Instance?.configSync?.IsAdmin == true; } catch { }
+                if (ZNet.instance != null && ZNet.instance.IsServer()) isVip = true;
+            }
+            return isVip != invert ? ConditionResult.Pass() : ConditionResult.Fail(invert ? "Cannot be VIP" : "VIP required");
         }
 
         private static ConditionResult CheckNpcModelEquals(string[] parts, bool invert)
@@ -327,7 +331,19 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static ConditionResult CheckCustomDataKeys(Player player, string[] parts, bool requireAll, bool invert)
         {
             if (parts.Length < 2 || player == null) return ConditionResult.Pass();
-            // Keys are comma-OR-semicolon separated in parts[1] (or each as its own part).
+
+            // MP semantics first (drop-in): parts[1] names a CustomSpawnData blob whose entries are
+            // compared against the player's ZDO; parts[2] is the failure reason shown to the player.
+            if (CustomSpawnDataStore.TryGet(parts[1].Trim().ToLowerInvariant(), out var blob))
+            {
+                var view = player.GetComponent<ZNetView>();
+                var zdo = view != null && view.IsValid() ? view.GetZDO() : null;
+                bool matches = zdo != null && blob.MatchesZdo(zdo, requireAll);
+                string why = parts.Length > 2 ? parts[2].Trim() : $"Requires player data '{parts[1].Trim()}'";
+                return matches != invert ? ConditionResult.Pass() : ConditionResult.Fail(why);
+            }
+
+            // Fires fallback: a plain key list checked for presence in m_customData.
             var keys = new List<string>();
             for (int i = 1; i < parts.Length; i++)
                 keys.AddRange(parts[i].Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries));
@@ -349,6 +365,25 @@ namespace FiresRPGmaker.Modules.Dialogues
             string guid = parts[1].Trim();
             bool installed = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(guid);
             return installed != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Mod {(invert ? "must not be" : "required")}: {guid}");
+        }
+
+        private static ConditionResult CheckHasFaction(string[] parts, bool invert)
+        {
+            if (parts.Length < 2) return ConditionResult.Pass();
+            string want = parts[1].Trim();
+            string have = global::FiresRPGmaker.Modules.Factions.FactionMembership.LocalFactionId();
+            bool match = have != null && string.Equals(have, want, StringComparison.OrdinalIgnoreCase);
+            var f = global::FiresRPGmaker.Modules.Factions.FactionManager.Get(want);
+            string label = f != null ? f.Name : want;
+            return match != invert ? ConditionResult.Pass()
+                : ConditionResult.Fail(invert ? $"Must not be in {label}" : $"Requires faction: {label}");
+        }
+
+        private static ConditionResult CheckHasAnyFaction(bool invert)
+        {
+            bool any = global::FiresRPGmaker.Modules.Factions.FactionMembership.LocalFaction() != null;
+            return any != invert ? ConditionResult.Pass()
+                : ConditionResult.Fail(invert ? "Must not be in a faction" : "Must be in a faction");
         }
 
         private static ConditionResult CheckIronGateStat(string[] parts, bool more)
@@ -565,6 +600,9 @@ namespace FiresRPGmaker.Modules.Dialogues
             var nview = player.GetComponent<ZNetView>();
             if (nview != null && nview.IsValid())
                 current = nview.GetZDO().GetInt(key);
+            // MP characters carry their values in m_customData ("kgMarketplaceValue@<key>") — the
+            // AddCustomValue/SetCustomValue verbs write there too. Honor whichever store is higher.
+            current = Mathf.Max(current, DialogueCommandEngine.GetMpCustomValue(player, key));
 
             if (moreOrEqual)
                 return current >= threshold

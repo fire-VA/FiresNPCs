@@ -52,15 +52,11 @@ namespace FiresRPGmaker.Modules.Quest
                 Debug.LogWarning("[QuestLifecycle] TransferComplition target '" + def.TransferComplition + "' not found in quest registry");
                 return;
             }
-            if (data != null)
+            // kg-parity: chain follow-up is a client-local per-quest accept (idempotent).
+            if (!global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.HasQuest(next.QuestId))
             {
-                // Don't double-add if the chain-quest is already active or finished today.
-                bool alreadyActive = data.ActiveQuests.Exists(a => string.Equals(a.QuestId, next.QuestId, StringComparison.OrdinalIgnoreCase));
-                if (!alreadyActive)
-                {
-                    data.ActiveQuests.Add(new ActiveQuestData { QuestId = next.QuestId, Progress = 0, StartedAt = DateTime.UtcNow });
-                    Fire(next, EventOnAccept); // chain-accept counts as an Accept for the follow-up
-                }
+                global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Accept(next.QuestId, next);
+                Fire(next, EventOnAccept); // chain-accept counts as an Accept for the follow-up
             }
             if (!string.IsNullOrEmpty(def.TransferComplitionText))
                 try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, def.TransferComplitionText); } catch { }

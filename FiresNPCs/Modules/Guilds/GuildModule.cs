@@ -26,7 +26,7 @@ namespace FiresRPGmaker.Modules.Guilds
 
         public static void Initialize()
         {
-            Debug.Log($"{LogPrefix} Initialize() entered — _initialized={_initialized}, ZRoutedRpc.instance={(ZRoutedRpc.instance != null ? "ready" : "NULL")}, ZNet.instance={(ZNet.instance != null ? (ZNet.instance.IsServer() ? "server" : "client") : "NULL")}");
+            FiresLogger.LogVerbose($"{LogPrefix} Initialize() entered — _initialized={_initialized}, ZRoutedRpc.instance={(ZRoutedRpc.instance != null ? "ready" : "NULL")}, ZNet.instance={(ZNet.instance != null ? (ZNet.instance.IsServer() ? "server" : "client") : "NULL")}");
 
             // Always call through to GuildSyncManager.Initialize — it owns the
             // logic for "did the ZRoutedRpc instance change since last
@@ -60,9 +60,9 @@ namespace FiresRPGmaker.Modules.Guilds
 
             // VikingLands.Core (TDV) owns guilds — don't stand up our guild UI (screen + G hotkey) or
             // chat channel; they'd duplicate TDV's. Our guild-dependent features read TDV via RpgMakerApi.
-            if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.Present)
+            if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
             {
-                Debug.Log($"{LogPrefix} Client UI SKIPPED — VikingLands.Core owns guilds.");
+                Debug.Log($"{LogPrefix} Client UI SKIPPED — an external guild mod (TDV/FiresGuilds) owns guilds.");
                 return;
             }
 

@@ -36,7 +36,7 @@ namespace FiresRPGmaker.UI
   private static readonly Dictionary<string, QuestProfile> _profiles = new(StringComparer.OrdinalIgnoreCase);
 private static bool _initialized;
 
-        private static string QuestProfilesFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "QuestProfiles");
+        private static string QuestProfilesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestProfiles);
       private static string DefaultProfilesFile => Path.Combine(QuestProfilesFolder, "QuestProfiles.cfg");
 
         /// <summary>
@@ -58,8 +58,28 @@ private static bool _initialized;
        }
             else
       {
-                  FiresLogger.LogVerbose("[QuestProfileManager] Client initialized - waiting for profile data from server");
+                // Client: read the server-synced in-memory config store (with disk fallback) — the SAME path
+                // QuestManager.LoadQuestDatabase uses for "Quests". The old "wait for an RPC push" left clients
+                // with zero profiles when the push didn't land (bounty board "no quests available").
+                LoadFromSyncedStore();
+                Debug.Log($"[QuestProfileManager] Client loaded {_profiles.Count} quest profiles from synced store");
            }
+        }
+
+        // Loads profiles from the server-synced in-memory config store (falls back to client disk if the RAM
+        // copy isn't populated yet). Mirrors QuestManager.LoadQuestDatabase's "Quests" read so profiles reach
+        // clients the same reliable way the quest DB does.
+        private static void LoadFromSyncedStore()
+        {
+            try
+            {
+                foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("QuestProfiles"))
+                {
+                    try { ParseProfileLines(kv.Value, System.IO.Path.GetFileName(kv.Key) ?? string.Empty); }
+                    catch { }
+                }
+            }
+            catch (System.Exception ex) { Debug.LogWarning($"[QuestProfileManager] LoadFromSyncedStore failed: {ex.Message}"); }
         }
 
     public static void Reload()
@@ -72,7 +92,8 @@ private static bool _initialized;
             // spam and races with in-memory RPC data.
             if (!IsServer)
             {
-                FiresLogger.LogVerbose("[QuestProfileManager] Reload skipped on client (data comes from server RPC)");
+                LoadFromSyncedStore();
+                FiresLogger.LogVerbose($"[QuestProfileManager] Client reloaded {_profiles.Count} profiles from synced store");
                 return;
             }
 
@@ -98,12 +119,43 @@ public static void ApplyProfileDataFromServer(string fileName, string fileConten
 var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
          ParseProfileLines(lines, fileName);
 
-  FiresLogger.LogVerbose($"[QuestProfileManager] Applied in-memory profile file {fileName}; profiles={_profiles.Count}");
+  Debug.Log($"[QuestProfileManager] Applied in-memory profile file {fileName}; profiles={_profiles.Count}");
         }
 
    /// <summary>
       /// Parses profile lines from content (used by both server file loading and client RPC receiving).
         /// </summary>
+        // Splits "id1, id2 ; id3" (or a single bare id) into individual quest IDs, de-duped. Returns count added.
+        private static int AddQuestIds(QuestProfile profile, string raw)
+        {
+            if (profile == null || string.IsNullOrEmpty(raw)) return 0;
+            int added = 0;
+            foreach (var part in raw.Split(',', ';'))
+            {
+                var id = part.Trim();
+                if (id.Length == 0) continue;
+                if (!profile.QuestIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+                {
+                    profile.QuestIds.Add(id);
+                    added++;
+                }
+            }
+            return added;
+        }
+
+        /// <summary>
+        /// Resolves the profile an NPC offers (strict kg parity — mirrors kg's <c>GET_NPC_Profile</c>, which
+        /// returns "default" when the ZDO key is empty). Explicit profile if set (with any kg "=Flag" suffix
+        /// stripped, e.g. "botanistbuy_mp=True" → "botanistbuy_mp"); otherwise "default". The migration seeds
+        /// this at swap time, so this runtime pass mainly covers NPCs placed before the pipeline fix.
+        /// </summary>
+        public static string ResolveProfileName(string explicitProfile, string npcName)
+        {
+            if (string.IsNullOrEmpty(explicitProfile)) return "default";
+            int eq = explicitProfile.IndexOf('=');
+            return (eq > 0 ? explicitProfile.Substring(0, eq) : explicitProfile).Trim();
+        }
+
         private static void ParseProfileLines(string[] lines, string sourceName)
         {
    QuestProfile currentProfile = null;
@@ -176,17 +228,18 @@ var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmp
             case "required_item":
                 currentProfile.RequiredItem = value;
  break;
+            case "quests":
+            case "quest":
+                // kg format: "Quests = id1, id2, id3". Split into individual IDs.
+                questsAdded += AddQuestIds(currentProfile, value);
+ break;
       }
        }
      else
                  {
-            // Plain quest ID - just the name on a line
-                            if (!currentProfile.QuestIds.Contains(line, StringComparer.OrdinalIgnoreCase))
-           {
-           currentProfile.QuestIds.Add(line);
-       questsAdded++;
-             FiresLogger.LogVerbose($"[QuestProfileManager] Added quest '{line}' to profile '{currentProfile.Name}'");
-           }
+            // Plain quest ID(s): one per line, OR comma/semicolon-separated on one line
+            // (kg's QuestProfiles.cfg uses "id1, id2, id3" with no "Quests=" prefix). Split either way.
+                            questsAdded += AddQuestIds(currentProfile, line);
       }
       }
             }
@@ -206,6 +259,8 @@ var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmp
         public static QuestProfile GetProfile(string profileName)
         {
             if (!_initialized) Initialize();
+            // Client lazy-retry: the synced store may not have been populated when Initialize first ran.
+            if (!IsServer && _profiles.Count == 0) LoadFromSyncedStore();
 
    if (string.IsNullOrEmpty(profileName))
             return null;
@@ -246,6 +301,7 @@ var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmp
       public static List<string> GetAllProfileNames()
         {
             if (!_initialized) Initialize();
+            if (!IsServer && _profiles.Count == 0) LoadFromSyncedStore();
             return _profiles.Keys.ToList();
 }
 
@@ -281,11 +337,7 @@ var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmp
          return;
 
   // Only server can modify profiles
-          if (!IsServer)
-  {
-      Debug.LogWarning("[QuestProfileManager] Client cannot add quests to profiles - server only operation");
-        return;
-  }
+          // (client edits are pushed to the server, which validates admin)
 
         // Get or create profile
           if (!_profiles.TryGetValue(profileName, out var profile))
@@ -308,6 +360,20 @@ if (!profile.QuestIds.Contains(questId, StringComparer.OrdinalIgnoreCase))
     SaveProfilesToFile(profile.SourceFile ?? DefaultProfilesFile);
         }
 
+        /// <summary>Removes a quest from a profile (admin book right-click). Persists + pushes to the
+        /// server through the same SaveProfilesToFile path as adds. Returns false if it wasn't there.</summary>
+        public static bool RemoveQuestFromProfile(string profileName, string questId)
+        {
+            if (!_initialized) Initialize();
+            if (string.IsNullOrEmpty(profileName) || string.IsNullOrEmpty(questId)) return false;
+            if (!_profiles.TryGetValue(profileName, out var profile) || profile?.QuestIds == null) return false;
+            int removed = profile.QuestIds.RemoveAll(q => string.Equals(q, questId, StringComparison.OrdinalIgnoreCase));
+            if (removed <= 0) return false;
+            SaveProfilesToFile(profile.SourceFile ?? DefaultProfilesFile);
+            Debug.Log($"[QuestProfileManager] Removed '{questId}' from profile '{profileName}'");
+            return true;
+        }
+
   /// <summary>
         /// Ensures a profile exists. Creates it if it doesn't.
         /// Only works on server.
@@ -320,11 +386,7 @@ if (!profile.QuestIds.Contains(questId, StringComparer.OrdinalIgnoreCase))
      return;
 
          // Only server can create profiles
-          if (!IsServer)
- {
-              Debug.LogWarning("[QuestProfileManager] Client cannot create profiles - server only operation");
-            return;
-      }
+          // (client edits are pushed to the server, which validates admin)
 
             if (!_profiles.ContainsKey(profileName))
             {
@@ -408,11 +470,7 @@ return;
         /// </summary>
      private static void SaveProfilesToFile(string filePath)
         {
-            if (!IsServer)
-          {
-                Debug.LogWarning("[QuestProfileManager] Client cannot save profiles to file");
-  return;
-       }
+            // client writes locally + pushes; the server validates admin in RPC_SyncFiles
 
         try
   {
@@ -422,9 +480,12 @@ return;
  sb.AppendLine("# Optional metadata: description=, minlevel=, requireditem=");
            sb.AppendLine();
 
-       // Get all profiles that belong to this file
+       // Get all profiles that belong to this file. Match by FILENAME, not full path — profiles parsed
+       // from the server sync store carry a bare filename in SourceFile, while server-loaded ones carry
+       // a full path; a strict path compare split them into disjoint sets and dropped blocks on save.
+       string targetFile = Path.GetFileName(filePath);
         var profilesForFile = _profiles.Values
-  .Where(p => string.Equals(p.SourceFile, filePath, StringComparison.OrdinalIgnoreCase))
+  .Where(p => string.Equals(Path.GetFileName(p.SourceFile ?? string.Empty), targetFile, StringComparison.OrdinalIgnoreCase))
          .OrderBy(p => p.Name);
 
           foreach (var profile in profilesForFile)
@@ -448,13 +509,21 @@ sb.AppendLine($"[{profile.Name}]");
             sb.AppendLine();
  }
 
- // Ensure directory exists
-  string directory = Path.GetDirectoryName(filePath);
-if (!Directory.Exists(directory))
-           Directory.CreateDirectory(directory);
-
-       File.WriteAllText(filePath, sb.ToString());
-       Debug.Log($"[QuestProfileManager] Saved profiles to {Path.GetFileName(filePath)}");
+ // Pure clients keep NO profile files on disk (they read the server sync store) — and their
+ // SourceFile is a bare filename, so Path.GetDirectoryName("") threw "Path cannot be the empty
+ // string" here and KILLED the save before the server push ever ran (the admin-book
+ // "save quest to profile" failure). Client: push only. Server/host: write disk + reload.
+ bool pureClient = ZNet.instance != null && !ZNet.instance.IsServer();
+ if (!pureClient)
+ {
+     string fullPath = Path.IsPathRooted(filePath) ? filePath : Path.Combine(QuestProfilesFolder, targetFile);
+     string directory = Path.GetDirectoryName(fullPath);
+     if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+         Directory.CreateDirectory(directory);
+     File.WriteAllText(fullPath, sb.ToString());
+ }
+            global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("QuestProfiles", targetFile, sb.ToString());
+       Debug.Log($"[QuestProfileManager] Saved profiles to {targetFile} ({(pureClient ? "pushed to server" : "disk + push")})");
             }
             catch (Exception ex)
             {

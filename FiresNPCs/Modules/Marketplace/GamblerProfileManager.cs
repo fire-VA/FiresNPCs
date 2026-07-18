@@ -25,7 +25,8 @@ namespace FiresRPGmaker.Modules.Marketplace
         public const string Bones = "bones";
         public const string Runes = "runes";
         public const string Wheel = "wheel";
-        public static readonly string[] All = { Cards, Bones, Runes, Wheel };
+        public const string Duel = "duel";
+        public static readonly string[] All = { Cards, Bones, Runes, Wheel, Duel };
         public static bool IsValid(string g) => System.Array.IndexOf(All, g) >= 0;
     }
 
@@ -74,23 +75,28 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             _initialized = true;
             _profiles.Clear();
-            var folder = GetProfileFolder();
-            if (!Directory.Exists(folder))
-                try { Directory.CreateDirectory(folder); } catch { }
-            // Always seed example.cfg if missing — the previous gate only fired when the folder didn't
-            // exist, leaving empty pre-created folders unseeded (the same bug the Banker manager hit).
-            WriteExampleProfile(folder);
-            foreach (var file in Directory.GetFiles(folder, "*.cfg", SearchOption.AllDirectories))
+            // Pure clients parse the server-synced in-memory store (no config files on client disk);
+            // server/host reads + seeds its folder as before.
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
             {
-                try { LoadOne(file); }
-                catch (System.Exception ex) { Debug.LogError("[GamblerProfileManager] " + file + ": " + ex.Message); }
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder))
+                    try { Directory.CreateDirectory(folder); } catch { }
+                // Always seed example.cfg if missing — the previous gate only fired when the folder didn't
+                // exist, leaving empty pre-created folders unseeded (the same bug the Banker manager hit).
+                WriteExampleProfile(folder);
             }
-            Debug.Log("[GamblerProfileManager] Loaded " + _profiles.Count + " profile(s) from " + folder);
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines(MarketplacePaths.Gamblers))
+            {
+                try { LoadOne(kv.Key, kv.Value); }
+                catch (System.Exception ex) { Debug.LogError("[GamblerProfileManager] " + kv.Key + ": " + ex.Message); }
+            }
+            Debug.Log("[GamblerProfileManager] Loaded " + _profiles.Count + " profile(s)");
         }
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Gamblers);
 
-        private static void LoadOne(string file)
+        private static void LoadOne(string file, string[] lines)
         {
             // Filename basename = default profile key, so a user who types the filename as the NPC's
             // profile name gets something to load (covers stale [basic]/[premium] example.cfg without
@@ -98,7 +104,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             string fileBasename = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             string firstHeader = null;
             string key = fileBasename; int maxRolls = 1; List<string> currentGames = null;
-            foreach (var raw in File.ReadAllLines(file))
+            foreach (var raw in lines)
             {
                 var line = raw.Trim();
                 if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
@@ -210,6 +216,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 File.WriteAllText(file, content);
                 _initialized = false;
                 EnsureLoaded();
+                global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Gamblers", safe + ".cfg", content);
                 Debug.Log($"[GamblerProfileManager] Saved gambler profile '{name}' (maxRolls={maxRolls}) -> {file}");
             }
             catch (System.Exception ex) { Debug.LogError("[GamblerProfileManager] SaveProfile failed: " + ex.Message); }

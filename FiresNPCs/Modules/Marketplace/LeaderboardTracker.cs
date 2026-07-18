@@ -23,6 +23,8 @@ namespace FiresRPGmaker.Modules.Marketplace
             public int BuiltStructures;
             public int ItemsCrafted;
             public int Died;
+            public int Terraformed; // hoe terrain ops (raise/level/path) — NOT builds
+            public int Cultivated;  // cultivator ops (cultivate + plant)
             public float MapExplored; // 0..1
             public readonly Dictionary<string, int> KilledByPrefab = new();
             public readonly Dictionary<string, int> CraftedByPrefab = new();
@@ -67,6 +69,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "StructuresBuilt"=> string.IsNullOrEmpty(prefab) ? s.BuiltStructures
                                      : (s.BuiltByCategory.TryGetValue(prefab, out var bc) ? bc : 0),
                 "SkillLevel"     => GetSkillLevel(playerName, prefab),
+                "Terraformed"    => s.Terraformed,
+                "Cultivated"     => s.Cultivated,
                 "Died"           => s.Died,
                 "KilledBy"       => string.IsNullOrEmpty(prefab) ? 0 : (s.KilledByCause.TryGetValue(prefab, out var v) ? v : 0),
                 "Explored"       => Mathf.RoundToInt(s.MapExplored * 100f),
@@ -89,7 +93,16 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         public static void NotifyChanged() => Save();
 
-        private static string StorePath => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "leaderboard", "_local.csv");
+        // Wipe this client's legacy local stats (the _local.csv mirror + in-memory cache). The authoritative board
+        // is server-side; this only resets the local-player pre-snapshot view for a fresh start.
+        public static void WipeLocal()
+        {
+            try { var p = StorePath; if (File.Exists(p)) File.Delete(p); } catch { }
+            _byPlayer.Clear();
+            _loaded = false;
+        }
+
+        private static string StorePath => Path.Combine(FiresCore.Storage.FiresConfigPaths.LeaderboardLocal, "_local.csv");
 
         private static void EnsureLoaded()
         {
@@ -116,6 +129,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                     };
                     if (parts.Length > 7) DecodeDict(parts[7], s.HarvestedByPrefab);
                     if (parts.Length > 8) DecodeDict(parts[8], s.BuiltByCategory);
+                    if (parts.Length > 9 && int.TryParse(parts[9], out var tf)) s.Terraformed = tf;
+                    if (parts.Length > 10 && int.TryParse(parts[10], out var cv)) s.Cultivated = cv;
                     _byPlayer[s.PlayerName] = s;
                 }
             }
@@ -128,13 +143,14 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var path = StorePath;
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
-                var lines = new List<string> { "# player,killedCreatures,killedPlayers,builtStructures,itemsCrafted,died,mapExplored,harvested,builtByCategory" };
+                var lines = new List<string> { "# player,killedCreatures,killedPlayers,builtStructures,itemsCrafted,died,mapExplored,harvested,builtByCategory,terraformed,cultivated" };
                 foreach (var s in _byPlayer.Values)
                 {
                     lines.Add(string.Join(",",
                         s.PlayerName, s.KilledCreatures, s.KilledPlayers, s.BuiltStructures,
                         s.ItemsCrafted, s.Died, s.MapExplored.ToString("0.####"),
-                        EncodeDict(s.HarvestedByPrefab), EncodeDict(s.BuiltByCategory)));
+                        EncodeDict(s.HarvestedByPrefab), EncodeDict(s.BuiltByCategory),
+                        s.Terraformed, s.Cultivated));
                 }
                 File.WriteAllLines(path, lines);
             }
@@ -226,30 +242,44 @@ namespace FiresRPGmaker.Modules.Marketplace
                 if (Player.m_localPlayer == null || __instance == null) return;
                 if (uid != Player.m_localPlayer.GetPlayerID()) return;
                 var s = LeaderboardTracker.Local;
-                s.BuiltStructures++;
-                string cat = __instance.m_category.ToString();
-                s.BuiltByCategory.TryGetValue(cat, out var n); s.BuiltByCategory[cat] = n + 1;
+                // Same split as the server feed: hoe/cultivator pieces are terraform/cultivate ops, not builds.
+                switch (LeaderboardServerFeed.ClassifyPiece(__instance))
+                {
+                    case LeaderboardServerFeed.PieceKind.Cultivate: s.Cultivated++; break;
+                    case LeaderboardServerFeed.PieceKind.Terraform: s.Terraformed++; break;
+                    default:
+                        s.BuiltStructures++;
+                        string cat = __instance.m_category.ToString();
+                        s.BuiltByCategory.TryGetValue(cat, out var n); s.BuiltByCategory[cat] = n + 1;
+                        break;
+                }
                 LeaderboardTracker.NotifyChanged();
             }
         }
 
-        [HarmonyPatch(typeof(Minimap), nameof(Minimap.Explore), typeof(int), typeof(int))]
-        public static class Minimap_Explore_Patch
+        // Map exploration — see LeaderboardServerFeed.Player_Update_Explore for rationale. Hook on Player.Update
+        // (fires every frame regardless of movement), throttle by accumulated Time.deltaTime, and apply the 4/π
+        // (1.27323949f) normalization so a fully-explored circular world reads as 1.0 instead of ~0.785.
+        [HarmonyPatch(typeof(Player), nameof(Player.Update))]
+        public static class Player_Update_Explore_Patch
         {
+            private const float WriteIntervalSeconds = 30f;
+            private const float CircleNormalization = 1.27323949f;
+            private static float _accum;
+
             [HarmonyPostfix]
-            private static void Postfix(bool __result, Minimap __instance)
+            private static void Postfix(Player __instance)
             {
-                if (!__result || __instance == null) return;
-                // Sample explored fraction every N calls — exact pixel-count would thrash the file writer.
-                if (Random.Range(0, 200) != 0) return;
-                int total = __instance.m_textureSize * __instance.m_textureSize;
+                if (__instance == null || __instance != Player.m_localPlayer || Minimap.instance == null) return;
+                _accum += Time.deltaTime;
+                if (_accum < WriteIntervalSeconds) return;
+                _accum = 0f;
+
+                var arr = Minimap.instance.m_explored;
+                if (arr == null || arr.Length == 0) return;
                 int explored = 0;
-                if (__instance.m_explored != null)
-                {
-                    var arr = __instance.m_explored;
-                    for (int i = 0; i < arr.Length; i++) if (arr[i]) explored++;
-                }
-                LeaderboardTracker.Local.MapExplored = total <= 0 ? 0f : (float)explored / total;
+                for (int i = 0; i < arr.Length; i++) if (arr[i]) explored++;
+                LeaderboardTracker.Local.MapExplored = Mathf.Min(1f, (float)explored / arr.Length * CircleNormalization);
                 LeaderboardTracker.NotifyChanged();
             }
         }

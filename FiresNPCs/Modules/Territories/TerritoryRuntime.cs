@@ -36,8 +36,6 @@ namespace FiresRPGmaker.Modules.Territories
         private static float _baseWalkSpeed;
         private static float _baseRunSpeed;
         private static float _baseSwimSpeed;
-        private static string _lastTerritoryMessage;
-        private static float _lastTerritoryMessageTime;
         private static float _nextTerritoryCheck;
         private static Vector3 _lastPos;
         private static float _nextIceCheck;
@@ -61,10 +59,7 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 try
                 {
-                    // VikingLands.Core owns guilds → use its membership; otherwise our own GuildAPI.
-                    string ownGuildName = global::FiresRPGmaker.RpgMakerApi.GuildsOwnedExternally
-                        ? global::FiresRPGmaker.RpgMakerApi.LocalGuildName()
-                        : global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild()?.Name;
+                    string ownGuildName = FiresCore.Bridge.GuildBridge.LocalGuildName();
                     if (ownGuildName != null && string.Equals(ownGuildName, t.OnlyForGuild, StringComparison.OrdinalIgnoreCase))
                         return true;
                 }
@@ -73,6 +68,16 @@ namespace FiresRPGmaker.Modules.Territories
             // OnlyForFaction — placeholder until we ship our Faction module. If a faction registry is
             // present in the future we resolve it here; for now treat as "permission denied unless other
             // condition above already granted" (KG's behavior when faction system absent).
+
+            // Steam-ID territory OWNERSHIP (server-synced). Owning this territory's NAME grants build rights on
+            // every area sharing that name. Keyed by Steam ID so it survives renames, and granted/sold via the
+            // GiveTerritory / RemoveTerritory dialogue commands.
+            try
+            {
+                if (TerritoryOwnership.IsOwner(t.Name, global::FiresRPGmaker.Modules.Dialogues.EwpDataBridge.GetLocalSteamId()))
+                    return true;
+            }
+            catch { }
             return false;
         }
 
@@ -92,7 +97,10 @@ namespace FiresRPGmaker.Modules.Territories
                     }
                 }
 
-                // Local admin flag (clients get this via AdminSyncing, server is source of truth)
+                // PER-PLAYER admin check — deliberately NOT AdminSyncing.IsLocalAdmin(). That is a LOCAL-player
+                // gate that short-circuits true on IsServer(); using it here would grant EVERY player admin
+                // bypass on a dedicated server. On the server the authority is the per-player IsAdmin(playerId);
+                // on a client the local-admin flags apply to the local player. Left exactly as it shipped.
                 if (FiresRPGmaker.Instance?.configSync?.IsAdmin == true) return true;
                 if (ConfigSync.lockExempt) return true;
 
@@ -979,19 +987,11 @@ namespace FiresRPGmaker.Modules.Territories
                 TerritoryEntryReporter.SendEntryToServer(newTerritory, player);
             }
 
-            string msg = newTerritory == null
-                ? "<color=#ff5555><b>Leaving</b></color> " + oldName
-                : "<color=#55ff55><b>Entering</b></color> " + newName;
-
-            if (!string.Equals(_lastTerritoryMessage, msg, StringComparison.Ordinal))
+            // Entry announcement in Valheim's native location-discovery style (braided plaque) — enter only,
+            // local player only. Leaving shows nothing (kg parity). The banner self-throttles (5s).
+            if (newTerritory != null && player == Player.m_localPlayer)
             {
-                float now = Time.time;
-                if (now - _lastTerritoryMessageTime >= 5f)
-                {
-                    MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, msg);
-                    _lastTerritoryMessage = msg;
-                    _lastTerritoryMessageTime = now;
-                }
+                TerritoryEntryBanner.Show(newName);
             }
 
             if (newTerritory != null && ZNet.instance != null && ZNet.instance.IsServer())

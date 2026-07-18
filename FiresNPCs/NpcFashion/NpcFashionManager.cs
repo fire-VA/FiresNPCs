@@ -5,7 +5,6 @@ using System.Linq;
 using UnityEngine;
 using Newtonsoft.Json;
 using FiresRPGmaker.UI;
-using FiresRPGmaker.Utilities;
 
 namespace FiresRPGmaker.NpcFashion
 {
@@ -235,31 +234,49 @@ return ColorPresets["(none)"];
                 Debug.Log($"[NpcFashionManager] Applying fashion JSON to NPC {npc.name}");
                 Debug.Log($"[NpcFashionManager] Hair: {data.HairItem}, Beard: {data.BeardItem}");
                 Debug.Log($"[NpcFashionManager] PeriodicAnim: {data.PeriodicAnimation}, Time: {data.PeriodicAnimationTime}");
-                DumpBodyMat("0-start", npc);
 
-                // Map items to npc equip fields
-                if (!string.IsNullOrEmpty(data.HelmetItem)) npc.equipHelmet = data.HelmetItem;
-                if (!string.IsNullOrEmpty(data.ChestItem)) npc.equipChest = data.ChestItem;
-                if (!string.IsNullOrEmpty(data.LegsItem)) npc.equipLegs = data.LegsItem;
-                if (!string.IsNullOrEmpty(data.CapeItem)) npc.equipShoulder = data.CapeItem;
-                if (!string.IsNullOrEmpty(data.LeftItem)) npc.equipLeftHand = data.LeftItem;
-                if (!string.IsNullOrEmpty(data.RightItem)) npc.equipRightHand = data.RightItem;
+                // kg parity: any item value may be a space-separated random list ("SwordIron AxeIron") —
+                // pick one at apply time (NPC_Fashion.ApplyRandom). Resolve once, use for equip + comp.
+                string helmetItem = PickRandomToken(data.HelmetItem);
+                string chestItem = PickRandomToken(data.ChestItem);
+                string legsItem = PickRandomToken(data.LegsItem);
+                string capeItem = PickRandomToken(data.CapeItem);
+                string leftItem = PickRandomToken(data.LeftItem);
+                string rightItem = PickRandomToken(data.RightItem);
+                string leftBackItem = PickRandomToken(data.LeftItemHidden);
+                string rightBackItem = PickRandomToken(data.RightItemHidden);
+
+                // Map items to npc equip fields (kg back items → our back slots).
+                if (!string.IsNullOrEmpty(helmetItem)) npc.equipHelmet = helmetItem;
+                if (!string.IsNullOrEmpty(chestItem)) npc.equipChest = chestItem;
+                if (!string.IsNullOrEmpty(legsItem)) npc.equipLegs = legsItem;
+                if (!string.IsNullOrEmpty(capeItem)) npc.equipShoulder = capeItem;
+                if (!string.IsNullOrEmpty(leftItem)) npc.equipLeftHand = leftItem;
+                if (!string.IsNullOrEmpty(rightItem)) npc.equipRightHand = rightItem;
+                if (!string.IsNullOrEmpty(leftBackItem)) npc.equipLeftBack = leftBackItem;
+                if (!string.IsNullOrEmpty(rightBackItem)) npc.equipRightBack = rightBackItem;
+
+                // Hair/beard: kg stores the style WITHOUT the prefab prefix ("14" → prefab "Hair14" — kg
+                // builds "Hair"+value at equip time). Normalize so kg-form and Fires-form (full prefab
+                // name) values both work through this one apply path.
+                string hairItem = NormalizeStyleName(PickRandomToken(data.HairItem), "Hair");
+                string beardItem = NormalizeStyleName(PickRandomToken(data.BeardItem), "Beard");
 
                 // Attach or update the fashion component which will handle animations/periodic behaviour
                 var comp = npc.GetComponent<NpcFashionComponent>();
                 if (comp == null) comp = npc.gameObject.AddComponent<NpcFashionComponent>();
 
-                comp.HelmetItem = data.HelmetItem;
-                comp.ChestItem = data.ChestItem;
-                comp.LegsItem = data.LegsItem;
-                comp.CapeItem = data.CapeItem;
-                comp.LeftItem = data.LeftItem;
-                comp.RightItem = data.RightItem;
+                comp.HelmetItem = helmetItem;
+                comp.ChestItem = chestItem;
+                comp.LegsItem = legsItem;
+                comp.CapeItem = capeItem;
+                comp.LeftItem = leftItem;
+                comp.RightItem = rightItem;
 
                 // Hair and beard
-                comp.HairItem = data.HairItem;
+                comp.HairItem = hairItem;
                 comp.HairColor = data.HairColor;
-                comp.BeardItem = data.BeardItem;
+                comp.BeardItem = beardItem;
                 comp.BeardColor = data.BeardColor;
 
                 // Skin color
@@ -268,11 +285,19 @@ return ColorPresets["(none)"];
                 // Eye color
                 comp.EyeColor = data.EyeColor;
 
-                comp.GreetAnimation = data.GreetAnimation;
-                comp.ByeAnimation = data.ByeAnimation;
-                comp.InteractAnimation = data.InteractAnimation;
+                // kg parity: a value may be a space-separated random list ("wave dance cheer") — kg's
+                // ApplyRandom picks one at apply time; do the same so migrated kg NPCs behave identically.
+                comp.GreetAnimation = PickRandomToken(data.GreetAnimation);
+                comp.ByeAnimation = PickRandomToken(data.ByeAnimation);
+                comp.InteractAnimation = PickRandomToken(data.InteractAnimation);
+                comp.GreetText = data.GreetText;
+                comp.ByeText = data.ByeText;
+                // Sounds are NOT random lists in kg (ApplyRandom skips them) and clip names may contain spaces.
+                comp.InteractSound = data.InteractAudioClip;
+                int crafting; int.TryParse(PickRandomToken(data.CraftingAnimation), out crafting);
+                comp.CraftingAnimation = crafting;
 
-                comp.PeriodicAnimation = data.PeriodicAnimation;
+                comp.PeriodicAnimation = PickRandomToken(data.PeriodicAnimation);
                 comp.PeriodicAnimationTime = ParseFloatOrDefault(data.PeriodicAnimationTime, 0f);
 
                 comp.PeriodicSound = data.PeriodicSound;
@@ -285,33 +310,30 @@ return ColorPresets["(none)"];
                 // Initialize prefab cache if needed
                 InitializePrefabCache();
 
-                // Apply hair/beard visuals - use HairBeardColors for color lookup
-                var hairColor = HairBeardColors.GetColor(data.HairColor);
-                var beardColor = HairBeardColors.GetColor(data.BeardColor);
-                ApplyHairToNpc(npc, data.HairItem, ColorToString(hairColor));
-                ApplyBeardToNpc(npc, data.BeardItem, ColorToString(beardColor));
-                DumpBodyMat("1-afterHairBeard", npc);
+                // Apply hair/beard visuals. Colors resolve preset names ("Dark Brown") AND kg HTML
+                // strings ("#8B4513" / "red") through ResolveFashionColor, so migrated kg values render.
+                var hairColor = ResolveFashionColor(data.HairColor, HairBeardColors.ColorPresets, Color.white);
+                var beardColor = ResolveFashionColor(data.BeardColor, HairBeardColors.ColorPresets, Color.white);
+                ApplyHairToNpc(npc, hairItem, ColorToString(hairColor));
+                ApplyBeardToNpc(npc, beardItem, ColorToString(beardColor));
 
                 // Apply skin color
-if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
-   {
-       var skinColor = SkinToneColors.GetColor(data.SkinColor);
-    ApplySkinColorToNpc(npc, skinColor);
-   }
-                DumpBodyMat("2-afterSkin", npc);
+                if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
+                {
+                    var skinColor = ResolveFashionColor(data.SkinColor, SkinToneColors.ColorPresets, SkinToneColors.ColorPresets["(none)"]);
+                    ApplySkinColorToNpc(npc, skinColor);
+                }
 
-    // Apply eye color (attempts to find eye materials - may not work on all models)
-  if (!string.IsNullOrEmpty(data.EyeColor) && data.EyeColor != "(none)")
-    {
-        var eyeColor = EyeColors.GetColor(data.EyeColor);
- ApplyEyeColorToNpc(npc, eyeColor);
-    }
-                DumpBodyMat("3-afterEye", npc);
+                // Apply eye color (attempts to find eye materials - may not work on all models)
+                if (!string.IsNullOrEmpty(data.EyeColor) && data.EyeColor != "(none)")
+                {
+                    var eyeColor = ResolveFashionColor(data.EyeColor, EyeColors.ColorPresets, EyeColors.ColorPresets["(none)"]);
+                    ApplyEyeColorToNpc(npc, eyeColor);
+                }
 
  // Apply model scale - ALWAYS apply to ensure changes take effect immediately
      // even when resetting from a larger scale back to 1.0
      ApplyModelScale(npc, comp.ModelScale);
-                DumpBodyMat("4-afterScale", npc);
 
       // Configure look-at behavior using Valheim's LookAt component
    bool lookAtPlayer = !string.IsNullOrEmpty(data.LookAtPlayer) && 
@@ -327,32 +349,11 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
 
                 // Refresh visuals
                 npc.ApplyVisualEquipment();
-                DumpBodyMat("5-afterApplyVisual", npc);
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[NpcFashionManager] Failed to apply fashion json: {ex.Message}");
             }
-        }
-
-        // TEMP [GreyDiag] — dumps the NPC body material so we can pin which fashion step nulls the
-        // armor underlay / skin texture (the static-NPC "grey body on hair change" bug). Reads
-        // sharedMaterial (non-mutating). Remove once the cause is found.
-        internal static void DumpBodyMat(string step, NpcController npc)
-        {
-            try
-            {
-                var bm = npc != null ? GetBodyModel(npc.transform) : null;
-                if (bm == null) { Debug.Log($"[GreyDiag] {step}: bodyModel=<null>"); return; }
-                var m = bm.sharedMaterial;
-                if (m == null) { Debug.Log($"[GreyDiag] {step}: sharedMaterial=<null>"); return; }
-                string Tex(string p) => m.HasProperty(p) ? (m.GetTexture(p) != null ? "SET" : "NULL") : "noProp";
-                Color skin = m.HasProperty("_SkinColor") ? m.GetColor("_SkinColor") : Color.clear;
-                Debug.Log($"[GreyDiag] {step}: mat#{m.GetInstanceID()} shader='{m.shader?.name}' " +
-                          $"_MainTex={Tex("_MainTex")} _ChestTex={Tex("_ChestTex")} _LegsTex={Tex("_LegsTex")} " +
-                          $"_SkinColor={skin} mesh='{(bm.sharedMesh != null ? bm.sharedMesh.name : "<null>")}'");
-            }
-            catch (Exception ex) { Debug.Log($"[GreyDiag] {step}: dump failed — {ex.Message}"); }
         }
 
         /// <summary>
@@ -430,49 +431,32 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
 
             try
             {
-                // Scan ObjectDB for hair/beard prefabs
-                if (ObjectDB.instance != null)
+                // Cache ONLY valid player Customization items (the vanilla barber set), keyed by exact
+                // prefab name. CustomStartsWith is case-sensitive, so rig prefabs (lowercase "hair_11",
+                // "beard_hair") and armor/helmets that merely contain "hair" are EXCLUDED — that substring
+                // scan was a source of "wrong object with its own built-in scale" being returned as hair.
+                // Modded Customization styles are picked up automatically. Customization items live in
+                // ObjectDB; the ZNetScene scan is dropped (it held non-customization world prefabs).
+                var db = ObjectDB.instance;
+                if (db != null)
                 {
-                    foreach (var itemPrefab in ObjectDB.instance.m_items)
+                    foreach (var d in db.GetAllItems(ItemDrop.ItemData.ItemType.Customization, "Hair"))
                     {
-                        if (itemPrefab == null) continue;
-                        var name = itemPrefab.name;
-                        if (string.IsNullOrEmpty(name)) continue;
-
-                        var nameLower = name.ToLowerInvariant();
-                        if (nameLower.Contains("hair") && !_hairPrefabCache.ContainsKey(name))
-                        {
-                            _hairPrefabCache[name] = itemPrefab;
-                        }
-                        else if (nameLower.Contains("beard") && !_beardPrefabCache.ContainsKey(name))
-                        {
-                            _beardPrefabCache[name] = itemPrefab;
-                        }
+                        if (d == null || d.gameObject == null) continue;
+                        var name = d.gameObject.name;
+                        if (!string.IsNullOrEmpty(name) && !_hairPrefabCache.ContainsKey(name))
+                            _hairPrefabCache[name] = d.gameObject;
+                    }
+                    foreach (var d in db.GetAllItems(ItemDrop.ItemData.ItemType.Customization, "Beard"))
+                    {
+                        if (d == null || d.gameObject == null) continue;
+                        var name = d.gameObject.name;
+                        if (!string.IsNullOrEmpty(name) && !_beardPrefabCache.ContainsKey(name))
+                            _beardPrefabCache[name] = d.gameObject;
                     }
                 }
 
-                // Scan ZNetScene for hair/beard prefabs
-                if (ZNetScene.instance != null)
-                {
-                    foreach (var prefab in ZNetScene.instance.m_prefabs)
-                    {
-                        if (prefab == null) continue;
-                        var name = prefab.name;
-                        if (string.IsNullOrEmpty(name)) continue;
-
-                        var nameLower = name.ToLowerInvariant();
-                        if (nameLower.Contains("hair") && !_hairPrefabCache.ContainsKey(name))
-                        {
-                            _hairPrefabCache[name] = prefab;
-                        }
-                        else if (nameLower.Contains("beard") && !_beardPrefabCache.ContainsKey(name))
-                        {
-                            _beardPrefabCache[name] = prefab;
-                        }
-                    }
-                }
-
-                Debug.Log($"[NpcFashionManager] Initialized prefab cache: {_hairPrefabCache.Count} hair, {_beardPrefabCache.Count} beard prefabs");
+                Debug.Log($"[NpcFashionManager] Initialized prefab cache: {_hairPrefabCache.Count} hair, {_beardPrefabCache.Count} beard (Customization items only)");
             }
             catch (Exception ex)
             {
@@ -494,31 +478,49 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 return cachedPrefab;
             }
 
-            // Try ObjectDB
+            // ObjectDB — accept ONLY if it's actually a Customization item, so a stale/wrong name can't
+            // resolve to a non-customization prefab that carries its own (huge) built-in scale.
             var prefab = ObjectDB.instance?.GetItemPrefab(itemName);
             if (prefab != null)
             {
-                cache[itemName] = prefab;
-                return prefab;
+                var drop = prefab.GetComponent<ItemDrop>();
+                if (drop != null && drop.m_itemData?.m_shared != null
+                    && drop.m_itemData.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Customization)
+                {
+                    cache[itemName] = prefab;
+                    return prefab;
+                }
             }
 
-            // Try ZNetScene
-            prefab = ZNetScene.instance?.GetPrefab(itemName);
-            if (prefab != null)
+            // Nearest-numbered fallback. Vanilla dropped Hair1/Hair2 (its live set starts at Hair3), so a
+            // kg NPC saved with "Hair1" would otherwise resolve to nothing and render BALD. Rather than
+            // fail, snap a "<Prefix><N>" style to the closest existing index in the cache so the NPC keeps
+            // hair. Only triggers for numbered names that missed — an exact valid name returned above.
+            string prefix = isHair ? "Hair" : "Beard";
+            if (itemName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(itemName.Substring(prefix.Length), out int wantedIdx)
+                && cache.Count > 0)
             {
-                cache[itemName] = prefab;
-                return prefab;
+                GameObject best = null; int bestDist = int.MaxValue;
+                foreach (var kv in cache)
+                {
+                    if (kv.Value == null || !kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!int.TryParse(kv.Key.Substring(prefix.Length), out int haveIdx)) continue;
+                    int dist = Math.Abs(haveIdx - wantedIdx);
+                    if (dist < bestDist) { bestDist = dist; best = kv.Value; }
+                }
+                if (best != null)
+                {
+                    Debug.LogWarning($"[NpcFashionManager] {(isHair ? "hair" : "beard")} '{itemName}' is not a live style — using nearest '{best.name}'");
+                    cache[itemName] = best;   // memoize so we don't re-search on every apply
+                    return best;
+                }
             }
 
-            // Try Resources
-            prefab = Resources.Load<GameObject>(itemName);
-            if (prefab != null)
-            {
-                cache[itemName] = prefab;
-                return prefab;
-            }
-
-            Debug.LogWarning($"[NpcFashionManager] Could not find {(isHair ? "hair" : "beard")} prefab: {itemName}");
+            // Deliberately NO ZNetScene.GetPrefab / Resources.Load fallback: those can resolve an arbitrary
+            // same-named non-Customization asset (the "wrong huge hair" source). Valid player hair/beard are
+            // Customization items in ObjectDB; if it isn't one of those, it isn't a valid style.
+            Debug.LogWarning($"[NpcFashionManager] No valid Customization {(isHair ? "hair" : "beard")} prefab named '{itemName}'");
             return null;
         }
 
@@ -543,6 +545,10 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
 
             if (string.IsNullOrEmpty(hairItem) || hairItem == "(none)" || hairItem == "HairNone")
             {
+                // A migrated NPC that renders bald usually lands HERE with an empty value. Log it ungated so
+                // "called with no hair" is distinguishable from "called with a hair that failed to resolve"
+                // (the latter warns from FindCustomizationPrefab). Together they pinpoint where hair is lost.
+                Debug.Log($"[NpcFashionManager][hair] '{go.name}' ApplyHairToNpc got empty/none hair ('{hairItem ?? "<null>"}') — leaving bald");
                 if (HasAnyAppliedHair(go))
                 {
                     Debug.Log($"[NpcFashionManager] Clearing hair ('{hairItem}' selected)");
@@ -562,6 +568,7 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
 
                 InitializePrefabCache();
                 ClearHairFromNpc(go);
+                ScheduleOversizeSweep(go);
 
                 var hairPrefab = FindCustomizationPrefab(hairItem, true);
                 if (hairPrefab == null)
@@ -592,6 +599,74 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
             }
         }
 
+        // -- Oversize forensics + containment -------------------------------------------------------
+        // If ANY renderer on an NPC ends up grotesquely bigger than the body (the recurring "100x hair
+        // blocks out the sun" class), do two things: never show it, and log a line that names the exact
+        // object, mesh, and full scale chain so the SOURCE can be fixed instead of guessed at. Threshold
+        // is far above any legit gear - a 1.3x giant is ~2.4m tall; a 100x attach is 30m+.
+        private const float OVERSIZE_WORLD_LIMIT = 5f;
+        private static readonly HashSet<int> _oversizeLogged = new HashSet<int>();
+
+        private static void ScheduleOversizeSweep(GameObject go)
+        {
+            if (go == null) return;
+            try
+            {
+                var host = go.GetComponent<MonoBehaviour>();
+                if (host != null && host.isActiveAndEnabled)
+                    host.StartCoroutine(OversizeSweepRoutine(go));
+                else
+                    DiagnoseAndContainOversized(go, "immediate");
+            }
+            catch { }
+        }
+
+        private static IEnumerator OversizeSweepRoutine(GameObject go)
+        {
+            yield return new WaitForSeconds(0.2f);
+            if (go != null) DiagnoseAndContainOversized(go, "post-apply");
+            yield return new WaitForSeconds(2.5f);
+            if (go != null) DiagnoseAndContainOversized(go, "delayed");
+        }
+
+        public static void DiagnoseAndContainOversized(GameObject npc, string context)
+        {
+            if (npc == null) return;
+            SkinnedMeshRenderer body = null;
+            try { body = GetBodyModel(npc.transform.Find("Visual") ?? npc.transform); } catch { }
+
+            foreach (var r in npc.GetComponentsInChildren<Renderer>())
+            {
+                if (r == null || ReferenceEquals(r, body)) continue;
+                if (!(r is SkinnedMeshRenderer) && !(r is MeshRenderer)) continue;
+
+                Vector3 size = r.bounds.size;
+                float maxDim = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+                if (maxDim <= OVERSIZE_WORLD_LIMIT) continue;
+
+                r.enabled = false; // contain: whatever this is, it does not get to block out the sun
+
+                if (!_oversizeLogged.Add(r.GetInstanceID())) continue;
+                var smr = r as SkinnedMeshRenderer;
+                string mesh = smr != null
+                    ? smr.sharedMesh != null ? smr.sharedMesh.name : "<null>"
+                    : r.GetComponent<MeshFilter>()?.sharedMesh?.name ?? "<null>";
+                string chain = "";
+                var cur = r.transform;
+                int guard = 0;
+                while (cur != null && guard++ < 12)
+                {
+                    chain = cur.name + "(ls=" + cur.localScale.x.ToString("F3") + ")/" + chain;
+                    cur = cur.parent;
+                }
+                Debug.LogWarning($"[FiresHairDiag] OVERSIZED renderer contained on '{npc.name}' ({context}): obj='{r.name}' " +
+                                 $"mesh='{mesh}' boundsSize={size} lossyScale={r.transform.lossyScale} " +
+                                 $"rootBone='{(smr != null && smr.rootBone != null ? smr.rootBone.name : "-")}' " +
+                                 $"rootBoneLossy={(smr != null && smr.rootBone != null ? smr.rootBone.lossyScale.ToString() : "-")} " +
+                                 $"chain={chain} - renderer disabled. REPORT THIS LINE.");
+            }
+        }
+
         /// <summary>
         /// Fallback method to attach hair directly to head bone (for non-skinned hair).
         /// </summary>
@@ -615,12 +690,14 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 return;
             }
 
-            // Instantiate the hair visual
-            var hairGO = UnityEngine.Object.Instantiate(visualToClone, headAttach, false);
+            // Instantiate the hair visual. Match vanilla AttachItem: instantiate UNPARENTED, then
+            // SetParent with worldPositionStays=TRUE, and NEVER write localScale — forcing localScale=one
+            // under the scaled head bone is the same 100x bug as the primary path.
+            var hairGO = UnityEngine.Object.Instantiate(visualToClone);
+            hairGO.transform.SetParent(headAttach);
             hairGO.name = $"NPC_Hair_{hairItem}";
             hairGO.transform.localPosition = Vector3.zero;
             hairGO.transform.localRotation = Quaternion.identity;
-            hairGO.transform.localScale = Vector3.one;
 
             // Strip unwanted components
             StripUnwantedComponents(hairGO);
@@ -687,6 +764,7 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
 
                 InitializePrefabCache();
                 ClearBeardFromNpc(go);
+                ScheduleOversizeSweep(go);
 
                 var beardPrefab = FindCustomizationPrefab(beardItem, false);
                 if (beardPrefab == null)
@@ -738,11 +816,13 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 return;
             }
 
-            var beardGO = UnityEngine.Object.Instantiate(visualToClone, headAttach, false);
+            // Match vanilla AttachItem: instantiate UNPARENTED, SetParent(worldPositionStays=true), never
+            // write localScale (forcing localScale=one under the scaled head bone is the 100x bug).
+            var beardGO = UnityEngine.Object.Instantiate(visualToClone);
+            beardGO.transform.SetParent(headAttach);
             beardGO.name = $"NPC_Beard_{beardItem}";
             beardGO.transform.localPosition = Vector3.zero;
             beardGO.transform.localRotation = Quaternion.identity;
-            beardGO.transform.localScale = Vector3.one;
 
             StripUnwantedComponents(beardGO);
 
@@ -814,10 +894,6 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                     // "_SkinColor" (NOT "_HairColor"). With the hair keeping its own material, _SkinColor
                     // is the channel its shader reads.
                     mats[i].SetColor("_SkinColor", color);
-                    // TEMP [HairColorDiag] — pin why hair stays white: confirm the shader + tint channel.
-                    Debug.Log($"[HairColorDiag] hair mat '{mats[i].name}' shader='{mats[i].shader?.name}' " +
-                              $"hasSkinColor={mats[i].HasProperty("_SkinColor")} hasHairColor={mats[i].HasProperty("_HairColor")} " +
-                              $"set={color} readBack={mats[i].GetColor("_SkinColor")}");
                 }
                 smr.materials = mats;
             }
@@ -899,11 +975,16 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
             {
                 // --- 3. Instantiate as sibling of body mesh (Balrond approach) ---
                 Transform parent = bodyModel != null ? bodyModel.transform.parent : visualRoot;
-                var clonedGO = UnityEngine.Object.Instantiate(attachChild, parent, false);
+                // Match vanilla VisEquipment.AttachItem (attach_skin path, VisEquipment.cs:939-948):
+                // instantiate UNPARENTED, then SetParent with worldPositionStays=TRUE so Unity recomputes
+                // localScale to PRESERVE world scale — this cancels the rig's large armature import-scale.
+                // Forcing localScale=Vector3.one under the scaled body parent rendered the hair at the raw
+                // ~100x bone-space scale (the sun-blocking blob). Set position/rotation only, NEVER scale.
+                var clonedGO = UnityEngine.Object.Instantiate(attachChild);
+                clonedGO.transform.SetParent(parent);
                 clonedGO.name = $"{namePrefix}{itemName}";
                 clonedGO.transform.localPosition = Vector3.zero;
                 clonedGO.transform.localRotation = Quaternion.identity;
-                clonedGO.transform.localScale    = Vector3.one;
 
                 var smrs = clonedGO.GetComponentsInChildren<SkinnedMeshRenderer>(true);
                 if (smrs.Length == 0)
@@ -948,6 +1029,41 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 int bonesFound = 0;
                 if (bodyModel != null)
                 {
+                    // Validate rig compatibility BEFORE rebinding. (bone.localToWorld ×
+                    // bindpose) is each vertex's net skin transform — for a mesh authored
+                    // on the player rig it equals the character's world scale (same product
+                    // the body mesh yields, ratio ≈ 1). A mesh authored on a foreign
+                    // skeleton (cm-unit Maya rigs: ×100 armature + 0.01 mesh nodes, e.g.
+                    // Balrond customization hair shadowing vanilla style names) lands at
+                    // ~×100 — rebinding it renders a 30m+ sun-blocker that the oversize
+                    // sweep then disables, leaving the NPC bald. Reject up front and let
+                    // the rigid head-attach fallback handle it (visually fine for
+                    // hair/beard: it follows the head bone).
+                    float bodySkin = SkinScaleProbe(
+                        bodyModel.sharedMesh != null ? bodyModel.sharedMesh.bindposes : null,
+                        bodyModel.bones);
+                    if (bodySkin > 0f)
+                    {
+                        int bodyBoneCount = bodyModel.bones?.Length ?? 0;
+                        foreach (var smr in smrs)
+                        {
+                            var poses = smr.sharedMesh != null ? smr.sharedMesh.bindposes : null;
+                            bool countMismatch = poses == null || poses.Length != bodyBoneCount;
+                            float itemSkin = countMismatch ? -1f : SkinScaleProbe(poses, bodyModel.bones);
+                            float ratio = itemSkin > 0f ? itemSkin / bodySkin : -1f;
+                            if (countMismatch || ratio < 0.33f || ratio > 3f)
+                            {
+                                Debug.Log($"[NpcFashionManager] '{itemName}' skeleton incompatible with the player rig ("
+                                    + (countMismatch
+                                        ? $"bindposes={(poses?.Length ?? 0)} vs bones={bodyBoneCount}"
+                                        : $"skin-scale x{ratio:F1}")
+                                    + ") — using rigid head attach instead");
+                                UnityEngine.Object.Destroy(clonedGO);
+                                return false;
+                            }
+                        }
+                    }
+
                     foreach (var smr in smrs)
                     {
                         // Match vanilla VisEquipment.AttachItem / KG Market_NPC.AttachItem: copy ONLY
@@ -1038,6 +1154,26 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
                 Debug.LogWarning($"[NpcFashionManager] TryApplySkinnedMeshToNpc failed for {itemName}: {ex.Message}");
                 return false;
             }
+        }
+
+        // Average scale of the first valid (bone.localToWorld × bindpose) product — the
+        // net transform skinning applies to a vertex with weight 1 on that bone. For a
+        // mesh authored on the given skeleton this is the character's world scale;
+        // wildly different values mean the bindposes belong to another rig.
+        private static float SkinScaleProbe(Matrix4x4[] bindposes, Transform[] bones)
+        {
+            if (bindposes == null || bones == null) return -1f;
+            int n = Mathf.Min(bindposes.Length, bones.Length);
+            for (int i = 0; i < n; i++)
+            {
+                if (bones[i] == null) continue;
+                Matrix4x4 m = bones[i].localToWorldMatrix * bindposes[i];
+                float avg = (((Vector3)m.GetColumn(0)).magnitude
+                           + ((Vector3)m.GetColumn(1)).magnitude
+                           + ((Vector3)m.GetColumn(2)).magnitude) / 3f;
+                if (avg > 1e-4f) return avg;
+            }
+            return -1f;
         }
 
         /// <summary>
@@ -1173,24 +1309,28 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
         {
             if (npc == null) return;
 
-        // If scale is 0 or very close to 0, reset to default (1.0)
-        if (scale <= 0.01f)
-       {
-     scale = 1f;
-          }
+            // If scale is 0 or very close to 0, reset to default (1.0)
+            if (scale <= 0.01f) scale = 1f;
 
-   Transform visual = npc.transform.Find("Visual");
+            // kg parity: KGnpcScale scales ONLY the model visual. Our override clones (OverrideModel
+            // container / creature-visual clone) are parented INSIDE root/Visual, so scaling Visual
+            // covers the native body and every override case uniformly — and survives a later
+            // ApplyModelOverride since the parent persists. The Character root must stay at 1:
+            // scaling it inflates colliders/physics AND compounds with this visual scale
+            // (root×visual = scale², the "giant migrated NPC" bug). Absolute set = idempotent.
+            if (npc.transform.localScale != Vector3.one) npc.transform.localScale = Vector3.one;
+
+            Transform visual = npc.transform.Find("Visual");
             if (visual != null)
-{
-       visual.localScale = Vector3.one * scale;
-     }
-    else
-      {
-     npc.transform.localScale = Vector3.one * scale;
-     }
-
-  Debug.Log($"[NpcFashionManager] Applied model scale {scale} to NPC {npc.name}");
- }
+            {
+                visual.localScale = Vector3.one * scale;
+                Debug.Log($"[NpcFashionManager] Applied model scale {scale} to Visual of NPC {npc.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NpcFashionManager] No Visual on NPC {npc.name} - scale {scale} not applied (root is never scaled)");
+            }
+        }
 
    /// <summary>
         /// Resets model scale to default (1.0) immediately.
@@ -1320,6 +1460,61 @@ if (!string.IsNullOrEmpty(data.SkinColor) && data.SkinColor != "(none)")
             if (string.IsNullOrEmpty(value)) return defaultValue;
             if (float.TryParse(value, out var result)) return result;
             return defaultValue;
+        }
+
+        // kg random-list semantics: a fashion value holding "a b c" means "pick one at apply time"
+        // (NPC_Fashion.ApplyRandom / RandomSplitSpace). Single values pass through untouched.
+        private static string PickRandomToken(string value)
+        {
+            if (string.IsNullOrEmpty(value) || !value.Contains(" ")) return value;
+            var parts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length == 0 ? value : parts[UnityEngine.Random.Range(0, parts.Length)];
+        }
+
+        // kg stores hair/beard styles WITHOUT the prefab prefix ("14" → prefab "Hair14" — kg builds
+        // "Hair"+value at equip time). Fires-authored values are full prefab names already; anything that
+        // starts with the prefix (or is empty / the "(none)" sentinel) passes through untouched.
+        private static string NormalizeStyleName(string value, string prefix)
+        {
+            if (string.IsNullOrEmpty(value) || value == "(none)") return value;
+            if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return value;
+            return prefix + value;
+        }
+
+        // Resolve a fashion color that may be a Fires preset name ("Dark Brown"), a kg HTML string
+        // ("#8B4513" / "red"), a bare hex ("8B4513"), an "r,g,b" triple, or a kg random list of any of
+        // those. Preset lookup runs on the FULL string first because preset names contain spaces.
+        private static Color ResolveFashionColor(string raw, Dictionary<string, Color> presets, Color fallback)
+        {
+            if (string.IsNullOrEmpty(raw) || raw == "(none)") return fallback;
+            if (presets != null && presets.TryGetValue(raw, out var preset)) return preset;
+            if (TryParseColorString(raw, out var parsed)) return parsed;
+            if (raw.Contains(" "))
+            {
+                string token = PickRandomToken(raw);
+                if (presets != null && presets.TryGetValue(token, out preset)) return preset;
+                if (TryParseColorString(token, out parsed)) return parsed;
+            }
+            return fallback;
+        }
+
+        private static bool TryParseColorString(string s, out Color color)
+        {
+            color = Color.white;
+            if (string.IsNullOrEmpty(s)) return false;
+            if (ColorUtility.TryParseHtmlString(s, out color)) return true;                                 // "#RRGGBB" + named HTML colors
+            if (!s.StartsWith("#") && !s.Contains(",") && ColorUtility.TryParseHtmlString("#" + s, out color)) return true; // bare hex
+            var parts = s.Split(',');                                                                        // "r,g,b"
+            if (parts.Length >= 3
+                && float.TryParse(parts[0].Trim(), out float r)
+                && float.TryParse(parts[1].Trim(), out float g)
+                && float.TryParse(parts[2].Trim(), out float b))
+            {
+                if (r > 1f || g > 1f || b > 1f) { r /= 255f; g /= 255f; b /= 255f; }
+                color = new Color(r, g, b);
+                return true;
+            }
+            return false;
         }
 
         private static Color ParseColor(string colorStr)
@@ -1607,6 +1802,15 @@ bool isEyeMaterial = matName.Contains("eye") || objName.Contains("eye");
         public string GreetAnimation;
         public string ByeAnimation;
 
+        // Speech bubbles (kg GreetText/ByeText parity) + interact sound clip
+        public string GreetText;
+        public string ByeText;
+        public string InteractSound;
+
+        // kg CraftingAnimation parity: >0 drives the player animator's "crafting" int, locking the NPC
+        // into the corresponding work loop (1 = workbench crafting pose etc.).
+        public int CraftingAnimation;
+
         // Periodic behaviors
         public string PeriodicAnimation;
         public float PeriodicAnimationTime;
@@ -1677,8 +1881,9 @@ private const float LookAtAngle = 90f;  // View cone angle (90 degrees = 45 on e
        _audioSource = GetComponentInChildren<AudioSource>(true);
             }
 
-       // If still no audio source and we have periodic sounds, create one
-if (_audioSource == null && !string.IsNullOrEmpty(PeriodicSound) && PeriodicSound != "(none)")
+       // If still no audio source and we have periodic or interact sounds, create one
+if (_audioSource == null && ((!string.IsNullOrEmpty(PeriodicSound) && PeriodicSound != "(none)")
+                          || (!string.IsNullOrEmpty(InteractSound) && InteractSound != "(none)")))
             {
 _audioSource = gameObject.AddComponent<AudioSource>();
      _audioSource.spatialBlend = 1f;
@@ -1704,6 +1909,19 @@ _audioSource = gameObject.AddComponent<AudioSource>();
             _periodicAnimationTimer = 999f;
     _periodicSoundTimer = 999f;
           _isApplied = true;
+
+            // kg crafting pose: hold the animator's "crafting" int so the NPC works at its station
+            // (1 = workbench loop etc.) — locked in place, matching kg's KGcraftingAnimation.
+            if (CraftingAnimation > 0)
+            {
+                try
+                {
+                    var craftAnim = _animator ?? GetComponentInChildren<Animator>(true);
+                    if (_zanim != null) _zanim.SetInt("crafting", CraftingAnimation);
+                    else if (craftAnim != null) craftAnim.SetInteger("crafting", CraftingAnimation);
+                }
+                catch (Exception ex) { Debug.LogWarning("[NpcFashionComponent] crafting anim failed: " + ex.Message); }
+            }
 
             Debug.Log($"[NpcFashionComponent] Apply() complete - " +
     $"ZSyncAnim: {(_zanim != null ? _zanim.gameObject.name : "null")}, " +
@@ -1809,9 +2027,20 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
             string emoteParam = "emote_" + animName.ToLowerInvariant();
             var paramType = looping ? AnimatorControllerParameterType.Bool : AnimatorControllerParameterType.Trigger;
 
+            bool rawBool = false;
             string param = HasParameter(_animator, emoteParam, paramType) ? emoteParam
                          : HasParameter(_animator, animName, AnimatorControllerParameterType.Trigger) ? animName
                          : null;
+            // kg parity: saved kg NPCs use RAW player-animator states as animation values
+            // (attach_chair = sit on chair, crouching, ...). kg fires them with
+            // ZSyncAnimation.SetTrigger, which LATCHES a Bool param true on every client — the NPC
+            // holds the pose. Accept any Bool param by its raw name the same way (this is what made
+            // migrated sitting NPCs stand: 'attach_chair' was rejected as "no such emote").
+            if (param == null && HasParameter(_animator, animName, AnimatorControllerParameterType.Bool))
+            {
+                param = animName;
+                rawBool = true;
+            }
             if (param == null)
             {
                 Debug.LogWarning($"[NpcFashionComponent] No animator param for emote '{animName}' (model has no player emotes?)");
@@ -1825,6 +2054,12 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
                     // Held looping emote (sit) — raw Animator Bool (ZSyncAnimation exposes no Bool setter here).
                     if (_animator != null) { _animator.ResetTrigger("emote_stop"); _animator.SetBool(param, true); }
                 }
+                else if (rawBool)
+                {
+                    // kg's exact mechanism: SetTrigger on a Bool param latches it true, replicated.
+                    if (_zanim != null) _zanim.SetTrigger(param);
+                    else if (_animator != null) _animator.SetBool(param, true);
+                }
                 else if (_zanim != null)
                 {
                     _zanim.SetTrigger(param);   // one-shot, replicated
@@ -1833,7 +2068,7 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
                 {
                     _animator.SetTrigger(param);
                 }
-                Debug.Log($"[NpcFashionComponent] Emote '{animName}' -> '{param}' (looping={looping})");
+                Debug.Log($"[NpcFashionComponent] Emote '{animName}' -> '{param}' (looping={looping}, rawBool={rawBool})");
             }
             catch (Exception ex)
             {
@@ -1902,30 +2137,42 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
         }
 
         /// <summary>
-        /// Plays the greet animation when a player approaches.
+        /// Greets an approaching player: speech bubble (GreetText) + emote (GreetAnimation). kg parity —
+        /// Market_NPC shows Chat.SetNpcText(up*4, cull 20m, ttl 3s) and SetTriggers the emote.
         /// </summary>
         public void PlayGreetAnimation()
         {
-          if (string.IsNullOrEmpty(GreetAnimation) || GreetAnimation == "(none)") return;
-        PlayAnimation(GreetAnimation);
+            ShowNpcText(GreetText);
+            if (string.IsNullOrEmpty(GreetAnimation) || GreetAnimation == "(none)") return;
+            PlayAnimation(GreetAnimation);
         }
 
         /// <summary>
-        /// Plays the bye animation when a player leaves.
+        /// Sends off a leaving player: speech bubble (ByeText) + emote (ByeAnimation).
         /// </summary>
-  public void PlayByeAnimation()
-     {
-        if (string.IsNullOrEmpty(ByeAnimation) || ByeAnimation == "(none)") return;
-   PlayAnimation(ByeAnimation);
+        public void PlayByeAnimation()
+        {
+            ShowNpcText(ByeText);
+            if (string.IsNullOrEmpty(ByeAnimation) || ByeAnimation == "(none)") return;
+            PlayAnimation(ByeAnimation);
         }
 
-   /// <summary>
-        /// Plays the interact animation when a player interacts.
-    /// </summary>
+        /// <summary>
+        /// Plays the interact animation (and interact sound, if set) when a player interacts.
+        /// </summary>
         public void PlayInteractAnimation()
-   {
-          if (string.IsNullOrEmpty(InteractAnimation) || InteractAnimation == "(none)") return;
+        {
+            PlaySound(InteractSound);
+            if (string.IsNullOrEmpty(InteractAnimation) || InteractAnimation == "(none)") return;
             PlayAnimation(InteractAnimation);
+        }
+
+        // Floating NPC speech bubble, kg-style (client-local; Chat.instance is null on a dedicated server).
+        private void ShowNpcText(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text == "(none)") return;
+            try { Chat.instance?.SetNpcText(gameObject, Vector3.up * 4f, 20f, 3f, "", text, false); }
+            catch (Exception ex) { Debug.LogWarning($"[NpcFashionComponent] SetNpcText failed: {ex.Message}"); }
         }
 
         private void OnDestroy()

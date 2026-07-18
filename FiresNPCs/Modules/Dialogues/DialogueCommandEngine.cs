@@ -16,10 +16,13 @@ namespace FiresRPGmaker.Modules.Dialogues
     /// Executes dialogue option commands at runtime.
     /// 
     /// Command format: "CommandName,Param1,Param2,..." (comma or colon separated).
-    /// Supports: GiveItem, RemoveItem, GiveQuest, RemoveQuest, FinishQuest,
-    /// Teleport, Spawn, SpawnXYZ, SpawnRaw, Damage, Heal, GiveBuff,
-    /// AddPlayerKey, RemovePlayerKey, AddCustomPlayerKey, SetCustomPlayerKey,
-    /// PlayAnimation, ConsoleCommand, AddPin, PingMap, OpenUI.
+    /// Supports: GiveItem, GiveItemWithData, RemoveItem, GiveQuest, RemoveQuest, FinishQuest,
+    /// Teleport, Spawn, SpawnRaw, SpawnXYZ, SpawnWithData, SpawnXYZWithData, SetPlayerData,
+    /// Damage, Heal, GiveBuff, AddPlayerKey, RemovePlayerKey, AddCustomPlayerKey,
+    /// RemoveCustomPlayerKey, AddCustomValue, SetCustomValue, PlayAnimation, PlaySound,
+    /// ConsoleCommand, AddPin, PingMap, OpenUI, EnterPassword, SendWebhook, PlayVideo,
+    /// GiveTerritory, RemoveTerritory, SetNPCModelLocal/Global, SetNPCNameLocal/Global,
+    /// SetNPCPatrol. Partner-mod/Factions verbs parse but no-op with a warning until wired.
     /// </summary>
     public static class DialogueCommandEngine
     {
@@ -108,6 +111,38 @@ namespace FiresRPGmaker.Modules.Dialogues
                 case "openui": Cmd_OpenUI(npcView, parts); break;
                 case "enterpassword": Cmd_EnterPassword(npcView, parts); break;
                 case "sendwebhook": Cmd_SendWebhook(player, parts); break;
+                case "giveterritory": Cmd_GiveTerritory(parts); break;
+                case "removeterritory": Cmd_RemoveTerritory(parts); break;
+                // ── MP-parity verbs (drop-in names; semantics from Dialogues_DataTypes.ParseCommands) ──
+                case "giveitemwithdata": Cmd_GiveItemWithData(player, parts); break;
+                case "setplayerdata": Cmd_SetPlayerData(player, parts); break;
+                case "spawnwithdata": Cmd_SpawnWithData(player, parts); break;
+                case "spawnxyzwithdata": Cmd_SpawnXYZWithData(parts); break;
+                case "addcustomvalue": Cmd_AddCustomValue(player, parts, add: true); break;
+                case "setcustomvalue": Cmd_AddCustomValue(player, parts, add: false); break;
+                case "playvideo": Cmd_PlayVideo(parts); break;
+                case "setnpcmodellocal": Cmd_SetNpcModel(npcView, parts, global: false); break;
+                case "setnpcmodelglobal": Cmd_SetNpcModel(npcView, parts, global: true); break;
+                case "setnpcnamelocal": Cmd_SetNpcName(npcView, parts, global: false); break;
+                case "setnpcnameglobal": Cmd_SetNpcName(npcView, parts, global: true); break;
+                case "setnpcpatrol": Cmd_SetNpcPatrol(npcView, parts); break;
+                // Partner-mod bridges + Factions verbs: accepted (so MP configs parse) but honest
+                // no-ops until their systems land — see the parity matrix.
+                case "addepicmmoexp":
+                case "addcozyheimexp":
+                case "battlepass_exp":
+                case "addrustyclassesexp":
+                case "guildaddlevel":
+                case "setplayerguild":
+                case "setplayerguildrank":
+                    Debug.LogWarning($"[DialogueCommandEngine] '{cmdName}' requires a partner system that isn't wired yet — command ignored");
+                    break;
+                case "setfaction":
+                    if (parts.Length > 1) global::FiresRPGmaker.Modules.Factions.FactionMembership.SetLocal(parts[1].Trim());
+                    break;
+                case "removefaction":
+                    global::FiresRPGmaker.Modules.Factions.FactionMembership.ClearLocal();
+                    break;
                 default:
                     Debug.LogWarning($"[DialogueCommandEngine] Unknown command: {cmdName}");
                     break;
@@ -145,6 +180,25 @@ namespace FiresRPGmaker.Modules.Dialogues
                     ItemDrop.DropItem(itemData, 1, player.transform.position + player.transform.forward + Vector3.up, Quaternion.identity);
                 }
             }
+        }
+
+        private static void Cmd_GiveTerritory(string[] parts)
+        {
+            // GiveTerritory,TerritoryName — grants ownership of the named territory to the talking player.
+            // Server-validated: non-admins only succeed for territories whose Type is ForSale.
+            if (parts.Length < 2) return;
+            string name = parts[1].Trim();
+            if (string.IsNullOrEmpty(name)) return;
+            global::FiresRPGmaker.Modules.Territories.TerritoryOwnership.RequestGrant(name, true);
+        }
+
+        private static void Cmd_RemoveTerritory(string[] parts)
+        {
+            // RemoveTerritory,TerritoryName — releases the talking player's ownership of the named territory.
+            if (parts.Length < 2) return;
+            string name = parts[1].Trim();
+            if (string.IsNullOrEmpty(name)) return;
+            global::FiresRPGmaker.Modules.Territories.TerritoryOwnership.RequestGrant(name, false);
         }
 
         private static void Cmd_RemoveItem(Player player, string[] parts)
@@ -197,18 +251,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             // Check not already active
             if (qm.HasQuest(playerId, questId)) return;
 
-            // Add to player's vault data
-            var vaultData = VaultOfKnowledge.Instance?.GetPlayerData(playerId);
-            if (vaultData == null) return;
-
-            vaultData.ActiveQuests.Add(new ActiveQuestData
-            {
-                QuestId = questId,
-                Progress = 0,
-                StartedAt = DateTime.UtcNow
-            });
-            vaultData.IsDirty = true;
-            VaultOfKnowledge.Instance.SavePlayerData(playerId, vaultData);
+            // kg-parity: client-local, per-quest accept (no vault blob).
+            global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Accept(questId, def);
 
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Quest accepted: {def.Name ?? questId}");
 
@@ -223,15 +267,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             string questId = parts[1].Trim();
             long playerId = player.GetPlayerID();
 
-            var vaultData = VaultOfKnowledge.Instance?.GetPlayerData(playerId);
-            if (vaultData == null) return;
-
-            int removed = vaultData.ActiveQuests.RemoveAll(q => string.Equals(q.QuestId, questId, StringComparison.OrdinalIgnoreCase));
-            if (removed > 0)
-            {
-                vaultData.IsDirty = true;
-                VaultOfKnowledge.Instance.SavePlayerData(playerId, vaultData);
-            }
+            // kg-parity: client-local per-quest removal.
+            global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Abandon(questId);
         }
 
         private static void Cmd_FinishQuest(Player player, string[] parts)
@@ -241,13 +278,15 @@ namespace FiresRPGmaker.Modules.Dialogues
             string questId = parts[1].Trim();
             long playerId = player.GetPlayerID();
 
+            // kg-parity: drop the active quest from the client-local store; keep the completion record in the vault.
+            global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Abandon(questId);
             var vaultData = VaultOfKnowledge.Instance?.GetPlayerData(playerId);
-            if (vaultData == null) return;
-
-            vaultData.ActiveQuests.RemoveAll(q => string.Equals(q.QuestId, questId, StringComparison.OrdinalIgnoreCase));
-            vaultData.AddCompletedQuest(questId, 1);
-            vaultData.IsDirty = true;
-            VaultOfKnowledge.Instance.SavePlayerData(playerId, vaultData);
+            if (vaultData != null)
+            {
+                vaultData.AddCompletedQuest(questId, 1);
+                vaultData.IsDirty = true;
+                VaultOfKnowledge.Instance.SavePlayerData(playerId, vaultData);
+            }
 
             var def = QuestManager.Instance?.GetQuestDefinition(questId);
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Quest completed: {def?.Name ?? questId}");
@@ -273,14 +312,14 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_Spawn(Player player, string[] parts)
         {
-            // Spawn,PrefabID,Amount,Level
-            if (parts.Length < 4) return;
+            // Spawn,Prefab[,Amount[,Level]] — near the player. Amount/Level optional (default 1).
+            if (parts.Length < 2) { Debug.LogWarning("[DialogueCommandEngine] Spawn needs a prefab name: Spawn,Prefab[,Amount,Level]"); return; }
             string prefabName = parts[1].Trim();
-            if (!int.TryParse(parts[2].Trim(), out int amount)) return;
-            if (!int.TryParse(parts[3].Trim(), out int level)) level = 1;
+            int amount = parts.Length > 2 && int.TryParse(parts[2].Trim(), out int a2) ? Mathf.Max(1, a2) : 1;
+            int level = parts.Length > 3 && int.TryParse(parts[3].Trim(), out int l2) ? l2 : 1;
 
-            var prefab = ZNetScene.instance != null ? ZNetScene.instance.GetPrefab(prefabName) : null;
-            if (prefab == null) return;
+            var prefab = ResolvePrefab(prefabName);
+            if (prefab == null) { Debug.LogWarning($"[DialogueCommandEngine] Spawn: prefab '{prefabName}' not found (try exact case, e.g. Karve)"); return; }
 
             Vector3 basePos = player.transform.position;
             for (int i = 0; i < amount; i++)
@@ -307,10 +346,10 @@ namespace FiresRPGmaker.Modules.Dialogues
             int level = parts.Length > 3 && int.TryParse(parts[3].Trim(), out int l) ? l : 1;
 
             if (ZNetScene.instance == null) return;
-            var prefab = ZNetScene.instance.GetPrefab(prefabName);
+            var prefab = ResolvePrefab(prefabName);
             if (prefab == null)
             {
-                Debug.LogWarning($"[DialogueCommandEngine] SpawnRaw: prefab '{prefabName}' not found in ZNetScene");
+                Debug.LogWarning($"[DialogueCommandEngine] SpawnRaw: prefab '{prefabName}' not found (try exact case, e.g. Karve)");
                 return;
             }
 
@@ -333,8 +372,8 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_SpawnXYZ(string[] parts)
         {
-            // SpawnXYZ,PrefabID,Amount,Level,X,Y,Z,MaxDistance
-            if (parts.Length < 8) return;
+            // SpawnXYZ,Prefab,Amount,Level,X,Y,Z,MaxDistance
+            if (parts.Length < 8) { Debug.LogWarning("[DialogueCommandEngine] SpawnXYZ format is Prefab,Amount,Level,X,Y,Z,MaxDist (7 values after the name)"); return; }
             string prefabName = parts[1].Trim();
             if (!int.TryParse(parts[2].Trim(), out int amount)) return;
             if (!int.TryParse(parts[3].Trim(), out int level)) level = 1;
@@ -343,8 +382,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (!float.TryParse(parts[6].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float z)) return;
             if (!int.TryParse(parts[7].Trim(), out int maxDist)) maxDist = 10;
 
-            var prefab = ZNetScene.instance != null ? ZNetScene.instance.GetPrefab(prefabName) : null;
-            if (prefab == null) return;
+            var prefab = ResolvePrefab(prefabName);
+            if (prefab == null) { Debug.LogWarning($"[DialogueCommandEngine] SpawnXYZ: prefab '{prefabName}' not found (try exact case, e.g. Karve)"); return; }
 
             for (int i = 0; i < amount; i++)
             {
@@ -357,6 +396,20 @@ namespace FiresRPGmaker.Modules.Dialogues
                 var itemDrop = spawned.GetComponent<ItemDrop>();
                 if (itemDrop != null) itemDrop.SetQuality(level);
             }
+        }
+
+        // Resolve a prefab by exact name first (fast hash lookup), then case-insensitively so "karve" still
+        // finds "Karve" — vanilla GetPrefab is case-sensitive, which silently bit dialogue authors.
+        private static GameObject ResolvePrefab(string name)
+        {
+            if (ZNetScene.instance == null || string.IsNullOrEmpty(name)) return null;
+            var p = ZNetScene.instance.GetPrefab(name);
+            if (p != null) return p;
+            var list = ZNetScene.instance.m_prefabs;
+            if (list != null)
+                foreach (var go in list)
+                    if (go != null && string.Equals(go.name, name, StringComparison.OrdinalIgnoreCase)) return go;
+            return null;
         }
 
         private static void Cmd_Damage(Player player, string[] parts)
@@ -562,6 +615,33 @@ namespace FiresRPGmaker.Modules.Dialogues
                     }
                     break;
 
+                case "teleporter":
+                case "teleport":
+                case "teleporthub":
+                    // Drive the FiresWayshrines network (soft dep): opens the hub's destination
+                    // chooser; profile = the Teleporters/*.cfg hub name. One travel system.
+                    global::FiresRPGmaker.Bridges.WayshrinesBridge.OpenSelectionForProfile(
+                        Player.m_localPlayer, profile ?? "");
+                    break;
+
+                case "marketplace":
+                    if (npc != null && !string.IsNullOrEmpty(profile)) npc.marketplaceProfile = profile;
+                    global::FiresRPGmaker.UI.Screens.PlayerPanels.MarketplacePlayerPanel.Show(profile ?? "", npc != null ? npc.GetDisplayName() : "Marketplace");
+                    break;
+                case "banker":
+                    if (npc != null && !string.IsNullOrEmpty(profile)) npc.bankerProfile = profile;
+                    global::FiresRPGmaker.UI.Screens.PlayerPanels.BankerPlayerPanel.Show(profile ?? "", npc != null ? npc.GetDisplayName() : "Banker");
+                    break;
+                case "mail":
+                    if (npc != null && !string.IsNullOrEmpty(profile)) npc.mailProfile = profile;
+                    global::FiresRPGmaker.UI.Screens.PlayerPanels.MailPlayerPanel.Show(profile ?? "", npc != null ? npc.GetDisplayName() : "Mail");
+                    break;
+                case "transmog":
+                case "transmogrification":
+                    if (npc != null && !string.IsNullOrEmpty(profile)) npc.transmogProfile = profile;
+                    global::FiresRPGmaker.UI.Screens.PlayerPanels.TransmogPlayerPanel.Show(profile ?? "", npc != null ? npc.GetDisplayName() : "Transmog");
+                    break;
+
                 default:
                     Debug.LogWarning($"[DialogueCommandEngine] OpenUI � unknown UI type '{uiType}'");
                     break;
@@ -658,6 +738,217 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
         }
 
+        // ── MP-parity implementations ────────────────────────────────────────
+
+        // The Marketplace custom-value store: numeric values in m_customData under this prefix.
+        // Characters migrating from MP carry these keys, so the prefix must match exactly.
+        private const string MpCustomValuePrefix = "kgMarketplaceValue@";
+
+        internal static int GetMpCustomValue(Player player, string key)
+        {
+            key = key.Replace("CUSTOMVALUE@", "");
+            return player != null && player.m_customData != null
+                && player.m_customData.TryGetValue(MpCustomValuePrefix + key, out string s)
+                && int.TryParse(s, out int v) ? v : 0;
+        }
+
+        private static void Cmd_AddCustomValue(Player player, string[] parts, bool add)
+        {
+            // AddCustomValue,Key,Amount (adds) / SetCustomValue,Key,Value (0 removes) — MP exact.
+            if (parts.Length < 3) return;
+            string key = parts[1].Trim().Replace("CUSTOMVALUE@", "");
+            if (!int.TryParse(parts[2].Trim(), out int amount)) return;
+            string fullKey = MpCustomValuePrefix + key;
+
+            int value = add ? GetMpCustomValue(player, key) + amount : amount;
+            if (value == 0 && !add) player.m_customData.Remove(fullKey);
+            else player.m_customData[fullKey] = value.ToString();
+        }
+
+        private static bool TryGetBlob(string[] parts, int index, string verb, out CustomSpawnDataStore.Blob blob)
+        {
+            blob = null;
+            if (parts.Length <= index) { Debug.LogWarning($"[DialogueCommandEngine] {verb}: missing CustomSpawnData key"); return false; }
+            string key = parts[index].Trim().ToLowerInvariant();
+            if (CustomSpawnDataStore.TryGet(key, out blob)) return true;
+            Debug.LogWarning($"[DialogueCommandEngine] {verb}: no CustomSpawnData found for key '{key}' " +
+                             "(FiresRPGmaker/CustomSpawnData/*.yml or Marketplace/Configs/CustomSpawnData/*.yml)");
+            return false;
+        }
+
+        private static void Cmd_GiveItemWithData(Player player, string[] parts)
+        {
+            // GiveItemWithData,Prefab,Amount,Level,DataKey — item lands in the inventory carrying
+            // the blob's ZDO payload (decoded through the item's own external-ZDO loader).
+            if (parts.Length < 5) return;
+            string prefabName = parts[1].Trim();
+            if (!int.TryParse(parts[2].Trim(), out int amount)) return;
+            if (!int.TryParse(parts[3].Trim(), out int level)) level = 1;
+            if (!TryGetBlob(parts, 4, "GiveItemWithData", out var blob)) return;
+
+            var prefab = ResolvePrefab(prefabName);
+            if (prefab == null || prefab.GetComponent<ItemDrop>() == null)
+            {
+                Debug.LogWarning($"[DialogueCommandEngine] GiveItemWithData: not found or not an item: {prefabName}");
+                return;
+            }
+
+            var inv = player.GetInventory();
+            if (inv == null) return;
+            for (int i = 0; i < amount; i++)
+            {
+                var spawned = UnityEngine.Object.Instantiate(prefab, player.transform.position + Vector3.up, Quaternion.identity);
+                var drop = spawned.GetComponent<ItemDrop>();
+                var nview = spawned.GetComponent<ZNetView>();
+                if (drop != null && nview != null && nview.IsValid())
+                {
+                    drop.SetQuality(Mathf.Max(1, level));
+                    blob.ApplyTo(nview.GetZDO());
+                    drop.LoadFromExternalZDO(nview.GetZDO());
+                    var itemData = drop.m_itemData.Clone();
+                    itemData.m_stack = 1;
+                    if (inv.AddItem(itemData))
+                    {
+                        if (ZNetScene.instance != null) ZNetScene.instance.Destroy(spawned);
+                        else UnityEngine.Object.Destroy(spawned);
+                        continue;
+                    }
+                }
+                // Inventory full (or no view): the data-carrying drop stays on the ground.
+            }
+        }
+
+        private static void Cmd_SetPlayerData(Player player, string[] parts)
+        {
+            // SetPlayerData,DataKey — applies the named blob directly to the player's ZDO (MP exact).
+            if (!TryGetBlob(parts, 1, "SetPlayerData", out var blob)) return;
+            var nview = player.GetComponent<ZNetView>();
+            if (nview == null || !nview.IsValid()) return;
+            blob.ApplyTo(nview.GetZDO());
+        }
+
+        private static void Cmd_SpawnWithData(Player player, string[] parts)
+        {
+            // SpawnWithData,Prefab,Amount,Level,DataKey — near-player scatter; level/quality set
+            // BEFORE the blob (MP ordering: the blob may deliberately override 'level').
+            if (parts.Length < 5) return;
+            string prefabName = parts[1].Trim();
+            if (!int.TryParse(parts[2].Trim(), out int amount)) return;
+            if (!int.TryParse(parts[3].Trim(), out int level)) level = 1;
+            if (!TryGetBlob(parts, 4, "SpawnWithData", out var blob)) return;
+
+            var prefab = ResolvePrefab(prefabName);
+            if (prefab == null) { Debug.LogWarning($"[DialogueCommandEngine] SpawnWithData: prefab '{prefabName}' not found"); return; }
+
+            Vector3 basePos = player.transform.position;
+            for (int i = 0; i < amount; i++)
+            {
+                Vector3 pos = new Vector3(basePos.x + Random.Range(-15f, 15f), basePos.y, basePos.z + Random.Range(-15f, 15f));
+                if (ZoneSystem.instance != null) ZoneSystem.instance.FindFloor(pos, out pos.y);
+                var spawned = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
+                var nview = spawned.GetComponent<ZNetView>();
+                spawned.GetComponent<Character>()?.SetLevel(Mathf.Max(1, level + 1));
+                var drop = spawned.GetComponent<ItemDrop>();
+                if (nview != null && nview.IsValid())
+                {
+                    drop?.SetQuality(level);
+                    blob.ApplyTo(nview.GetZDO());
+                    drop?.LoadFromExternalZDO(nview.GetZDO());
+                }
+            }
+        }
+
+        private static void Cmd_SpawnXYZWithData(string[] parts)
+        {
+            // SpawnXYZWithData,Prefab,Amount,Level,X,Y,Z,MaxDist,DataKey — blob FIRST, then
+            // level/quality (MP's ordering differs from SpawnWithData; kept faithfully).
+            if (parts.Length < 9) { Debug.LogWarning("[DialogueCommandEngine] SpawnXYZWithData format: Prefab,Amount,Level,X,Y,Z,MaxDist,DataKey"); return; }
+            string prefabName = parts[1].Trim();
+            if (!int.TryParse(parts[2].Trim(), out int amount)) return;
+            if (!int.TryParse(parts[3].Trim(), out int level)) level = 1;
+            if (!float.TryParse(parts[4].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float x)) return;
+            if (!float.TryParse(parts[5].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float y)) return;
+            if (!float.TryParse(parts[6].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float z)) return;
+            if (!int.TryParse(parts[7].Trim(), out int maxDist)) maxDist = 10;
+            if (!TryGetBlob(parts, 8, "SpawnXYZWithData", out var blob)) return;
+
+            var prefab = ResolvePrefab(prefabName);
+            if (prefab == null) { Debug.LogWarning($"[DialogueCommandEngine] SpawnXYZWithData: prefab '{prefabName}' not found"); return; }
+
+            for (int i = 0; i < amount; i++)
+            {
+                Vector3 pos = new Vector3(x + Random.Range(-maxDist, maxDist), y, z + Random.Range(-maxDist, maxDist));
+                var spawned = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
+                var nview = spawned.GetComponent<ZNetView>();
+                if (nview != null && nview.IsValid()) blob.ApplyTo(nview.GetZDO());
+                spawned.GetComponent<Character>()?.SetLevel(Mathf.Max(1, level + 1));
+                var drop = spawned.GetComponent<ItemDrop>();
+                if (drop != null)
+                {
+                    drop.SetQuality(level);
+                    if (nview != null && nview.IsValid()) drop.LoadFromExternalZDO(nview.GetZDO());
+                }
+            }
+        }
+
+        private static void Cmd_PlayVideo(string[] parts)
+        {
+            // PlayVideo,Url[,Volume0-100] — fullscreen in-game video, Esc closes (MP parity).
+            if (parts.Length < 2) return;
+            string url = parts[1].Trim();
+            float volume = parts.Length > 2 && int.TryParse(parts[2].Trim(), out int v) ? v / 100f : 0.5f;
+            DialogueVideoPlayer.Play(url, volume);
+        }
+
+        private static void Cmd_SetNpcModel(ZNetView npcView, string[] parts, bool global)
+        {
+            // SetNPCModelLocal/Global,Prefab — Local changes only this client's view (until the NPC
+            // reloads); Global persists via the NPC's ZDO and syncs to everyone.
+            if (parts.Length < 2 || npcView == null) return;
+            string prefabName = parts[1].Trim();
+            if (ResolvePrefab(prefabName) == null)
+            {
+                Debug.LogWarning($"[DialogueCommandEngine] SetNPCModel: prefab '{prefabName}' not found");
+                return;
+            }
+            var npc = npcView.GetComponent<NpcController>();
+            if (npc == null) return;
+            npc.modelOverride = prefabName;              // controller live-applies on change
+            if (global) npc.SaveToZDO();
+            DialogueConditionEngine.CurrentNpcModel = prefabName;   // same-conversation NPCModelEquals sees it
+        }
+
+        private static void Cmd_SetNpcName(ZNetView npcView, string[] parts, bool global)
+        {
+            // SetNPCNameLocal/Global,Name — underscores become spaces (MP convention, since commas
+            // and colons are separators).
+            if (parts.Length < 2 || npcView == null) return;
+            string name = parts[1].Trim().Replace("_", " ");
+            var npc = npcView.GetComponent<NpcController>();
+            if (npc == null) return;
+            npc.displayNameOverride = name;
+            try { FiresCore.Bridge.NpcCompanionBridge.RaiseSetDisplayName(npc.gameObject, name); } catch { }
+            if (global) npc.SaveToZDO();
+            DialogueConditionEngine.CurrentNpcName = name;
+        }
+
+        private static void Cmd_SetNpcPatrol(ZNetView npcView, string[] parts)
+        {
+            // SetNPCPatrol,RouteName[,SpeedPreset] — assigns an EXISTING Fires patrol route (authored
+            // via the patrol editor); replaces MP's inline-waypoint payload.
+            if (parts.Length < 2 || npcView == null) return;
+            string route = parts[1].Trim();
+            string preset = parts.Length > 2 ? parts[2].Trim() : "";
+            var npc = npcView.GetComponent<NpcController>();
+            if (npc == null) return;
+            if (global::FiresCore.Npc.Patrol.PatrolRouteManager.GetRoute(route) == null)
+            {
+                Debug.LogWarning($"[DialogueCommandEngine] SetNPCPatrol: route '{route}' not found");
+                return;
+            }
+            global::FiresRPGmaker.UI.PatrolRouteSync.AssignExisting(route, preset, npc);
+        }
+
         private static void Cmd_SendWebhook(Player player, string[] parts)
         {
             // SendWebhook,WebhookURL,"Message"
@@ -668,10 +959,16 @@ namespace FiresRPGmaker.Modules.Dialogues
             message = message.Replace("{playername}", player.GetPlayerName());
             message = ApplyReplacements(message);
 
+            PostWebhook(url, message);
+        }
+
+        /// <summary>Fire-and-forget Discord webhook POST (shared by the SendWebhook verb + the Feedback
+        /// module). Accepts a URL with or without the https:// prefix.</summary>
+        public static void PostWebhook(string url, string message)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return;
             if (!url.StartsWith("http://") && !url.StartsWith("https://"))
                 url = "https://" + url;
-
-            // Fire-and-forget async POST
             try
             {
                 string json = $"{{\"content\":\"{EscapeJsonString(message)}\"}}";
@@ -687,7 +984,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[DialogueCommandEngine] SendWebhook failed: {ex.Message}");
+                Debug.LogWarning($"[DialogueCommandEngine] webhook POST failed: {ex.Message}");
             }
         }
 

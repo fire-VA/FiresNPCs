@@ -23,13 +23,17 @@ namespace FiresRPGmaker.UI
         }
 
         /// <summary>Assigns an already-saved route (by name) to an NPC without re-recording any points.</summary>
-        public static void AssignExisting(string name, NpcController npc)
+        public static void AssignExisting(string name, NpcController npc) => AssignExisting(name, npc.patrolSpeedPreset, npc);
+
+        /// <summary>Assigns a saved route + a DBSM speed preset (empty = Default flat walk) to an NPC.</summary>
+        public static void AssignExisting(string name, string preset, NpcController npc)
         {
             if (npc == null || string.IsNullOrEmpty(name)) return;
             if (PatrolRouteManager.GetRoute(name) == null) return;
 
             npc.patrolRouteName = name;
-            WriteRouteKeyOnly(npc, name);
+            npc.patrolSpeedPreset = preset ?? "";
+            WriteRouteKeyOnly(npc, name, npc.patrolSpeedPreset);
             npc.SyncPatrolAssignment();
         }
 
@@ -39,7 +43,8 @@ namespace FiresRPGmaker.UI
             if (npc == null) return;
 
             npc.patrolRouteName = "";
-            WriteRouteKeyOnly(npc, "");
+            npc.patrolSpeedPreset = "";
+            WriteRouteKeyOnly(npc, "", "");
             npc.SyncPatrolAssignment();
         }
 
@@ -48,13 +53,17 @@ namespace FiresRPGmaker.UI
         /// must NEVER call npc.SaveToZDO() — that rewrites name/profile/equipment from the controller's
         /// (possibly stale/default) fields and was clobbering the NPC's applied name back to "StaticNpc".
         /// </summary>
-        private static void WriteRouteKeyOnly(NpcController npc, string routeName)
+        private static void WriteRouteKeyOnly(NpcController npc, string routeName, string presetName)
         {
             var nview = npc.GetComponent<ZNetView>();
             if (nview == null || !nview.IsValid()) return;
             if (!nview.IsOwner()) nview.ClaimOwnership();   // static NPCs are server-owned; claim so the write sticks (host/SP)
             var zdo = nview.GetZDO();
-            if (zdo != null) zdo.Set("npc_patrol_route", routeName ?? "");
+            if (zdo != null)
+            {
+                zdo.Set("npc_patrol_route", routeName ?? "");
+                zdo.Set("npc_patrol_preset", presetName ?? "");
+            }
         }
     }
 }

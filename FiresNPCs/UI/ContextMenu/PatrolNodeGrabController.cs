@@ -30,6 +30,10 @@ namespace FiresRPGmaker.UI.ContextMenu
         private const float RepeatInterval = 0.06f;
         private const float VisualLift = 0.3f;   // node spheres sit 0.3m above the saved route point
 
+        // Terrain + pieces the placement ray can land on when mouse-following (bridges/floors included).
+        private static readonly int PlacementMask =
+            UnityEngine.LayerMask.GetMask("Default", "static_solid", "piece", "terrain", "vehicle", "Default_small");
+
         private string _route;
         private int _index;
         private Vector3 _original;
@@ -38,7 +42,11 @@ namespace FiresRPGmaker.UI.ContextMenu
         private GameObject _hintGo;
         private float _tUp, _tDown, _tLeft, _tRight, _tFwd, _tBack;
 
-        public static void Begin(string route, int index)
+        private bool _mouse;          // mouse-driven placement (Shift+Alt+LMB / Grab button) vs pure key-nudge
+        private bool _armed;          // set once the initiating click is released, so we don't place on the pick click
+        private float _heightOffset;  // PageUp/Down height applied on top of the cursor's surface point
+
+        public static void Begin(string route, int index, bool mouse = false)
         {
             if (Instance != null) Instance.End();
             if (string.IsNullOrEmpty(route) || !PatrolRouteVisualizer.IsShowing(route)) return;
@@ -52,6 +60,9 @@ namespace FiresRPGmaker.UI.ContextMenu
             Instance._original = world;
             Instance._working = world;
             Instance._binds = Binds.Resolve();
+            Instance._mouse = mouse;
+            Instance._armed = false;
+            Instance._heightOffset = 0f;
 
             FiresContextMenu.Close();
             FiresContextMenu.SuppressDriver = true;   // keep the hold-Alt driver out while we own the gate
@@ -70,27 +81,49 @@ namespace FiresRPGmaker.UI.ContextMenu
             right = right.sqrMagnitude < 0.001f ? Vector3.right : right.normalized;
 
             float amt = _binds.LargeHeld() ? _binds.LargeAmount : _binds.SmallAmount;
-            Vector3 move = Vector3.zero;
-            if (Fire(_binds.Up, ref _tUp)) move += Vector3.up * amt;
-            if (Fire(_binds.Down, ref _tDown)) move += Vector3.down * amt;
-            if (Fire(_binds.Left, ref _tLeft)) move += -right * amt;
-            if (Fire(_binds.Right, ref _tRight)) move += right * amt;
-            if (Fire(_binds.Forward, ref _tFwd)) move += fwd * amt;
-            if (Fire(_binds.Backward, ref _tBack)) move += -fwd * amt;
+            bool freeze = _mouse && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl));
 
-            if (move != Vector3.zero)
+            if (_mouse && !freeze)
             {
-                _working += move;
-                PatrolRouteVisualizer.PreviewNode(_index, _working);
+                // Horizontal follows the cursor's world-raycast point; up/down binds add a persistent height offset
+                // (lift onto a bridge). The line stays connected because PreviewNode re-curves the touching segments.
+                if (Fire(_binds.Up, ref _tUp)) _heightOffset += amt;
+                if (Fire(_binds.Down, ref _tDown)) _heightOffset -= amt;
+                if (RaycastWorld(cam, out var p))
+                {
+                    _working = new Vector3(p.x, p.y + _heightOffset, p.z) + Vector3.up * VisualLift;
+                    PatrolRouteVisualizer.PreviewNode(_index, _working);
+                }
+            }
+            else
+            {
+                // Pure key-nudge: the legacy arrow mode, or a frozen mouse grab being fine-tuned (camera-relative).
+                Vector3 move = Vector3.zero;
+                if (Fire(_binds.Up, ref _tUp)) move += Vector3.up * amt;
+                if (Fire(_binds.Down, ref _tDown)) move += Vector3.down * amt;
+                if (Fire(_binds.Left, ref _tLeft)) move += -right * amt;
+                if (Fire(_binds.Right, ref _tRight)) move += right * amt;
+                if (Fire(_binds.Forward, ref _tFwd)) move += fwd * amt;
+                if (Fire(_binds.Backward, ref _tBack)) move += -fwd * amt;
+                if (move != Vector3.zero)
+                {
+                    _working += move;
+                    PatrolRouteVisualizer.PreviewNode(_index, _working);
+                }
             }
 
             if (Input.GetKeyDown(KeyCode.Keypad0) || Input.GetKeyDown(KeyCode.Home))
             {
                 _working = _original;
+                _heightOffset = 0f;
                 PatrolRouteVisualizer.PreviewNode(_index, _working);
             }
 
-            if (Input.GetMouseButtonDown(0)) { Confirm(); return; }
+            // In mouse mode, only accept a placing click AFTER the initiating pick-click is released — otherwise the
+            // Shift+Alt+LMB that started the grab (or the Grab-button click) would immediately place it.
+            if (_mouse && !Input.GetMouseButton(0)) _armed = true;
+            bool canPlace = !_mouse || _armed;
+            if (canPlace && Input.GetMouseButtonDown(0)) { Confirm(); return; }
             if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) { Cancel(); return; }
         }
 
@@ -106,6 +139,21 @@ namespace FiresRPGmaker.UI.ContextMenu
                 return false;
             }
             timer = 0f;
+            return false;
+        }
+
+        // World point under the free cursor (camera ray → terrain/pieces). The camera is pinned by InputBlock, so
+        // moving the mouse sweeps the ray across the surface like dragging in a fixed-view editor.
+        private static bool RaycastWorld(Camera cam, out Vector3 point)
+        {
+            point = Vector3.zero;
+            if (cam == null) return false;
+            var ray = cam.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, 3000f, PlacementMask, QueryTriggerInteraction.Ignore))
+            {
+                point = hit.point;
+                return true;
+            }
             return false;
         }
 
@@ -162,11 +210,14 @@ namespace FiresRPGmaker.UI.ContextMenu
             ol.effectColor = UIFontConfig.Colors.ParchmentOutline;
             ol.effectDistance = new Vector2(2f, -2f);
 
-            string hint =
-                $"Editing node {_index + 1}   •   {Key(_binds.Forward)}/{Key(_binds.Backward)} fwd·back   " +
-                $"{Key(_binds.Left)}/{Key(_binds.Right)} left·right   {Key(_binds.Up)}/{Key(_binds.Down)} up·down   " +
-                $"(hold {Key(_binds.LargeMod)} = {_binds.LargeAmount:0.##}m steps)\n" +
-                "Left-click: place    •    Right-click / Esc: cancel    •    Keypad0: reset";
+            string hint = _mouse
+                ? $"Editing node {_index + 1}   •   Mouse: move   •   {Key(_binds.Up)}/{Key(_binds.Down)}: height   " +
+                  $"•   hold Ctrl: freeze + arrow-nudge   (hold {Key(_binds.LargeMod)} = {_binds.LargeAmount:0.##}m steps)\n" +
+                  "Left-click: place    •    Right-click / Esc: cancel    •    Keypad0: reset"
+                : $"Editing node {_index + 1}   •   {Key(_binds.Forward)}/{Key(_binds.Backward)} fwd·back   " +
+                  $"{Key(_binds.Left)}/{Key(_binds.Right)} left·right   {Key(_binds.Up)}/{Key(_binds.Down)} up·down   " +
+                  $"(hold {Key(_binds.LargeMod)} = {_binds.LargeAmount:0.##}m steps)\n" +
+                  "Left-click: place    •    Right-click / Esc: cancel    •    Keypad0: reset";
             UIBuilderHelper.CreateLabel(panel.transform, "HintText", hint, 15,
                 UIFontConfig.Colors.ParchmentInk, Vector2.zero, Vector2.one, TextAlignmentOptions.Center);
         }

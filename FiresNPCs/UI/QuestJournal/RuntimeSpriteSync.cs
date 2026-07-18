@@ -64,12 +64,12 @@ namespace FiresRPGmaker.UI.QuestJournal
         /// <summary>
         /// Path to RuntimeSprites folder.
         /// </summary>
-        public static string RuntimeSpritesFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "RuntimeSprites");
+        public static string RuntimeSpritesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestSprites);
 
         /// <summary>
         /// Path to UIAssets folder tree (CapturedAssets/sprites and Sprites subfolders).
         /// </summary>
-        private static string UIAssetsDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "UIAssets");
+        private static string UIAssetsDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.UiAssets);
 
         /// <summary>
         /// Returns all syncable folders as (directory, relativePrefix) pairs.
@@ -152,7 +152,7 @@ namespace FiresRPGmaker.UI.QuestJournal
         // Checked once per session in RequestSyncFromServer.
         private static bool _spriteScopeChecked;
         private static string SpriteServerMarkerPath =>
-            Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "cache", "sprite_server.key");
+            Path.Combine(FiresCore.Storage.FiresConfigPaths.Cache, "sprite_server.key");
 
         /// <summary>
         /// Initialize the sprite sync system and register RPCs.
@@ -1255,7 +1255,7 @@ catch
                 if (__instance != Player.m_localPlayer) return;
 
                 // DIAG (login-freeze)
-                Debug.Log("[LoginFreeze][DIAG] ENTER RuntimeSpriteSync.Player_OnSpawned_Postfix");
+                FiresLogger.LogVerbose("[LoginFreeze][DIAG] ENTER RuntimeSpriteSync.Player_OnSpawned_Postfix");
 
                 // Re-register RPCs (safe if already registered for this session)
                 RuntimeSpriteSync.Init();
@@ -1273,7 +1273,7 @@ catch
                     }
                 }
 
-                Debug.Log("[LoginFreeze][DIAG] EXIT RuntimeSpriteSync.Player_OnSpawned_Postfix");
+                FiresLogger.LogVerbose("[LoginFreeze][DIAG] EXIT RuntimeSpriteSync.Player_OnSpawned_Postfix");
             }
             catch (System.Exception ex)
             {

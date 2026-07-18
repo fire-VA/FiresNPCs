@@ -67,27 +67,32 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             _initialized = true;
             _profiles.Clear();
-            var folder = GetProfileFolder();
-            if (!Directory.Exists(folder))
-                try { Directory.CreateDirectory(folder); } catch { }
-            // Always seed example.cfg if missing — the previous gate fired ONLY when the folder didn't
-            // exist, leaving empty pre-created folders unseeded (the bug the user hit on first banker open).
-            WriteExampleProfile(folder);
-            foreach (var file in Directory.GetFiles(folder, "*.cfg", SearchOption.AllDirectories))
+            // Pure clients parse the server-synced in-memory store (no config files on client disk);
+            // server/host reads + seeds its folder as before.
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
             {
-                try { LoadOne(file); }
-                catch (System.Exception ex) { Debug.LogError("[BankerProfileManager] " + file + ": " + ex.Message); }
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder))
+                    try { Directory.CreateDirectory(folder); } catch { }
+                // Always seed example.cfg if missing — the previous gate fired ONLY when the folder didn't
+                // exist, leaving empty pre-created folders unseeded (the bug the user hit on first banker open).
+                WriteExampleProfile(folder);
+            }
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines(MarketplacePaths.Bankers))
+            {
+                try { LoadOne(kv.Key, kv.Value); }
+                catch (System.Exception ex) { Debug.LogError("[BankerProfileManager] " + kv.Key + ": " + ex.Message); }
             }
             Debug.Log("[BankerProfileManager] Loaded " + _profiles.Count + " profile(s)");
         }
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Bankers);
 
-        private static void LoadOne(string file)
+        private static void LoadOne(string file, string[] lines)
         {
             string key = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             BankerProfile profile = null;
-            foreach (var raw in File.ReadAllLines(file))
+            foreach (var raw in lines)
             {
                 var line = raw.Trim();
                 if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
@@ -145,6 +150,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 System.IO.File.WriteAllText(file, content);
                 _initialized = false;
                 EnsureLoaded();
+                global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Bankers", safe + ".cfg", content);
                 Debug.Log($"[BankerProfileManager] Saved banker profile '{name}' -> {file}");
             }
             catch (System.Exception ex) { Debug.LogError("[BankerProfileManager] SaveProfile failed: " + ex.Message); }
@@ -171,109 +177,36 @@ namespace FiresRPGmaker.Modules.Marketplace
     }
 
     /// <summary>
-    /// Accrues passive interest on banker balances at the configured per-minute rate.
-    /// Driven by a single MonoBehaviour spawned in Setup; ticks every 60s for the local player.
-    /// </summary>
-    public static class BankerInterestAccrual
-    {
-        private static float _accumulator;
-
-        public static void Tick(float deltaSeconds, string profileName)
-        {
-            _accumulator += deltaSeconds;
-            if (_accumulator < 60f) return;
-            float minutes = _accumulator / 60f; _accumulator = 0f;
-
-            var profile = BankerProfileManager.GetProfile(profileName);
-            if (profile == null || profile.InterestPerMinute <= 0f) return;
-            var p = Player.m_localPlayer; if (p == null) return;
-            string name = p.GetPlayerName();
-            foreach (var kv in profile.CurrencyLimits)
-            {
-                int balance = BankerBalanceStore.Get(name, kv.Key);
-                if (balance <= 0) continue;
-                int gain = Mathf.RoundToInt(balance * (profile.InterestPerMinute / 100f) * minutes);
-                if (gain <= 0) continue;
-                int newBalance = Mathf.Min(balance + gain, kv.Value);
-                if (newBalance > balance) BankerBalanceStore.Set(name, kv.Key, newBalance);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Per-player banker balances kept in BepInEx config as a tiny CSV. Persistence will move to LiteDB
-    /// alongside the rest of the Marketplace stores; this is the v1 dev-friendly storage so test runs
-    /// survive game restarts.
+    /// Client-side DISPLAY cache of the local player's banked balances, keyed by currency prefab name.
+    /// Authoritative balances live server-side in the per-world vault (<see cref="FiresCore.Storage.BankRepository"/>);
+    /// this cache is filled only by <see cref="BankerNetwork"/> replies. No local file persistence — the server
+    /// is the single source of truth, which also ends the old per-client CSV that never synced across players.
     /// </summary>
     public static class BankerBalanceStore
     {
-        private static readonly Dictionary<string, int> _balances = new();
-        private static bool _loaded;
+        private static readonly Dictionary<string, int> _cache = new(System.StringComparer.OrdinalIgnoreCase);
 
+        /// <summary><paramref name="playerName"/> is ignored — the cache only ever holds the local player.</summary>
         public static int Get(string playerName, string currency)
         {
-            EnsureLoaded();
-            _balances.TryGetValue(Key(playerName, currency), out var v);
+            _cache.TryGetValue(currency ?? "", out var v);
             return v;
         }
 
-        public static void Set(string playerName, string currency, int amount)
+        /// <summary>Overwrites the whole cache from a server BalanceFull sync.</summary>
+        public static void ReplaceCache(IReadOnlyDictionary<string, int> map)
         {
-            EnsureLoaded();
-            _balances[Key(playerName, currency)] = Mathf.Max(0, amount);
-            Save();
+            _cache.Clear();
+            if (map != null) foreach (var kv in map) _cache[kv.Key] = kv.Value;
         }
 
-        public static IEnumerable<KeyValuePair<string, int>> ForPlayer(string playerName)
+        /// <summary>Updates a single currency from a server BalanceOne reply.</summary>
+        public static void SetCached(string currency, int balance)
         {
-            EnsureLoaded();
-            string prefix = (playerName ?? "") + "::";
-            foreach (var kv in _balances)
-            {
-                if (kv.Key.StartsWith(prefix))
-                    yield return new KeyValuePair<string, int>(kv.Key.Substring(prefix.Length), kv.Value);
-            }
+            if (!string.IsNullOrEmpty(currency)) _cache[currency] = Mathf.Max(0, balance);
         }
 
-        private static string Key(string player, string currency) => (player ?? "") + "::" + (currency ?? "");
-
-        private static string StorePath => Path.Combine(BepInEx.Paths.ConfigPath, "firesnpcs", "banker", "_balances.csv");
-
-        private static void EnsureLoaded()
-        {
-            if (_loaded) return;
-            _loaded = true;
-            var path = StorePath;
-            if (!File.Exists(path)) return;
-            foreach (var raw in File.ReadAllLines(path))
-            {
-                var line = raw.Trim();
-                if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
-                var parts = line.Split(',');
-                if (parts.Length != 3) continue;
-                if (!int.TryParse(parts[2], out int v)) continue;
-                _balances[Key(parts[0], parts[1])] = v;
-            }
-        }
-
-        private static void Save()
-        {
-            try
-            {
-                var path = StorePath;
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-                var lines = new List<string> { "# player,currency,amount" };
-                foreach (var kv in _balances)
-                {
-                    var sep = kv.Key.IndexOf("::", System.StringComparison.Ordinal);
-                    if (sep < 0) continue;
-                    var player = kv.Key.Substring(0, sep);
-                    var currency = kv.Key.Substring(sep + 2);
-                    lines.Add(player + "," + currency + "," + kv.Value);
-                }
-                File.WriteAllLines(path, lines);
-            }
-            catch (System.Exception ex) { Debug.LogError("[BankerBalanceStore] save failed: " + ex.Message); }
-        }
+        /// <summary>Dropped on world change so one server's balances never bleed onto another.</summary>
+        public static void ClearCache() => _cache.Clear();
     }
 }

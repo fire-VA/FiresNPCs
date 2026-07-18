@@ -11,6 +11,9 @@ namespace FiresRPGmaker.Modules.Marketplace
     /// <summary>Single auction-house listing row (browse/sell/own).</summary>
     public class MarketplaceListing
     {
+        /// <summary>Server-side LiteDB listing id (0 for inventory sell-prompts not yet listed). Buy/Cancel
+        /// reference this so the server knows exactly which row to mutate.</summary>
+        public int Id;
         public string ItemPrefab;
         public int Count;
         public int Price;
@@ -41,25 +44,42 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static readonly Dictionary<string, List<MarketplaceListing>> _listingsByProfile = new();
         private static bool _initialized;
 
+        // The live GLOBAL market, replaced wholesale by MarketplaceNetwork replies/broadcasts. The panel reads
+        // it through GetListings; the server never reads this (it owns the LiteDB repo directly).
+        private static readonly List<MarketplaceListing> _live = new List<MarketplaceListing>();
+
+        public static void ReplaceLive(List<MarketplaceListing> listings)
+        {
+            _live.Clear();
+            if (listings != null) _live.AddRange(listings);
+        }
+
+        public static void ClearLive() => _live.Clear();
+
         public static IReadOnlyList<MarketplaceListing> GetListings(bool myListingsOnly, string profileName, string filterLower)
             => GetListings(myListingsOnly, profileName, filterLower, MarketCategory.All);
 
+        // profileName is retained for call-site compatibility but ignored — the market is global now.
         public static IReadOnlyList<MarketplaceListing> GetListings(bool myListingsOnly, string profileName, string filterLower, MarketCategory category)
         {
-            EnsureLoaded();
-            if (!_listingsByProfile.TryGetValue((profileName ?? "").ToLowerInvariant(), out var pool))
-                return new List<MarketplaceListing>();
-
-            string playerName = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : null;
-            IEnumerable<MarketplaceListing> q = pool;
-            if (myListingsOnly && !string.IsNullOrEmpty(playerName))
-                q = q.Where(l => string.Equals(l.SellerName, playerName, System.StringComparison.OrdinalIgnoreCase));
+            long myId = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerID() : 0L;
+            IEnumerable<MarketplaceListing> q = _live;
+            if (myListingsOnly)
+                q = q.Where(l => myId != 0L && l.SellerId == myId);
             if (!string.IsNullOrEmpty(filterLower))
-                q = q.Where(l => l.ItemPrefab.ToLowerInvariant().Contains(filterLower)
-                              || l.SellerName.ToLowerInvariant().Contains(filterLower));
+                q = q.Where(l => (l.ItemPrefab ?? "").ToLowerInvariant().Contains(filterLower)
+                              || (l.SellerName ?? "").ToLowerInvariant().Contains(filterLower));
             if (category != MarketCategory.All)
                 q = q.Where(l => ClassifyCategory(l) == category);
             return q.ToList();
+        }
+
+        /// <summary>A profile's sample .cfg listings — read server-side to seed the global market once.</summary>
+        public static IReadOnlyList<MarketplaceListing> GetProfileSamples(string profile)
+        {
+            EnsureLoaded();
+            return _listingsByProfile.TryGetValue((profile ?? "").ToLowerInvariant(), out var pool)
+                ? pool : new List<MarketplaceListing>();
         }
 
         /// <summary>Maps a listing's item to a KG MarketCategory, by ObjectDB lookup the first time.</summary>
@@ -115,27 +135,6 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         public static IEnumerable<string> GetLoadedProfileNames() { EnsureLoaded(); return _listingsByProfile.Keys; }
 
-        public static void AddListing(string profile, MarketplaceListing l)
-        {
-            EnsureLoaded();
-            if (string.IsNullOrEmpty(profile)) return;
-            string key = profile.ToLowerInvariant();
-            if (!_listingsByProfile.TryGetValue(key, out var pool))
-            {
-                pool = new List<MarketplaceListing>();
-                _listingsByProfile[key] = pool;
-            }
-            pool.Add(l);
-        }
-
-        public static void RemoveListing(string profile, MarketplaceListing l)
-        {
-            EnsureLoaded();
-            if (string.IsNullOrEmpty(profile)) return;
-            if (_listingsByProfile.TryGetValue(profile.ToLowerInvariant(), out var pool))
-                pool.Remove(l);
-        }
-
         public static void EnsureLoaded()
         {
             if (_initialized) return;
@@ -146,27 +145,32 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             _initialized = true;
             _listingsByProfile.Clear();
-            var folder = GetProfileFolder();
-            if (!Directory.Exists(folder))
-                try { Directory.CreateDirectory(folder); } catch { }
-            // Always seed example.cfg if missing — see same fix in BankerProfileManager.
-            WriteExampleProfile(folder);
-            foreach (var file in Directory.GetFiles(folder, "*.cfg", SearchOption.AllDirectories))
+            // Pure clients parse the server-synced in-memory store (no config files on client disk);
+            // server/host reads + seeds its folder as before.
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
             {
-                try { LoadOne(file); }
-                catch (System.Exception ex) { Debug.LogError("[MarketplaceListingManager] " + file + ": " + ex.Message); }
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder))
+                    try { Directory.CreateDirectory(folder); } catch { }
+                // Always seed example.cfg if missing — see same fix in BankerProfileManager.
+                WriteExampleProfile(folder);
+            }
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines(MarketplacePaths.Marketplace))
+            {
+                try { LoadOne(kv.Key, kv.Value); }
+                catch (System.Exception ex) { Debug.LogError("[MarketplaceListingManager] " + kv.Key + ": " + ex.Message); }
             }
             int totalRows = _listingsByProfile.Values.Sum(v => v.Count);
-            Debug.Log("[MarketplaceListingManager] Loaded " + totalRows + " sample listing(s) across " + _listingsByProfile.Count + " profile(s) from " + folder);
+            Debug.Log("[MarketplaceListingManager] Loaded " + totalRows + " sample listing(s) across " + _listingsByProfile.Count + " profile(s)");
         }
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Marketplace);
 
-        private static void LoadOne(string file)
+        private static void LoadOne(string file, string[] lines)
         {
             string key = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             var pool = new List<MarketplaceListing>();
-            foreach (var raw in File.ReadAllLines(file))
+            foreach (var raw in lines)
             {
                 var line = raw.Trim();
                 if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;

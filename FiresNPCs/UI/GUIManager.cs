@@ -405,8 +405,60 @@ return false;
          QuestJournalController.Instance?.Hide();
          global::FiresRPGmaker.Modules.Dialogues.DialogueUI.Hide();
          Screens.TraderUIController.HideIfVisible();
+         Screens.PlayerPanels.BasePlayerModulePanel.CloseAny();
+         Screens.PlayerPanels.MailPlayerPanel.CloseAny();
          FiresCore.Help.HelpPanel.Instance?.Hide();
          FiresCore.Bridge.ModUiRegistry.CloseAll();
+        }
+
+        /// <summary>
+        /// Adds a small top-right "✕" close button styled to match the Fires dialogue/panel theme (a rounded
+        /// dark chip with a thin gold inset border + gold glyph, same language as the dialogue number badge).
+        /// Reddens on hover as the conventional close affordance. onClose fires on click.
+        /// </summary>
+        public static Button AddCloseX(Transform panel, Action onClose, float size = 30f, float inset = 10f)
+        {
+            if (panel == null) return null;
+            var go = new GameObject("CloseX", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(panel, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.sizeDelta = new Vector2(size, size);
+            rt.anchoredPosition = new Vector2(-inset, -inset);
+            // Float in the panel's top-right even when the panel is a layout-group container
+            // (dialogue's visible box is a VerticalLayoutGroup) — otherwise the group would
+            // reposition/stretch the chip into the content flow.
+            var le = go.AddComponent<LayoutElement>();
+            le.ignoreLayout = true;
+
+            var img = go.GetComponent<Image>();
+            var normal = new Color(0.14f, 0.11f, 0.07f, 0.98f);
+            img.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(7, Color.white, new Color(0.72f, 0.55f, 0.28f, 1f), 1);
+            img.type = Image.Type.Sliced;
+            img.color = normal;
+
+            var btn = go.GetComponent<Button>();
+            btn.transition = Selectable.Transition.None;
+            if (onClose != null) btn.onClick.AddListener(() => onClose());
+
+            var label = new GameObject("X", typeof(RectTransform));
+            label.transform.SetParent(go.transform, false);
+            var lrt = label.GetComponent<RectTransform>();
+            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+            lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+            var x = label.AddComponent<TextMeshProUGUI>();
+            x.text = "×";   // U+00D7 — in Valheim's AveriaSans font (U+2715 ✕ is NOT, renders as □)
+            x.fontSize = size * 0.72f;
+            x.alignment = TextAlignmentOptions.Center;
+            x.color = new Color(0.93f, 0.82f, 0.52f);
+            x.fontStyle = FontStyles.Bold;
+            x.raycastTarget = false;
+            try { FiresCore.UI.UIBuilderHelper.ApplyValheimFont(x); } catch { }
+
+            var hover = go.AddComponent<CloseXHover>();
+            hover.Img = img; hover.Normal = normal; hover.Hover = new Color(0.45f, 0.16f, 0.11f, 0.98f);
+            return btn;
         }
 
         #endregion
@@ -527,5 +579,18 @@ childControlWidth: true,
         }
 
         #endregion
+    }
+
+    /// <summary>Hover tint for the shared top-right close "✕" — reddens the chip on pointer-over (the
+    /// conventional close affordance), restores the theme brown on exit.</summary>
+    internal sealed class CloseXHover : MonoBehaviour,
+        UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler
+    {
+        public Image Img;
+        public Color Normal;
+        public Color Hover;
+        public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData e) { if (Img != null) Img.color = Hover; }
+        public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) { if (Img != null) Img.color = Normal; }
+        private void OnDisable() { if (Img != null) Img.color = Normal; }
     }
 }

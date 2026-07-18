@@ -15,8 +15,14 @@ namespace FiresRPGmaker.Modules.Marketplace
         public string Prefab;
         public int MinAmount;
         public int Score;
+        /// <summary>Tier accent color, captured from the KG block's "R,G,B" line (line index 4). Drives the
+        /// completed-achievement row tint. Defaults to a neutral parchment-gray when absent/unparseable.</summary>
+        public Color AccentColor = NeutralAccent;
         /// <summary>Local mock-progress (until the LeaderboardTracker module lands and feeds real player stats).</summary>
         public int MockProgress;
+
+        /// <summary>Neutral fallback accent when a def carries no parseable "R,G,B" line (mirrors the Novice tier gray).</summary>
+        public static readonly Color NeutralAccent = new Color(190f / 255f, 190f / 255f, 190f / 255f, 1f);
     }
 
     /// <summary>
@@ -47,20 +53,44 @@ namespace FiresRPGmaker.Modules.Marketplace
             ReloadAll();
         }
 
+        /// <summary>
+        /// The achievement profile the leaderboard scores against. Prefers the configured profile
+        /// (<c>Leaderboard / AchievementProfile</c>, default "server") when it actually carries achievements;
+        /// otherwise the first non-empty loaded profile; otherwise "example". One method, shared by the
+        /// Achievements tab, the local count/list compute, and (in a later step) the server.
+        /// </summary>
+        public static string ResolveActiveProfile()
+        {
+            EnsureLoaded();
+            string configured = global::FiresRPGmaker.Managers.ConfigManager.Instance?.configAchievementProfile?.Value;
+            if (!string.IsNullOrEmpty(configured) && GetAchievements(configured).Count > 0)
+                return configured;
+            foreach (var name in GetLoadedProfileNames())
+            {
+                if (GetAchievements(name).Count > 0) return name;
+            }
+            return "example";
+        }
+
         public static void ReloadAll()
         {
             _initialized = true;
             _byProfile.Clear();
-            var folder = GetProfileFolder();
-            if (!Directory.Exists(folder))
+            // Pure clients parse the server-synced in-memory store (no config files on client disk);
+            // server/host reads + seeds its folder as before.
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
             {
-                try { Directory.CreateDirectory(folder); } catch { }
-                WriteExampleProfile(folder);
+                var folder = GetProfileFolder();
+                if (!Directory.Exists(folder))
+                {
+                    try { Directory.CreateDirectory(folder); } catch { }
+                    WriteExampleProfile(folder);
+                }
             }
-            foreach (var file in Directory.GetFiles(folder, "*.cfg", SearchOption.AllDirectories))
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines(MarketplacePaths.Achievements))
             {
-                try { LoadOne(file); }
-                catch (System.Exception ex) { Debug.LogError("[AchievementProfileManager] " + file + ": " + ex.Message); }
+                try { LoadOne(kv.Key, kv.Value); }
+                catch (System.Exception ex) { Debug.LogError("[AchievementProfileManager] " + kv.Key + ": " + ex.Message); }
             }
             Debug.Log("[AchievementProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
                       + " achievement(s) across " + _byProfile.Count + " profile(s)");
@@ -68,7 +98,7 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Achievements);
 
-        private static void LoadOne(string file)
+        private static void LoadOne(string file, string[] lines)
         {
             string key = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
             var pool = new List<AchievementDef>();
@@ -99,6 +129,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                         Prefab = prefab,
                         MinAmount = minAmt,
                         Score = score,
+                        AccentColor = ParseAccentColor(kgBlock[4]),
                         MockProgress = 0,
                     });
                 }
@@ -108,7 +139,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 kgBlock.Clear();
             }
 
-            foreach (var raw in File.ReadAllLines(file))
+            foreach (var raw in lines)
             {
                 var line = raw.Trim();
                 if (string.IsNullOrEmpty(line) || line.StartsWith("#")) { FlushKgBlock(); continue; }
@@ -148,6 +179,18 @@ namespace FiresRPGmaker.Modules.Marketplace
             }
             FlushKgBlock();
             if (pool.Count > 0 && !_byProfile.ContainsKey(key)) _byProfile[key] = pool;
+        }
+
+        // The KG block's line index 4 is "R,G,B" (0-255 per channel) — the generator's locked per-tier color.
+        // Parse it into a Color; fall back to the neutral parchment-gray when it's missing or malformed.
+        private static Color ParseAccentColor(string rgb)
+        {
+            if (string.IsNullOrEmpty(rgb)) return AchievementDef.NeutralAccent;
+            var parts = rgb.Replace(" ", "").Split(',');
+            if (parts.Length < 3) return AchievementDef.NeutralAccent;
+            if (int.TryParse(parts[0], out int r) && int.TryParse(parts[1], out int g) && int.TryParse(parts[2], out int b))
+                return new Color(Mathf.Clamp01(r / 255f), Mathf.Clamp01(g / 255f), Mathf.Clamp01(b / 255f), 1f);
+            return AchievementDef.NeutralAccent;
         }
 
         private static void WriteExampleProfile(string folder)

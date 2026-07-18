@@ -69,7 +69,7 @@ namespace FiresRPGmaker.UI.Screens
      private static Color ScrollbarColor => UIFontConfig.Colors.ScrollbarHandle;
         private static Color ScrollbarBgColor => UIFontConfig.Colors.ScrollbarBackground;
 
-        private static string RuntimeSpritesFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "RuntimeSprites");
+        private static string RuntimeSpritesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestSprites);
         private static Dictionary<string, Texture2D> _spriteCache = new Dictionary<string, Texture2D>();
 
         public bool IsVisible => screenRoot != null && screenRoot.activeSelf;
@@ -861,9 +861,14 @@ _questDescriptionText.lineSpacing = 18f;
 public static void ShowForNpc(NpcController npc)
      {
      if (npc == null) { Debug.LogWarning("[QuestInteractionScreenController] Cannot show - NPC is null"); return; }
-   if (string.IsNullOrEmpty(npc.questProfile))
+
+     // Quest selection now runs on the animated book UI; this flat screen remains as the fallback
+     // if the book can't open (missing bundle etc.).
+     if (global::FiresRPGmaker.UI.Books.QuestBookJournal.OpenForNpc(npc)) return;
+   if (string.IsNullOrEmpty(npc.GetEffectiveQuestProfile()))
     {
-        Debug.Log($"[QuestInteractionScreenController] NPC '{npc.GetDisplayName()}' has no quest profile assigned");
+        var _loaded = global::FiresRPGmaker.UI.QuestProfileManager.GetAllProfileNames();
+        Debug.Log($"[QuestInteractionScreenController] NPC '{npc.GetDisplayName()}' resolved NO quest profile (explicit='{npc.questProfile}'; {_loaded.Count} profiles loaded client-side: {string.Join(",", _loaded)})");
         MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{npc.GetDisplayName()} has no quests available.");
          return;
             }
@@ -913,7 +918,7 @@ public static void ShowForNpc(NpcController npc)
             if (!_initialized) return;
             _currentNpc = npc;
             _selectedQuest = null;
-            LoadQuestsFromProfile(npc?.questProfile);
+            LoadQuestsFromProfile(npc?.GetEffectiveQuestProfile());
             PopulateQuestList();
             ClearQuestDetails();
             UpdateButtonStates();
@@ -1505,71 +1510,84 @@ return $"<color={grayColor}>{label}</color> <color={redColor}>{rest}</color>";
         }
 
         private void LoadPreviewImage(QuestDefinition quest)
-   {
-   ClearPreviewImage();
+        {
+            ClearPreviewImage();
             if (quest == null || _previewRawImage == null) return;
+            var tex = LoadQuestPreviewTexture(quest);
+            if (tex != null) { ApplyPreviewTexture(tex); return; }
+
+            // Fallback: show the first quest target's icon as the preview
+            TryShowTargetIconAsPreview(quest);
+        }
+
+        /// <summary>
+        /// Resolves and loads a quest's preview image from the runtime sprites folder (PreviewImage name, quest id,
+        /// or safe quest name; .png/.jpg/.jpeg), cached. Shared by this screen and the book quest UI.
+        /// </summary>
+        public static Texture2D LoadQuestPreviewTexture(QuestDefinition quest)
+        {
+            if (quest == null) return null;
             string[] extensions = { ".png", ".jpg", ".jpeg" };
-         if (!string.IsNullOrEmpty(quest.PreviewImage))
+            if (!string.IsNullOrEmpty(quest.PreviewImage))
             {
-      string previewName = quest.PreviewImage.Trim();
-      string directPath = Path.Combine(RuntimeSpritesFolder, previewName);
-         if (File.Exists(directPath)) { LoadTextureFromFile(directPath); return; }
+                string previewName = quest.PreviewImage.Trim();
+                string directPath = Path.Combine(RuntimeSpritesFolder, previewName);
+                if (File.Exists(directPath)) return LoadTextureCached(directPath);
                 foreach (var ext in extensions)
-     {
-     string imagePath = Path.Combine(RuntimeSpritesFolder, previewName + ext);
-           if (File.Exists(imagePath)) { LoadTextureFromFile(imagePath); return; }
-          }
-            string safePreviewName = MakeSafeFileName(previewName);
-   foreach (var ext in extensions)
                 {
-            string imagePath = Path.Combine(RuntimeSpritesFolder, safePreviewName + ext);
-     if (File.Exists(imagePath)) { LoadTextureFromFile(imagePath); return; }
+                    string imagePath = Path.Combine(RuntimeSpritesFolder, previewName + ext);
+                    if (File.Exists(imagePath)) return LoadTextureCached(imagePath);
+                }
+                string safePreviewName = MakeSafeFileName(previewName);
+                foreach (var ext in extensions)
+                {
+                    string imagePath = Path.Combine(RuntimeSpritesFolder, safePreviewName + ext);
+                    if (File.Exists(imagePath)) return LoadTextureCached(imagePath);
                 }
             }
             foreach (var ext in extensions)
             {
-     string imagePath = Path.Combine(RuntimeSpritesFolder, quest.QuestId + ext);
-         if (File.Exists(imagePath)) { LoadTextureFromFile(imagePath); return; }
-   }
+                string imagePath = Path.Combine(RuntimeSpritesFolder, quest.QuestId + ext);
+                if (File.Exists(imagePath)) return LoadTextureCached(imagePath);
+            }
             string safeName = MakeSafeFileName(quest.Name ?? quest.QuestId);
-       foreach (var ext in extensions)
-                {
-         string imagePath = Path.Combine(RuntimeSpritesFolder, safeName + ext);
-                 if (File.Exists(imagePath)) { LoadTextureFromFile(imagePath); return; }
-         }
-
-        // Fallback: show the first quest target's icon as the preview
-        TryShowTargetIconAsPreview(quest);
+            foreach (var ext in extensions)
+            {
+                string imagePath = Path.Combine(RuntimeSpritesFolder, safeName + ext);
+                if (File.Exists(imagePath)) return LoadTextureCached(imagePath);
+            }
+            return null;
         }
 
-        private void LoadTextureFromFile(string filePath)
-  {
-    try
-    {
-     if (_spriteCache.TryGetValue(filePath, out var cachedTexture)) { ApplyPreviewTexture(cachedTexture); return; }
-        byte[] fileData = File.ReadAllBytes(filePath);
-      var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-             bool loaded = false;
-        var imageConversionType = Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
-             if (imageConversionType != null)
-    {
-       var loadImageMethod = imageConversionType.GetMethod("LoadImage", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public, null, new[] { typeof(Texture2D), typeof(byte[]), typeof(bool) }, null);
-         if (loadImageMethod != null) loaded = (bool)loadImageMethod.Invoke(null, new object[] { texture, fileData, false });
-     }
-           if (!loaded)
-              {
-                    try
+        private static Texture2D LoadTextureCached(string filePath)
         {
-       var loadImageDirect = typeof(Texture2D).GetMethod("LoadImage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public, null, new[] { typeof(byte[]) }, null);
-     if (loadImageDirect != null) loaded = (bool)loadImageDirect.Invoke(texture, new object[] { fileData });
-     }
-     catch { }
-             }
-    if (loaded && texture.width > 8) { texture.name = Path.GetFileNameWithoutExtension(filePath); _spriteCache[filePath] = texture; ApplyPreviewTexture(texture); }
-   else UnityEngine.Object.Destroy(texture);
-    }
+            try
+            {
+                if (_spriteCache.TryGetValue(filePath, out var cachedTexture)) return cachedTexture;
+                byte[] fileData = File.ReadAllBytes(filePath);
+                var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                bool loaded = false;
+                var imageConversionType = Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                if (imageConversionType != null)
+                {
+                    var loadImageMethod = imageConversionType.GetMethod("LoadImage", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public, null, new[] { typeof(Texture2D), typeof(byte[]), typeof(bool) }, null);
+                    if (loadImageMethod != null) loaded = (bool)loadImageMethod.Invoke(null, new object[] { texture, fileData, false });
+                }
+                if (!loaded)
+                {
+                    try
+                    {
+                        var loadImageDirect = typeof(Texture2D).GetMethod("LoadImage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public, null, new[] { typeof(byte[]) }, null);
+                        if (loadImageDirect != null) loaded = (bool)loadImageDirect.Invoke(texture, new object[] { fileData });
+                    }
+                    catch { }
+                }
+                if (loaded && texture.width > 8) { texture.name = Path.GetFileNameWithoutExtension(filePath); _spriteCache[filePath] = texture; return texture; }
+                UnityEngine.Object.Destroy(texture);
+            }
             catch { }
-   }
+            return null;
+        }
 
         private void ApplyPreviewTexture(Texture2D texture)
         {
@@ -1802,7 +1820,7 @@ return $"<color={grayColor}>{label}</color> <color={redColor}>{rest}</color>";
             return null;
         }
 
-      private string MakeSafeFileName(string name)
+      private static string MakeSafeFileName(string name)
    {
   if (string.IsNullOrEmpty(name)) return "unknown";
         var sb = new System.Text.StringBuilder();
@@ -1824,82 +1842,60 @@ return;
         }
 
         private void OnAcceptQuest()
-  {
-      if (_selectedQuest == null) return;
-   try
- {
-      var localPlayer = Player.m_localPlayer;
-        if (localPlayer == null) return;
-    long playerId = localPlayer.GetPlayerID();
-     if (playerId <= 0) return;
-       string questId = _selectedQuest.QuestId;
-       var questManager = QuestManager.Instance;
-  if (questManager != null)
-  {
-   if (questManager.HasQuest(playerId, questId)) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest already active!"); return; }
-    if (questManager.HasCompletedQuest(playerId, questId) && _selectedQuest.CooldownDays > 0) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest already completed!"); return; }
-   List<string> missing;
-      if (!questManager.CheckRequirements(playerId, _selectedQuest, out missing)) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Missing requirements: {string.Join(", ", missing)}"); return; }
-        }
- bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
-     if (!isServer)
-    {
-    var pkg = new ZPackage();
-   pkg.Write(playerId);
-    pkg.Write(questId);
-    pkg.Write("active");
-     pkg.Write(true);
-      try
-  {
-       var vault = VaultOfKnowledge.Instance;
-      if (vault != null)
-   {
-     var playerData = vault.GetPlayerData(playerId);
-if (playerData?.BankItems != null && playerData.BankItems.Count > 0)
         {
-  pkg.Write(true);
-  pkg.Write(playerData.BankItems.Count);
-        foreach (var item in playerData.BankItems)
-  {
-     if (item is StoredBankItem sb)
-     {
-    pkg.Write(sb.Type ?? "item");
- pkg.Write(sb.Prefab ?? string.Empty);
-        pkg.Write(sb.Amount);
-   pkg.Write(sb.Quality);
-           pkg.Write(sb.Durability.ToString(System.Globalization.CultureInfo.InvariantCulture));
- }
-     }
- }
-       else pkg.Write(false);
-     }
-          else pkg.Write(false);
-     }
-            catch { try { pkg.Write(false); } catch { } }
-   ZRoutedRpc.instance?.InvokeRoutedRPC(0L, "FiresRPGmaker_Vault_UpdateQuestFlag", pkg);
-      }
-    else VaultOfKnowledge.Instance?.ApplyQuestFlagLocally(playerId, questId, "active", true);
-  MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest accepted: {_selectedQuest.Name}");
-      // KG-parity lifecycle: fire OnAcceptQuest commands.
-      try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(_selectedQuest, global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnAccept); } catch { }
+            if (_selectedQuest == null) return;
+            if (!AcceptQuestCore(_selectedQuest)) return;
 
-      // Immediately update button states so Accept greys out and Cancel enables
-      // without waiting for vault sync round-trip
-      if (_acceptButton != null) _acceptButton.interactable = false;
-      if (_cancelButton != null) _cancelButton.interactable = true;
+            // Immediately update button states so Accept greys out and Cancel enables
+            // without waiting for vault sync round-trip
+            if (_acceptButton != null) _acceptButton.interactable = false;
+            if (_cancelButton != null) _cancelButton.interactable = true;
 
-      // Refresh the quest list item status text for the selected quest
-      UpdateSelectedQuestListItemStatus("[Active]", new Color(1f, 1f, 0.4f));
+            // Refresh the quest list item status text for the selected quest
+            UpdateSelectedQuestListItemStatus("[Active]", new Color(1f, 1f, 0.4f));
 
-      // Also refresh the details panel status line
-      if (_selectedQuest != null)
-          ShowQuestDetails(_selectedQuest);
+            // Also refresh the details panel status line
+            if (_selectedQuest != null)
+                ShowQuestDetails(_selectedQuest);
 
-      // Delayed refresh to catch full server sync
-      StartCoroutineSafe(RefreshAfterDelay(0.5f));
-     }
-  catch (Exception ex) { Debug.LogError($"[QuestInteractionScreenController] Failed to accept quest: {ex.Message}"); }
-       }
+            // Delayed refresh to catch full server sync
+            StartCoroutineSafe(RefreshAfterDelay(0.5f));
+        }
+
+        /// <summary>
+        /// Accepts a quest for the local player: requirement checks, vault flag (routed RPC client-side / local
+        /// apply server-side) and the OnAccept lifecycle. Shared by this screen and the book quest UI.
+        /// </summary>
+        public static bool AcceptQuestCore(QuestDefinition quest)
+        {
+            if (quest == null) return false;
+            try
+            {
+                var localPlayer = Player.m_localPlayer;
+                if (localPlayer == null) return false;
+                long playerId = localPlayer.GetPlayerID();
+                if (playerId <= 0) return false;
+                string questId = quest.QuestId;
+                var questManager = QuestManager.Instance;
+                if (questManager != null)
+                {
+                    if (questManager.HasQuest(playerId, questId)) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest already active!"); return false; }
+                    if (questManager.HasCompletedQuest(playerId, questId) && quest.CooldownDays > 0) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest already completed!"); return false; }
+                    List<string> missing;
+                    if (!questManager.CheckRequirements(playerId, quest, out missing)) { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Missing requirements: {string.Join(", ", missing)}"); return false; }
+                }
+                // kg-parity: accept is a LOCAL, immediate, per-quest write via ActiveQuestStore — no server round-trip
+                // (that round-trip caused the first-click race AND rebuilt the whole list from a stale copy, wiping
+                // siblings). The store owns the client-local active set in per-quest m_customData keys.
+                if (!global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Accept(questId, quest))
+                    return false;
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest accepted: {quest.Name}");
+                // KG-parity lifecycle: fire OnAcceptQuest commands.
+                try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(quest, global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnAccept); } catch { }
+                return true;
+            }
+            catch (Exception ex) { Debug.LogError($"[QuestInteractionScreenController] Failed to accept quest: {ex.Message}"); return false; }
+        }
 
        /// <summary>
        /// Updates the status text on the currently selected quest list item for immediate visual feedback.
@@ -1927,46 +1923,47 @@ if (playerData?.BankItems != null && playerData.BankItems.Count > 0)
        }
 
         private void OnCancelQuest()
-  {
+        {
             if (_selectedQuest == null) return;
-     try
-       {
-      var localPlayer = Player.m_localPlayer;
-  if (localPlayer == null) return;
- long playerId = localPlayer.GetPlayerID();
-   if (playerId <= 0) return;
-   string questId = _selectedQuest.QuestId;
-       bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
-     if (!isServer)
-   {
-      var pkg = new ZPackage();
- pkg.Write(playerId);
-   pkg.Write(questId);
-  pkg.Write("active");
-pkg.Write(false);
-          pkg.Write(false);
-  ZRoutedRpc.instance?.InvokeRoutedRPC(0L, "FiresRPGmaker_Vault_UpdateQuestFlag", pkg);
+            if (!AbandonQuestCore(_selectedQuest)) return;
+
+            // Immediately update button states so Cancel greys out and Accept enables
+            if (_acceptButton != null) _acceptButton.interactable = true;
+            if (_cancelButton != null) _cancelButton.interactable = false;
+
+            // Clear the status text on the quest list item
+            UpdateSelectedQuestListItemStatus("", Color.white);
+
+            // Refresh the details panel status line
+            if (_selectedQuest != null)
+                ShowQuestDetails(_selectedQuest);
+
+            // Delayed refresh to catch full server sync
+            StartCoroutineSafe(RefreshAfterDelay(0.5f));
         }
-      else VaultOfKnowledge.Instance?.ApplyQuestFlagLocally(playerId, questId, "active", false);
-  MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest abandoned: {_selectedQuest.Name}");
-      // KG-parity lifecycle: fire OnCancelQuest commands.
-      try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(_selectedQuest, global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnCancel); } catch { }
 
-      // Immediately update button states so Cancel greys out and Accept enables
-      if (_acceptButton != null) _acceptButton.interactable = true;
-      if (_cancelButton != null) _cancelButton.interactable = false;
-
-      // Clear the status text on the quest list item
-      UpdateSelectedQuestListItemStatus("", Color.white);
-
-      // Refresh the details panel status line
-      if (_selectedQuest != null)
-          ShowQuestDetails(_selectedQuest);
-
-      // Delayed refresh to catch full server sync
-      StartCoroutineSafe(RefreshAfterDelay(0.5f));
-     }
- catch (Exception ex) { Debug.LogError($"[QuestInteractionScreenController] Failed to abandon quest: {ex.Message}"); }
+        /// <summary>
+        /// Abandons an active quest for the local player: clears the vault active flag (routed RPC client-side /
+        /// local apply server-side) and fires the OnCancel lifecycle. Shared by this screen and the book quest UI.
+        /// </summary>
+        public static bool AbandonQuestCore(QuestDefinition quest)
+        {
+            if (quest == null) return false;
+            try
+            {
+                var localPlayer = Player.m_localPlayer;
+                if (localPlayer == null) return false;
+                long playerId = localPlayer.GetPlayerID();
+                if (playerId <= 0) return false;
+                string questId = quest.QuestId;
+                // kg-parity: abandon is a local per-quest removal (drops the m_customData key).
+                global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Abandon(questId);
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest abandoned: {quest.Name}");
+                // KG-parity lifecycle: fire OnCancelQuest commands.
+                try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.Fire(quest, global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnCancel); } catch { }
+                return true;
+            }
+            catch (Exception ex) { Debug.LogError($"[QuestInteractionScreenController] Failed to abandon quest: {ex.Message}"); return false; }
         }
 
         /// <summary>
@@ -2013,7 +2010,7 @@ pkg.Write(false);
    var currentQuestId = _selectedQuest?.QuestId;
  
    // Reload quests and repopulate the list
-      LoadQuestsFromProfile(_currentNpc?.questProfile);
+      LoadQuestsFromProfile(_currentNpc?.GetEffectiveQuestProfile());
    PopulateQuestList();
             
         // Try to reselect the previously selected quest

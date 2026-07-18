@@ -35,6 +35,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private Button _reverseButton;
         private ItemDrop.ItemData _selectedItem;
 
+        // Live 3D preview (floated to the LEFT of the panel so it never overlaps the baked layout).
+        private GameObject _previewBox;
+        private RawImage _previewImage;
+        private bool _draggingPreview;
+        private Vector2 _lastMouse;
+
         public static void Show(string profileName, string npcDisplayName)
         {
             if (_instance == null)
@@ -68,6 +74,88 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             EnsureReflowMeta(_availableContent, rowSpacing: 2f, padding: 6f);
 
             _statusText = FindTmp(t, "StatusText");
+            BuildPreviewWidget(t);
+        }
+
+        // ─── live 3D preview ───
+
+        private void BuildPreviewWidget(Transform root)
+        {
+            _previewBox = new GameObject("TransmogPreview3D", typeof(RectTransform), typeof(Image));
+            _previewBox.transform.SetParent(root, false);
+            var rt = (RectTransform)_previewBox.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 0.5f);   // panel's left-center
+            rt.pivot = new Vector2(1f, 0.5f);                       // preview's right edge meets the panel's left edge
+            rt.anchoredPosition = new Vector2(-12f, 0f);
+            rt.sizeDelta = new Vector2(268f, 348f);
+            _previewBox.GetComponent<Image>().color = new Color(0.06f, 0.05f, 0.04f, 0.96f);
+            var ol = _previewBox.AddComponent<Outline>();
+            ol.effectColor = new Color(0.62f, 0.42f, 0.16f, 0.9f);
+            ol.effectDistance = new Vector2(2f, -2f);
+
+            var imgGo = new GameObject("Render", typeof(RectTransform), typeof(RawImage));
+            imgGo.transform.SetParent(_previewBox.transform, false);
+            var irt = (RectTransform)imgGo.transform;
+            irt.anchorMin = Vector2.zero; irt.anchorMax = Vector2.one;
+            irt.offsetMin = new Vector2(8f, 32f); irt.offsetMax = new Vector2(-8f, -8f);
+            _previewImage = imgGo.GetComponent<RawImage>();
+
+            var lblGo = new GameObject("Hint", typeof(RectTransform));
+            lblGo.transform.SetParent(_previewBox.transform, false);
+            var lrt = (RectTransform)lblGo.transform;
+            lrt.anchorMin = new Vector2(0f, 0f); lrt.anchorMax = new Vector2(1f, 0f); lrt.pivot = new Vector2(0.5f, 0f);
+            lrt.sizeDelta = new Vector2(-16f, 26f); lrt.anchoredPosition = new Vector2(0f, 5f);
+            var tmp = lblGo.AddComponent<TextMeshProUGUI>();
+            tmp.text = "drag to rotate · scroll to zoom";
+            tmp.fontSize = 12f; tmp.color = new Color(0.8f, 0.72f, 0.56f); tmp.alignment = TextAlignmentOptions.Center;
+
+            _previewBox.SetActive(false);
+        }
+
+        private void StagePreviewFor(string prefab)
+        {
+            if (string.IsNullOrEmpty(prefab) || _previewImage == null) return;
+            var r = global::FiresRPGmaker.UI.QuestPreviewRenderer.EnsureInstance();
+            if (r.StagePreview(prefab))
+            {
+                _previewImage.texture = r.Texture;
+                _previewBox.SetActive(true);
+            }
+        }
+
+        private void HidePreview()
+        {
+            if (_previewBox != null && _previewBox.activeSelf) _previewBox.SetActive(false);
+            _draggingPreview = false;
+            try { global::FiresRPGmaker.UI.QuestPreviewRenderer.Instance?.ClearStage(); } catch { }
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+            if (!IsOpen) { HidePreview(); return; }
+            if (_previewBox == null || !_previewBox.activeSelf || _previewImage == null) return;
+            var r = global::FiresRPGmaker.UI.QuestPreviewRenderer.Instance;
+            if (r == null) return;
+            if (_previewImage.texture != r.Texture) _previewImage.texture = r.Texture; // RT can be recreated
+
+            bool over = RectTransformUtility.RectangleContainsScreenPoint((RectTransform)_previewImage.transform, Input.mousePosition, null);
+            if (over)
+            {
+                float scroll = Input.mouseScrollDelta.y;
+                if (Mathf.Abs(scroll) > 0.01f) r.Zoom(scroll);
+                if (Input.GetMouseButtonDown(0)) { _draggingPreview = true; _lastMouse = Input.mousePosition; }
+            }
+            if (_draggingPreview)
+            {
+                if (Input.GetMouseButton(0))
+                {
+                    Vector2 m = Input.mousePosition;
+                    r.Orbit(-(m.x - _lastMouse.x), -(m.y - _lastMouse.y));
+                    _lastMouse = m;
+                }
+                else _draggingPreview = false;
+            }
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
@@ -142,7 +230,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var img = rowGo.GetComponent<Image>();
             if (img != null) img.color = isSelected ? new Color(0.10f, 0.45f, 0.10f, 0.95f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
             var btn = rowGo.GetComponent<Button>();
-            if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _selectedItem = _selectedItem == item ? null : item; Refresh(); }); }
+            if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _selectedItem = _selectedItem == item ? null : item; StagePreviewFor(item.m_dropPrefab.name); Refresh(); }); }
 
             // KG colors transmogged items in red, untransmogged in white. m_shared.m_name is a $localization
             // key — resolve through Valheim's Localization service for a readable name.
@@ -215,6 +303,14 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.name = "Trans_" + t.Prefab;
             rowGo.SetActive(true);
             SetRowHeight(rowGo, 26f);
+
+            // Clicking the row (background) previews the skin's 3D model; the Apply button child still applies.
+            var rowBg = rowGo.GetComponent<Image>();
+            if (rowBg == null) { rowBg = rowGo.AddComponent<Image>(); rowBg.color = new Color(0f, 0f, 0f, 0.01f); }
+            var rowBtn = rowGo.GetComponent<Button>() ?? rowGo.AddComponent<Button>();
+            rowBtn.targetGraphic = rowBg;
+            rowBtn.onClick.RemoveAllListeners();
+            rowBtn.onClick.AddListener(() => StagePreviewFor(t.Prefab));
 
             var nameLabel = FindTmp(rowGo.transform, "NameLabel");
             if (nameLabel != null) nameLabel.text = t.Prefab;

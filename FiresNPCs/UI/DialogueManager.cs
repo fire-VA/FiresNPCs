@@ -136,7 +136,7 @@ public static void Initialize()
 
    private static void LoadAllProfiles()
         {
-        string dialoguePath = Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "Dialogues");
+        string dialoguePath = Path.Combine(FiresCore.Storage.FiresConfigPaths.Dialogues);
 
             if (!Directory.Exists(dialoguePath))
   {

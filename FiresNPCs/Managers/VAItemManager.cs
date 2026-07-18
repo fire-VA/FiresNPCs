@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using FiresRPGmaker.Utilities;
 
 namespace FiresRPGmaker.Managers
 {
@@ -23,7 +22,7 @@ namespace FiresRPGmaker.Managers
 
             FiresRPGmaker.itemPrefabs.Clear();
             var allAssets = FiresRPGmaker.assetBundle.GetAllAssetNames();
-            Debug.Log($"{FiresRPGmaker.PluginName}: AssetBundle contains {allAssets.Length} assets: {string.Join(", ", allAssets)}");
+            FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: AssetBundle contains {allAssets.Length} assets: {string.Join(", ", allAssets)}");
 
             // Bundle authors have used both "Assets/Custom/NPCs/items/" and
             // "Assets/Custom/VAitems/items/" historically. Try the configured
@@ -73,7 +72,7 @@ namespace FiresRPGmaker.Managers
                 UnityEngine.Object.DontDestroyOnLoad(itemPrefab);
                 FiresCore.Services.VanillaAssetResolver.ApplyToPrefab(itemPrefab, FiresCore.Services.VanillaAssetResolver.AssetSwapMode.Shader);
                 FiresRPGmaker.itemPrefabs.Add(itemPrefab);
-                Debug.Log($"{FiresRPGmaker.PluginName}: Loaded item prefab: {itemName} (path: {foundPath}), ItemDrop present: {itemDrop != null}, m_dropPrefab: {(itemDrop.m_itemData.m_dropPrefab != null ? itemDrop.m_itemData.m_dropPrefab.name : "null")}");
+                FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Loaded item prefab: {itemName} (path: {foundPath}), ItemDrop present: {itemDrop != null}, m_dropPrefab: {(itemDrop.m_itemData.m_dropPrefab != null ? itemDrop.m_itemData.m_dropPrefab.name : "null")}");
             }
 
             Debug.Log($"{FiresRPGmaker.PluginName}: Loaded {FiresRPGmaker.itemPrefabs.Count} items. Failed: {failed}");

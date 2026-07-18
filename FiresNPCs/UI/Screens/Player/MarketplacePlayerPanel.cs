@@ -172,7 +172,24 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _currentTab = Tab.Buy;
             _selected = null;
             HideConfirmPanel();
+            MarketplaceNetwork.OnListings = OnListingsUpdated;
+            MarketplaceNetwork.OnResult = OnMarketResult;
             Refresh();
+            MarketplaceNetwork.RequestListings(_profileName); // server seeds samples once, returns the global market
+        }
+
+        // Fired when the server pushes a fresh listing set (our own request, or another player's broadcast).
+        private static void OnListingsUpdated()
+        {
+            if (_instance == null || !_instance.IsOpen) return;
+            _instance.Refresh();
+        }
+
+        // Fired with a status line after a buy/sell/cancel reply (item grants/refunds are applied by the network).
+        private static void OnMarketResult(string status)
+        {
+            if (_instance == null || !_instance.IsOpen || string.IsNullOrEmpty(status)) return;
+            if (_instance._statusText != null) _instance._statusText.text = status;
         }
 
         private void Refresh()
@@ -325,9 +342,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
             if (_currentTab == Tab.MyListings)
             {
-                MarketplaceListingManager.RemoveListing(_profileName, l);
-                _statusText.text = "Cancelled listing for " + l.ItemPrefab + ".";
-                _selected = null; HideConfirmPanel(); Refresh();
+                // Server verifies ownership, removes the row, and replies with the goods to return (the item was
+                // consumed on listing). No local refund — the reply grants it so it can't be double-refunded.
+                MarketplaceNetwork.RequestCancel(l.Id);
+                _statusText.text = "Cancelling…";
+                _selected = null; HideConfirmPanel();
                 return;
             }
             if (_currentTab == Tab.Sell)
@@ -339,17 +358,14 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 string chosenCurrency = _currencyDropdown != null && _currencyDropdown.options.Count > 0
                     ? _currencyDropdown.options[_currencyDropdown.value].text
                     : l.Currency;
-                MarketplaceListingManager.AddListing(_profileName, new MarketplaceListing
-                {
-                    Currency = chosenCurrency, Price = price,
-                    ItemPrefab = l.ItemPrefab, Count = qty,
-                    SellerName = l.SellerName, SellerId = l.SellerId,
-                });
-                _statusText.text = "Listed " + qty + "x " + l.ItemPrefab + " for " + price + " " + chosenCurrency + ".";
-                _selected = null; HideConfirmPanel(); Refresh();
+                // Item already consumed; the server records the listing (or replies to refund it if it fails).
+                MarketplaceNetwork.RequestList(chosenCurrency, price, l.ItemPrefab, qty);
+                _statusText.text = "Listing…";
+                _selected = null; HideConfirmPanel();
                 return;
             }
-            // Tab.Buy
+            // Tab.Buy — consume the currency up front; the server grants the item on success or refunds the
+            // currency if the listing was already gone/changed.
             {
                 var player = Player.m_localPlayer; if (player == null) { _statusText.text = "No active player."; return; }
                 var inv = player.GetInventory();
@@ -358,20 +374,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 int held = CountInInventory(inv, l.Currency);
                 if (held < totalCost) { _statusText.text = "Need " + totalCost + " " + l.Currency + " (have " + held + ")."; return; }
                 if (!ConsumeFromInventory(inv, l.Currency, totalCost)) { _statusText.text = "Failed to consume currency."; return; }
-                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(l.ItemPrefab) : null;
-                if (prefab == null) { _statusText.text = "Unknown prefab '" + l.ItemPrefab + "'."; return; }
-                var drop = prefab.GetComponent<ItemDrop>();
-                if (drop != null && inv.CanAddItem(drop.m_itemData, qty)) { inv.AddItem(l.ItemPrefab, qty, 1, 0, 0L, ""); }
-                else
-                {
-                    var go = Object.Instantiate(prefab, player.transform.position + player.transform.forward * 1.5f + Vector3.up * 1.5f, Quaternion.identity);
-                    var dr = go.GetComponent<ItemDrop>(); if (dr != null) dr.m_itemData.m_stack = qty;
-                }
-                // Decrement or remove the listing
-                if (qty >= l.Count) MarketplaceListingManager.RemoveListing(_profileName, l);
-                else l.Count -= qty;
-                _statusText.text = "Bought " + qty + "x " + l.ItemPrefab + " for " + totalCost + " " + l.Currency + ".";
-                _selected = null; HideConfirmPanel(); Refresh();
+                MarketplaceNetwork.RequestBuy(l.Id, qty, l.Currency, totalCost);
+                _statusText.text = "Buying…";
+                _selected = null; HideConfirmPanel();
             }
         }
 

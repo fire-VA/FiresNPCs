@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 using FiresRPGmaker.Managers;
 using FiresRPGmaker.UI;
@@ -82,7 +83,14 @@ namespace FiresRPGmaker.Modules.Dialogues
             public TMP_Text ErrorText;
             public Image IconImage;
             public bool Enabled;
+            public string CooldownKey;
         }
+
+        // Cooldown gating: subscription guard + the in-flight pick awaiting server approval.
+        private static bool _cooldownHandlersHooked;
+        private static string _pendingPickDialogueUID;
+        private static RawPlayerOption _pendingPickOption;
+        private static ZNetView _pendingPickNpcView;
 
         public static bool IsVisible => _visible;
 
@@ -122,6 +130,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             catch { }
 
             EnsureUI();
+            HookCooldownHandlers();
+            RequestCooldownState(dialogueUID);
             PopulateDialogue(dialogue);
 
             _root.SetActive(true);
@@ -155,6 +165,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 _navigationStack.Push(_currentUID);
 
             _currentUID = nextUID;
+            RequestCooldownState(nextUID);
             PopulateDialogue(dialogue);
         }
 
@@ -175,6 +186,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
 
             _currentUID = previousUID;
+            RequestCooldownState(previousUID);
             PopulateDialogue(dialogue);
         }
 
@@ -204,8 +216,13 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (!_visible) return;
             if (_root == null) return;
 
-            // Close on ESC
-            if (Input.GetKeyDown(KeyCode.Escape))
+            // Escape is owned by the central Menu.Show hook (UIInitializer.Menu_Show_Guard → CloseAllPanels).
+            // No self-close on Escape here: the panel stays open until the hook intercepts the vanilla menu
+            // open, so the menu never appears on the same press. (Backspace still steps back the nav stack.)
+            //
+            // SPACEBAR closes the dialogue (owner request — dialogue + info only, never UIs with text fields).
+            // Space doesn't open the vanilla menu, so a direct self-close here is safe (no race/hook needed).
+            if (Input.GetKeyDown(KeyCode.Space))
             {
                 Hide();
                 return;
@@ -301,6 +318,24 @@ namespace FiresRPGmaker.Modules.Dialogues
             _optionsContent = _goContainer; // Options are added directly to the GO VLG
             _optionsScroll = null;
 
+            // Top-right close ✕ (rounded gold-on-brown, matches the dialogue theme). Escape also closes via the
+            // central Menu.Show hook — this is the visible click target. Anchor to the VISIBLE panel ("GO", the
+            // 750px bottom-centre box), NOT _root, which is a full-screen stretch (0,0→1,1) whose top-right is
+            // the screen corner (the "X way up top-right" bug). AddCloseX marks itself ignoreLayout so the GO
+            // VerticalLayoutGroup leaves it floating in the corner.
+            var closeXHost = (goContainer != null ? goContainer.GetComponent<RectTransform>() : null) ?? _panelRect;
+            var closeX = global::FiresRPGmaker.UI.GUIManager.AddCloseX(closeXHost, Hide);
+            if (closeX != null) closeX.transform.SetAsLastSibling();
+
+            // Breathing room between the last option and the panel's bottom edge.
+            var goVlg = goContainer != null ? goContainer.GetComponent<VerticalLayoutGroup>() : null;
+            if (goVlg != null)
+            {
+                var pad = goVlg.padding;
+                pad.bottom += 14;
+                goVlg.padding = pad;
+            }
+
             // Activate the BACKGROUND child and apply background sprite.
             // Uses the same fallback chain as InfoNpcPlayerPanel:
             //   1. crafting_panel_bkg (vanilla Valheim sprite)
@@ -367,32 +402,93 @@ namespace FiresRPGmaker.Modules.Dialogues
             //   _nodes[0]/Label TMP             -> bodyFont
             //   _nodes[3] = Indexer/Text TMP    -> bodyFont
 
-            // Root button sprite (Frame_White)
+            // Row RIM: a WHITE rounded-rect sprite tinted per-row (bronze at rest, green on hover — set in
+            // CreateOptionRow). It's the full rounded rect drawn BEHIND the fill; only its ~3px edge is ever
+            // visible because the OPAQUE fill below sits IN FRONT of its centre and blocks it. Tinting the rim
+            // green can never fill the button — the brown fill covers the centre. Rounded to match the fill.
             var rootImg = rowGO.GetComponent<Image>();
-            if (rootImg != null && _cachedFrameWhite != null) rootImg.sprite = _cachedFrameWhite;
+            if (rootImg != null)
+            {
+                rootImg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(11, Color.white);
+                rootImg.type = Image.Type.Sliced;
+                rootImg.fillCenter = true;
+            }
 
-            // darken child (index 0 in children)
+            // Row FILL (the 'darken' child): an OPAQUE brown rounded rect, INSET 3px so the rim shows around
+            // it. Opaque = the rim's green can NEVER bleed through the centre (the fix for the "whole button
+            // turns green" bug). Rounded to match the rim; raycast off; ignores layout so the inset holds.
             var darken = rowGO.transform.Find("darken");
             if (darken != null)
             {
                 var dImg = darken.GetComponent<Image>();
-                if (dImg != null && _cachedBottomBarBg != null) dImg.sprite = _cachedBottomBarBg;
+                if (dImg != null)
+                {
+                    dImg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(9, Color.white);
+                    dImg.type = Image.Type.Sliced;
+                    dImg.color = new Color(0.30f, 0.21f, 0.12f, 1f);
+                    dImg.raycastTarget = false;
+                }
+                var dLE = darken.GetComponent<LayoutElement>() ?? darken.gameObject.AddComponent<LayoutElement>();
+                dLE.ignoreLayout = true;
+                var dRect = darken.GetComponent<RectTransform>();
+                if (dRect != null)
+                {
+                    dRect.anchorMin = Vector2.zero; dRect.anchorMax = Vector2.one;
+                    dRect.offsetMin = new Vector2(3f, 3f);
+                    dRect.offsetMax = new Vector2(-3f, -3f);
+                }
             }
 
-            // Indexer badge sprite � use button_small as background circle for the number
+            // Indexer badge — our SQUARE (owner: the first slot is a square, not kg's round coin), now a
+            // rounded dark chip with a thin gold inset border (FUC rounded skin), number CENTERED inside, and
+            // sized a touch larger than the row so it reads as a raised chip (kg parity).
             var indexer = rowGO.transform.Find("Indexer");
             if (indexer != null)
             {
                 var iImg = indexer.GetComponent<Image>();
                 if (iImg != null)
-                    iImg.sprite = _cachedButtonSmall != null ? _cachedButtonSmall : _cachedRoundFrame;
+                {
+                    iImg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(6,
+                        new Color(0.12f, 0.10f, 0.07f, 0.98f), new Color(0.72f, 0.55f, 0.28f, 1f), 1);
+                    iImg.type = Image.Type.Sliced;
+                    iImg.color = Color.white;
+                }
+                // Center-anchored on the row so the SQUARE and the CIRCLE line up at the same height.
+                var iRect = indexer.GetComponent<RectTransform>();
+                if (iRect != null)
+                {
+                    iRect.anchorMin = new Vector2(0f, 0.5f);
+                    iRect.anchorMax = new Vector2(0f, 0.5f);
+                    iRect.pivot = new Vector2(0.5f, 0.5f);
+                    iRect.sizeDelta = new Vector2(40f, 40f);        // slightly larger than the 38 row
+                    // Flush to the LEFT edge so the chip COVERS the rim's left segment — the green highlight
+                    // then reads as a 3-sided frame that begins at the chip's right edge (owner request).
+                    iRect.anchoredPosition = new Vector2(20f, 0f);
+                }
+                var iLE = indexer.GetComponent<LayoutElement>() ?? indexer.gameObject.AddComponent<LayoutElement>();
+                iLE.ignoreLayout = true;
 
-                // Indexer/Text font
-                var iTmp = indexer.Find("Text")?.GetComponent<TextMeshProUGUI>();
-                if (iTmp != null && _cachedBodyFont != null) iTmp.font = _cachedBodyFont;
+                // Center the NUMBER inside the badge box (was left/baseline-drifting before).
+                var iText = indexer.Find("Text");
+                if (iText != null)
+                {
+                    var tRect = iText.GetComponent<RectTransform>();
+                    if (tRect != null)
+                    {
+                        tRect.anchorMin = Vector2.zero; tRect.anchorMax = Vector2.one;
+                        tRect.offsetMin = Vector2.zero; tRect.offsetMax = Vector2.zero;
+                    }
+                    var iTmp = iText.GetComponent<TextMeshProUGUI>();
+                    if (iTmp != null)
+                    {
+                        if (_cachedBodyFont != null) iTmp.font = _cachedBodyFont;
+                        iTmp.alignment = TextAlignmentOptions.Center;
+                        iTmp.color = new Color(0.93f, 0.82f, 0.52f);
+                    }
+                }
             }
 
-            // Icon sprite � use button_small as background circle for the icon
+            // Icon — kg's plain circle sprite.
             var textPanel = rowGO.transform.Find("Text");
             if (textPanel != null)
             {
@@ -401,7 +497,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 {
                     var iconImg = iconT.GetComponent<Image>();
                     if (iconImg != null)
-                        iconImg.sprite = _cachedButtonSmall != null ? _cachedButtonSmall : _cachedCircle;
+                        iconImg.sprite = _cachedCircle != null ? _cachedCircle : _cachedButtonSmall;
                 }
             }
 
@@ -530,6 +626,14 @@ namespace FiresRPGmaker.Modules.Dialogues
                     _backgroundImage.type = Image.Type.Sliced;
                 }
 
+                // Admin-tunable background opacity (UI.Dialogue/DialogueBackgroundOpacity).
+                float bgOpacity = 1f;
+                try { bgOpacity = global::FiresRPGmaker.Managers.ConfigManager.Instance?.configDialogueBgOpacity?.Value ?? 1f; }
+                catch { }
+                var bgColor = _backgroundImage.color;
+                bgColor.a = Mathf.Clamp(bgOpacity, 0.1f, 1f);
+                _backgroundImage.color = bgColor;
+
                 _backgroundImage.gameObject.SetActive(true);
             }
 
@@ -606,6 +710,17 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (!condPass && !option.AlwaysVisible)
                 return; // Hidden � don't show at all
 
+            // Cooldown gate: if the server says this option is still cooling, hide or grey it.
+            int cooldownRemaining = GetCooldownRemaining(option);
+            if (cooldownRemaining > 0)
+            {
+                if (!option.ShowWhileCooling)
+                    return; // Hidden while cooling
+
+                condPass = false;
+                reason = $"Available in {FormatCooldown(cooldownRemaining)}";
+            }
+
             var entry = CreateOptionRow(option, index, condPass, reason);
             _activeOptions.Add(entry);
         }
@@ -613,6 +728,8 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static OptionEntry CreateOptionRow(RawPlayerOption option, int index, bool condPass, string reason)
         {
             var entry = new OptionEntry { Option = option, Enabled = condPass };
+            if (option.Cooldown != CooldownScope.None)
+                entry.CooldownKey = DialogueKeyUtil.OptionKey(_currentUID, option);
 
             // Create marketplace-style option row from codegen template.
             // The codegen is a static singleton so we call Instantiate (which overwrites
@@ -625,7 +742,19 @@ namespace FiresRPGmaker.Modules.Dialogues
             // Add LayoutElement so options participate in the parent VLG properly
             var rowLE = rowGO.GetComponent<LayoutElement>() ?? rowGO.AddComponent<LayoutElement>();
             rowLE.flexibleWidth = 1f;
-            rowLE.minHeight = 30f;
+            rowLE.minHeight = 38f;   // fits the 36px badge + 32px circle without clipping
+
+            // Text start: with an icon the layout is square(3..37) + circle(41..75) → text at 82; with
+            // no icon the circle is dropped and text starts right after the square (46).
+            bool hasIcon = !string.IsNullOrEmpty(option.Icon);
+            int textLeftPad = hasIcon ? 82 : 46;
+            var rowVlg = rowGO.GetComponent<VerticalLayoutGroup>();
+            if (rowVlg != null)
+            {
+                var rowPad = rowVlg.padding;
+                rowPad.left = textLeftPad;
+                rowVlg.padding = rowPad;
+            }
 
             // Apply pre-cached sprites & font directly � no per-row ResolveAssets call
             CacheOptionAssets();
@@ -683,7 +812,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 labelRect.offsetMax = Vector2.zero;
                 entry.LabelText = labelGo.AddComponent<TextMeshProUGUI>();
                 entry.LabelText.text = displayText;
-                entry.LabelText.fontSize = 18f;
+                entry.LabelText.fontSize = 16f;   // kg prefab label size
                 entry.LabelText.color = condPass ? new Color(1f, 0.95f, 0.85f) : new Color(0.5f, 0.4f, 0.3f);
                 entry.LabelText.alignment = TextAlignmentOptions.MidlineLeft;
                 entry.LabelText.textWrappingMode = TextWrappingModes.Normal;
@@ -697,13 +826,30 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (textPanel != null)
             {
                 var icon = textPanel.Find("Icon");
+                // No icon on this option → drop the circle entirely; text already starts at the
+                // square (textLeftPad above), so the row reads square → text with no empty slot.
+                if (icon != null && !hasIcon)
+                {
+                    icon.gameObject.SetActive(false);
+                    icon = null;
+                }
                 if (icon != null)
                 {
-                    // Adjust icon position � codegen places it at x=-18 which overlaps
-                    // with the Indexer number circle. Move it right for proper padding.
+                    // Square-with-number, then the circle at the SAME visual height as the square,
+                    // its center dot on the row's vertical center, then the text. Reparented to the
+                    // row root so the collapsed text panel can't drag it off-center.
+                    icon.SetParent(rowGO.transform, false);
                     var iconRect = icon.GetComponent<RectTransform>();
                     if (iconRect != null)
-                        iconRect.anchoredPosition = new Vector2(-10f, iconRect.anchoredPosition.y);
+                    {
+                        iconRect.anchorMin = new Vector2(0f, 0.5f);
+                        iconRect.anchorMax = new Vector2(0f, 0.5f);
+                        iconRect.pivot = new Vector2(0.5f, 0.5f);
+                        iconRect.sizeDelta = new Vector2(34f, 34f);       // same height as the square
+                        iconRect.anchoredPosition = new Vector2(58f, 0f); // circle slot, row vertical center
+                    }
+                    var iconLE = icon.gameObject.GetComponent<LayoutElement>() ?? icon.gameObject.AddComponent<LayoutElement>();
+                    iconLE.ignoreLayout = true;
 
                     var iconImg = icon.GetComponent<Image>();
                     if (iconImg != null)
@@ -726,15 +872,35 @@ namespace FiresRPGmaker.Modules.Dialogues
                 }
             }
 
-            // --- Wire button ---
+            // --- kg's Frame_White border (parity) + green hover tint ---
+            // The codegen root Image is kg's own Frame_White frame, and ApplyCachedOptionAssets sets
+            // fillCenter=false → it renders as a THIN outlined border, not a slab (the old white slab was
+            // fillCenter=true + Selectable ColorTint, both gone: transition stays None). Default tint is
+            // bronze/gold — kg's outlined button; on real pointer-over the SAME border tints green. The dark
+            // row fill comes from the 'darken' child (BottomBar_Background), so the text stays readable.
+            var bronze = new Color(0.62f, 0.47f, 0.24f, 1f);
+            var green = new Color(0.2235f, 1f, 0f, 1f);
+            var rootImg = rowGO.GetComponent<Image>();
+            if (rootImg != null)
+            {
+                rootImg.color = bronze;
+                rootImg.raycastTarget = true;
+            }
             entry.Button = rowGO.GetComponent<Button>();
-            entry.BorderImage = rowGO.GetComponent<Image>();
             if (entry.Button != null)
             {
+                entry.Button.transition = Selectable.Transition.None;   // no auto-select grey slab
                 entry.Button.interactable = condPass;
                 int capturedIndex = index;
                 entry.Button.onClick.RemoveAllListeners();
                 entry.Button.onClick.AddListener(() => OnOptionClicked(capturedIndex));
+            }
+            if (condPass && rootImg != null)
+            {
+                var hover = rowGO.AddComponent<DialogueOptionHover>();
+                hover.Target = rootImg;
+                hover.Normal = bronze;
+                hover.Hover = green;
             }
 
             return entry;
@@ -781,24 +947,24 @@ namespace FiresRPGmaker.Modules.Dialogues
                 return;
             }
 
-            // Visual feedback: swap Indexer background to button_small_pressed
-            if (_cachedButtonSmallPressed != null)
-            {
-                var indexer = entry.Root?.transform.Find("Indexer");
-                if (indexer != null)
-                {
-                    var iImg = indexer.GetComponent<Image>();
-                    if (iImg != null) iImg.sprite = _cachedButtonSmallPressed;
-                }
-            }
-
+            // Press feedback comes from the Button's kg ColorBlock (pressed grey) — the old
+            // pressed-sprite swap replaced the square badge with a round coin mid-click.
             var option = entry.Option;
 
-            // Execute commands
-            if (option.Commands != null && option.Commands.Length > 0)
-                DialogueCommandEngine.ExecuteAll(option.Commands, _currentNpcView);
-            if (option.RandomCommands != null && option.RandomCommands.Count > 0)
-                DialogueCommandEngine.ExecuteRandom(option.RandomCommands, _currentNpcView);
+            if (option.Cooldown == CooldownScope.None)
+            {
+                // No cooldown � run commands locally exactly as before.
+                RunOptionCommands(option);
+            }
+            else
+            {
+                // Cooldown option: ask the server to gate + stamp before the reward commands run.
+                // Only the COMMANDS wait for approval; the dialogue transition proceeds immediately below.
+                _pendingPickDialogueUID = _currentUID;
+                _pendingPickOption = option;
+                _pendingPickNpcView = _currentNpcView;
+                DialogueSyncRPC.SendPick(_currentUID, entry.CooldownKey);
+            }
 
             // Talk-quest progression hook (KG parity): every dialogue option click counts as "talking to"
             // the NPC. The Talk quest's target is the NPC's display name and the quest's TargetCount is
@@ -816,6 +982,163 @@ namespace FiresRPGmaker.Modules.Dialogues
                 // No transition � close dialogue
                 Hide();
             }
+        }
+
+        /// <summary>Runs an option's reward commands (the shared, non-gated execution path).</summary>
+        private static void RunOptionCommands(RawPlayerOption option, ZNetView npcView = null)
+        {
+            var view = npcView ?? _currentNpcView;
+            if (option.Commands != null && option.Commands.Length > 0)
+                DialogueCommandEngine.ExecuteAll(option.Commands, view);
+            if (option.RandomCommands != null && option.RandomCommands.Count > 0)
+                DialogueCommandEngine.ExecuteRandom(option.RandomCommands, view);
+        }
+
+        #endregion
+
+        #region Cooldowns
+
+        /// <summary>Subscribes once to the server's cooldown state/pick replies.</summary>
+        private static void HookCooldownHandlers()
+        {
+            if (_cooldownHandlersHooked) return;
+            _cooldownHandlersHooked = true;
+            DialogueSyncRPC.OnCooldownStateReceived += OnCooldownStateReceived;
+            DialogueSyncRPC.OnPickResult += OnPickResult;
+        }
+
+        /// <summary>Clears the local cache and asks the server for the dialogue's cooldown state.</summary>
+        private static void RequestCooldownState(string dialogueUID)
+        {
+            DialogueSyncRPC.CooldownCache.Clear();
+            DialogueSyncRPC.SendCooldownQuery(dialogueUID);
+        }
+
+        private static int GetCooldownRemaining(RawPlayerOption option)
+        {
+            if (option == null || option.Cooldown == CooldownScope.None) return 0;
+            string key = DialogueKeyUtil.OptionKey(_currentUID, option);
+            return DialogueSyncRPC.CooldownCache.TryGetValue(key, out int remaining) ? remaining : 0;
+        }
+
+        /// <summary>Applies fresh cooldown state to the open dialogue. kg shows no flicker here, so the
+        /// old full PopulateDialogue re-render (destroy + rebuild every row = the visible flash after
+        /// every pick) is now an IN-PLACE patch of the existing rows; only a change in which options
+        /// are VISIBLE (hidden-while-cooling appearing/expiring) still forces the full rebuild.</summary>
+        private static void OnCooldownStateReceived()
+        {
+            if (!_visible || string.IsNullOrEmpty(_currentUID)) return;
+            var dialogue = DialogueCodex.Get(_currentUID);
+            if (dialogue == null) return;
+
+            if (CooldownVisibilityChanged(dialogue))
+            {
+                PopulateDialogue(dialogue);
+                return;
+            }
+            foreach (var entry in _activeOptions)
+                RefreshOptionState(entry);
+        }
+
+        /// <summary>True when the fresh cooldown state changes WHICH options are visible (an option
+        /// hidden while cooling appeared or expired) — the only case that needs a row rebuild.</summary>
+        private static bool CooldownVisibilityChanged(RawDialogue dialogue)
+        {
+            var visible = new List<RawPlayerOption>();
+            if (dialogue.Interactions != null)
+            {
+                foreach (var interaction in dialogue.Interactions)
+                {
+                    if (interaction.Type == InteractionType.Interaction
+                        || interaction.Type == InteractionType.InRange
+                        || interaction.Type == InteractionType.OutRange) continue;
+                    bool condPass = DialogueConditionEngine.EvaluateAll(interaction.Conditions, out _);
+                    if (!condPass && !interaction.AlwaysVisible) continue;
+                    if (GetCooldownRemaining(interaction) > 0 && !interaction.ShowWhileCooling) continue;
+                    visible.Add(interaction);
+                }
+            }
+            if (visible.Count != _activeOptions.Count) return true;
+            for (int i = 0; i < visible.Count; i++)
+                if (!ReferenceEquals(visible[i], _activeOptions[i].Option)) return true;
+            return false;
+        }
+
+        /// <summary>In-place row update for a cooldown/condition change: interactable state, label
+        /// suffix, and colors — the row GameObject itself is never rebuilt.</summary>
+        private static void RefreshOptionState(OptionEntry entry)
+        {
+            if (entry?.Option == null || entry.Root == null) return;
+
+            bool condPass = DialogueConditionEngine.EvaluateAll(entry.Option.Conditions, out string reason);
+            int remaining = GetCooldownRemaining(entry.Option);
+            if (remaining > 0)
+            {
+                condPass = false;
+                reason = $"Available in {FormatCooldown(remaining)}";
+            }
+
+            entry.Enabled = condPass;
+            if (entry.Button != null) entry.Button.interactable = condPass;
+
+            if (entry.LabelText != null)
+            {
+                string optText = DialogueCommandEngine.ApplyReplacements(entry.Option.Text ?? "");
+                string displayText = Localization.instance != null ? Localization.instance.Localize(optText) : optText;
+                if (!condPass)
+                {
+                    string errorMsg = !string.IsNullOrEmpty(entry.Option.OverrideError) ? entry.Option.OverrideError : reason;
+                    if (!string.IsNullOrEmpty(errorMsg))
+                        displayText += $"\n<size=11><color=#B3261E><i>{errorMsg}</i></color></size>";
+                }
+                entry.LabelText.text = displayText;
+                entry.LabelText.color = condPass ? new Color(1f, 0.95f, 0.85f) : new Color(0.5f, 0.4f, 0.3f);
+            }
+        }
+
+        /// <summary>Server verdict on a cooldown pick: run the reward commands only if approved.</summary>
+        private static void OnPickResult(bool approved, string optionKey, int remainingSeconds)
+        {
+            var option = _pendingPickOption;
+            var npcView = _pendingPickNpcView;
+            string pickDialogueUID = _pendingPickDialogueUID;
+            _pendingPickOption = null;
+            _pendingPickNpcView = null;
+            _pendingPickDialogueUID = null;
+
+            if (option == null) return;
+
+            if (approved)
+            {
+                RunOptionCommands(option, npcView);
+
+                // If we're still showing the dialogue the pick came from, refresh so the
+                // just-used option flips to its cooling-down state.
+                if (_visible && string.Equals(_currentUID, pickDialogueUID, StringComparison.OrdinalIgnoreCase))
+                    RequestCooldownState(_currentUID);
+            }
+            else
+            {
+                string msg = !string.IsNullOrEmpty(option.OverrideError)
+                    ? option.OverrideError
+                    : $"Not available yet ({FormatCooldown(remainingSeconds)})";
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, msg);
+            }
+        }
+
+        /// <summary>Formats remaining seconds as a compact "Xh Ym" / "Ym Zs" / "Zs" label.</summary>
+        private static string FormatCooldown(int totalSeconds)
+        {
+            if (totalSeconds <= 0) return "0s";
+            int days = totalSeconds / 86400;
+            int hours = (totalSeconds % 86400) / 3600;
+            int minutes = (totalSeconds % 3600) / 60;
+            int seconds = totalSeconds % 60;
+
+            if (days > 0) return $"{days}d {hours}h";
+            if (hours > 0) return $"{hours}h {minutes}m";
+            if (minutes > 0) return $"{minutes}m {seconds}s";
+            return $"{seconds}s";
         }
 
         #endregion
@@ -972,5 +1295,21 @@ namespace FiresRPGmaker.Modules.Dialogues
         }
 
         #endregion
+    }
+
+    /// <summary>Shows/hides an option row's green hover border on real pointer enter/exit — replaces
+    /// Unity's Selectable ColorTint, which auto-selects the first option and leaves a permanent grey
+    /// slab. Only attached to enabled options, so disabled ones never highlight.</summary>
+    internal sealed class DialogueOptionHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    {
+        public UnityEngine.UI.Image Target;   // the row's rounded RIM image (bronze → green)
+        public Color Normal;                  // bronze/gold at rest
+        public Color Hover;                   // green on pointer-over
+        private float _readyAt;               // ignore the spurious enter Unity fires the frame a fresh row
+                                              // materializes under the cursor (the "first open = all green" bug)
+        private void OnEnable() { if (Target != null) Target.color = Normal; _readyAt = Time.realtimeSinceStartup + 0.1f; }
+        public void OnPointerEnter(PointerEventData e) { if (Target != null && Time.realtimeSinceStartup >= _readyAt) Target.color = Hover; }
+        public void OnPointerExit(PointerEventData e) { if (Target != null) Target.color = Normal; }
+        private void OnDisable() { if (Target != null) Target.color = Normal; }
     }
 }

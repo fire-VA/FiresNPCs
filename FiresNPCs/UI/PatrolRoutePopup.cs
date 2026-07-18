@@ -170,12 +170,14 @@ namespace FiresRPGmaker.UI
 
             if (hasRoute)
             {
-                SetStatus($"Current route: {_npc.patrolRouteName}");
+                string presetLabel = string.IsNullOrEmpty(_npc.patrolSpeedPreset) ? "Default (flat walk)" : _npc.patrolSpeedPreset;
+                SetStatus($"Current route: {_npc.patrolRouteName}  ·  speed: {presetLabel}");
                 bool showing = PatrolRouteVisualizer.IsShowing(_npc.patrolRouteName);
                 AddButton(showing ? "Hide Route Lines" : "Visualize Route",
-                    new Vector2(0.12f, 0.64f), new Vector2(0.88f, 0.78f), OnToggleVisualize);
-                AddButton("Change Route", new Vector2(0.12f, 0.46f), new Vector2(0.88f, 0.60f), RebuildPicker);
-                AddButton("Clear Route", new Vector2(0.12f, 0.28f), new Vector2(0.88f, 0.42f), OnClear);
+                    new Vector2(0.12f, 0.68f), new Vector2(0.88f, 0.80f), OnToggleVisualize);
+                AddButton("Speed Presets…", new Vector2(0.12f, 0.54f), new Vector2(0.88f, 0.66f), OnEditSpeeds);
+                AddButton("Change Route / Preset", new Vector2(0.12f, 0.40f), new Vector2(0.88f, 0.52f), RebuildPicker);
+                AddButton("Clear Route", new Vector2(0.12f, 0.26f), new Vector2(0.88f, 0.38f), OnClear);
             }
             else
             {
@@ -185,6 +187,7 @@ namespace FiresRPGmaker.UI
             }
 
             AddButton("Cancel", new Vector2(0.30f, 0.12f), new Vector2(0.70f, 0.26f), Close);
+            FiresCore.UI.FiresPopupTheme.Reskin(_panelGo);
         }
 
         private void RebuildPicker() => BuildPicker(resetSelection: true);
@@ -249,6 +252,7 @@ namespace FiresRPGmaker.UI
 
             AddButton("Apply", new Vector2(0.10f, 0.02f), new Vector2(0.48f, 0.15f), OnApplySelected);
             AddButton("Back", new Vector2(0.52f, 0.02f), new Vector2(0.90f, 0.15f), RebuildEntry);
+            FiresCore.UI.FiresPopupTheme.Reskin(_panelGo);
         }
 
         // Right-click a route → confirm before deleting its cfg from disk.
@@ -258,6 +262,7 @@ namespace FiresRPGmaker.UI
             SetStatus($"Delete route '{routeName}'? This removes its saved cfg and can't be undone.");
             AddButton("Delete", new Vector2(0.14f, 0.46f), new Vector2(0.86f, 0.62f), () => OnConfirmDelete(routeName));
             AddButton("Cancel", new Vector2(0.30f, 0.18f), new Vector2(0.70f, 0.34f), () => BuildPicker(resetSelection: false));
+            FiresCore.UI.FiresPopupTheme.Reskin(_panelGo);
         }
 
         private void OnConfirmDelete(string routeName)
@@ -292,10 +297,43 @@ namespace FiresRPGmaker.UI
                 SetStatus("Select a route first.");
                 return;
             }
-            PatrolRouteSync.AssignExisting(_selectedRoute, _npc);
+            BuildPresetPick();
+        }
+
+        // Choose which speed preset to run this route with (Default = flat base walk, today's behaviour).
+        private void BuildPresetPick()
+        {
+            ClearContent();
+            var route = PatrolRouteManager.GetRoute(_selectedRoute);
+            var presets = route != null ? route.Presets.Select(p => p.Name).ToList() : new List<string>();
+            SetStatus($"Speed for '{_selectedRoute}':");
+
+            AddButton("Default (flat walk)", new Vector2(0.10f, 0.80f), new Vector2(0.90f, 0.90f), () => AssignWithPreset(""));
+            float y = 0.68f;
+            foreach (var name in presets)
+            {
+                string p = name;
+                AddButton(p, new Vector2(0.10f, y - 0.10f), new Vector2(0.90f, y), () => AssignWithPreset(p));
+                y -= 0.12f;
+                if (y < 0.30f) break;
+            }
+            AddButton("Edit Speed Presets…", new Vector2(0.10f, 0.16f), new Vector2(0.90f, 0.26f), () => PatrolPresetPopup.Open(_selectedRoute));
+            AddButton("Back", new Vector2(0.30f, 0.03f), new Vector2(0.70f, 0.14f), () => BuildPicker(resetSelection: false));
+            FiresCore.UI.FiresPopupTheme.Reskin(_panelGo);
+        }
+
+        private void AssignWithPreset(string preset)
+        {
+            PatrolRouteSync.AssignExisting(_selectedRoute, preset, _npc);
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
-                $"Assigned patrol route '{_selectedRoute}'");
+                $"Assigned '{_selectedRoute}'" + (string.IsNullOrEmpty(preset) ? " (Default speed)" : $" · preset '{preset}'"));
             Close();
+        }
+
+        private void OnEditSpeeds()
+        {
+            if (_npc == null || string.IsNullOrEmpty(_npc.patrolRouteName)) return;
+            PatrolPresetPopup.Open(_npc.patrolRouteName);
         }
 
         private void OnSetNew()

@@ -127,9 +127,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         }
 
         private static string TabLabel(string g) =>
-            g == GamblerGames.Bones ? "BONES" : g == GamblerGames.Runes ? "RUNES" : g == GamblerGames.Wheel ? "WHEEL" : "CARDS";
+            g == GamblerGames.Bones ? "BONES" : g == GamblerGames.Runes ? "RUNES" : g == GamblerGames.Wheel ? "WHEEL" : g == GamblerGames.Duel ? "DUEL" : "CARDS";
         private static string ActionLabel(string g) =>
-            g == GamblerGames.Bones ? "CAST" : g == GamblerGames.Runes ? "CAST" : g == GamblerGames.Wheel ? "SPIN" : "DEAL";
+            g == GamblerGames.Bones ? "CAST" : g == GamblerGames.Runes ? "CAST" : g == GamblerGames.Wheel ? "SPIN" : g == GamblerGames.Duel ? "ROLL" : "DEAL";
 
         private void SelectGame(string game)
         {
@@ -259,6 +259,38 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
         }
 
+        // Cards: flip a tile edge-on, swap to its revealed face at the thin point, then flip back — a real card turn.
+        private System.Collections.IEnumerator FlipReveal(int index, GamblerItemEntry reward)
+        {
+            if (index < 0 || index >= _tiles.Count) yield break;
+            var rt = _tiles[index].Go != null ? _tiles[index].Go.GetComponent<RectTransform>() : null;
+            if (rt == null) { RevealTile(index, reward, won: true); yield break; }
+            const float half = 0.11f;
+            for (float t = 0f; t < half; t += Time.deltaTime) { rt.localScale = new Vector3(Mathf.Lerp(1f, 0f, t / half), 1f, 1f); yield return null; }
+            RevealTile(index, reward, won: true);
+            for (float t = 0f; t < half; t += Time.deltaTime) { rt.localScale = new Vector3(Mathf.Lerp(0f, 1f, t / half), 1f, 1f); yield return null; }
+            rt.localScale = Vector3.one;
+        }
+
+        // Cards: deal the tiles in with a quick staggered pop so a fresh hand feels dealt.
+        private System.Collections.IEnumerator DealIn()
+        {
+            foreach (var tile in _tiles) { var rt = tile.Go != null ? tile.Go.GetComponent<RectTransform>() : null; if (rt != null) rt.localScale = new Vector3(0f, 1f, 1f); }
+            foreach (var tile in _tiles)
+            {
+                var rt = tile.Go != null ? tile.Go.GetComponent<RectTransform>() : null;
+                if (rt != null) StartCoroutine(PopIn(rt));
+                yield return new WaitForSeconds(0.028f);
+            }
+        }
+
+        private System.Collections.IEnumerator PopIn(RectTransform rt)
+        {
+            const float d = 0.16f;
+            for (float t = 0f; t < d; t += Time.deltaTime) { float e = 1f - Mathf.Pow(1f - t / d, 2f); rt.localScale = new Vector3(e, 1f, 1f); yield return null; }
+            rt.localScale = Vector3.one;
+        }
+
         private static Color TileBg(string g) =>
             g == GamblerGames.Bones ? new Color(0.91f, 0.87f, 0.76f, 0.96f) :
             g == GamblerGames.Runes ? new Color(0.49f, 0.46f, 0.40f, 0.96f) :
@@ -272,7 +304,29 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private void OnActionClicked()
         {
             if (_activeGame == GamblerGames.Cards) OnDealClicked();
+            else if (_activeGame == GamblerGames.Duel) OnDuel();
             else OnAutoPlay();
+        }
+
+        // Duel: double-or-nothing best-of-3 vs the Jarl. Stake the currency; a win pays 2× back, a loss forfeits it.
+        private void OnDuel()
+        {
+            var profile = GamblerProfileManager.GetProfile(_profileName);
+            if (profile == null) return;
+            if (!PayCost(profile)) { Refresh(); return; }
+            int stake = profile.RequiredItem.Min;
+            string cur = profile.RequiredItem.Prefab;
+            _statusText.text = "Dueling the Jarl…";
+            Minigames.DuelGame.Open(won =>
+            {
+                if (won)
+                {
+                    GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), cur, stake * 2);
+                    _descriptionText.text = "<size=18><color=#1f5c0f>You take the pot — " + (stake * 2) + " " + cur + "!</color></size>";
+                }
+                else _descriptionText.text = "<size=18><color=#8a1f1f>The Jarl takes the pot.</color></size>";
+                EndRound(profile);
+            });
         }
 
         // ----- Cards: deal then pick -----
@@ -300,6 +354,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _clicked.Clear();
             _remainingPicks = Mathf.Clamp(profile.MaxRolls, 1, activeCount);
             _dealt = true;
+            StartCoroutine(DealIn());
             _descriptionText.text = "<color=#1f5c0f>Choose " + _remainingPicks + " card" + (_remainingPicks > 1 ? "s" : "") + " to reveal your reward.</color>";
             RefreshStake(profile);
             _statusText.text = "Picks left: " + _remainingPicks;
@@ -314,7 +369,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
             _clicked.Add(index);
             _remainingPicks--;
-            RevealTile(index, reward, won: true);
+            StartCoroutine(FlipReveal(index, reward));
             GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), reward.Prefab, RollQty(reward));
             AppendWon(reward.Prefab, RollQty(reward));
 
@@ -332,12 +387,78 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (!PayCost(profile)) { Refresh(); return; }
             ResetTiles();
 
-            _descriptionText.text = "<size=18>You won:</size>  ";
-            bool first = true;
+            // Bones plays the dice-cast overlay first: draw the pool up front so the cast can SHOW what was won, then
+            // grant it once the player collects (theater — the payout is unchanged, the cast is presentation).
+            if (_activeGame == GamblerGames.Bones)
+            {
+                _statusText.text = "Casting…";
+                var draws = RollDraws(profile);
+                Minigames.DicePouchGame.Open(_tiles.Count, FormatDraws(draws), () => ApplyDraws(profile, draws));
+                return;
+            }
+            if (_activeGame == GamblerGames.Wheel)
+            {
+                _statusText.text = "Spinning…";
+                var draws = RollDraws(profile);
+                var labels = WheelLabels(profile);
+                int target = draws.Count > 0 ? labels.FindIndex(s => s == draws[0].Key.Prefab) : 0;
+                Minigames.WheelGame.Open(labels, target < 0 ? 0 : target, FormatDraws(draws), () => ApplyDraws(profile, draws));
+                return;
+            }
+            if (_activeGame == GamblerGames.Runes)
+            {
+                _statusText.text = "Casting…";
+                var draws = RollDraws(profile);
+                Minigames.RunesGame.Open(_tiles.Count, FormatDraws(draws), () => ApplyDraws(profile, draws));
+                return;
+            }
+            ApplyDraws(profile, RollDraws(profile));
+        }
+
+        // Wheel wedge captions: the distinct reward prefabs from the pool (capped at 8, padded to a min of 2).
+        private System.Collections.Generic.List<string> WheelLabels(GamblerProfile profile)
+        {
+            var labels = new System.Collections.Generic.List<string>();
+            foreach (var e in profile.Rewards)
+            {
+                if (labels.Count >= 8) break;
+                if (!labels.Contains(e.Prefab)) labels.Add(e.Prefab);
+            }
+            while (labels.Count < 2) labels.Add(labels.Count > 0 ? labels[0] : "Prize");
+            return labels;
+        }
+
+        private System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<GamblerItemEntry, int>> RollDraws(GamblerProfile profile)
+        {
+            var draws = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<GamblerItemEntry, int>>();
             for (int i = 0; i < _tiles.Count; i++)
             {
-                var reward = DrawReward(profile);
-                int qty = RollQty(reward);
+                var r = DrawReward(profile);
+                draws.Add(new System.Collections.Generic.KeyValuePair<GamblerItemEntry, int>(r, RollQty(r)));
+            }
+            return draws;
+        }
+
+        private static string FormatDraws(System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<GamblerItemEntry, int>> draws)
+        {
+            string s = "You won:  ";
+            for (int i = 0; i < draws.Count; i++)
+            {
+                if (i > 0) s += "   ·   ";
+                s += draws[i].Key.Prefab + " ×" + draws[i].Value;
+            }
+            return s;
+        }
+
+        // Reveal each drawn reward on its tile, grant it, and close the round. Shared by every instant/animated game.
+        private void ApplyDraws(GamblerProfile profile, System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<GamblerItemEntry, int>> draws)
+        {
+            if (profile == null) return;
+            _descriptionText.text = "<size=18>You won:</size>  ";
+            bool first = true;
+            for (int i = 0; i < draws.Count && i < _tiles.Count; i++)
+            {
+                var reward = draws[i].Key; int qty = draws[i].Value;
                 RevealTile(i, reward, won: true);
                 GrantOrSpawn(Player.m_localPlayer, Player.m_localPlayer.GetInventory(), reward.Prefab, qty);
                 if (!first) _descriptionText.text += ", ";

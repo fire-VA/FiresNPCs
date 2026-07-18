@@ -37,7 +37,7 @@ namespace FiresRPGmaker.UI.Screens
         private const int PANEL_VERSION = 14;
         private static int _createdVersion = 0;
 
-        private static string RuntimeSpritesFolder => Path.Combine(Paths.ConfigPath, "FiresRPGmaker", "RuntimeSprites");
+        private static string RuntimeSpritesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestSprites);
 
         // Size state
         private enum PanelSize { Large, Medium, Small }
@@ -255,6 +255,16 @@ namespace FiresRPGmaker.UI.Screens
                     bgImage.color = UIFontConfig.Colors.PanelBackground;
                 }
             }
+            // Admin-tunable background opacity (UI.Dialogue/InfoBackgroundOpacity) scales whatever
+            // alpha the style above chose.
+            try
+            {
+                float infoOpacity = global::FiresRPGmaker.Managers.ConfigManager.Instance?.configInfoBgOpacity?.Value ?? 1f;
+                var c = bgImage.color;
+                c.a *= Mathf.Clamp(infoOpacity, 0.1f, 1f);
+                bgImage.color = c;
+            }
+            catch { }
             bgImage.raycastTarget = true;
 
             // === ELEMENT 1: Header Text (top band) ===
@@ -396,14 +406,21 @@ namespace FiresRPGmaker.UI.Screens
             buttonRect.anchorMin = new Vector2(1, 1);
             buttonRect.anchorMax = new Vector2(1, 1);
             buttonRect.pivot = new Vector2(1, 1);
-            buttonRect.sizeDelta = new Vector2(40, 40);
-            buttonRect.anchoredPosition = new Vector2(-5, -5);
+            buttonRect.sizeDelta = new Vector2(30, 30);
+            buttonRect.anchoredPosition = new Vector2(-10, -10);
 
+            // Match the dialogue theme: rounded dark chip + thin gold inset border (same as the number badge),
+            // reddens on hover. Click stays on InfoPlayerPanelCloseHandler (the panel's proven click path).
             var buttonImg = buttonGO.AddComponent<Image>();
-            buttonImg.color = Color.clear;
+            var closeNormal = new Color(0.14f, 0.11f, 0.07f, 0.98f);
+            buttonImg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(7, Color.white, new Color(0.72f, 0.55f, 0.28f, 1f), 1);
+            buttonImg.type = Image.Type.Sliced;
+            buttonImg.color = closeNormal;
             buttonImg.raycastTarget = true;
 
             buttonGO.AddComponent<InfoPlayerPanelCloseHandler>();
+            var chover = buttonGO.AddComponent<global::FiresRPGmaker.UI.CloseXHover>();
+            chover.Img = buttonImg; chover.Normal = closeNormal; chover.Hover = new Color(0.45f, 0.16f, 0.11f, 0.98f);
             buttonGO.transform.SetAsLastSibling();
 
             var xGO = new GameObject("X");
@@ -414,9 +431,10 @@ namespace FiresRPGmaker.UI.Screens
             xRect.offsetMin = Vector2.zero;
             xRect.offsetMax = Vector2.zero;
             var xText = xGO.AddComponent<TextMeshProUGUI>();
-            xText.text = "\u00D7";
-            xText.fontSize = 28;
-            xText.color = new Color(0.8f, 0.6f, 0.4f, 0.8f);
+            xText.text = "\u00d7";   // U+00D7 (in the font; U+2715 \u2715 is not)
+            xText.fontSize = 20;
+            xText.color = new Color(0.93f, 0.82f, 0.52f);
+            xText.fontStyle = FontStyles.Bold;
             xText.alignment = TextAlignmentOptions.Center;
             xText.raycastTarget = false;
             UIBuilderHelper.ApplyValheimFont(xText);
@@ -619,7 +637,10 @@ namespace FiresRPGmaker.UI.Screens
     {
         private void Update()
         {
-            if (gameObject.activeSelf && Input.GetKeyDown(KeyCode.Escape))
+            // Escape owned by the central Menu.Show hook (CloseAllPanels → InfoNpcPlayerPanel.Hide) — no
+            // self-close on Escape here, so the panel is still open when the hook intercepts the menu open.
+            // SPACEBAR closes it (owner request; info panel has no text field, so a direct self-close is safe).
+            if (gameObject.activeSelf && Input.GetKeyDown(KeyCode.Space))
             {
                 InfoNpcPlayerPanel.Hide();
             }

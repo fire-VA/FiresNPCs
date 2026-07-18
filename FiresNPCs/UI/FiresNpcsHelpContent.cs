@@ -77,11 +77,7 @@ namespace FiresRPGmaker.UI
         {
             try
             {
-                if (ZNet.instance == null) return false;
-                if (ZNet.instance.IsServer() && !ZNet.instance.IsDedicated()) return true;
-                var configSync = FiresRPGmaker.Instance?.configSync;
-                if (configSync != null && configSync.IsAdmin) return true;
-                return false;
+                return FiresCore.Sync.AdminSyncing.IsLocalAdmin();
             }
             catch { return false; }
         }
