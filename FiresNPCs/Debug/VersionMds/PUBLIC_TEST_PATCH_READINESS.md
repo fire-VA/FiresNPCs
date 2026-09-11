@@ -323,7 +323,7 @@ Every `VisEquipment.Set*Item(string …)` call inside Humanoid is now `Set*Item(
 - [ ] **VAInventory** `Managers\InventoryInteraction.cs:152, 190` — `EquipItem`/`UnequipItem` postfixes still bind. Safe.
 - [ ] **VAInventory** `Managers\ItemSlotValidation.cs:389-396` — `AccessTools.Method(typeof(Humanoid), "EquipItem"|"UnequipItem")` no-overload-spec. Still works as long as no new overload is added (none in this build).
 - [ ] **VABackpacks** `BackpackManager.cs:443, 521, 576, 623` — same deal, prefix/postfix on EquipItem/UnequipItem. Safe.
-- [ ] **VABackpacks** has the watch-for-duplicate-postfix concern from CLAUDE.md memory: the existing pair (Prefix-hijack + Postfix-event-fire) is intentional. Do NOT add a third postfix — it causes double-firing of `OnEquipItem` / `HandleEquipped`.
+- [ ] **VABackpacks** has the watch-for-duplicate-postfix concern from the project notes: the existing pair (Prefix-hijack + Postfix-event-fire) is intentional. Do NOT add a third postfix — it causes double-firing of `OnEquipItem` / `HandleEquipped`.
 
 ### 2.5 `Game.Update` / `Game.Awake` / `Game.Logout` body changes
 
@@ -514,7 +514,7 @@ No mod references either.
 - `Cover.cs` (the `Cover.GetCoverForPoint` static lives in a satellite)
 - `ZInput.cs`
 - `Localization.cs`
-- `UITooltip.cs` (per CLAUDE.md memory: `assembly_guiutils.dll`, with 4-arg `Set` in current build)
+- `UITooltip.cs` (`assembly_guiutils.dll`, with 4-arg `Set` in current build)
 
 For these, on patch day, verify the satellite DLL hasn't drifted by checking the relevant patch sites still bind:
 - **VAInventory** `Managers\HotbarManager.cs:32-46` — `ZInput.TryGetButtonState(string,…)` runtime overload pick
@@ -701,7 +701,7 @@ Walk this list when public test promotes to live and we begin updating refs.
   - Spawn/despawn a creature near the seam — ZDOs propagate
   - ZDO wire format intact (no desync between client/server views)
   - Network version literal `37` appears in handshake logs
-- [ ] Companion teleport suppression doesn't deadlock the zone-stream during world load (per CLAUDE.md spawn-gates memory)
+- [ ] Companion teleport suppression doesn't deadlock the zone-stream during world load (per the spawn-gates notes)
 - [ ] First chunked save: confirm `ChunkSaveMapping` files written under save directory; reload world; saves round-trip
 
 ### Telemetry to review
