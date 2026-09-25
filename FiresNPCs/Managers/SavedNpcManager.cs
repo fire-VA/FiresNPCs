@@ -50,7 +50,7 @@ namespace FiresRPGmaker.Managers
         /// Register the SavedNPCs/ folder with <see cref="ManifestDiffSync"/>
         /// so peers can be asked for a {filename -&gt; sha256} manifest of their local copies.
         /// Called once at mod init from <c>Ascend.cs</c> (after ZRoutedRpc is up).
-        /// Idempotent ? re-registration simply overwrites the folder binding.
+        /// Idempotent - re-registration simply overwrites the folder binding.
         /// </summary>
         public static void RegisterManifestFolder()
         {
@@ -196,7 +196,7 @@ namespace FiresRPGmaker.Managers
             }
             catch
             {
-                // Non-critical � caller will handle null
+                // Non-critical - caller will handle null
             }
 
             return null;
@@ -881,7 +881,7 @@ namespace FiresRPGmaker.Managers
             return _savedNpcs.Values;
         }
 
-        #region Disk I/O � Per-NPC Files
+        #region Disk I/O - Per-NPC Files
 
         private static void EnsureFolderExists()
         {
@@ -912,7 +912,7 @@ namespace FiresRPGmaker.Managers
                 var loaded = JsonConvert.DeserializeObject<Dictionary<string, SavedNpcData>>(json, _jsonSettings);
                 if (loaded == null || loaded.Count == 0)
                 {
-                    // Nothing to migrate � just rename
+                    // Nothing to migrate - just rename
                     File.Move(LegacySavedNpcsFile, LegacySavedNpcsFile + ".bak");
                     return;
                 }
@@ -1016,7 +1016,7 @@ namespace FiresRPGmaker.Managers
 
         #endregion
 
-        #region NPC Templates � Name-Keyed Saved Configs
+        #region NPC Templates - Name-Keyed Saved Configs
 
         private static Dictionary<string, SavedNpcData> _templates = new Dictionary<string, SavedNpcData>(StringComparer.OrdinalIgnoreCase);
         private static bool _templatesLoaded;
@@ -1077,7 +1077,7 @@ namespace FiresRPGmaker.Managers
             EnsureTemplatesLoaded();
 
             data.LastModified = DateTime.UtcNow;
-            // Clear position-specific data � templates are name-keyed, not position-keyed
+            // Clear position-specific data - templates are name-keyed, not position-keyed
             data.NpcId = "template_" + templateName;
             data.Position = Vector3.zero;
 
@@ -1213,7 +1213,7 @@ namespace FiresRPGmaker.Managers
 
         #endregion
 
-        #region RPC Sync � Server Authoritative
+        #region RPC Sync - Server Authoritative
 
         /// <summary>
         /// Admin client pushes an NPC file to the server via the existing SyncFiles RPC.
@@ -1407,7 +1407,7 @@ namespace FiresRPGmaker.Managers
         }
 
         /// <summary>
-        /// RPC handler � receives NPC data from the server (on clients) or could receive
+        /// RPC handler - receives NPC data from the server (on clients) or could receive
         /// from an admin on the server (handled via SyncFiles instead).
         /// </summary>
         private static void RPC_OnNpcDataUpdate(long sender, ZPackage pkg)
@@ -1438,7 +1438,7 @@ namespace FiresRPGmaker.Managers
                 // pull all NPCs over the wire again.
                 //
                 // We skip this write on the server because (a) the server already owns
-                // the canonical file ? the RPC handler is only hit there when an admin
+                // the canonical file - the RPC handler is only hit there when an admin
                 // pushes an edit via SyncFiles, which itself writes to disk and
                 // triggers the FileWatcher, and (b) writing here would re-fire the
                 // FileWatcher and potentially loop.

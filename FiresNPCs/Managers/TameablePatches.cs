@@ -86,7 +86,7 @@ namespace FiresRPGmaker.Modules.Vault
             return __instance != null && (bool)__instance.gameObject;
         }
 
-        // Cached reflection for BaseAI.m_nview (protected field ï¿½ accessed once at class init).
+        // Cached reflection for BaseAI.m_nview (protected field - accessed once at class init).
         private static readonly FieldInfo _baseAI_nview =
             AccessTools.Field(typeof(BaseAI), "m_nview");
 

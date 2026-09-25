@@ -86,22 +86,6 @@ namespace FiresRPGmaker.UI
         {
             int refreshedCount = 0;
             
-            // Refresh NPC Main Panel
-            if (NpcMainPanelController.Instance != null && NpcMainPanelController.Instance.gameObject.activeSelf)
-            {
-                UIFontConfig.RefreshFontsInHierarchy(NpcMainPanelController.Instance.gameObject);
-                refreshedCount++;
-            }
-            
-            // Refresh Quest Interaction Screen
-            if (Screens.QuestInteractionScreenController.Instance != null && 
-                Screens.QuestInteractionScreenController.Instance.screenRoot != null &&
-                Screens.QuestInteractionScreenController.Instance.IsVisible)
-            {
-                UIFontConfig.RefreshFontsInHierarchy(Screens.QuestInteractionScreenController.Instance.screenRoot);
-                refreshedCount++;
-            }
-            
             // Refresh Info NPC Screen (Admin config screen)
             if (Screens.InfoNpcScreenController.Instance != null && 
                 Screens.InfoNpcScreenController.Instance.screenRoot != null &&
@@ -343,11 +327,6 @@ namespace FiresRPGmaker.UI
         /// </summary>
 public static bool IsCustomPanelOpen()
        {
-   // Check main NPC config panel
-      if (NpcMainPanelController.Instance != null &&
-   NpcMainPanelController.Instance.gameObject.activeSelf)
-            return true;
-
     // Check the book NPC config panel (parchment admin UI)
     if (NpcBookController.Instance != null && NpcBookController.Instance.IsOpen)
         return true;
@@ -399,7 +378,6 @@ return false;
         /// </summary>
   public static void CloseAllPanels()
      {
-   NpcMainPanelController.Instance?.Hide();
    NpcBookController.Instance?.Hide();
    Screens.InfoNpcPlayerPanel.Hide();
          QuestJournalController.Instance?.Hide();

@@ -1,4 +1,4 @@
-using HarmonyLib;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -7,31 +7,18 @@ using FiresRPGmaker.Managers;
 namespace FiresRPGmaker.UI
 {
     /// <summary>
-    /// Custom globe-style HUD overlay for Health, Eitr, Stamina, and Adrenaline.
+    /// Globe HUD for Health, Eitr, Stamina and Adrenaline: liquid that fills, pours and sloshes with the player's
+    /// movement (Custom/FiresGlobeLiquid), real-looking glass lit by the scene's sun or moon (Custom/FiresGlobeGlass),
+    /// current/max popups while a value changes, and a breakdown tooltip when hovered with the inventory open.
     ///
-    /// PREFAB LAYOUT:
-    ///   Root GO      � Image with ornate border/frame artwork
-    ///   Health       � child Image (red oval fill)
-    ///   Eitr         � child Image (purple oval fill)
-    ///   Stamina      � child Image (olive/yellow oval fill)
-    ///   Adrenaline   � child Image (horizontal bar fill)
+    /// PREFAB LAYOUT (HealthBarOverlayVAD in the firesnpcs bundle):
+    ///   Root GO      - Image with the ornate frame artwork
+    ///   Health/Eitr/Stamina/Adrenaline - liquid Images, each with a *Glass child Image
     ///
-    /// RENDER ORDER (back ? front):
-    ///    sort 1  Fills         � prefab child Images converted to Image.Type.Filled
-    ///           Glass overlays � remain as children of each fill; rendered after
-    ///                            the fill Image via normal child ordering, keeping
-    ///                            their transparent Standard-shader material intact
-    ///    sort 3  Root border   � the ornate frame artwork on the root Image
-    ///    sort 4  Wireframe     � resize handles (only visible in resize mode)
+    /// RENDER ORDER (back -> front): sort 1 liquid + glass, sort 3 frame, sort 4 resize wireframe, sort 5 popups.
     ///
-    /// DRAG and RESIZE (reposition mode � ESC menu open):
-    ///   - Drag anywhere on the HUD to reposition.
-    ///   - Double-click to toggle resize mode: a wireframe outline appears with
-    ///     four corner handles and four side handles.
-    ///     Corner handles scale the HUD proportionally.
-    ///     Side handles adjust only width or height for non-uniform stretching.
-    ///     Double-click again or close the ESC menu to exit resize mode.
-    ///   - Position and scale are saved to PlayerPrefs.
+    /// DRAG and RESIZE (ESC menu open): drag to move; double-click toggles the resize wireframe (corner handles
+    /// scale proportionally, side handles stretch one axis). Position and scale persist in PlayerPrefs.
     ///
     /// Vanilla Hud bars are hidden while this overlay is active.
     /// </summary>
@@ -40,17 +27,18 @@ namespace FiresRPGmaker.UI
         #region Constants
 
         private const string PREFAB_NAME = "HealthBarOverlayVAD";
-        private const float UPDATE_INTERVAL = 0.05f;
-        private const float FILL_LERP_SPEED = 5f;
-
-        private const float LOW_THRESHOLD = 0.25f;
-        private const float PULSE_SPEED = 3f;
-        private const float PULSE_ALPHA_MIN = 0.5f;
-        private const float PULSE_ALPHA_MAX = 0.95f;
+        private const float MaxFrameSeconds = 0.1f;
+        private const float ShaderTimeWrapSeconds = 3600f;
+        private const int LiquidSortingOrder = 1;
+        private const int FrameSortingOrder = 3;
+        private const int WireframeSortingOrder = 4;
 
         // Scale limits
         private const float MIN_SCALE = 0.3f;
         private const float MAX_SCALE = 2.5f;
+
+        private const float MinVisibleFraction = 0.25f;
+        private static readonly Vector2 DefaultPosition = new Vector2(100f, 30f);
 
         // Wireframe / handle visuals
         private const float HANDLE_SIZE = 14f;
@@ -77,13 +65,12 @@ namespace FiresRPGmaker.UI
         private GameObject _root;
         private RectTransform _rootRect;
 
-        private GlobeUI _health;
-        private GlobeUI _eitr;
-        private GlobeUI _stamina;
-        private BarUI _adrenaline;
+        private readonly List<GlobeView> _views = new List<GlobeView>();
+        private readonly List<GlobeValuePopup> _popups = new List<GlobeValuePopup>();
+        private readonly GlobeMotionSampler _motion = new GlobeMotionSampler();
+        private readonly GlobeHoverTooltip _tooltip = new GlobeHoverTooltip();
 
         private Player _localPlayer;
-        private float _lastUpdate;
         private bool _hudReady;
 
         // Vanilla HUD elements
@@ -108,30 +95,6 @@ namespace FiresRPGmaker.UI
         // Captured at drag-start so the first frame doesn't jump
         private float _resizeDragStartDist;
         private Vector3 _resizeDragStartScale;
-
-        #endregion
-
-        #region Data Classes
-
-        private class GlobeUI
-        {
-            public GameObject Root;
-            public Image FillImage;
-            public Color OriginalColor;
-            public float CurrentFill;
-            public float TargetFill;
-            public bool IsLow;
-        }
-
-        private class BarUI
-        {
-            public GameObject Root;
-            public Image FillImage;
-            public Color OriginalColor;
-            public float CurrentFill;
-            public float TargetFill;
-            public bool IsLow;
-        }
 
         #endregion
 
@@ -165,14 +128,26 @@ namespace FiresRPGmaker.UI
             Debug.Log("[GlobeHud] Initialized");
         }
 
+        /// <summary>Logout: the Hud and its vanilla bars are being destroyed with us, so there is nothing to restore.</summary>
         public static void Cleanup()
         {
-            if (_instance != null)
+            if (_instance == null) return;
+            Destroy(_instance.gameObject);
+            _instance = null;
+        }
+
+        /// <summary>UseGlobeHud changed mid-session. Turning it off brings back the vanilla bars, since the Hud stays.</summary>
+        public static void ApplyEnabled(bool enabled)
+        {
+            if (Hud.instance == null) return;
+            if (enabled)
             {
-                _instance.RestoreVanillaHud();
-                Destroy(_instance.gameObject);
-                _instance = null;
+                Initialize();
+                return;
             }
+            if (_instance == null) return;
+            _instance.RestoreVanillaHud();
+            Cleanup();
         }
 
         private class DeferredInit : MonoBehaviour
@@ -211,7 +186,9 @@ namespace FiresRPGmaker.UI
         private void OnDestroy()
         {
             if (_instance == this) _instance = null;
-            RestoreVanillaHud();
+            foreach (var view in _views) view.Destroy();
+            foreach (var popup in _popups) popup.Destroy();
+            _tooltip.Destroy();
             if (_root != null) Destroy(_root);
         }
 
@@ -222,9 +199,11 @@ namespace FiresRPGmaker.UI
             if (_localPlayer == null || !_localPlayer)
             {
                 _localPlayer = Player.m_localPlayer;
+                _motion.Reset();
                 if (_localPlayer == null)
                 {
                     if (_root != null) _root.SetActive(false);
+                    HideOverlays();
                     return;
                 }
             }
@@ -250,15 +229,52 @@ namespace FiresRPGmaker.UI
             if (_root.activeSelf != shouldShow)
                 _root.SetActive(shouldShow);
 
-            if (!shouldShow) return;
+            if (!shouldShow)
+            {
+                HideOverlays();
+                return;
+            }
 
             HideVanillaHud();
+            AnimateLiquid();
+        }
 
-            if (Time.time - _lastUpdate < UPDATE_INTERVAL) return;
-            _lastUpdate = Time.time;
+        #endregion
 
-            UpdateStats();
-            AnimateFills();
+        #region Liquid, Popups and Tooltip
+
+        private void AnimateLiquid()
+        {
+            var config = ConfigManager.Instance;
+            float dt = Mathf.Min(Time.unscaledDeltaTime, MaxFrameSeconds);
+            float now = Time.unscaledTime;
+            var camera = Utils.GetMainCamera();
+            GlobeSceneLight.Publish(camera);
+
+            var motion = GlobeMotion.Still;
+            if (camera != null && config.configGlobeLiquidMotion.Value)
+                motion = _motion.Sample(_localPlayer, camera.transform, dt).Scaled(config.configGlobeSloshStrength.Value);
+            else
+                _motion.Reset();
+
+            float shaderTime = Mathf.Repeat(now, ShaderTimeWrapSeconds);
+            float holdSeconds = config.configGlobePopupHoldSeconds.Value;
+            bool popups = config.configGlobeValuePopups.Value;
+            for (int index = 0; index < _views.Count; index++)
+            {
+                var view = _views[index];
+                view.Read(_localPlayer);
+                view.Advance(dt, motion);
+                view.Apply(shaderTime);
+                _popups[index].Tick(view, now, holdSeconds, popups);
+            }
+            _tooltip.Tick(_views, _localPlayer, config.configGlobeInventoryTooltips.Value, now);
+        }
+
+        private void HideOverlays()
+        {
+            foreach (var popup in _popups) popup.Hide();
+            _tooltip.Tick(_views, _localPlayer, false, Time.unscaledTime);
         }
 
         #endregion
@@ -278,8 +294,9 @@ namespace FiresRPGmaker.UI
         public void OnDragMove(Vector2 mousePosition)
         {
             if (!_isDragging || !_isRepositionMode) return;
-            if (_rootRect != null)
-                _rootRect.position = mousePosition + _dragOffset;
+            if (_rootRect == null) return;
+            _rootRect.position = mousePosition + _dragOffset;
+            _rootRect.anchoredPosition = KeepOnScreen(_rootRect.anchoredPosition);
         }
 
         /// <summary>Called by GlobeHudInteractionHandler on drag end.</summary>
@@ -384,7 +401,7 @@ namespace FiresRPGmaker.UI
             StretchFill(wfRect);
 
             // Render above the border frame
-            EnsureCanvas(_wireframeRoot, 4);
+            EnsureCanvas(_wireframeRoot, WireframeSortingOrder);
 
             // Outline edges
             CreateOutlineEdge("Top", wfRect,
@@ -403,7 +420,7 @@ namespace FiresRPGmaker.UI
                 new Vector2(1f, 0f), new Vector2(1f, 1f),
                 new Vector2(-OUTLINE_WIDTH, 0f), Vector2.zero);
 
-            // Corner handles (TL, TR, BL, BR) � proportional resize
+            // Corner handles (TL, TR, BL, BR) - proportional resize
             CreateResizeHandle("HandleTL", wfRect, new Vector2(0f, 1f),
                 new Vector2(HANDLE_SIZE, HANDLE_SIZE), ResizeAxis.Proportional);
             CreateResizeHandle("HandleTR", wfRect, new Vector2(1f, 1f),
@@ -413,7 +430,7 @@ namespace FiresRPGmaker.UI
             CreateResizeHandle("HandleBR", wfRect, new Vector2(1f, 0f),
                 new Vector2(HANDLE_SIZE, HANDLE_SIZE), ResizeAxis.Proportional);
 
-            // Side handles � single-axis resize
+            // Side handles - single-axis resize
             CreateResizeHandle("HandleTop", wfRect, new Vector2(0.5f, 1f),
                 new Vector2(SIDE_HANDLE_LONG, SIDE_HANDLE_SHORT), ResizeAxis.Vertical);
             CreateResizeHandle("HandleBottom", wfRect, new Vector2(0.5f, 0f),
@@ -477,7 +494,7 @@ namespace FiresRPGmaker.UI
 
             if (_rootRect != null)
             {
-                _rootRect.anchoredPosition = new Vector2(100f, 30f);
+                _rootRect.anchoredPosition = DefaultPosition;
                 _rootRect.localScale = new Vector3(MIN_SCALE, MIN_SCALE, 1f);
             }
         }
@@ -487,10 +504,10 @@ namespace FiresRPGmaker.UI
             if (_rootRect == null) return;
 
             var pos = _rootRect.anchoredPosition;
-            if (float.IsNaN(pos.x) || float.IsNaN(pos.y) ||
-                float.IsInfinity(pos.x) || float.IsInfinity(pos.y))
-                return;
+            if (!IsFinite(pos.x) || !IsFinite(pos.y)) return;
 
+            pos = KeepOnScreen(pos);
+            _rootRect.anchoredPosition = pos;
             PlayerPrefs.SetFloat(PREF_POS_X, pos.x);
             PlayerPrefs.SetFloat(PREF_POS_Y, pos.y);
             PlayerPrefs.SetFloat(PREF_SCALE_X, _rootRect.localScale.x);
@@ -502,26 +519,37 @@ namespace FiresRPGmaker.UI
         {
             if (_rootRect == null) return;
 
-            float posX = PlayerPrefs.GetFloat(PREF_POS_X, 100f);
-            float posY = PlayerPrefs.GetFloat(PREF_POS_Y, 30f);
+            var pos = new Vector2(PlayerPrefs.GetFloat(PREF_POS_X, DefaultPosition.x), PlayerPrefs.GetFloat(PREF_POS_Y, DefaultPosition.y));
             float scaleX = PlayerPrefs.GetFloat(PREF_SCALE_X, MIN_SCALE);
             float scaleY = PlayerPrefs.GetFloat(PREF_SCALE_Y, MIN_SCALE);
 
-            // Sanity: reject NaN/Infinity and also negative positions that
-            // would place the bottom-left corner off-screen.
-            if (float.IsNaN(posX) || float.IsNaN(posY) ||
-                float.IsInfinity(posX) || float.IsInfinity(posY) ||
-                posX < 0f || posY < 0f)
-            {
-                posX = 100f;
-                posY = 30f;
-            }
-            scaleX = Mathf.Clamp(scaleX, MIN_SCALE, MAX_SCALE);
-            scaleY = Mathf.Clamp(scaleY, MIN_SCALE, MAX_SCALE);
+            if (!IsFinite(pos.x) || !IsFinite(pos.y)) pos = DefaultPosition;
+            scaleX = IsFinite(scaleX) ? Mathf.Clamp(scaleX, MIN_SCALE, MAX_SCALE) : MIN_SCALE;
+            scaleY = IsFinite(scaleY) ? Mathf.Clamp(scaleY, MIN_SCALE, MAX_SCALE) : MIN_SCALE;
 
-            _rootRect.anchoredPosition = new Vector2(posX, posY);
             _rootRect.localScale = new Vector3(scaleX, scaleY, 1f);
+            _rootRect.anchoredPosition = KeepOnScreen(pos);
         }
+
+        /// <summary>
+        /// Keeps at least a quarter of the scaled frame inside the HUD area. The frame art has transparent margins,
+        /// so players park its corner past the screen edge; only a frame that would be lost off screen is pulled back.
+        /// </summary>
+        private Vector2 KeepOnScreen(Vector2 position)
+        {
+            var area = _rootRect.parent as RectTransform;
+            if (area == null) return position;
+            Vector2 areaSize = area.rect.size;
+            if (areaSize.x <= 0f || areaSize.y <= 0f) return position;
+
+            Vector2 size = Vector2.Scale(_rootRect.rect.size, _rootRect.localScale);
+            Vector2 minVisible = size * MinVisibleFraction;
+            return new Vector2(
+                Mathf.Clamp(position.x, minVisible.x - size.x, areaSize.x - minVisible.x),
+                Mathf.Clamp(position.y, minVisible.y - size.y, areaSize.y - minVisible.y));
+        }
+
+        private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 
         #endregion
 
@@ -618,23 +646,25 @@ namespace FiresRPGmaker.UI
             // The root needs its own Canvas for sort-order control.
             // EnsureCanvas also adds a GraphicRaycaster so the EventSystem
             // can detect clicks/drags on this nested Canvas and its children.
-            EnsureCanvas(_root, 3);
+            EnsureCanvas(_root, FrameSortingOrder);
 
             // Attach interaction handler (drag + double-click)
             var handler = _root.AddComponent<GlobeHudInteractionHandler>();
             handler.Initialize(this);
 
-            _health = WireGlobe("Health");
-            _eitr = WireGlobe("Eitr");
-            _stamina = WireGlobe("Stamina");
-            _adrenaline = WireBar("Adrenaline");
-
-            if (_health == null || _stamina == null)
+            bool complete = WireGlobe(GlobeResource.Health, GlobeLiquidSlosh.HealthFrequency)
+                          & WireGlobe(GlobeResource.Eitr, GlobeLiquidSlosh.EitrFrequency)
+                          & WireGlobe(GlobeResource.Stamina, GlobeLiquidSlosh.StaminaFrequency)
+                          & WireGlobe(GlobeResource.Adrenaline, GlobeLiquidSlosh.AdrenalineFrequency);
+            if (!complete)
             {
-                Debug.LogError("[GlobeHud] Could not find Health or Stamina in prefab.");
+                Debug.LogError("[GlobeHud] The globe prefab is missing a liquid or glass image; the HUD stays off.");
                 _hudReady = false;
                 return;
             }
+
+            foreach (var view in _views)
+                _popups.Add(new GlobeValuePopup(Hud.instance.transform, view));
 
             // Build the wireframe overlay (hidden by default)
             BuildWireframe();
@@ -644,120 +674,25 @@ namespace FiresRPGmaker.UI
             _root.SetActive(false);
             _hudReady = true;
 
-            Debug.Log($"[GlobeHud] UI built � Health={_health != null}, Eitr={_eitr != null}, " +
-                      $"Stamina={_stamina != null}, Adrenaline={_adrenaline != null}");
+            Debug.Log($"[GlobeHud] UI built - {_views.Count} liquid globes, shaders {_views[0].Fill.material.shader.name}");
         }
 
-        private GlobeUI WireGlobe(string childName)
+        private bool WireGlobe(GlobeResource resource, float sloshFrequency)
         {
-            var child = _root.transform.Find(childName);
-            if (child == null)
+            var fillTransform = _root.transform.Find(resource.ToString());
+            var fill = fillTransform != null ? fillTransform.GetComponent<Image>() : null;
+            var glassTransform = fillTransform != null ? fillTransform.Find(resource + "Glass") : null;
+            var glass = glassTransform != null ? glassTransform.GetComponent<Image>() : null;
+            if (fill == null || glass == null)
             {
-                Debug.LogWarning($"[GlobeHud] Globe child '{childName}' not found in prefab");
-                return null;
+                Debug.LogWarning($"[GlobeHud] '{resource}' needs a liquid Image with a '{resource}Glass' child Image");
+                return false;
             }
 
-            var img = child.GetComponent<Image>();
-            if (img == null)
-            {
-                Debug.LogWarning($"[GlobeHud] Globe child '{childName}' has no Image component");
-                return null;
-            }
-
-            // Leave glass overlay as a child of the fill. It renders after
-            // the fill Image via normal UI child ordering.
-            //
-            // The prefab assigns a Standard/Transparent 3D material to the
-            // glass Image, but Unity's CanvasRenderer ignores 3D shader
-            // transparency and renders the clear areas as solid black.
-            // Fix: swap to a UI-compatible material so the sprite alpha
-            // is honoured correctly.
-            string glassName = childName + "Glass";
-            var glassTf = child.Find(glassName);
-            if (glassTf != null)
-            {
-                var glassImg = glassTf.GetComponent<Image>();
-                if (glassImg != null)
-                {
-                    glassImg.raycastTarget = false;
-                    glassImg.material = GetUIDefaultMaterial();
-                }
-
-                // Ensure the glass is the last sibling so it draws on top
-                // of the fill Image within this Canvas.
-                glassTf.SetAsLastSibling();
-                Debug.Log($"[GlobeHud] {glassName} kept as child of {childName}, material swapped to UI/Default");
-            }
-
-            // Convert the original prefab Image into the runtime fill
-            img.type = Image.Type.Filled;
-            img.fillMethod = Image.FillMethod.Vertical;
-            img.fillOrigin = (int)Image.OriginVertical.Bottom;
-            img.fillAmount = 1f;
-
-            // Fill renders behind glass and border
-            EnsureCanvas(child.gameObject, 1);
-
-            var globe = new GlobeUI
-            {
-                Root = child.gameObject,
-                FillImage = img,
-                OriginalColor = img.color,
-                CurrentFill = 1f,
-                TargetFill = 1f
-            };
-
-            return globe;
-        }
-
-        private BarUI WireBar(string childName)
-        {
-            var child = _root.transform.Find(childName);
-            if (child == null)
-            {
-                Debug.LogWarning($"[GlobeHud] Bar child '{childName}' not found in prefab");
-                return null;
-            }
-
-            var img = child.GetComponent<Image>();
-            if (img == null)
-            {
-                Debug.LogWarning($"[GlobeHud] Bar child '{childName}' has no Image component");
-                return null;
-            }
-
-            // Leave glass overlay as a child (same reasoning as WireGlobe)
-            string glassName = childName + "Glass";
-            var glassTf = child.Find(glassName);
-            if (glassTf != null)
-            {
-                var glassImg = glassTf.GetComponent<Image>();
-                if (glassImg != null)
-                {
-                    glassImg.raycastTarget = false;
-                    glassImg.material = GetUIDefaultMaterial();
-                }
-                glassTf.SetAsLastSibling();
-                Debug.Log($"[GlobeHud] {glassName} kept as child of {childName}, material swapped to UI/Default");
-            }
-
-            // Convert the original prefab Image into the runtime fill
-            img.type = Image.Type.Filled;
-            img.fillMethod = Image.FillMethod.Horizontal;
-            img.fillOrigin = (int)Image.OriginHorizontal.Left;
-            img.fillAmount = 0f;
-
-            EnsureCanvas(child.gameObject, 1);
-
-            var bar = new BarUI
-            {
-                Root = child.gameObject,
-                FillImage = img,
-                OriginalColor = img.color,
-                CurrentFill = 0f,
-                TargetFill = 0f
-            };
-            return bar;
+            glassTransform.SetAsLastSibling();
+            EnsureCanvas(fill.gameObject, LiquidSortingOrder);
+            _views.Add(new GlobeView(resource, fill, glass, sloshFrequency));
+            return true;
         }
 
         private static void EnsureCanvas(GameObject go, int sortingOrder)
@@ -782,192 +717,6 @@ namespace FiresRPGmaker.UI
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
             rt.pivot = new Vector2(0.5f, 0.5f);
-        }
-
-        /// <summary>
-        /// Returns a shared UI-compatible material that honours sprite alpha.
-        /// The prefab's glass Images use a Standard/Transparent 3D material
-        /// which doesn't render transparency correctly under Unity's Canvas
-        /// system.  This swaps it to the built-in UI/Default shader.
-        /// </summary>
-        private static Material _uiDefaultMat;
-        private static Material GetUIDefaultMaterial()
-        {
-            if (_uiDefaultMat == null)
-            {
-                _uiDefaultMat = new Material(Shader.Find("UI/Default"));
-                _uiDefaultMat.name = "GlobeHud_UIDefault";
-            }
-            return _uiDefaultMat;
-        }
-
-        #endregion
-
-        #region Stat Reading
-
-        private void UpdateStats()
-        {
-            if (_localPlayer == null) return;
-
-            if (_health != null)
-            {
-                float maxHp = _localPlayer.GetMaxHealth();
-                _health.TargetFill = maxHp > 0f ? Mathf.Clamp01(_localPlayer.GetHealth() / maxHp) : 0f;
-                _health.IsLow = _health.TargetFill < LOW_THRESHOLD;
-            }
-
-            if (_stamina != null)
-            {
-                float maxSta = _localPlayer.GetMaxStamina();
-                _stamina.TargetFill = maxSta > 0f ? Mathf.Clamp01(_localPlayer.GetStamina() / maxSta) : 0f;
-                _stamina.IsLow = _stamina.TargetFill < LOW_THRESHOLD;
-            }
-
-            if (_eitr != null)
-            {
-                float maxEitr = _localPlayer.GetMaxEitr();
-                if (maxEitr <= 0f)
-                {
-                    if (_eitr.Root.activeSelf) _eitr.Root.SetActive(false);
-                }
-                else
-                {
-                    if (!_eitr.Root.activeSelf) _eitr.Root.SetActive(true);
-                    _eitr.TargetFill = Mathf.Clamp01(_localPlayer.GetEitr() / maxEitr);
-                    _eitr.IsLow = _eitr.TargetFill < LOW_THRESHOLD;
-                }
-            }
-
-            if (_adrenaline != null)
-            {
-                float adrenalineVal = GetAdrenalineValue();
-                _adrenaline.TargetFill = Mathf.Clamp01(adrenalineVal);
-                _adrenaline.IsLow = false;
-            }
-        }
-
-        private float GetAdrenalineValue()
-        {
-            if (_localPlayer == null) return 0f;
-
-            try
-            {
-                var field = _adrenalineField;
-                if (field == null && !_adrenalineFieldSearched)
-                {
-                    _adrenalineFieldSearched = true;
-
-                    var playerType = typeof(Player);
-                    field = playerType.GetField("m_adrenaline",
-                        System.Reflection.BindingFlags.Instance |
-                        System.Reflection.BindingFlags.Public |
-                        System.Reflection.BindingFlags.NonPublic);
-
-                    if (field == null)
-                    {
-                        _adrenalineProperty = playerType.GetProperty("Adrenaline",
-                            System.Reflection.BindingFlags.Instance |
-                            System.Reflection.BindingFlags.Public |
-                            System.Reflection.BindingFlags.NonPublic);
-                    }
-                    _adrenalineField = field;
-                }
-
-                if (_adrenalineField != null)
-                {
-                    object val = _adrenalineField.GetValue(_localPlayer);
-                    if (val is float f) return f;
-                }
-
-                if (_adrenalineProperty != null)
-                {
-                    object val = _adrenalineProperty.GetValue(_localPlayer);
-                    if (val is float f) return f;
-                }
-            }
-            catch { }
-
-            return 0f;
-        }
-
-        private static System.Reflection.FieldInfo _adrenalineField;
-        private static System.Reflection.PropertyInfo _adrenalineProperty;
-        private static bool _adrenalineFieldSearched;
-
-        #endregion
-
-        #region Animation
-
-        private void AnimateFills()
-        {
-            float dt = Time.unscaledDeltaTime;
-            float speed = FILL_LERP_SPEED;
-
-            AnimateGlobe(_health, dt, speed);
-            AnimateGlobe(_eitr, dt, speed);
-            AnimateGlobe(_stamina, dt, speed);
-            AnimateBar(_adrenaline, dt, speed);
-        }
-
-        private void AnimateGlobe(GlobeUI globe, float dt, float speed)
-        {
-            if (globe == null || globe.FillImage == null) return;
-
-            float newFill = Mathf.MoveTowards(globe.CurrentFill, globe.TargetFill, dt * speed);
-
-            // Only write to fillAmount when value actually changed � avoids dirtying canvas
-            if (!Mathf.Approximately(newFill, globe.CurrentFill))
-            {
-                globe.CurrentFill = newFill;
-                globe.FillImage.fillAmount = newFill;
-            }
-
-            if (globe.IsLow && globe.CurrentFill > 0f)
-            {
-                float pulse = Mathf.Lerp(PULSE_ALPHA_MIN, PULSE_ALPHA_MAX,
-                    (Mathf.Sin(Time.time * PULSE_SPEED) + 1f) * 0.5f);
-                var c = globe.OriginalColor;
-                var newColor = new Color(c.r, c.g, c.b, pulse);
-                if (globe.FillImage.color != newColor)
-                    globe.FillImage.color = newColor;
-            }
-            else
-            {
-                if (globe.FillImage.color != globe.OriginalColor)
-                    globe.FillImage.color = globe.OriginalColor;
-            }
-        }
-
-        private void AnimateBar(BarUI bar, float dt, float speed)
-        {
-            if (bar == null || bar.FillImage == null) return;
-
-            float newFill = Mathf.MoveTowards(bar.CurrentFill, bar.TargetFill, dt * speed);
-
-            // Only write to fillAmount when value actually changed � avoids dirtying canvas
-            if (!Mathf.Approximately(newFill, bar.CurrentFill))
-            {
-                bar.CurrentFill = newFill;
-                bar.FillImage.fillAmount = newFill;
-            }
-
-            if (bar.CurrentFill > 0.01f)
-            {
-                float glow = Mathf.Lerp(0.7f, 1f, bar.CurrentFill);
-                var c = bar.OriginalColor;
-                var newColor = new Color(
-                    Mathf.Min(c.r * glow, 1f),
-                    Mathf.Min(c.g * glow, 1f),
-                    Mathf.Min(c.b * glow, 1f),
-                    c.a);
-                if (bar.FillImage.color != newColor)
-                    bar.FillImage.color = newColor;
-            }
-            else
-            {
-                if (bar.FillImage.color != bar.OriginalColor)
-                    bar.FillImage.color = bar.OriginalColor;
-            }
         }
 
         #endregion

@@ -562,12 +562,42 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
             if (pf == null) { Debug.LogWarning("[Gambler] unknown prefab '" + prefab + "'"); return; }
             var drop = pf.GetComponent<ItemDrop>(); if (drop == null) return;
-            if (inv.CanAddItem(drop.m_itemData, qty)) { inv.AddItem(prefab, qty, 1, 0, 0L, ""); return; }
+            NotifyWin(player, drop, prefab, qty);
+            if (inv.CanAddItem(drop.m_itemData, qty)) { inv.AddItem(prefab, qty, 1, 0, 0L, "", false); return; }
             var go = Object.Instantiate(pf,
                 player.transform.position + player.transform.forward * 1.5f + Vector3.up * 1.5f,
                 Quaternion.identity);
             var dr = go.GetComponent<ItemDrop>();
             if (dr != null) dr.m_itemData.m_stack = qty;
+        }
+
+        // kg Gambler_UI win flow: the winner's client asks the SERVER to post the Discord webhook (links
+        // never leave the server), and — when GamblerEnableWinNotifications is on — shouts a global
+        // [GAMBLER] chat line via the vanilla ChatMessage route, kg's exact presentation.
+        private static void NotifyWin(Player player, ItemDrop drop, string prefab, int qty)
+        {
+            try
+            {
+                if (player == null || ZRoutedRpc.instance == null) return;
+                string displayName = prefab;
+                try { displayName = Localization.instance.Localize(drop.m_itemData.m_shared.m_name); } catch { }
+
+                var pkg = new ZPackage();
+                pkg.Write(player.GetPlayerName() ?? "");
+                pkg.Write(qty);
+                pkg.Write(displayName);
+                ZRoutedRpc.instance.InvokeRoutedRPC(0L, Modules.Marketplace.DiscordWebhooks.GamblerWinRpc, pkg);
+
+                if (Modules.Marketplace.MarketplaceGlobals.GamblerEnableWinNotifications)
+                {
+                    var user = UserInfo.GetLocalUser();
+                    user.Name = "<color=#FF00FF>[GAMBLER]</color>";
+                    string line = $"{player.GetPlayerName()} just won {displayName} x{qty}";
+                    ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.Everybody, "ChatMessage",
+                        player.GetHeadPoint(), 2, user, line);
+                }
+            }
+            catch { }
         }
     }
 }

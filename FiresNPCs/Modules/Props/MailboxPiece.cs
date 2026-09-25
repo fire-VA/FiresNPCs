@@ -21,5 +21,8 @@ namespace FiresRPGmaker.Modules.Props
             Localization.instance.Localize("[<color=yellow><b>$KEY_Use</b></color>] Open mail");
 
         public string GetHoverName() => "Mailbox";
+        // Valheim 1.0 added GetHoverOffset to the Hoverable interface; it is ADDED to
+        // Player.m_maxInteractDistance, so 0 preserves the previous interact range exactly.
+        public float GetHoverOffset() => 0f;
     }
 }

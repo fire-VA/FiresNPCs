@@ -41,14 +41,13 @@ namespace FiresRPGmaker.Modules.Migration
         };
 
         // kg Market_NPC.NPCType (kg.MarketplaceREF Dialogues enum order) → our FiresCore.Npc.NpcType.
-        // Feedback has no Fires module type — lands as None and is listed in the report.
         private static readonly Dictionary<int, NpcType> TypeMap = new Dictionary<int, NpcType>
         {
             { 0, NpcType.None },        // None
             { 1, NpcType.Trader },      // Trader
             { 2, NpcType.InfoNpc },     // Info
             { 3, NpcType.Teleporter },  // Teleporter
-            { 4, NpcType.None },        // Feedback (no Fires type — reported)
+            { 4, NpcType.Feedback },    // Feedback (first-class since 0.0.431)
             { 5, NpcType.Banker },      // Banker
             { 6, NpcType.Gambler },     // Gambler
             { 7, NpcType.QuestNpc },    // Quests
@@ -127,6 +126,7 @@ namespace FiresRPGmaker.Modules.Migration
             public string Str(string key) { S.TryGetValue(key, out var v); return v ?? ""; }
             public float Flt(string key, float def) { return F.TryGetValue(key, out var v) ? v : def; }
             public int Int(string key) { I.TryGetValue(key, out var v); return v; }
+            public bool Bool(string key) { B.TryGetValue(key, out var v); return v; }
         }
 
         #region Command + RPC plumbing
@@ -145,9 +145,9 @@ namespace FiresRPGmaker.Modules.Migration
                             : "scan";
                         if (mode != "scan" && mode != "confirm" && mode != "rollback" && mode != "configs"
                             && mode != "economy" && mode != "economy confirm" && mode != "templates" && mode != "all"
-                            && mode != "census")
+                            && mode != "census" && mode != "anchors")
                         {
-                            args.Context.AddString("[fires_migrate_kg] usage: fires_migrate_kg all|scan|confirm|configs|economy [confirm]|templates|census|rollback");
+                            args.Context.AddString("[fires_migrate_kg] usage: fires_migrate_kg all|scan|confirm|configs|economy [confirm]|templates|census|anchors|rollback");
                             return;
                         }
                         if (ZNet.instance == null) { args.Context.AddString("[fires_migrate_kg] no world loaded"); return; }
@@ -242,6 +242,7 @@ namespace FiresRPGmaker.Modules.Migration
             var outLines = new List<string>();
             if (mode == "rollback") return Rollback();
             if (mode == "census") return Census();
+            if (mode == "anchors") return MintMissingAnchors();
             if (mode == "configs") return ImportConfigs();
             if (mode == "economy" || mode == "economy confirm") return ImportEconomy(mode.EndsWith("confirm"));
             if (mode == "templates") return ImportTemplates(0L); // server-console path: save locally
@@ -280,6 +281,7 @@ namespace FiresRPGmaker.Modules.Migration
                     _retiredDormant = 0;
                     _bodiesValid = 0;
                     _bodiesBroken = 0;
+                    _anchorsMinted = 0;
                     int ok = 0, failed = 0;
                     foreach (var rec in records)
                     {
@@ -297,8 +299,9 @@ namespace FiresRPGmaker.Modules.Migration
                     // a half-state (originals destroyed in memory but not on disk). Server-only.
                     try { if (ZNet.instance != null && ZNet.instance.IsServer()) ZNet.instance.Save(false); }
                     catch (Exception ex) { Debug.LogWarning("[KgNpcMigrator] post-swap save failed: " + ex.Message); }
-                    outLines.Add("[fires_migrate_kg] CONFIRM complete: " + ok + " swapped, " + failed + " failed (world saved). " +
-                                 "Bodies + anchors materialize as zones load. Rollback source: " + backupPath);
+                    outLines.Add("[fires_migrate_kg] CONFIRM complete: " + ok + " swapped, " + failed + " failed, " +
+                                 _anchorsMinted + " anchor(s) minted (world saved). Bodies materialize on clients as zones load; " +
+                                 "a dedicated server never instantiates them itself. Rollback source: " + backupPath);
                     // Accurate destroy tally (from the swap itself). A live re-scan is misleading here —
                     // ZDOMan.DestroyZDO queues removals that don't drain from the sector index until the
                     // next tick, so an immediate re-count reads the pre-destroy total and false-alarms.
@@ -840,6 +843,11 @@ namespace FiresRPGmaker.Modules.Migration
             WsIf("npc_name_override", name);
             WsIf("npc_dialogue_profile", dialogue);
 
+            // kg map pin → first-class Fires pin (NpcMapPins renders these; keys also stay in the
+            // dormant KG* passthrough for provenance).
+            if (rec.Bool("KGmarketPinned")) Wb("npc_map_pinned", true);
+            WsIf("npc_map_pin_icon", rec.Str("KGmarketPinIcon"));
+
             // Mirror kg's GET_NPC_Profile (defaults to "default" when the ZDO key is empty). Strip any kg
             // "=Flag" suffix (e.g. "botanistbuy_mp=True") and lowercase (kg's ChangeProfile lowercases), then
             // always write it so every migrated NPC lands with a resolvable profile — no runtime guessing.
@@ -994,6 +1002,8 @@ namespace FiresRPGmaker.Modules.Migration
             if (zdo.IsValid() && zdo.GetPrefab() == prefabHash) _bodiesValid++;
             else { _bodiesBroken++; notes.Add("BODY INVALID for '" + name + "': prefab=" + zdo.GetPrefab() + " valid=" + zdo.IsValid() + " (expected " + prefabHash + ") - it will NOT spawn"); }
 
+            MintAnchor(zdo, rec.Pos, rec.Rot, name, notes);
+
             DestroyNetworkedZdo(rec.Zdo);
 
             _swapDump.Add(new SwapDumpEntry
@@ -1036,6 +1046,62 @@ namespace FiresRPGmaker.Modules.Migration
         private static int _bodiesValid;
         private static int _bodiesBroken;
         private static int _retiredDormant;
+        private static int _anchorsMinted;
+
+        // The anchor is minted HERE, as a raw ZDO, for the same reason the body is: a dedicated server never
+        // instantiates world objects near players (its reference position is parked off-world), so
+        // StaticNpcInitializer.Start - and with it EnsureAnchorForBody - never runs server-side. Leaving anchors
+        // to that "organic" path left every migrated body anchorless on a dedi (census: 69 StaticNpc, 0 anchors).
+        // Same contract as EnsureAnchorForBody minus the surface probe, which needs colliders a dedi does not
+        // have loaded: the anchor sits at kg's stored feet position and HealAnchorHeight re-seats it later.
+        private static void MintAnchor(ZDO bodyZdo, Vector3 pos, Quaternion rot, string name, List<string> notes)
+        {
+            string anchorName = global::FiresCore.Npc.Anchor.NpcAnchorFields.AnchorPrefabName;
+            int anchorHash = anchorName.GetStableHashCode();
+            if (ZNetScene.instance == null || ZNetScene.instance.GetPrefab(anchorHash) == null)
+            {
+                notes.Add("ANCHOR PREFAB MISSING for '" + name + "': " + anchorName + " is not registered - body seeded without an anchor (old bundle?)");
+                return;
+            }
+            var anchor = ZDOMan.instance.CreateNewZDO(pos, anchorHash);
+            anchor.Persistent = true;
+            anchor.Distant = false;
+            anchor.Type = ZDO.ObjectType.Default;
+            anchor.SetPrefab(anchorHash);
+            anchor.SetRotation(rot);
+            string guid = System.Guid.NewGuid().ToString("N");
+            anchor.Set(global::FiresCore.Npc.Anchor.NpcAnchorFields.Guid, guid);
+            anchor.Set(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyPrefab, OurPrefabName);
+            anchor.Set(global::FiresCore.Npc.Anchor.NpcAnchorFields.Rotation, rot);
+            bodyZdo.Set(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, guid);
+            global::FiresCore.Bridge.NpcAnchorBridge.InvokeCaptureToAnchor(bodyZdo, anchor);
+            anchor.SetConnection(ZDOExtraData.ConnectionType.Spawned, bodyZdo.m_uid);
+            _anchorsMinted++;
+        }
+
+        // Repair for a world swapped before anchors were minted at confirm time: every StaticNpc body without an
+        // anchor back-reference gets one, from ZDO data alone, so a re-swap is not needed to fix the census.
+        private static List<string> MintMissingAnchors()
+        {
+            var outL = new List<string>();
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) { outL.Add("[fires_migrate_kg] anchors: server only"); return outL; }
+            var bodies = new List<ZDO>();
+            int idx = 0;
+            while (!ZDOMan.instance.GetAllZDOsWithPrefabIterative(OurPrefabName, bodies, ref idx)) { }
+            _anchorsMinted = 0;
+            int already = 0;
+            var notes = new List<string>();
+            foreach (var body in bodies)
+            {
+                if (body == null || !body.IsValid()) continue;
+                if (!string.IsNullOrEmpty(body.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, ""))) { already++; continue; }
+                MintAnchor(body, body.GetVec3("npc_placed_anchor", body.GetPosition()), body.GetRotation(), body.GetString("npc_name_override", "?"), notes);
+            }
+            try { ZNet.instance.Save(false); } catch (Exception ex) { outL.Add("  save failed: " + ex.Message); }
+            outL.Add("[fires_migrate_kg] ANCHORS: " + _anchorsMinted + " minted, " + already + " already anchored, " + bodies.Count + " StaticNpc bod(ies) scanned (world saved).");
+            foreach (var n in notes) outL.Add("  ! " + n);
+            return outL;
+        }
 
         /// <summary>Destroys a networked object regardless of who owns it or whether its zone is
         /// loaded — the exact WorldEditCommands.RemoveZDO recipe: take ownership FIRST, then if a live

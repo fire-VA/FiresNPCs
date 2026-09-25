@@ -49,7 +49,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 ExecuteSingle(cmd, npcView);
         }
 
-        /// <summary>Executes random commands � each entry has a percentage chance to fire.</summary>
+        /// <summary>Executes random commands - each entry has a percentage chance to fire.</summary>
         public static void ExecuteRandom(List<KeyValuePair<int, string>> randomCommands, ZNetView npcView = null)
         {
             if (randomCommands == null) return;
@@ -236,7 +236,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_GiveQuest(Player player, string[] parts)
         {
-            // GiveQuest,QuestID � adds quest to player's active quests via VaultOfKnowledge
+            // GiveQuest,QuestID - adds quest to player's active quests via VaultOfKnowledge
             if (parts.Length < 2) return;
             string questId = parts[1].Trim();
             long playerId = player.GetPlayerID();
@@ -273,7 +273,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_FinishQuest(Player player, string[] parts)
         {
-            // FinishQuest,QuestID � force-completes a quest
+            // FinishQuest,QuestID - force-completes a quest
             if (parts.Length < 2) return;
             string questId = parts[1].Trim();
             long playerId = player.GetPlayerID();
@@ -301,7 +301,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (!float.TryParse(parts[3].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float z)) return;
             bool allowOre = parts.Length > 4 && bool.TryParse(parts[4].Trim(), out bool ao) && ao;
 
-            if (!allowOre && !player.IsTeleportable())
+            if (!allowOre && !player.IsTeleportable(allowAllItems: false))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, Localization.instance.Localize("$msg_noteleport"));
                 return;
@@ -339,7 +339,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_SpawnRaw(Player player, string[] parts)
         {
-            // SpawnRaw,PrefabName,Amount,Level � uses ZNetScene.Instantiate for proper ZDO network spawning
+            // SpawnRaw,PrefabName,Amount,Level - uses ZNetScene.Instantiate for proper ZDO network spawning
             if (parts.Length < 2) return;
             string prefabName = parts[1].Trim();
             int amount = parts.Length > 2 && int.TryParse(parts[2].Trim(), out int a) ? a : 1;
@@ -459,11 +459,11 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_AddCustomPlayerKey(Player player, string[] parts)
         {
-            // AddCustomPlayerKey,Key          � presence key (steamId/Key in EWP, ZDO=1)
-            // AddCustomPlayerKey,Key/++       � increment by 1
-            // AddCustomPlayerKey,Key/--       � decrement by 1
-            // AddCustomPlayerKey,Key/++,5     � increment by 5
-            // AddCustomPlayerKey,Key/--,3     � decrement by 3
+            // AddCustomPlayerKey,Key          - presence key (steamId/Key in EWP, ZDO=1)
+            // AddCustomPlayerKey,Key/++       - increment by 1
+            // AddCustomPlayerKey,Key/--       - decrement by 1
+            // AddCustomPlayerKey,Key/++,5     - increment by 5
+            // AddCustomPlayerKey,Key/--,3     - decrement by 3
             if (parts.Length < 2) return;
             string raw = parts[1].Trim();
 
@@ -487,7 +487,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
             else
             {
-                // Presence key � just mark it as existing
+                // Presence key - just mark it as existing
                 nview.GetZDO().Set(raw, 1);
                 EwpDataBridge.AddKey(steamId, raw);
             }
@@ -495,7 +495,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_RemoveCustomPlayerKey(Player player, string[] parts)
         {
-            // RemoveCustomPlayerKey,Key � removes the key from player ZDO + EWP data
+            // RemoveCustomPlayerKey,Key - removes the key from player ZDO + EWP data
             if (parts.Length < 2) return;
             string key = parts[1].Trim();
             var nview = player.GetComponent<ZNetView>();
@@ -558,7 +558,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void Cmd_OpenUI(ZNetView npcView, string[] parts)
         {
-            // OpenUI,UIType,Profile � opens an NPC UI screen from a dialogue command.
+            // OpenUI,UIType,Profile - opens an NPC UI screen from a dialogue command.
             string uiType = parts.Length > 1 ? parts[1].Trim() : "";
             string profile = parts.Length > 2 ? parts[2].Trim() : "";
             Debug.Log($"[DialogueCommandEngine] OpenUI requested: type={uiType}, profile={profile}");
@@ -573,7 +573,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 npc = npcView.GetComponent<NpcController>();
                 if (npc == null)
                 {
-                    // Companion NPC or other entity without NpcController � add a temporary one
+                    // Companion NPC or other entity without NpcController - add a temporary one
                     npc = npcView.gameObject.AddComponent<NpcController>();
                     npc.npcProfileName = npcView.GetComponent<Character>()?.m_name ?? "NPC";
                 }
@@ -589,7 +589,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     }
                     else
                     {
-                        Debug.LogWarning($"[DialogueCommandEngine] OpenUI Quests � missing NPC or profile");
+                        Debug.LogWarning($"[DialogueCommandEngine] OpenUI Quests - missing NPC or profile");
                     }
                     break;
 
@@ -643,14 +643,14 @@ namespace FiresRPGmaker.Modules.Dialogues
                     break;
 
                 default:
-                    Debug.LogWarning($"[DialogueCommandEngine] OpenUI � unknown UI type '{uiType}'");
+                    Debug.LogWarning($"[DialogueCommandEngine] OpenUI - unknown UI type '{uiType}'");
                     break;
             }
         }
 
         private static void Cmd_PlaySound(ZNetView npcView, string[] parts)
         {
-            // PlaySound,ClipName � plays a sound effect at the NPC's position
+            // PlaySound,ClipName - plays a sound effect at the NPC's position
             if (parts.Length < 2) return;
             string clipName = parts[1].Trim();
 

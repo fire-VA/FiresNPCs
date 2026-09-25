@@ -37,10 +37,10 @@ if (_instance == this)
 
   // Check for Quest Journal hotkey
    var hotkeyConfig = ConfigManager.Instance?.configQuestJournalHotkey;
- if (hotkeyConfig == null || hotkeyConfig.Value == KeyCode.None)
+ if (hotkeyConfig == null || hotkeyConfig.Value.MainKey == KeyCode.None)
              return;
 
-   if (Input.GetKeyDown(hotkeyConfig.Value))
+   if (FiresCore.Input.Chord.IsDown(hotkeyConfig.Value))
             {
       ToggleQuestJournal();
           }

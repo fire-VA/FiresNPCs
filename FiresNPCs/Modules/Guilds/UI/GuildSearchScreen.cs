@@ -277,8 +277,8 @@ namespace FiresRPGmaker.Modules.Guilds.UI
 
         private void BuildFooter()
         {
-            var keyCode = ConfigManager.Instance?.configGuildHotkey?.Value ?? KeyCode.G;
-            string keyName = keyCode == KeyCode.None ? "disabled" : keyCode.ToString();
+            var guildKey = ConfigManager.Instance?.configGuildHotkey?.Value ?? new BepInEx.Configuration.KeyboardShortcut(KeyCode.G);
+            string keyName = guildKey.MainKey == KeyCode.None ? "disabled" : guildKey.ToString();
             var hint = AddTxt(_root.transform, $"Tip: Press [{keyName}] to open this screen at any time.",
                 FONT_SM, TextMuted, FontStyles.Italic);
             hint.alignment = TextAlignmentOptions.Center;

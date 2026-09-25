@@ -436,7 +436,7 @@ dotRect.sizeDelta = new Vector2(3, 3);
 
         private void FixAllFonts()
         {
-          // Only apply fonts once � iterating all TMP children dirties every text element
+          // Only apply fonts once - iterating all TMP children dirties every text element
           if (_fontsApplied) return;
           _fontsApplied = true;
           UIBuilderHelper.ApplyValheimFontToAll(screenRoot);
@@ -1200,15 +1200,6 @@ foreach (var ext in extensions)
   /// </summary>
         private void NotifyQuestInteractionScreen()
         {
-   try
-  {
-     var questScreen = global::FiresRPGmaker.UI.Screens.QuestInteractionScreenController.Instance;
-       if (questScreen != null && questScreen.IsVisible)
-   {
-     questScreen.RefreshQuestListUI();
-  }
-  }
-       catch { }
         }
 
         private System.Collections.IEnumerator RefreshAfterDelay(float delay)

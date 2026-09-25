@@ -1,4 +1,4 @@
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 // AUTO-GENERATED UI CODE from layout: traderuifixed
 // Display Name: TraderUIFixed
 // Category: Custom
@@ -21,7 +21,7 @@
 //   FindAllByTag(tag)    — returns List<GameObject> for repeated tags (e.g. inventory slots)
 //   FindByPath(path)     — full hierarchy path (e.g. "Root/Header/TitleText")
 //   Static fields        — direct references for uniquely-tagged elements
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 
 using System;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ using UnityEngine.UI;
 // ReSharper disable InconsistentNaming
 public static class GeneratedUI_traderuifixed
 {
-    // ?? Element references ??
+    // -- Element references --
     // Populated during Instantiate(). Use these to access elements directly,
     // or use FindByTag() / FindByPath() / FindAllByTag() helpers for dynamic lookup.
     private static readonly Dictionary<string, GameObject> _tagLookup = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
@@ -53,7 +53,7 @@ public static class GeneratedUI_traderuifixed
         _pathLookup.Clear();
         _nodes = new GameObject[575];
 
-        // ?? Panel: "Root" ??
+        // -- Panel: "Root" --
         var go_0 = new GameObject("Root");
         go_0.transform.SetParent(parent, false);
         _nodes[0] = go_0;
@@ -66,7 +66,7 @@ public static class GeneratedUI_traderuifixed
         go_0_rect.offsetMax = Vector2.zero;
         _pathLookup["Root"] = go_0;
 
-        // ?? Panel: "TraderUI_Instance" ??
+        // -- Panel: "TraderUI_Instance" --
         var go_1 = new GameObject("TraderUI_Instance");
         go_1.transform.SetParent(go_0.transform, false);
         _nodes[1] = go_1;
@@ -88,7 +88,7 @@ public static class GeneratedUI_traderuifixed
         img_1.raycastTarget = true;
         // Sprite: "cached:va_background5" -> resolved via ResolveAssets()
 
-        // ?? ScrollView: "Icons" ??
+        // -- ScrollView: "Icons" --
         var go_2 = new GameObject("Icons");
         go_2.transform.SetParent(go_1.transform, false);
         _nodes[2] = go_2;
@@ -133,7 +133,7 @@ public static class GeneratedUI_traderuifixed
         scrollRect_2.scrollSensitivity = 54f;
         scrollRect_2.elasticity = 0.1f;
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_3 = new GameObject("IconRow");
         go_3.transform.SetParent(svContent_2.transform, false);
         _nodes[3] = go_3;
@@ -154,7 +154,7 @@ public static class GeneratedUI_traderuifixed
         le_3.preferredHeight = 32.4f;
         le_3.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_4 = new GameObject("Icon");
         go_4.transform.SetParent(go_3.transform, false);
         _nodes[4] = go_4;
@@ -178,7 +178,7 @@ public static class GeneratedUI_traderuifixed
         le_4.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_5 = new GameObject("IconRow");
         go_5.transform.SetParent(svContent_2.transform, false);
         _nodes[5] = go_5;
@@ -199,7 +199,7 @@ public static class GeneratedUI_traderuifixed
         le_5.preferredHeight = 32.4f;
         le_5.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_6 = new GameObject("Icon");
         go_6.transform.SetParent(go_5.transform, false);
         _nodes[6] = go_6;
@@ -223,7 +223,7 @@ public static class GeneratedUI_traderuifixed
         le_6.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_7 = new GameObject("IconRow");
         go_7.transform.SetParent(svContent_2.transform, false);
         _nodes[7] = go_7;
@@ -244,7 +244,7 @@ public static class GeneratedUI_traderuifixed
         le_7.preferredHeight = 32.4f;
         le_7.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_8 = new GameObject("Icon");
         go_8.transform.SetParent(go_7.transform, false);
         _nodes[8] = go_8;
@@ -268,7 +268,7 @@ public static class GeneratedUI_traderuifixed
         le_8.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_9 = new GameObject("IconRow");
         go_9.transform.SetParent(svContent_2.transform, false);
         _nodes[9] = go_9;
@@ -289,7 +289,7 @@ public static class GeneratedUI_traderuifixed
         le_9.preferredHeight = 32.4f;
         le_9.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_10 = new GameObject("Icon");
         go_10.transform.SetParent(go_9.transform, false);
         _nodes[10] = go_10;
@@ -313,7 +313,7 @@ public static class GeneratedUI_traderuifixed
         le_10.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_11 = new GameObject("IconRow");
         go_11.transform.SetParent(svContent_2.transform, false);
         _nodes[11] = go_11;
@@ -334,7 +334,7 @@ public static class GeneratedUI_traderuifixed
         le_11.preferredHeight = 32.4f;
         le_11.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_12 = new GameObject("Icon");
         go_12.transform.SetParent(go_11.transform, false);
         _nodes[12] = go_12;
@@ -358,7 +358,7 @@ public static class GeneratedUI_traderuifixed
         le_12.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_13 = new GameObject("IconRow");
         go_13.transform.SetParent(svContent_2.transform, false);
         _nodes[13] = go_13;
@@ -379,7 +379,7 @@ public static class GeneratedUI_traderuifixed
         le_13.preferredHeight = 32.4f;
         le_13.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_14 = new GameObject("Icon");
         go_14.transform.SetParent(go_13.transform, false);
         _nodes[14] = go_14;
@@ -403,7 +403,7 @@ public static class GeneratedUI_traderuifixed
         le_14.ignoreLayout = true;
 
 
-        // ?? Spacer: "IconRow" ??
+        // -- Spacer: "IconRow" --
         var go_15 = new GameObject("IconRow");
         go_15.transform.SetParent(svContent_2.transform, false);
         _nodes[15] = go_15;
@@ -420,7 +420,7 @@ public static class GeneratedUI_traderuifixed
         le_15.preferredHeight = 32.4f;
         le_15.flexibleHeight = 0f;
 
-        // ?? Spacer: "IconRow" ??
+        // -- Spacer: "IconRow" --
         var go_16 = new GameObject("IconRow");
         go_16.transform.SetParent(svContent_2.transform, false);
         _nodes[16] = go_16;
@@ -437,7 +437,7 @@ public static class GeneratedUI_traderuifixed
         le_16.preferredHeight = 32.4f;
         le_16.flexibleHeight = 0f;
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_17 = new GameObject("IconRow");
         go_17.transform.SetParent(svContent_2.transform, false);
         _nodes[17] = go_17;
@@ -458,7 +458,7 @@ public static class GeneratedUI_traderuifixed
         le_17.preferredHeight = 32.4f;
         le_17.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_18 = new GameObject("Icon");
         go_18.transform.SetParent(go_17.transform, false);
         _nodes[18] = go_18;
@@ -482,7 +482,7 @@ public static class GeneratedUI_traderuifixed
         le_18.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_19 = new GameObject("IconRow");
         go_19.transform.SetParent(svContent_2.transform, false);
         _nodes[19] = go_19;
@@ -503,7 +503,7 @@ public static class GeneratedUI_traderuifixed
         le_19.preferredHeight = 32.4f;
         le_19.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_20 = new GameObject("Icon");
         go_20.transform.SetParent(go_19.transform, false);
         _nodes[20] = go_20;
@@ -527,7 +527,7 @@ public static class GeneratedUI_traderuifixed
         le_20.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_21 = new GameObject("IconRow");
         go_21.transform.SetParent(svContent_2.transform, false);
         _nodes[21] = go_21;
@@ -548,7 +548,7 @@ public static class GeneratedUI_traderuifixed
         le_21.preferredHeight = 32.4f;
         le_21.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_22 = new GameObject("Icon");
         go_22.transform.SetParent(go_21.transform, false);
         _nodes[22] = go_22;
@@ -572,7 +572,7 @@ public static class GeneratedUI_traderuifixed
         le_22.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_23 = new GameObject("IconRow");
         go_23.transform.SetParent(svContent_2.transform, false);
         _nodes[23] = go_23;
@@ -593,7 +593,7 @@ public static class GeneratedUI_traderuifixed
         le_23.preferredHeight = 32.4f;
         le_23.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_24 = new GameObject("Icon");
         go_24.transform.SetParent(go_23.transform, false);
         _nodes[24] = go_24;
@@ -617,7 +617,7 @@ public static class GeneratedUI_traderuifixed
         le_24.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_25 = new GameObject("IconRow");
         go_25.transform.SetParent(svContent_2.transform, false);
         _nodes[25] = go_25;
@@ -638,7 +638,7 @@ public static class GeneratedUI_traderuifixed
         le_25.preferredHeight = 32.4f;
         le_25.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_26 = new GameObject("Icon");
         go_26.transform.SetParent(go_25.transform, false);
         _nodes[26] = go_26;
@@ -662,7 +662,7 @@ public static class GeneratedUI_traderuifixed
         le_26.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_27 = new GameObject("IconRow");
         go_27.transform.SetParent(svContent_2.transform, false);
         _nodes[27] = go_27;
@@ -683,7 +683,7 @@ public static class GeneratedUI_traderuifixed
         le_27.preferredHeight = 32.4f;
         le_27.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_28 = new GameObject("Icon");
         go_28.transform.SetParent(go_27.transform, false);
         _nodes[28] = go_28;
@@ -707,7 +707,7 @@ public static class GeneratedUI_traderuifixed
         le_28.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_29 = new GameObject("IconRow");
         go_29.transform.SetParent(svContent_2.transform, false);
         _nodes[29] = go_29;
@@ -728,7 +728,7 @@ public static class GeneratedUI_traderuifixed
         le_29.preferredHeight = 32.4f;
         le_29.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_30 = new GameObject("Icon");
         go_30.transform.SetParent(go_29.transform, false);
         _nodes[30] = go_30;
@@ -752,7 +752,7 @@ public static class GeneratedUI_traderuifixed
         le_30.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_31 = new GameObject("IconRow");
         go_31.transform.SetParent(svContent_2.transform, false);
         _nodes[31] = go_31;
@@ -773,7 +773,7 @@ public static class GeneratedUI_traderuifixed
         le_31.preferredHeight = 32.4f;
         le_31.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_32 = new GameObject("Icon");
         go_32.transform.SetParent(go_31.transform, false);
         _nodes[32] = go_32;
@@ -797,7 +797,7 @@ public static class GeneratedUI_traderuifixed
         le_32.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_33 = new GameObject("IconRow");
         go_33.transform.SetParent(svContent_2.transform, false);
         _nodes[33] = go_33;
@@ -818,7 +818,7 @@ public static class GeneratedUI_traderuifixed
         le_33.preferredHeight = 32.4f;
         le_33.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_34 = new GameObject("Icon");
         go_34.transform.SetParent(go_33.transform, false);
         _nodes[34] = go_34;
@@ -842,7 +842,7 @@ public static class GeneratedUI_traderuifixed
         le_34.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_35 = new GameObject("IconRow");
         go_35.transform.SetParent(svContent_2.transform, false);
         _nodes[35] = go_35;
@@ -863,7 +863,7 @@ public static class GeneratedUI_traderuifixed
         le_35.preferredHeight = 32.4f;
         le_35.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_36 = new GameObject("Icon");
         go_36.transform.SetParent(go_35.transform, false);
         _nodes[36] = go_36;
@@ -887,7 +887,7 @@ public static class GeneratedUI_traderuifixed
         le_36.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_37 = new GameObject("IconRow");
         go_37.transform.SetParent(svContent_2.transform, false);
         _nodes[37] = go_37;
@@ -908,7 +908,7 @@ public static class GeneratedUI_traderuifixed
         le_37.preferredHeight = 32.4f;
         le_37.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_38 = new GameObject("Icon");
         go_38.transform.SetParent(go_37.transform, false);
         _nodes[38] = go_38;
@@ -932,7 +932,7 @@ public static class GeneratedUI_traderuifixed
         le_38.ignoreLayout = true;
 
 
-        // ?? Spacer: "IconRow" ??
+        // -- Spacer: "IconRow" --
         var go_39 = new GameObject("IconRow");
         go_39.transform.SetParent(svContent_2.transform, false);
         _nodes[39] = go_39;
@@ -949,7 +949,7 @@ public static class GeneratedUI_traderuifixed
         le_39.preferredHeight = 32.4f;
         le_39.flexibleHeight = 0f;
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_40 = new GameObject("IconRow");
         go_40.transform.SetParent(svContent_2.transform, false);
         _nodes[40] = go_40;
@@ -970,7 +970,7 @@ public static class GeneratedUI_traderuifixed
         le_40.preferredHeight = 32.4f;
         le_40.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_41 = new GameObject("Icon");
         go_41.transform.SetParent(go_40.transform, false);
         _nodes[41] = go_41;
@@ -994,7 +994,7 @@ public static class GeneratedUI_traderuifixed
         le_41.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_42 = new GameObject("IconRow");
         go_42.transform.SetParent(svContent_2.transform, false);
         _nodes[42] = go_42;
@@ -1015,7 +1015,7 @@ public static class GeneratedUI_traderuifixed
         le_42.preferredHeight = 32.4f;
         le_42.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_43 = new GameObject("Icon");
         go_43.transform.SetParent(go_42.transform, false);
         _nodes[43] = go_43;
@@ -1039,7 +1039,7 @@ public static class GeneratedUI_traderuifixed
         le_43.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_44 = new GameObject("IconRow");
         go_44.transform.SetParent(svContent_2.transform, false);
         _nodes[44] = go_44;
@@ -1060,7 +1060,7 @@ public static class GeneratedUI_traderuifixed
         le_44.preferredHeight = 32.4f;
         le_44.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_45 = new GameObject("Icon");
         go_45.transform.SetParent(go_44.transform, false);
         _nodes[45] = go_45;
@@ -1084,7 +1084,7 @@ public static class GeneratedUI_traderuifixed
         le_45.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_46 = new GameObject("IconRow");
         go_46.transform.SetParent(svContent_2.transform, false);
         _nodes[46] = go_46;
@@ -1105,7 +1105,7 @@ public static class GeneratedUI_traderuifixed
         le_46.preferredHeight = 32.4f;
         le_46.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_47 = new GameObject("Icon");
         go_47.transform.SetParent(go_46.transform, false);
         _nodes[47] = go_47;
@@ -1129,7 +1129,7 @@ public static class GeneratedUI_traderuifixed
         le_47.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_48 = new GameObject("IconRow");
         go_48.transform.SetParent(svContent_2.transform, false);
         _nodes[48] = go_48;
@@ -1150,7 +1150,7 @@ public static class GeneratedUI_traderuifixed
         le_48.preferredHeight = 32.4f;
         le_48.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_49 = new GameObject("Icon");
         go_49.transform.SetParent(go_48.transform, false);
         _nodes[49] = go_49;
@@ -1174,7 +1174,7 @@ public static class GeneratedUI_traderuifixed
         le_49.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_50 = new GameObject("IconRow");
         go_50.transform.SetParent(svContent_2.transform, false);
         _nodes[50] = go_50;
@@ -1195,7 +1195,7 @@ public static class GeneratedUI_traderuifixed
         le_50.preferredHeight = 32.4f;
         le_50.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_51 = new GameObject("Icon");
         go_51.transform.SetParent(go_50.transform, false);
         _nodes[51] = go_51;
@@ -1219,7 +1219,7 @@ public static class GeneratedUI_traderuifixed
         le_51.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_52 = new GameObject("IconRow");
         go_52.transform.SetParent(svContent_2.transform, false);
         _nodes[52] = go_52;
@@ -1240,7 +1240,7 @@ public static class GeneratedUI_traderuifixed
         le_52.preferredHeight = 32.4f;
         le_52.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_53 = new GameObject("Icon");
         go_53.transform.SetParent(go_52.transform, false);
         _nodes[53] = go_53;
@@ -1264,7 +1264,7 @@ public static class GeneratedUI_traderuifixed
         le_53.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_54 = new GameObject("IconRow");
         go_54.transform.SetParent(svContent_2.transform, false);
         _nodes[54] = go_54;
@@ -1285,7 +1285,7 @@ public static class GeneratedUI_traderuifixed
         le_54.preferredHeight = 32.4f;
         le_54.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_55 = new GameObject("Icon");
         go_55.transform.SetParent(go_54.transform, false);
         _nodes[55] = go_55;
@@ -1309,7 +1309,7 @@ public static class GeneratedUI_traderuifixed
         le_55.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_56 = new GameObject("IconRow");
         go_56.transform.SetParent(svContent_2.transform, false);
         _nodes[56] = go_56;
@@ -1330,7 +1330,7 @@ public static class GeneratedUI_traderuifixed
         le_56.preferredHeight = 32.4f;
         le_56.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_57 = new GameObject("Icon");
         go_57.transform.SetParent(go_56.transform, false);
         _nodes[57] = go_57;
@@ -1354,7 +1354,7 @@ public static class GeneratedUI_traderuifixed
         le_57.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_58 = new GameObject("IconRow");
         go_58.transform.SetParent(svContent_2.transform, false);
         _nodes[58] = go_58;
@@ -1375,7 +1375,7 @@ public static class GeneratedUI_traderuifixed
         le_58.preferredHeight = 32.4f;
         le_58.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_59 = new GameObject("Icon");
         go_59.transform.SetParent(go_58.transform, false);
         _nodes[59] = go_59;
@@ -1399,7 +1399,7 @@ public static class GeneratedUI_traderuifixed
         le_59.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_60 = new GameObject("IconRow");
         go_60.transform.SetParent(svContent_2.transform, false);
         _nodes[60] = go_60;
@@ -1420,7 +1420,7 @@ public static class GeneratedUI_traderuifixed
         le_60.preferredHeight = 32.4f;
         le_60.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_61 = new GameObject("Icon");
         go_61.transform.SetParent(go_60.transform, false);
         _nodes[61] = go_61;
@@ -1444,7 +1444,7 @@ public static class GeneratedUI_traderuifixed
         le_61.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_62 = new GameObject("IconRow");
         go_62.transform.SetParent(svContent_2.transform, false);
         _nodes[62] = go_62;
@@ -1465,7 +1465,7 @@ public static class GeneratedUI_traderuifixed
         le_62.preferredHeight = 32.4f;
         le_62.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_63 = new GameObject("Icon");
         go_63.transform.SetParent(go_62.transform, false);
         _nodes[63] = go_63;
@@ -1489,7 +1489,7 @@ public static class GeneratedUI_traderuifixed
         le_63.ignoreLayout = true;
 
 
-        // ?? Spacer: "IconRow" ??
+        // -- Spacer: "IconRow" --
         var go_64 = new GameObject("IconRow");
         go_64.transform.SetParent(svContent_2.transform, false);
         _nodes[64] = go_64;
@@ -1506,7 +1506,7 @@ public static class GeneratedUI_traderuifixed
         le_64.preferredHeight = 32.4f;
         le_64.flexibleHeight = 0f;
 
-        // ?? Spacer: "IconRow" ??
+        // -- Spacer: "IconRow" --
         var go_65 = new GameObject("IconRow");
         go_65.transform.SetParent(svContent_2.transform, false);
         _nodes[65] = go_65;
@@ -1523,7 +1523,7 @@ public static class GeneratedUI_traderuifixed
         le_65.preferredHeight = 32.4f;
         le_65.flexibleHeight = 0f;
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_66 = new GameObject("IconRow");
         go_66.transform.SetParent(svContent_2.transform, false);
         _nodes[66] = go_66;
@@ -1544,7 +1544,7 @@ public static class GeneratedUI_traderuifixed
         le_66.preferredHeight = 32.4f;
         le_66.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_67 = new GameObject("Icon");
         go_67.transform.SetParent(go_66.transform, false);
         _nodes[67] = go_67;
@@ -1568,7 +1568,7 @@ public static class GeneratedUI_traderuifixed
         le_67.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_68 = new GameObject("IconRow");
         go_68.transform.SetParent(svContent_2.transform, false);
         _nodes[68] = go_68;
@@ -1589,7 +1589,7 @@ public static class GeneratedUI_traderuifixed
         le_68.preferredHeight = 32.4f;
         le_68.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_69 = new GameObject("Icon");
         go_69.transform.SetParent(go_68.transform, false);
         _nodes[69] = go_69;
@@ -1613,7 +1613,7 @@ public static class GeneratedUI_traderuifixed
         le_69.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_70 = new GameObject("IconRow");
         go_70.transform.SetParent(svContent_2.transform, false);
         _nodes[70] = go_70;
@@ -1634,7 +1634,7 @@ public static class GeneratedUI_traderuifixed
         le_70.preferredHeight = 32.4f;
         le_70.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_71 = new GameObject("Icon");
         go_71.transform.SetParent(go_70.transform, false);
         _nodes[71] = go_71;
@@ -1658,7 +1658,7 @@ public static class GeneratedUI_traderuifixed
         le_71.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_72 = new GameObject("IconRow");
         go_72.transform.SetParent(svContent_2.transform, false);
         _nodes[72] = go_72;
@@ -1679,7 +1679,7 @@ public static class GeneratedUI_traderuifixed
         le_72.preferredHeight = 32.4f;
         le_72.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_73 = new GameObject("Icon");
         go_73.transform.SetParent(go_72.transform, false);
         _nodes[73] = go_73;
@@ -1703,7 +1703,7 @@ public static class GeneratedUI_traderuifixed
         le_73.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_74 = new GameObject("IconRow");
         go_74.transform.SetParent(svContent_2.transform, false);
         _nodes[74] = go_74;
@@ -1724,7 +1724,7 @@ public static class GeneratedUI_traderuifixed
         le_74.preferredHeight = 32.4f;
         le_74.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_75 = new GameObject("Icon");
         go_75.transform.SetParent(go_74.transform, false);
         _nodes[75] = go_75;
@@ -1748,7 +1748,7 @@ public static class GeneratedUI_traderuifixed
         le_75.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_76 = new GameObject("IconRow");
         go_76.transform.SetParent(svContent_2.transform, false);
         _nodes[76] = go_76;
@@ -1769,7 +1769,7 @@ public static class GeneratedUI_traderuifixed
         le_76.preferredHeight = 32.4f;
         le_76.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_77 = new GameObject("Icon");
         go_77.transform.SetParent(go_76.transform, false);
         _nodes[77] = go_77;
@@ -1793,7 +1793,7 @@ public static class GeneratedUI_traderuifixed
         le_77.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_78 = new GameObject("IconRow");
         go_78.transform.SetParent(svContent_2.transform, false);
         _nodes[78] = go_78;
@@ -1814,7 +1814,7 @@ public static class GeneratedUI_traderuifixed
         le_78.preferredHeight = 32.4f;
         le_78.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_79 = new GameObject("Icon");
         go_79.transform.SetParent(go_78.transform, false);
         _nodes[79] = go_79;
@@ -1838,7 +1838,7 @@ public static class GeneratedUI_traderuifixed
         le_79.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_80 = new GameObject("IconRow");
         go_80.transform.SetParent(svContent_2.transform, false);
         _nodes[80] = go_80;
@@ -1859,7 +1859,7 @@ public static class GeneratedUI_traderuifixed
         le_80.preferredHeight = 32.4f;
         le_80.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_81 = new GameObject("Icon");
         go_81.transform.SetParent(go_80.transform, false);
         _nodes[81] = go_81;
@@ -1883,7 +1883,7 @@ public static class GeneratedUI_traderuifixed
         le_81.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_82 = new GameObject("IconRow");
         go_82.transform.SetParent(svContent_2.transform, false);
         _nodes[82] = go_82;
@@ -1904,7 +1904,7 @@ public static class GeneratedUI_traderuifixed
         le_82.preferredHeight = 32.4f;
         le_82.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_83 = new GameObject("Icon");
         go_83.transform.SetParent(go_82.transform, false);
         _nodes[83] = go_83;
@@ -1928,7 +1928,7 @@ public static class GeneratedUI_traderuifixed
         le_83.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_84 = new GameObject("IconRow");
         go_84.transform.SetParent(svContent_2.transform, false);
         _nodes[84] = go_84;
@@ -1949,7 +1949,7 @@ public static class GeneratedUI_traderuifixed
         le_84.preferredHeight = 32.4f;
         le_84.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_85 = new GameObject("Icon");
         go_85.transform.SetParent(go_84.transform, false);
         _nodes[85] = go_85;
@@ -1973,7 +1973,7 @@ public static class GeneratedUI_traderuifixed
         le_85.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_86 = new GameObject("IconRow");
         go_86.transform.SetParent(svContent_2.transform, false);
         _nodes[86] = go_86;
@@ -1994,7 +1994,7 @@ public static class GeneratedUI_traderuifixed
         le_86.preferredHeight = 32.4f;
         le_86.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_87 = new GameObject("Icon");
         go_87.transform.SetParent(go_86.transform, false);
         _nodes[87] = go_87;
@@ -2018,7 +2018,7 @@ public static class GeneratedUI_traderuifixed
         le_87.ignoreLayout = true;
 
 
-        // ?? Spacer: "IconRow" ??
+        // -- Spacer: "IconRow" --
         var go_88 = new GameObject("IconRow");
         go_88.transform.SetParent(svContent_2.transform, false);
         _nodes[88] = go_88;
@@ -2035,7 +2035,7 @@ public static class GeneratedUI_traderuifixed
         le_88.preferredHeight = 32.4f;
         le_88.flexibleHeight = 0f;
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_89 = new GameObject("IconRow");
         go_89.transform.SetParent(svContent_2.transform, false);
         _nodes[89] = go_89;
@@ -2056,7 +2056,7 @@ public static class GeneratedUI_traderuifixed
         le_89.preferredHeight = 32.4f;
         le_89.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_90 = new GameObject("Icon");
         go_90.transform.SetParent(go_89.transform, false);
         _nodes[90] = go_90;
@@ -2080,7 +2080,7 @@ public static class GeneratedUI_traderuifixed
         le_90.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_91 = new GameObject("IconRow");
         go_91.transform.SetParent(svContent_2.transform, false);
         _nodes[91] = go_91;
@@ -2101,7 +2101,7 @@ public static class GeneratedUI_traderuifixed
         le_91.preferredHeight = 32.4f;
         le_91.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_92 = new GameObject("Icon");
         go_92.transform.SetParent(go_91.transform, false);
         _nodes[92] = go_92;
@@ -2125,7 +2125,7 @@ public static class GeneratedUI_traderuifixed
         le_92.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_93 = new GameObject("IconRow");
         go_93.transform.SetParent(svContent_2.transform, false);
         _nodes[93] = go_93;
@@ -2146,7 +2146,7 @@ public static class GeneratedUI_traderuifixed
         le_93.preferredHeight = 32.4f;
         le_93.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_94 = new GameObject("Icon");
         go_94.transform.SetParent(go_93.transform, false);
         _nodes[94] = go_94;
@@ -2170,7 +2170,7 @@ public static class GeneratedUI_traderuifixed
         le_94.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_95 = new GameObject("IconRow");
         go_95.transform.SetParent(svContent_2.transform, false);
         _nodes[95] = go_95;
@@ -2191,7 +2191,7 @@ public static class GeneratedUI_traderuifixed
         le_95.preferredHeight = 32.4f;
         le_95.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_96 = new GameObject("Icon");
         go_96.transform.SetParent(go_95.transform, false);
         _nodes[96] = go_96;
@@ -2215,7 +2215,7 @@ public static class GeneratedUI_traderuifixed
         le_96.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_97 = new GameObject("IconRow");
         go_97.transform.SetParent(svContent_2.transform, false);
         _nodes[97] = go_97;
@@ -2236,7 +2236,7 @@ public static class GeneratedUI_traderuifixed
         le_97.preferredHeight = 32.4f;
         le_97.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_98 = new GameObject("Icon");
         go_98.transform.SetParent(go_97.transform, false);
         _nodes[98] = go_98;
@@ -2260,7 +2260,7 @@ public static class GeneratedUI_traderuifixed
         le_98.ignoreLayout = true;
 
 
-        // ?? Panel: "IconRow" ??
+        // -- Panel: "IconRow" --
         var go_99 = new GameObject("IconRow");
         go_99.transform.SetParent(svContent_2.transform, false);
         _nodes[99] = go_99;
@@ -2281,7 +2281,7 @@ public static class GeneratedUI_traderuifixed
         le_99.preferredHeight = 32.4f;
         le_99.flexibleHeight = 0f;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_100 = new GameObject("Icon");
         go_100.transform.SetParent(go_99.transform, false);
         _nodes[100] = go_100;
@@ -2306,7 +2306,7 @@ public static class GeneratedUI_traderuifixed
 
 
 
-        // ?? ScrollView: "Items" ??
+        // -- ScrollView: "Items" --
         var go_101 = new GameObject("Items");
         go_101.transform.SetParent(go_1.transform, false);
         _nodes[101] = go_101;
@@ -2351,7 +2351,7 @@ public static class GeneratedUI_traderuifixed
         scrollRect_101.scrollSensitivity = 54f;
         scrollRect_101.elasticity = 0.1f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_102 = new GameObject("TextRow");
         go_102.transform.SetParent(svContent_101.transform, false);
         _nodes[102] = go_102;
@@ -2378,7 +2378,7 @@ public static class GeneratedUI_traderuifixed
         le_102.preferredHeight = 32.4f;
         le_102.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_103 = new GameObject("TextRow");
         go_103.transform.SetParent(svContent_101.transform, false);
         _nodes[103] = go_103;
@@ -2405,7 +2405,7 @@ public static class GeneratedUI_traderuifixed
         le_103.preferredHeight = 32.4f;
         le_103.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_104 = new GameObject("TextRow");
         go_104.transform.SetParent(svContent_101.transform, false);
         _nodes[104] = go_104;
@@ -2432,7 +2432,7 @@ public static class GeneratedUI_traderuifixed
         le_104.preferredHeight = 32.4f;
         le_104.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_105 = new GameObject("TextRow");
         go_105.transform.SetParent(svContent_101.transform, false);
         _nodes[105] = go_105;
@@ -2459,7 +2459,7 @@ public static class GeneratedUI_traderuifixed
         le_105.preferredHeight = 32.4f;
         le_105.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_106 = new GameObject("TextRow");
         go_106.transform.SetParent(svContent_101.transform, false);
         _nodes[106] = go_106;
@@ -2486,7 +2486,7 @@ public static class GeneratedUI_traderuifixed
         le_106.preferredHeight = 32.4f;
         le_106.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_107 = new GameObject("TextRow");
         go_107.transform.SetParent(svContent_101.transform, false);
         _nodes[107] = go_107;
@@ -2513,7 +2513,7 @@ public static class GeneratedUI_traderuifixed
         le_107.preferredHeight = 32.4f;
         le_107.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_108 = new GameObject("TextRow");
         go_108.transform.SetParent(svContent_101.transform, false);
         _nodes[108] = go_108;
@@ -2540,7 +2540,7 @@ public static class GeneratedUI_traderuifixed
         le_108.preferredHeight = 32.4f;
         le_108.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_109 = new GameObject("TextRow");
         go_109.transform.SetParent(svContent_101.transform, false);
         _nodes[109] = go_109;
@@ -2567,7 +2567,7 @@ public static class GeneratedUI_traderuifixed
         le_109.preferredHeight = 32.4f;
         le_109.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_110 = new GameObject("TextRow");
         go_110.transform.SetParent(svContent_101.transform, false);
         _nodes[110] = go_110;
@@ -2594,7 +2594,7 @@ public static class GeneratedUI_traderuifixed
         le_110.preferredHeight = 32.4f;
         le_110.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_111 = new GameObject("TextRow");
         go_111.transform.SetParent(svContent_101.transform, false);
         _nodes[111] = go_111;
@@ -2621,7 +2621,7 @@ public static class GeneratedUI_traderuifixed
         le_111.preferredHeight = 32.4f;
         le_111.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_112 = new GameObject("TextRow");
         go_112.transform.SetParent(svContent_101.transform, false);
         _nodes[112] = go_112;
@@ -2648,7 +2648,7 @@ public static class GeneratedUI_traderuifixed
         le_112.preferredHeight = 32.4f;
         le_112.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_113 = new GameObject("TextRow");
         go_113.transform.SetParent(svContent_101.transform, false);
         _nodes[113] = go_113;
@@ -2675,7 +2675,7 @@ public static class GeneratedUI_traderuifixed
         le_113.preferredHeight = 32.4f;
         le_113.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_114 = new GameObject("TextRow");
         go_114.transform.SetParent(svContent_101.transform, false);
         _nodes[114] = go_114;
@@ -2702,7 +2702,7 @@ public static class GeneratedUI_traderuifixed
         le_114.preferredHeight = 32.4f;
         le_114.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_115 = new GameObject("TextRow");
         go_115.transform.SetParent(svContent_101.transform, false);
         _nodes[115] = go_115;
@@ -2729,7 +2729,7 @@ public static class GeneratedUI_traderuifixed
         le_115.preferredHeight = 32.4f;
         le_115.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_116 = new GameObject("TextRow");
         go_116.transform.SetParent(svContent_101.transform, false);
         _nodes[116] = go_116;
@@ -2756,7 +2756,7 @@ public static class GeneratedUI_traderuifixed
         le_116.preferredHeight = 32.4f;
         le_116.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_117 = new GameObject("TextRow");
         go_117.transform.SetParent(svContent_101.transform, false);
         _nodes[117] = go_117;
@@ -2783,7 +2783,7 @@ public static class GeneratedUI_traderuifixed
         le_117.preferredHeight = 32.4f;
         le_117.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_118 = new GameObject("TextRow");
         go_118.transform.SetParent(svContent_101.transform, false);
         _nodes[118] = go_118;
@@ -2810,7 +2810,7 @@ public static class GeneratedUI_traderuifixed
         le_118.preferredHeight = 32.4f;
         le_118.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_119 = new GameObject("TextRow");
         go_119.transform.SetParent(svContent_101.transform, false);
         _nodes[119] = go_119;
@@ -2837,7 +2837,7 @@ public static class GeneratedUI_traderuifixed
         le_119.preferredHeight = 32.4f;
         le_119.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_120 = new GameObject("TextRow");
         go_120.transform.SetParent(svContent_101.transform, false);
         _nodes[120] = go_120;
@@ -2864,7 +2864,7 @@ public static class GeneratedUI_traderuifixed
         le_120.preferredHeight = 32.4f;
         le_120.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_121 = new GameObject("TextRow");
         go_121.transform.SetParent(svContent_101.transform, false);
         _nodes[121] = go_121;
@@ -2891,7 +2891,7 @@ public static class GeneratedUI_traderuifixed
         le_121.preferredHeight = 32.4f;
         le_121.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_122 = new GameObject("TextRow");
         go_122.transform.SetParent(svContent_101.transform, false);
         _nodes[122] = go_122;
@@ -2918,7 +2918,7 @@ public static class GeneratedUI_traderuifixed
         le_122.preferredHeight = 32.4f;
         le_122.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_123 = new GameObject("TextRow");
         go_123.transform.SetParent(svContent_101.transform, false);
         _nodes[123] = go_123;
@@ -2945,7 +2945,7 @@ public static class GeneratedUI_traderuifixed
         le_123.preferredHeight = 32.4f;
         le_123.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_124 = new GameObject("TextRow");
         go_124.transform.SetParent(svContent_101.transform, false);
         _nodes[124] = go_124;
@@ -2972,7 +2972,7 @@ public static class GeneratedUI_traderuifixed
         le_124.preferredHeight = 32.4f;
         le_124.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_125 = new GameObject("TextRow");
         go_125.transform.SetParent(svContent_101.transform, false);
         _nodes[125] = go_125;
@@ -2999,7 +2999,7 @@ public static class GeneratedUI_traderuifixed
         le_125.preferredHeight = 32.4f;
         le_125.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_126 = new GameObject("TextRow");
         go_126.transform.SetParent(svContent_101.transform, false);
         _nodes[126] = go_126;
@@ -3026,7 +3026,7 @@ public static class GeneratedUI_traderuifixed
         le_126.preferredHeight = 32.4f;
         le_126.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_127 = new GameObject("TextRow");
         go_127.transform.SetParent(svContent_101.transform, false);
         _nodes[127] = go_127;
@@ -3053,7 +3053,7 @@ public static class GeneratedUI_traderuifixed
         le_127.preferredHeight = 32.4f;
         le_127.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_128 = new GameObject("TextRow");
         go_128.transform.SetParent(svContent_101.transform, false);
         _nodes[128] = go_128;
@@ -3080,7 +3080,7 @@ public static class GeneratedUI_traderuifixed
         le_128.preferredHeight = 32.4f;
         le_128.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_129 = new GameObject("TextRow");
         go_129.transform.SetParent(svContent_101.transform, false);
         _nodes[129] = go_129;
@@ -3107,7 +3107,7 @@ public static class GeneratedUI_traderuifixed
         le_129.preferredHeight = 32.4f;
         le_129.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_130 = new GameObject("TextRow");
         go_130.transform.SetParent(svContent_101.transform, false);
         _nodes[130] = go_130;
@@ -3134,7 +3134,7 @@ public static class GeneratedUI_traderuifixed
         le_130.preferredHeight = 32.4f;
         le_130.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_131 = new GameObject("TextRow");
         go_131.transform.SetParent(svContent_101.transform, false);
         _nodes[131] = go_131;
@@ -3161,7 +3161,7 @@ public static class GeneratedUI_traderuifixed
         le_131.preferredHeight = 32.4f;
         le_131.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_132 = new GameObject("TextRow");
         go_132.transform.SetParent(svContent_101.transform, false);
         _nodes[132] = go_132;
@@ -3188,7 +3188,7 @@ public static class GeneratedUI_traderuifixed
         le_132.preferredHeight = 32.4f;
         le_132.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_133 = new GameObject("TextRow");
         go_133.transform.SetParent(svContent_101.transform, false);
         _nodes[133] = go_133;
@@ -3215,7 +3215,7 @@ public static class GeneratedUI_traderuifixed
         le_133.preferredHeight = 32.4f;
         le_133.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_134 = new GameObject("TextRow");
         go_134.transform.SetParent(svContent_101.transform, false);
         _nodes[134] = go_134;
@@ -3242,7 +3242,7 @@ public static class GeneratedUI_traderuifixed
         le_134.preferredHeight = 32.4f;
         le_134.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_135 = new GameObject("TextRow");
         go_135.transform.SetParent(svContent_101.transform, false);
         _nodes[135] = go_135;
@@ -3269,7 +3269,7 @@ public static class GeneratedUI_traderuifixed
         le_135.preferredHeight = 32.4f;
         le_135.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_136 = new GameObject("TextRow");
         go_136.transform.SetParent(svContent_101.transform, false);
         _nodes[136] = go_136;
@@ -3296,7 +3296,7 @@ public static class GeneratedUI_traderuifixed
         le_136.preferredHeight = 32.4f;
         le_136.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_137 = new GameObject("TextRow");
         go_137.transform.SetParent(svContent_101.transform, false);
         _nodes[137] = go_137;
@@ -3323,7 +3323,7 @@ public static class GeneratedUI_traderuifixed
         le_137.preferredHeight = 32.4f;
         le_137.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_138 = new GameObject("TextRow");
         go_138.transform.SetParent(svContent_101.transform, false);
         _nodes[138] = go_138;
@@ -3350,7 +3350,7 @@ public static class GeneratedUI_traderuifixed
         le_138.preferredHeight = 32.4f;
         le_138.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_139 = new GameObject("TextRow");
         go_139.transform.SetParent(svContent_101.transform, false);
         _nodes[139] = go_139;
@@ -3377,7 +3377,7 @@ public static class GeneratedUI_traderuifixed
         le_139.preferredHeight = 32.4f;
         le_139.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_140 = new GameObject("TextRow");
         go_140.transform.SetParent(svContent_101.transform, false);
         _nodes[140] = go_140;
@@ -3404,7 +3404,7 @@ public static class GeneratedUI_traderuifixed
         le_140.preferredHeight = 32.4f;
         le_140.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_141 = new GameObject("TextRow");
         go_141.transform.SetParent(svContent_101.transform, false);
         _nodes[141] = go_141;
@@ -3431,7 +3431,7 @@ public static class GeneratedUI_traderuifixed
         le_141.preferredHeight = 32.4f;
         le_141.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_142 = new GameObject("TextRow");
         go_142.transform.SetParent(svContent_101.transform, false);
         _nodes[142] = go_142;
@@ -3458,7 +3458,7 @@ public static class GeneratedUI_traderuifixed
         le_142.preferredHeight = 32.4f;
         le_142.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_143 = new GameObject("TextRow");
         go_143.transform.SetParent(svContent_101.transform, false);
         _nodes[143] = go_143;
@@ -3485,7 +3485,7 @@ public static class GeneratedUI_traderuifixed
         le_143.preferredHeight = 32.4f;
         le_143.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_144 = new GameObject("TextRow");
         go_144.transform.SetParent(svContent_101.transform, false);
         _nodes[144] = go_144;
@@ -3512,7 +3512,7 @@ public static class GeneratedUI_traderuifixed
         le_144.preferredHeight = 32.4f;
         le_144.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_145 = new GameObject("TextRow");
         go_145.transform.SetParent(svContent_101.transform, false);
         _nodes[145] = go_145;
@@ -3539,7 +3539,7 @@ public static class GeneratedUI_traderuifixed
         le_145.preferredHeight = 32.4f;
         le_145.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_146 = new GameObject("TextRow");
         go_146.transform.SetParent(svContent_101.transform, false);
         _nodes[146] = go_146;
@@ -3566,7 +3566,7 @@ public static class GeneratedUI_traderuifixed
         le_146.preferredHeight = 32.4f;
         le_146.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_147 = new GameObject("TextRow");
         go_147.transform.SetParent(svContent_101.transform, false);
         _nodes[147] = go_147;
@@ -3593,7 +3593,7 @@ public static class GeneratedUI_traderuifixed
         le_147.preferredHeight = 32.4f;
         le_147.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_148 = new GameObject("TextRow");
         go_148.transform.SetParent(svContent_101.transform, false);
         _nodes[148] = go_148;
@@ -3620,7 +3620,7 @@ public static class GeneratedUI_traderuifixed
         le_148.preferredHeight = 32.4f;
         le_148.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_149 = new GameObject("TextRow");
         go_149.transform.SetParent(svContent_101.transform, false);
         _nodes[149] = go_149;
@@ -3647,7 +3647,7 @@ public static class GeneratedUI_traderuifixed
         le_149.preferredHeight = 32.4f;
         le_149.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_150 = new GameObject("TextRow");
         go_150.transform.SetParent(svContent_101.transform, false);
         _nodes[150] = go_150;
@@ -3674,7 +3674,7 @@ public static class GeneratedUI_traderuifixed
         le_150.preferredHeight = 32.4f;
         le_150.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_151 = new GameObject("TextRow");
         go_151.transform.SetParent(svContent_101.transform, false);
         _nodes[151] = go_151;
@@ -3701,7 +3701,7 @@ public static class GeneratedUI_traderuifixed
         le_151.preferredHeight = 32.4f;
         le_151.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_152 = new GameObject("TextRow");
         go_152.transform.SetParent(svContent_101.transform, false);
         _nodes[152] = go_152;
@@ -3728,7 +3728,7 @@ public static class GeneratedUI_traderuifixed
         le_152.preferredHeight = 32.4f;
         le_152.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_153 = new GameObject("TextRow");
         go_153.transform.SetParent(svContent_101.transform, false);
         _nodes[153] = go_153;
@@ -3756,7 +3756,7 @@ public static class GeneratedUI_traderuifixed
         le_153.flexibleHeight = 0f;
 
 
-        // ?? ScrollView: "BuyPrice" ??
+        // -- ScrollView: "BuyPrice" --
         var go_154 = new GameObject("BuyPrice");
         go_154.transform.SetParent(go_1.transform, false);
         _nodes[154] = go_154;
@@ -3801,7 +3801,7 @@ public static class GeneratedUI_traderuifixed
         scrollRect_154.scrollSensitivity = 54f;
         scrollRect_154.elasticity = 0.1f;
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_155 = new GameObject("BuyRow");
         go_155.transform.SetParent(svContent_154.transform, false);
         _nodes[155] = go_155;
@@ -3853,7 +3853,7 @@ public static class GeneratedUI_traderuifixed
         le_155.preferredHeight = 32.4f;
         le_155.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_156 = new GameObject("Label");
         go_156.transform.SetParent(go_155.transform, false);
         _nodes[156] = go_156;
@@ -3871,7 +3871,7 @@ public static class GeneratedUI_traderuifixed
         img_156.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_157 = new GameObject("BuyRow");
         go_157.transform.SetParent(svContent_154.transform, false);
         _nodes[157] = go_157;
@@ -3923,7 +3923,7 @@ public static class GeneratedUI_traderuifixed
         le_157.preferredHeight = 32.4f;
         le_157.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_158 = new GameObject("Label");
         go_158.transform.SetParent(go_157.transform, false);
         _nodes[158] = go_158;
@@ -3941,7 +3941,7 @@ public static class GeneratedUI_traderuifixed
         img_158.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_159 = new GameObject("BuyRow");
         go_159.transform.SetParent(svContent_154.transform, false);
         _nodes[159] = go_159;
@@ -3993,7 +3993,7 @@ public static class GeneratedUI_traderuifixed
         le_159.preferredHeight = 32.4f;
         le_159.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_160 = new GameObject("Label");
         go_160.transform.SetParent(go_159.transform, false);
         _nodes[160] = go_160;
@@ -4011,7 +4011,7 @@ public static class GeneratedUI_traderuifixed
         img_160.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_161 = new GameObject("BuyRow");
         go_161.transform.SetParent(svContent_154.transform, false);
         _nodes[161] = go_161;
@@ -4063,7 +4063,7 @@ public static class GeneratedUI_traderuifixed
         le_161.preferredHeight = 32.4f;
         le_161.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_162 = new GameObject("Label");
         go_162.transform.SetParent(go_161.transform, false);
         _nodes[162] = go_162;
@@ -4081,7 +4081,7 @@ public static class GeneratedUI_traderuifixed
         img_162.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_163 = new GameObject("BuyRow");
         go_163.transform.SetParent(svContent_154.transform, false);
         _nodes[163] = go_163;
@@ -4133,7 +4133,7 @@ public static class GeneratedUI_traderuifixed
         le_163.preferredHeight = 32.4f;
         le_163.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_164 = new GameObject("Label");
         go_164.transform.SetParent(go_163.transform, false);
         _nodes[164] = go_164;
@@ -4151,7 +4151,7 @@ public static class GeneratedUI_traderuifixed
         img_164.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_165 = new GameObject("BuyRow");
         go_165.transform.SetParent(svContent_154.transform, false);
         _nodes[165] = go_165;
@@ -4203,7 +4203,7 @@ public static class GeneratedUI_traderuifixed
         le_165.preferredHeight = 32.4f;
         le_165.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_166 = new GameObject("Label");
         go_166.transform.SetParent(go_165.transform, false);
         _nodes[166] = go_166;
@@ -4221,7 +4221,7 @@ public static class GeneratedUI_traderuifixed
         img_166.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_167 = new GameObject("BuyRow");
         go_167.transform.SetParent(svContent_154.transform, false);
         _nodes[167] = go_167;
@@ -4273,7 +4273,7 @@ public static class GeneratedUI_traderuifixed
         le_167.preferredHeight = 32.4f;
         le_167.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_168 = new GameObject("Label");
         go_168.transform.SetParent(go_167.transform, false);
         _nodes[168] = go_168;
@@ -4291,7 +4291,7 @@ public static class GeneratedUI_traderuifixed
         img_168.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_169 = new GameObject("BuyRow");
         go_169.transform.SetParent(svContent_154.transform, false);
         _nodes[169] = go_169;
@@ -4343,7 +4343,7 @@ public static class GeneratedUI_traderuifixed
         le_169.preferredHeight = 32.4f;
         le_169.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_170 = new GameObject("Label");
         go_170.transform.SetParent(go_169.transform, false);
         _nodes[170] = go_170;
@@ -4361,7 +4361,7 @@ public static class GeneratedUI_traderuifixed
         img_170.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_171 = new GameObject("BuyRow");
         go_171.transform.SetParent(svContent_154.transform, false);
         _nodes[171] = go_171;
@@ -4413,7 +4413,7 @@ public static class GeneratedUI_traderuifixed
         le_171.preferredHeight = 32.4f;
         le_171.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_172 = new GameObject("Label");
         go_172.transform.SetParent(go_171.transform, false);
         _nodes[172] = go_172;
@@ -4431,7 +4431,7 @@ public static class GeneratedUI_traderuifixed
         img_172.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_173 = new GameObject("BuyRow");
         go_173.transform.SetParent(svContent_154.transform, false);
         _nodes[173] = go_173;
@@ -4483,7 +4483,7 @@ public static class GeneratedUI_traderuifixed
         le_173.preferredHeight = 32.4f;
         le_173.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_174 = new GameObject("Label");
         go_174.transform.SetParent(go_173.transform, false);
         _nodes[174] = go_174;
@@ -4501,7 +4501,7 @@ public static class GeneratedUI_traderuifixed
         img_174.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_175 = new GameObject("BuyRow");
         go_175.transform.SetParent(svContent_154.transform, false);
         _nodes[175] = go_175;
@@ -4553,7 +4553,7 @@ public static class GeneratedUI_traderuifixed
         le_175.preferredHeight = 32.4f;
         le_175.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_176 = new GameObject("Label");
         go_176.transform.SetParent(go_175.transform, false);
         _nodes[176] = go_176;
@@ -4571,7 +4571,7 @@ public static class GeneratedUI_traderuifixed
         img_176.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_177 = new GameObject("BuyRow");
         go_177.transform.SetParent(svContent_154.transform, false);
         _nodes[177] = go_177;
@@ -4623,7 +4623,7 @@ public static class GeneratedUI_traderuifixed
         le_177.preferredHeight = 32.4f;
         le_177.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_178 = new GameObject("Label");
         go_178.transform.SetParent(go_177.transform, false);
         _nodes[178] = go_178;
@@ -4641,7 +4641,7 @@ public static class GeneratedUI_traderuifixed
         img_178.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_179 = new GameObject("BuyRow");
         go_179.transform.SetParent(svContent_154.transform, false);
         _nodes[179] = go_179;
@@ -4693,7 +4693,7 @@ public static class GeneratedUI_traderuifixed
         le_179.preferredHeight = 32.4f;
         le_179.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_180 = new GameObject("Label");
         go_180.transform.SetParent(go_179.transform, false);
         _nodes[180] = go_180;
@@ -4711,7 +4711,7 @@ public static class GeneratedUI_traderuifixed
         img_180.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_181 = new GameObject("BuyRow");
         go_181.transform.SetParent(svContent_154.transform, false);
         _nodes[181] = go_181;
@@ -4763,7 +4763,7 @@ public static class GeneratedUI_traderuifixed
         le_181.preferredHeight = 32.4f;
         le_181.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_182 = new GameObject("Label");
         go_182.transform.SetParent(go_181.transform, false);
         _nodes[182] = go_182;
@@ -4781,7 +4781,7 @@ public static class GeneratedUI_traderuifixed
         img_182.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_183 = new GameObject("BuyRow");
         go_183.transform.SetParent(svContent_154.transform, false);
         _nodes[183] = go_183;
@@ -4833,7 +4833,7 @@ public static class GeneratedUI_traderuifixed
         le_183.preferredHeight = 32.4f;
         le_183.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_184 = new GameObject("Label");
         go_184.transform.SetParent(go_183.transform, false);
         _nodes[184] = go_184;
@@ -4851,7 +4851,7 @@ public static class GeneratedUI_traderuifixed
         img_184.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_185 = new GameObject("BuyRow");
         go_185.transform.SetParent(svContent_154.transform, false);
         _nodes[185] = go_185;
@@ -4903,7 +4903,7 @@ public static class GeneratedUI_traderuifixed
         le_185.preferredHeight = 32.4f;
         le_185.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_186 = new GameObject("Label");
         go_186.transform.SetParent(go_185.transform, false);
         _nodes[186] = go_186;
@@ -4921,7 +4921,7 @@ public static class GeneratedUI_traderuifixed
         img_186.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_187 = new GameObject("BuyRow");
         go_187.transform.SetParent(svContent_154.transform, false);
         _nodes[187] = go_187;
@@ -4973,7 +4973,7 @@ public static class GeneratedUI_traderuifixed
         le_187.preferredHeight = 32.4f;
         le_187.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_188 = new GameObject("Label");
         go_188.transform.SetParent(go_187.transform, false);
         _nodes[188] = go_188;
@@ -4991,7 +4991,7 @@ public static class GeneratedUI_traderuifixed
         img_188.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_189 = new GameObject("BuyRow");
         go_189.transform.SetParent(svContent_154.transform, false);
         _nodes[189] = go_189;
@@ -5043,7 +5043,7 @@ public static class GeneratedUI_traderuifixed
         le_189.preferredHeight = 32.4f;
         le_189.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_190 = new GameObject("Label");
         go_190.transform.SetParent(go_189.transform, false);
         _nodes[190] = go_190;
@@ -5061,7 +5061,7 @@ public static class GeneratedUI_traderuifixed
         img_190.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_191 = new GameObject("BuyRow");
         go_191.transform.SetParent(svContent_154.transform, false);
         _nodes[191] = go_191;
@@ -5113,7 +5113,7 @@ public static class GeneratedUI_traderuifixed
         le_191.preferredHeight = 32.4f;
         le_191.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_192 = new GameObject("Label");
         go_192.transform.SetParent(go_191.transform, false);
         _nodes[192] = go_192;
@@ -5131,7 +5131,7 @@ public static class GeneratedUI_traderuifixed
         img_192.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_193 = new GameObject("BuyRow");
         go_193.transform.SetParent(svContent_154.transform, false);
         _nodes[193] = go_193;
@@ -5183,7 +5183,7 @@ public static class GeneratedUI_traderuifixed
         le_193.preferredHeight = 32.4f;
         le_193.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_194 = new GameObject("Label");
         go_194.transform.SetParent(go_193.transform, false);
         _nodes[194] = go_194;
@@ -5201,7 +5201,7 @@ public static class GeneratedUI_traderuifixed
         img_194.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_195 = new GameObject("BuyRow");
         go_195.transform.SetParent(svContent_154.transform, false);
         _nodes[195] = go_195;
@@ -5253,7 +5253,7 @@ public static class GeneratedUI_traderuifixed
         le_195.preferredHeight = 32.4f;
         le_195.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_196 = new GameObject("Label");
         go_196.transform.SetParent(go_195.transform, false);
         _nodes[196] = go_196;
@@ -5271,7 +5271,7 @@ public static class GeneratedUI_traderuifixed
         img_196.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_197 = new GameObject("BuyRow");
         go_197.transform.SetParent(svContent_154.transform, false);
         _nodes[197] = go_197;
@@ -5323,7 +5323,7 @@ public static class GeneratedUI_traderuifixed
         le_197.preferredHeight = 32.4f;
         le_197.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_198 = new GameObject("Label");
         go_198.transform.SetParent(go_197.transform, false);
         _nodes[198] = go_198;
@@ -5341,7 +5341,7 @@ public static class GeneratedUI_traderuifixed
         img_198.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_199 = new GameObject("BuyRow");
         go_199.transform.SetParent(svContent_154.transform, false);
         _nodes[199] = go_199;
@@ -5393,7 +5393,7 @@ public static class GeneratedUI_traderuifixed
         le_199.preferredHeight = 32.4f;
         le_199.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_200 = new GameObject("Label");
         go_200.transform.SetParent(go_199.transform, false);
         _nodes[200] = go_200;
@@ -5411,7 +5411,7 @@ public static class GeneratedUI_traderuifixed
         img_200.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_201 = new GameObject("BuyRow");
         go_201.transform.SetParent(svContent_154.transform, false);
         _nodes[201] = go_201;
@@ -5463,7 +5463,7 @@ public static class GeneratedUI_traderuifixed
         le_201.preferredHeight = 32.4f;
         le_201.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_202 = new GameObject("Label");
         go_202.transform.SetParent(go_201.transform, false);
         _nodes[202] = go_202;
@@ -5481,7 +5481,7 @@ public static class GeneratedUI_traderuifixed
         img_202.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_203 = new GameObject("BuyRow");
         go_203.transform.SetParent(svContent_154.transform, false);
         _nodes[203] = go_203;
@@ -5533,7 +5533,7 @@ public static class GeneratedUI_traderuifixed
         le_203.preferredHeight = 32.4f;
         le_203.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_204 = new GameObject("Label");
         go_204.transform.SetParent(go_203.transform, false);
         _nodes[204] = go_204;
@@ -5551,7 +5551,7 @@ public static class GeneratedUI_traderuifixed
         img_204.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_205 = new GameObject("BuyRow");
         go_205.transform.SetParent(svContent_154.transform, false);
         _nodes[205] = go_205;
@@ -5603,7 +5603,7 @@ public static class GeneratedUI_traderuifixed
         le_205.preferredHeight = 32.4f;
         le_205.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_206 = new GameObject("Label");
         go_206.transform.SetParent(go_205.transform, false);
         _nodes[206] = go_206;
@@ -5621,7 +5621,7 @@ public static class GeneratedUI_traderuifixed
         img_206.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_207 = new GameObject("BuyRow");
         go_207.transform.SetParent(svContent_154.transform, false);
         _nodes[207] = go_207;
@@ -5672,7 +5672,7 @@ public static class GeneratedUI_traderuifixed
         le_207.preferredHeight = 32.4f;
         le_207.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_208 = new GameObject("Label");
         go_208.transform.SetParent(go_207.transform, false);
         _nodes[208] = go_208;
@@ -5690,7 +5690,7 @@ public static class GeneratedUI_traderuifixed
         img_208.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_209 = new GameObject("BuyRow");
         go_209.transform.SetParent(svContent_154.transform, false);
         _nodes[209] = go_209;
@@ -5741,7 +5741,7 @@ public static class GeneratedUI_traderuifixed
         le_209.preferredHeight = 32.4f;
         le_209.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_210 = new GameObject("Label");
         go_210.transform.SetParent(go_209.transform, false);
         _nodes[210] = go_210;
@@ -5759,7 +5759,7 @@ public static class GeneratedUI_traderuifixed
         img_210.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_211 = new GameObject("BuyRow");
         go_211.transform.SetParent(svContent_154.transform, false);
         _nodes[211] = go_211;
@@ -5810,7 +5810,7 @@ public static class GeneratedUI_traderuifixed
         le_211.preferredHeight = 32.4f;
         le_211.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_212 = new GameObject("Label");
         go_212.transform.SetParent(go_211.transform, false);
         _nodes[212] = go_212;
@@ -5828,7 +5828,7 @@ public static class GeneratedUI_traderuifixed
         img_212.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_213 = new GameObject("BuyRow");
         go_213.transform.SetParent(svContent_154.transform, false);
         _nodes[213] = go_213;
@@ -5879,7 +5879,7 @@ public static class GeneratedUI_traderuifixed
         le_213.preferredHeight = 32.4f;
         le_213.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_214 = new GameObject("Label");
         go_214.transform.SetParent(go_213.transform, false);
         _nodes[214] = go_214;
@@ -5897,7 +5897,7 @@ public static class GeneratedUI_traderuifixed
         img_214.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_215 = new GameObject("BuyRow");
         go_215.transform.SetParent(svContent_154.transform, false);
         _nodes[215] = go_215;
@@ -5948,7 +5948,7 @@ public static class GeneratedUI_traderuifixed
         le_215.preferredHeight = 32.4f;
         le_215.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_216 = new GameObject("Label");
         go_216.transform.SetParent(go_215.transform, false);
         _nodes[216] = go_216;
@@ -5966,7 +5966,7 @@ public static class GeneratedUI_traderuifixed
         img_216.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_217 = new GameObject("BuyRow");
         go_217.transform.SetParent(svContent_154.transform, false);
         _nodes[217] = go_217;
@@ -6017,7 +6017,7 @@ public static class GeneratedUI_traderuifixed
         le_217.preferredHeight = 32.4f;
         le_217.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_218 = new GameObject("Label");
         go_218.transform.SetParent(go_217.transform, false);
         _nodes[218] = go_218;
@@ -6035,7 +6035,7 @@ public static class GeneratedUI_traderuifixed
         img_218.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_219 = new GameObject("BuyRow");
         go_219.transform.SetParent(svContent_154.transform, false);
         _nodes[219] = go_219;
@@ -6086,7 +6086,7 @@ public static class GeneratedUI_traderuifixed
         le_219.preferredHeight = 32.4f;
         le_219.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_220 = new GameObject("Label");
         go_220.transform.SetParent(go_219.transform, false);
         _nodes[220] = go_220;
@@ -6104,7 +6104,7 @@ public static class GeneratedUI_traderuifixed
         img_220.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_221 = new GameObject("BuyRow");
         go_221.transform.SetParent(svContent_154.transform, false);
         _nodes[221] = go_221;
@@ -6155,7 +6155,7 @@ public static class GeneratedUI_traderuifixed
         le_221.preferredHeight = 32.4f;
         le_221.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_222 = new GameObject("Label");
         go_222.transform.SetParent(go_221.transform, false);
         _nodes[222] = go_222;
@@ -6173,7 +6173,7 @@ public static class GeneratedUI_traderuifixed
         img_222.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_223 = new GameObject("BuyRow");
         go_223.transform.SetParent(svContent_154.transform, false);
         _nodes[223] = go_223;
@@ -6224,7 +6224,7 @@ public static class GeneratedUI_traderuifixed
         le_223.preferredHeight = 32.4f;
         le_223.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_224 = new GameObject("Label");
         go_224.transform.SetParent(go_223.transform, false);
         _nodes[224] = go_224;
@@ -6242,7 +6242,7 @@ public static class GeneratedUI_traderuifixed
         img_224.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_225 = new GameObject("BuyRow");
         go_225.transform.SetParent(svContent_154.transform, false);
         _nodes[225] = go_225;
@@ -6293,7 +6293,7 @@ public static class GeneratedUI_traderuifixed
         le_225.preferredHeight = 32.4f;
         le_225.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_226 = new GameObject("Label");
         go_226.transform.SetParent(go_225.transform, false);
         _nodes[226] = go_226;
@@ -6311,7 +6311,7 @@ public static class GeneratedUI_traderuifixed
         img_226.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_227 = new GameObject("BuyRow");
         go_227.transform.SetParent(svContent_154.transform, false);
         _nodes[227] = go_227;
@@ -6362,7 +6362,7 @@ public static class GeneratedUI_traderuifixed
         le_227.preferredHeight = 32.4f;
         le_227.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_228 = new GameObject("Label");
         go_228.transform.SetParent(go_227.transform, false);
         _nodes[228] = go_228;
@@ -6380,7 +6380,7 @@ public static class GeneratedUI_traderuifixed
         img_228.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_229 = new GameObject("BuyRow");
         go_229.transform.SetParent(svContent_154.transform, false);
         _nodes[229] = go_229;
@@ -6431,7 +6431,7 @@ public static class GeneratedUI_traderuifixed
         le_229.preferredHeight = 32.4f;
         le_229.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_230 = new GameObject("Label");
         go_230.transform.SetParent(go_229.transform, false);
         _nodes[230] = go_230;
@@ -6449,7 +6449,7 @@ public static class GeneratedUI_traderuifixed
         img_230.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_231 = new GameObject("BuyRow");
         go_231.transform.SetParent(svContent_154.transform, false);
         _nodes[231] = go_231;
@@ -6500,7 +6500,7 @@ public static class GeneratedUI_traderuifixed
         le_231.preferredHeight = 32.4f;
         le_231.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_232 = new GameObject("Label");
         go_232.transform.SetParent(go_231.transform, false);
         _nodes[232] = go_232;
@@ -6518,7 +6518,7 @@ public static class GeneratedUI_traderuifixed
         img_232.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_233 = new GameObject("BuyRow");
         go_233.transform.SetParent(svContent_154.transform, false);
         _nodes[233] = go_233;
@@ -6569,7 +6569,7 @@ public static class GeneratedUI_traderuifixed
         le_233.preferredHeight = 32.4f;
         le_233.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_234 = new GameObject("Label");
         go_234.transform.SetParent(go_233.transform, false);
         _nodes[234] = go_234;
@@ -6587,7 +6587,7 @@ public static class GeneratedUI_traderuifixed
         img_234.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_235 = new GameObject("BuyRow");
         go_235.transform.SetParent(svContent_154.transform, false);
         _nodes[235] = go_235;
@@ -6638,7 +6638,7 @@ public static class GeneratedUI_traderuifixed
         le_235.preferredHeight = 32.4f;
         le_235.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_236 = new GameObject("Label");
         go_236.transform.SetParent(go_235.transform, false);
         _nodes[236] = go_236;
@@ -6656,7 +6656,7 @@ public static class GeneratedUI_traderuifixed
         img_236.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_237 = new GameObject("BuyRow");
         go_237.transform.SetParent(svContent_154.transform, false);
         _nodes[237] = go_237;
@@ -6707,7 +6707,7 @@ public static class GeneratedUI_traderuifixed
         le_237.preferredHeight = 32.4f;
         le_237.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_238 = new GameObject("Label");
         go_238.transform.SetParent(go_237.transform, false);
         _nodes[238] = go_238;
@@ -6725,7 +6725,7 @@ public static class GeneratedUI_traderuifixed
         img_238.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_239 = new GameObject("BuyRow");
         go_239.transform.SetParent(svContent_154.transform, false);
         _nodes[239] = go_239;
@@ -6776,7 +6776,7 @@ public static class GeneratedUI_traderuifixed
         le_239.preferredHeight = 32.4f;
         le_239.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_240 = new GameObject("Label");
         go_240.transform.SetParent(go_239.transform, false);
         _nodes[240] = go_240;
@@ -6794,7 +6794,7 @@ public static class GeneratedUI_traderuifixed
         img_240.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_241 = new GameObject("BuyRow");
         go_241.transform.SetParent(svContent_154.transform, false);
         _nodes[241] = go_241;
@@ -6845,7 +6845,7 @@ public static class GeneratedUI_traderuifixed
         le_241.preferredHeight = 32.4f;
         le_241.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_242 = new GameObject("Label");
         go_242.transform.SetParent(go_241.transform, false);
         _nodes[242] = go_242;
@@ -6863,7 +6863,7 @@ public static class GeneratedUI_traderuifixed
         img_242.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_243 = new GameObject("BuyRow");
         go_243.transform.SetParent(svContent_154.transform, false);
         _nodes[243] = go_243;
@@ -6914,7 +6914,7 @@ public static class GeneratedUI_traderuifixed
         le_243.preferredHeight = 32.4f;
         le_243.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_244 = new GameObject("Label");
         go_244.transform.SetParent(go_243.transform, false);
         _nodes[244] = go_244;
@@ -6932,7 +6932,7 @@ public static class GeneratedUI_traderuifixed
         img_244.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_245 = new GameObject("BuyRow");
         go_245.transform.SetParent(svContent_154.transform, false);
         _nodes[245] = go_245;
@@ -6983,7 +6983,7 @@ public static class GeneratedUI_traderuifixed
         le_245.preferredHeight = 32.4f;
         le_245.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_246 = new GameObject("Label");
         go_246.transform.SetParent(go_245.transform, false);
         _nodes[246] = go_246;
@@ -7001,7 +7001,7 @@ public static class GeneratedUI_traderuifixed
         img_246.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_247 = new GameObject("BuyRow");
         go_247.transform.SetParent(svContent_154.transform, false);
         _nodes[247] = go_247;
@@ -7052,7 +7052,7 @@ public static class GeneratedUI_traderuifixed
         le_247.preferredHeight = 32.4f;
         le_247.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_248 = new GameObject("Label");
         go_248.transform.SetParent(go_247.transform, false);
         _nodes[248] = go_248;
@@ -7070,7 +7070,7 @@ public static class GeneratedUI_traderuifixed
         img_248.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_249 = new GameObject("BuyRow");
         go_249.transform.SetParent(svContent_154.transform, false);
         _nodes[249] = go_249;
@@ -7121,7 +7121,7 @@ public static class GeneratedUI_traderuifixed
         le_249.preferredHeight = 32.4f;
         le_249.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_250 = new GameObject("Label");
         go_250.transform.SetParent(go_249.transform, false);
         _nodes[250] = go_250;
@@ -7139,7 +7139,7 @@ public static class GeneratedUI_traderuifixed
         img_250.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_251 = new GameObject("BuyRow");
         go_251.transform.SetParent(svContent_154.transform, false);
         _nodes[251] = go_251;
@@ -7191,7 +7191,7 @@ public static class GeneratedUI_traderuifixed
         le_251.preferredHeight = 32.4f;
         le_251.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_252 = new GameObject("Label");
         go_252.transform.SetParent(go_251.transform, false);
         _nodes[252] = go_252;
@@ -7209,7 +7209,7 @@ public static class GeneratedUI_traderuifixed
         img_252.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_253 = new GameObject("BuyRow");
         go_253.transform.SetParent(svContent_154.transform, false);
         _nodes[253] = go_253;
@@ -7261,7 +7261,7 @@ public static class GeneratedUI_traderuifixed
         le_253.preferredHeight = 32.4f;
         le_253.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_254 = new GameObject("Label");
         go_254.transform.SetParent(go_253.transform, false);
         _nodes[254] = go_254;
@@ -7279,7 +7279,7 @@ public static class GeneratedUI_traderuifixed
         img_254.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_255 = new GameObject("BuyRow");
         go_255.transform.SetParent(svContent_154.transform, false);
         _nodes[255] = go_255;
@@ -7331,7 +7331,7 @@ public static class GeneratedUI_traderuifixed
         le_255.preferredHeight = 32.4f;
         le_255.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_256 = new GameObject("Label");
         go_256.transform.SetParent(go_255.transform, false);
         _nodes[256] = go_256;
@@ -7349,7 +7349,7 @@ public static class GeneratedUI_traderuifixed
         img_256.type = (Image.Type)0;
 
 
-        // ?? Button: "BuyRow" ??
+        // -- Button: "BuyRow" --
         var go_257 = new GameObject("BuyRow");
         go_257.transform.SetParent(svContent_154.transform, false);
         _nodes[257] = go_257;
@@ -7400,7 +7400,7 @@ public static class GeneratedUI_traderuifixed
         le_257.preferredHeight = 32.4f;
         le_257.flexibleHeight = 0f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_258 = new GameObject("Label");
         go_258.transform.SetParent(go_257.transform, false);
         _nodes[258] = go_258;
@@ -7419,7 +7419,7 @@ public static class GeneratedUI_traderuifixed
 
 
 
-        // ?? ScrollView: "AmountSoldBought" ??
+        // -- ScrollView: "AmountSoldBought" --
         var go_259 = new GameObject("AmountSoldBought");
         go_259.transform.SetParent(go_1.transform, false);
         _nodes[259] = go_259;
@@ -7464,7 +7464,7 @@ public static class GeneratedUI_traderuifixed
         scrollRect_259.scrollSensitivity = 54f;
         scrollRect_259.elasticity = 0.1f;
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_260 = new GameObject("AmountRow");
         go_260.transform.SetParent(svContent_259.transform, false);
         _nodes[260] = go_260;
@@ -7536,7 +7536,7 @@ public static class GeneratedUI_traderuifixed
         le_260.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_263 = new GameObject("AmountRow");
         go_263.transform.SetParent(svContent_259.transform, false);
         _nodes[263] = go_263;
@@ -7608,7 +7608,7 @@ public static class GeneratedUI_traderuifixed
         le_263.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_266 = new GameObject("AmountRow");
         go_266.transform.SetParent(svContent_259.transform, false);
         _nodes[266] = go_266;
@@ -7680,7 +7680,7 @@ public static class GeneratedUI_traderuifixed
         le_266.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_269 = new GameObject("AmountRow");
         go_269.transform.SetParent(svContent_259.transform, false);
         _nodes[269] = go_269;
@@ -7752,7 +7752,7 @@ public static class GeneratedUI_traderuifixed
         le_269.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_272 = new GameObject("AmountRow");
         go_272.transform.SetParent(svContent_259.transform, false);
         _nodes[272] = go_272;
@@ -7824,7 +7824,7 @@ public static class GeneratedUI_traderuifixed
         le_272.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_275 = new GameObject("AmountRow");
         go_275.transform.SetParent(svContent_259.transform, false);
         _nodes[275] = go_275;
@@ -7896,7 +7896,7 @@ public static class GeneratedUI_traderuifixed
         le_275.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_278 = new GameObject("AmountRow");
         go_278.transform.SetParent(svContent_259.transform, false);
         _nodes[278] = go_278;
@@ -7968,7 +7968,7 @@ public static class GeneratedUI_traderuifixed
         le_278.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_281 = new GameObject("AmountRow");
         go_281.transform.SetParent(svContent_259.transform, false);
         _nodes[281] = go_281;
@@ -8040,7 +8040,7 @@ public static class GeneratedUI_traderuifixed
         le_281.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_284 = new GameObject("AmountRow");
         go_284.transform.SetParent(svContent_259.transform, false);
         _nodes[284] = go_284;
@@ -8112,7 +8112,7 @@ public static class GeneratedUI_traderuifixed
         le_284.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_287 = new GameObject("AmountRow");
         go_287.transform.SetParent(svContent_259.transform, false);
         _nodes[287] = go_287;
@@ -8184,7 +8184,7 @@ public static class GeneratedUI_traderuifixed
         le_287.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_290 = new GameObject("AmountRow");
         go_290.transform.SetParent(svContent_259.transform, false);
         _nodes[290] = go_290;
@@ -8256,7 +8256,7 @@ public static class GeneratedUI_traderuifixed
         le_290.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_293 = new GameObject("AmountRow");
         go_293.transform.SetParent(svContent_259.transform, false);
         _nodes[293] = go_293;
@@ -8328,7 +8328,7 @@ public static class GeneratedUI_traderuifixed
         le_293.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_296 = new GameObject("AmountRow");
         go_296.transform.SetParent(svContent_259.transform, false);
         _nodes[296] = go_296;
@@ -8400,7 +8400,7 @@ public static class GeneratedUI_traderuifixed
         le_296.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_299 = new GameObject("AmountRow");
         go_299.transform.SetParent(svContent_259.transform, false);
         _nodes[299] = go_299;
@@ -8472,7 +8472,7 @@ public static class GeneratedUI_traderuifixed
         le_299.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_302 = new GameObject("AmountRow");
         go_302.transform.SetParent(svContent_259.transform, false);
         _nodes[302] = go_302;
@@ -8544,7 +8544,7 @@ public static class GeneratedUI_traderuifixed
         le_302.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_305 = new GameObject("AmountRow");
         go_305.transform.SetParent(svContent_259.transform, false);
         _nodes[305] = go_305;
@@ -8616,7 +8616,7 @@ public static class GeneratedUI_traderuifixed
         le_305.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_308 = new GameObject("AmountRow");
         go_308.transform.SetParent(svContent_259.transform, false);
         _nodes[308] = go_308;
@@ -8688,7 +8688,7 @@ public static class GeneratedUI_traderuifixed
         le_308.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_311 = new GameObject("AmountRow");
         go_311.transform.SetParent(svContent_259.transform, false);
         _nodes[311] = go_311;
@@ -8760,7 +8760,7 @@ public static class GeneratedUI_traderuifixed
         le_311.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_314 = new GameObject("AmountRow");
         go_314.transform.SetParent(svContent_259.transform, false);
         _nodes[314] = go_314;
@@ -8832,7 +8832,7 @@ public static class GeneratedUI_traderuifixed
         le_314.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_317 = new GameObject("AmountRow");
         go_317.transform.SetParent(svContent_259.transform, false);
         _nodes[317] = go_317;
@@ -8904,7 +8904,7 @@ public static class GeneratedUI_traderuifixed
         le_317.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_320 = new GameObject("AmountRow");
         go_320.transform.SetParent(svContent_259.transform, false);
         _nodes[320] = go_320;
@@ -8976,7 +8976,7 @@ public static class GeneratedUI_traderuifixed
         le_320.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_323 = new GameObject("AmountRow");
         go_323.transform.SetParent(svContent_259.transform, false);
         _nodes[323] = go_323;
@@ -9048,7 +9048,7 @@ public static class GeneratedUI_traderuifixed
         le_323.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_326 = new GameObject("AmountRow");
         go_326.transform.SetParent(svContent_259.transform, false);
         _nodes[326] = go_326;
@@ -9120,7 +9120,7 @@ public static class GeneratedUI_traderuifixed
         le_326.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_329 = new GameObject("AmountRow");
         go_329.transform.SetParent(svContent_259.transform, false);
         _nodes[329] = go_329;
@@ -9192,7 +9192,7 @@ public static class GeneratedUI_traderuifixed
         le_329.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_332 = new GameObject("AmountRow");
         go_332.transform.SetParent(svContent_259.transform, false);
         _nodes[332] = go_332;
@@ -9264,7 +9264,7 @@ public static class GeneratedUI_traderuifixed
         le_332.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_335 = new GameObject("AmountRow");
         go_335.transform.SetParent(svContent_259.transform, false);
         _nodes[335] = go_335;
@@ -9336,7 +9336,7 @@ public static class GeneratedUI_traderuifixed
         le_335.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_338 = new GameObject("AmountRow");
         go_338.transform.SetParent(svContent_259.transform, false);
         _nodes[338] = go_338;
@@ -9408,7 +9408,7 @@ public static class GeneratedUI_traderuifixed
         le_338.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_341 = new GameObject("AmountRow");
         go_341.transform.SetParent(svContent_259.transform, false);
         _nodes[341] = go_341;
@@ -9480,7 +9480,7 @@ public static class GeneratedUI_traderuifixed
         le_341.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_344 = new GameObject("AmountRow");
         go_344.transform.SetParent(svContent_259.transform, false);
         _nodes[344] = go_344;
@@ -9552,7 +9552,7 @@ public static class GeneratedUI_traderuifixed
         le_344.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_347 = new GameObject("AmountRow");
         go_347.transform.SetParent(svContent_259.transform, false);
         _nodes[347] = go_347;
@@ -9624,7 +9624,7 @@ public static class GeneratedUI_traderuifixed
         le_347.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_350 = new GameObject("AmountRow");
         go_350.transform.SetParent(svContent_259.transform, false);
         _nodes[350] = go_350;
@@ -9696,7 +9696,7 @@ public static class GeneratedUI_traderuifixed
         le_350.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_353 = new GameObject("AmountRow");
         go_353.transform.SetParent(svContent_259.transform, false);
         _nodes[353] = go_353;
@@ -9768,7 +9768,7 @@ public static class GeneratedUI_traderuifixed
         le_353.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_356 = new GameObject("AmountRow");
         go_356.transform.SetParent(svContent_259.transform, false);
         _nodes[356] = go_356;
@@ -9840,7 +9840,7 @@ public static class GeneratedUI_traderuifixed
         le_356.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_359 = new GameObject("AmountRow");
         go_359.transform.SetParent(svContent_259.transform, false);
         _nodes[359] = go_359;
@@ -9912,7 +9912,7 @@ public static class GeneratedUI_traderuifixed
         le_359.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_362 = new GameObject("AmountRow");
         go_362.transform.SetParent(svContent_259.transform, false);
         _nodes[362] = go_362;
@@ -9984,7 +9984,7 @@ public static class GeneratedUI_traderuifixed
         le_362.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_365 = new GameObject("AmountRow");
         go_365.transform.SetParent(svContent_259.transform, false);
         _nodes[365] = go_365;
@@ -10056,7 +10056,7 @@ public static class GeneratedUI_traderuifixed
         le_365.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_368 = new GameObject("AmountRow");
         go_368.transform.SetParent(svContent_259.transform, false);
         _nodes[368] = go_368;
@@ -10128,7 +10128,7 @@ public static class GeneratedUI_traderuifixed
         le_368.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_371 = new GameObject("AmountRow");
         go_371.transform.SetParent(svContent_259.transform, false);
         _nodes[371] = go_371;
@@ -10200,7 +10200,7 @@ public static class GeneratedUI_traderuifixed
         le_371.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_374 = new GameObject("AmountRow");
         go_374.transform.SetParent(svContent_259.transform, false);
         _nodes[374] = go_374;
@@ -10272,7 +10272,7 @@ public static class GeneratedUI_traderuifixed
         le_374.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_377 = new GameObject("AmountRow");
         go_377.transform.SetParent(svContent_259.transform, false);
         _nodes[377] = go_377;
@@ -10344,7 +10344,7 @@ public static class GeneratedUI_traderuifixed
         le_377.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_380 = new GameObject("AmountRow");
         go_380.transform.SetParent(svContent_259.transform, false);
         _nodes[380] = go_380;
@@ -10416,7 +10416,7 @@ public static class GeneratedUI_traderuifixed
         le_380.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_383 = new GameObject("AmountRow");
         go_383.transform.SetParent(svContent_259.transform, false);
         _nodes[383] = go_383;
@@ -10488,7 +10488,7 @@ public static class GeneratedUI_traderuifixed
         le_383.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_386 = new GameObject("AmountRow");
         go_386.transform.SetParent(svContent_259.transform, false);
         _nodes[386] = go_386;
@@ -10560,7 +10560,7 @@ public static class GeneratedUI_traderuifixed
         le_386.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_389 = new GameObject("AmountRow");
         go_389.transform.SetParent(svContent_259.transform, false);
         _nodes[389] = go_389;
@@ -10632,7 +10632,7 @@ public static class GeneratedUI_traderuifixed
         le_389.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_392 = new GameObject("AmountRow");
         go_392.transform.SetParent(svContent_259.transform, false);
         _nodes[392] = go_392;
@@ -10704,7 +10704,7 @@ public static class GeneratedUI_traderuifixed
         le_392.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_395 = new GameObject("AmountRow");
         go_395.transform.SetParent(svContent_259.transform, false);
         _nodes[395] = go_395;
@@ -10776,7 +10776,7 @@ public static class GeneratedUI_traderuifixed
         le_395.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_398 = new GameObject("AmountRow");
         go_398.transform.SetParent(svContent_259.transform, false);
         _nodes[398] = go_398;
@@ -10848,7 +10848,7 @@ public static class GeneratedUI_traderuifixed
         le_398.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_401 = new GameObject("AmountRow");
         go_401.transform.SetParent(svContent_259.transform, false);
         _nodes[401] = go_401;
@@ -10920,7 +10920,7 @@ public static class GeneratedUI_traderuifixed
         le_401.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_404 = new GameObject("AmountRow");
         go_404.transform.SetParent(svContent_259.transform, false);
         _nodes[404] = go_404;
@@ -10992,7 +10992,7 @@ public static class GeneratedUI_traderuifixed
         le_404.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_407 = new GameObject("AmountRow");
         go_407.transform.SetParent(svContent_259.transform, false);
         _nodes[407] = go_407;
@@ -11064,7 +11064,7 @@ public static class GeneratedUI_traderuifixed
         le_407.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_410 = new GameObject("AmountRow");
         go_410.transform.SetParent(svContent_259.transform, false);
         _nodes[410] = go_410;
@@ -11136,7 +11136,7 @@ public static class GeneratedUI_traderuifixed
         le_410.flexibleHeight = 0f;
 
 
-        // ?? InputField: "AmountRow" ??
+        // -- InputField: "AmountRow" --
         var go_413 = new GameObject("AmountRow");
         go_413.transform.SetParent(svContent_259.transform, false);
         _nodes[413] = go_413;
@@ -11209,7 +11209,7 @@ public static class GeneratedUI_traderuifixed
 
 
 
-        // ?? ScrollView: "SellPrice" ??
+        // -- ScrollView: "SellPrice" --
         var go_416 = new GameObject("SellPrice");
         go_416.transform.SetParent(go_1.transform, false);
         _nodes[416] = go_416;
@@ -11254,7 +11254,7 @@ public static class GeneratedUI_traderuifixed
         scrollRect_416.scrollSensitivity = 54f;
         scrollRect_416.elasticity = 0.1f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_417 = new GameObject("TextRow");
         go_417.transform.SetParent(svContent_416.transform, false);
         _nodes[417] = go_417;
@@ -11281,7 +11281,7 @@ public static class GeneratedUI_traderuifixed
         le_417.preferredHeight = 32.4f;
         le_417.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_418 = new GameObject("TextRow");
         go_418.transform.SetParent(svContent_416.transform, false);
         _nodes[418] = go_418;
@@ -11308,7 +11308,7 @@ public static class GeneratedUI_traderuifixed
         le_418.preferredHeight = 32.4f;
         le_418.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_419 = new GameObject("TextRow");
         go_419.transform.SetParent(svContent_416.transform, false);
         _nodes[419] = go_419;
@@ -11335,7 +11335,7 @@ public static class GeneratedUI_traderuifixed
         le_419.preferredHeight = 32.4f;
         le_419.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_420 = new GameObject("TextRow");
         go_420.transform.SetParent(svContent_416.transform, false);
         _nodes[420] = go_420;
@@ -11362,7 +11362,7 @@ public static class GeneratedUI_traderuifixed
         le_420.preferredHeight = 32.4f;
         le_420.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_421 = new GameObject("TextRow");
         go_421.transform.SetParent(svContent_416.transform, false);
         _nodes[421] = go_421;
@@ -11389,7 +11389,7 @@ public static class GeneratedUI_traderuifixed
         le_421.preferredHeight = 32.4f;
         le_421.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_422 = new GameObject("TextRow");
         go_422.transform.SetParent(svContent_416.transform, false);
         _nodes[422] = go_422;
@@ -11416,7 +11416,7 @@ public static class GeneratedUI_traderuifixed
         le_422.preferredHeight = 32.4f;
         le_422.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_423 = new GameObject("TextRow");
         go_423.transform.SetParent(svContent_416.transform, false);
         _nodes[423] = go_423;
@@ -11443,7 +11443,7 @@ public static class GeneratedUI_traderuifixed
         le_423.preferredHeight = 32.4f;
         le_423.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_424 = new GameObject("TextRow");
         go_424.transform.SetParent(svContent_416.transform, false);
         _nodes[424] = go_424;
@@ -11470,7 +11470,7 @@ public static class GeneratedUI_traderuifixed
         le_424.preferredHeight = 32.4f;
         le_424.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_425 = new GameObject("TextRow");
         go_425.transform.SetParent(svContent_416.transform, false);
         _nodes[425] = go_425;
@@ -11497,7 +11497,7 @@ public static class GeneratedUI_traderuifixed
         le_425.preferredHeight = 32.4f;
         le_425.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_426 = new GameObject("TextRow");
         go_426.transform.SetParent(svContent_416.transform, false);
         _nodes[426] = go_426;
@@ -11524,7 +11524,7 @@ public static class GeneratedUI_traderuifixed
         le_426.preferredHeight = 32.4f;
         le_426.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_427 = new GameObject("TextRow");
         go_427.transform.SetParent(svContent_416.transform, false);
         _nodes[427] = go_427;
@@ -11551,7 +11551,7 @@ public static class GeneratedUI_traderuifixed
         le_427.preferredHeight = 32.4f;
         le_427.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_428 = new GameObject("TextRow");
         go_428.transform.SetParent(svContent_416.transform, false);
         _nodes[428] = go_428;
@@ -11578,7 +11578,7 @@ public static class GeneratedUI_traderuifixed
         le_428.preferredHeight = 32.4f;
         le_428.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_429 = new GameObject("TextRow");
         go_429.transform.SetParent(svContent_416.transform, false);
         _nodes[429] = go_429;
@@ -11605,7 +11605,7 @@ public static class GeneratedUI_traderuifixed
         le_429.preferredHeight = 32.4f;
         le_429.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_430 = new GameObject("TextRow");
         go_430.transform.SetParent(svContent_416.transform, false);
         _nodes[430] = go_430;
@@ -11632,7 +11632,7 @@ public static class GeneratedUI_traderuifixed
         le_430.preferredHeight = 32.4f;
         le_430.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_431 = new GameObject("TextRow");
         go_431.transform.SetParent(svContent_416.transform, false);
         _nodes[431] = go_431;
@@ -11659,7 +11659,7 @@ public static class GeneratedUI_traderuifixed
         le_431.preferredHeight = 32.4f;
         le_431.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_432 = new GameObject("TextRow");
         go_432.transform.SetParent(svContent_416.transform, false);
         _nodes[432] = go_432;
@@ -11686,7 +11686,7 @@ public static class GeneratedUI_traderuifixed
         le_432.preferredHeight = 32.4f;
         le_432.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_433 = new GameObject("TextRow");
         go_433.transform.SetParent(svContent_416.transform, false);
         _nodes[433] = go_433;
@@ -11713,7 +11713,7 @@ public static class GeneratedUI_traderuifixed
         le_433.preferredHeight = 32.4f;
         le_433.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_434 = new GameObject("TextRow");
         go_434.transform.SetParent(svContent_416.transform, false);
         _nodes[434] = go_434;
@@ -11740,7 +11740,7 @@ public static class GeneratedUI_traderuifixed
         le_434.preferredHeight = 32.4f;
         le_434.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_435 = new GameObject("TextRow");
         go_435.transform.SetParent(svContent_416.transform, false);
         _nodes[435] = go_435;
@@ -11767,7 +11767,7 @@ public static class GeneratedUI_traderuifixed
         le_435.preferredHeight = 32.4f;
         le_435.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_436 = new GameObject("TextRow");
         go_436.transform.SetParent(svContent_416.transform, false);
         _nodes[436] = go_436;
@@ -11794,7 +11794,7 @@ public static class GeneratedUI_traderuifixed
         le_436.preferredHeight = 32.4f;
         le_436.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_437 = new GameObject("TextRow");
         go_437.transform.SetParent(svContent_416.transform, false);
         _nodes[437] = go_437;
@@ -11821,7 +11821,7 @@ public static class GeneratedUI_traderuifixed
         le_437.preferredHeight = 32.4f;
         le_437.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_438 = new GameObject("TextRow");
         go_438.transform.SetParent(svContent_416.transform, false);
         _nodes[438] = go_438;
@@ -11848,7 +11848,7 @@ public static class GeneratedUI_traderuifixed
         le_438.preferredHeight = 32.4f;
         le_438.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_439 = new GameObject("TextRow");
         go_439.transform.SetParent(svContent_416.transform, false);
         _nodes[439] = go_439;
@@ -11875,7 +11875,7 @@ public static class GeneratedUI_traderuifixed
         le_439.preferredHeight = 32.4f;
         le_439.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_440 = new GameObject("TextRow");
         go_440.transform.SetParent(svContent_416.transform, false);
         _nodes[440] = go_440;
@@ -11902,7 +11902,7 @@ public static class GeneratedUI_traderuifixed
         le_440.preferredHeight = 32.4f;
         le_440.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_441 = new GameObject("TextRow");
         go_441.transform.SetParent(svContent_416.transform, false);
         _nodes[441] = go_441;
@@ -11929,7 +11929,7 @@ public static class GeneratedUI_traderuifixed
         le_441.preferredHeight = 32.4f;
         le_441.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_442 = new GameObject("TextRow");
         go_442.transform.SetParent(svContent_416.transform, false);
         _nodes[442] = go_442;
@@ -11956,7 +11956,7 @@ public static class GeneratedUI_traderuifixed
         le_442.preferredHeight = 32.4f;
         le_442.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_443 = new GameObject("TextRow");
         go_443.transform.SetParent(svContent_416.transform, false);
         _nodes[443] = go_443;
@@ -11983,7 +11983,7 @@ public static class GeneratedUI_traderuifixed
         le_443.preferredHeight = 32.4f;
         le_443.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_444 = new GameObject("TextRow");
         go_444.transform.SetParent(svContent_416.transform, false);
         _nodes[444] = go_444;
@@ -12010,7 +12010,7 @@ public static class GeneratedUI_traderuifixed
         le_444.preferredHeight = 32.4f;
         le_444.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_445 = new GameObject("TextRow");
         go_445.transform.SetParent(svContent_416.transform, false);
         _nodes[445] = go_445;
@@ -12037,7 +12037,7 @@ public static class GeneratedUI_traderuifixed
         le_445.preferredHeight = 32.4f;
         le_445.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_446 = new GameObject("TextRow");
         go_446.transform.SetParent(svContent_416.transform, false);
         _nodes[446] = go_446;
@@ -12064,7 +12064,7 @@ public static class GeneratedUI_traderuifixed
         le_446.preferredHeight = 32.4f;
         le_446.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_447 = new GameObject("TextRow");
         go_447.transform.SetParent(svContent_416.transform, false);
         _nodes[447] = go_447;
@@ -12091,7 +12091,7 @@ public static class GeneratedUI_traderuifixed
         le_447.preferredHeight = 32.4f;
         le_447.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_448 = new GameObject("TextRow");
         go_448.transform.SetParent(svContent_416.transform, false);
         _nodes[448] = go_448;
@@ -12118,7 +12118,7 @@ public static class GeneratedUI_traderuifixed
         le_448.preferredHeight = 32.4f;
         le_448.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_449 = new GameObject("TextRow");
         go_449.transform.SetParent(svContent_416.transform, false);
         _nodes[449] = go_449;
@@ -12145,7 +12145,7 @@ public static class GeneratedUI_traderuifixed
         le_449.preferredHeight = 32.4f;
         le_449.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_450 = new GameObject("TextRow");
         go_450.transform.SetParent(svContent_416.transform, false);
         _nodes[450] = go_450;
@@ -12172,7 +12172,7 @@ public static class GeneratedUI_traderuifixed
         le_450.preferredHeight = 32.4f;
         le_450.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_451 = new GameObject("TextRow");
         go_451.transform.SetParent(svContent_416.transform, false);
         _nodes[451] = go_451;
@@ -12199,7 +12199,7 @@ public static class GeneratedUI_traderuifixed
         le_451.preferredHeight = 32.4f;
         le_451.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_452 = new GameObject("TextRow");
         go_452.transform.SetParent(svContent_416.transform, false);
         _nodes[452] = go_452;
@@ -12226,7 +12226,7 @@ public static class GeneratedUI_traderuifixed
         le_452.preferredHeight = 32.4f;
         le_452.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_453 = new GameObject("TextRow");
         go_453.transform.SetParent(svContent_416.transform, false);
         _nodes[453] = go_453;
@@ -12253,7 +12253,7 @@ public static class GeneratedUI_traderuifixed
         le_453.preferredHeight = 32.4f;
         le_453.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_454 = new GameObject("TextRow");
         go_454.transform.SetParent(svContent_416.transform, false);
         _nodes[454] = go_454;
@@ -12280,7 +12280,7 @@ public static class GeneratedUI_traderuifixed
         le_454.preferredHeight = 32.4f;
         le_454.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_455 = new GameObject("TextRow");
         go_455.transform.SetParent(svContent_416.transform, false);
         _nodes[455] = go_455;
@@ -12307,7 +12307,7 @@ public static class GeneratedUI_traderuifixed
         le_455.preferredHeight = 32.4f;
         le_455.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_456 = new GameObject("TextRow");
         go_456.transform.SetParent(svContent_416.transform, false);
         _nodes[456] = go_456;
@@ -12334,7 +12334,7 @@ public static class GeneratedUI_traderuifixed
         le_456.preferredHeight = 32.4f;
         le_456.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_457 = new GameObject("TextRow");
         go_457.transform.SetParent(svContent_416.transform, false);
         _nodes[457] = go_457;
@@ -12361,7 +12361,7 @@ public static class GeneratedUI_traderuifixed
         le_457.preferredHeight = 32.4f;
         le_457.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_458 = new GameObject("TextRow");
         go_458.transform.SetParent(svContent_416.transform, false);
         _nodes[458] = go_458;
@@ -12388,7 +12388,7 @@ public static class GeneratedUI_traderuifixed
         le_458.preferredHeight = 32.4f;
         le_458.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_459 = new GameObject("TextRow");
         go_459.transform.SetParent(svContent_416.transform, false);
         _nodes[459] = go_459;
@@ -12415,7 +12415,7 @@ public static class GeneratedUI_traderuifixed
         le_459.preferredHeight = 32.4f;
         le_459.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_460 = new GameObject("TextRow");
         go_460.transform.SetParent(svContent_416.transform, false);
         _nodes[460] = go_460;
@@ -12442,7 +12442,7 @@ public static class GeneratedUI_traderuifixed
         le_460.preferredHeight = 32.4f;
         le_460.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_461 = new GameObject("TextRow");
         go_461.transform.SetParent(svContent_416.transform, false);
         _nodes[461] = go_461;
@@ -12469,7 +12469,7 @@ public static class GeneratedUI_traderuifixed
         le_461.preferredHeight = 32.4f;
         le_461.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_462 = new GameObject("TextRow");
         go_462.transform.SetParent(svContent_416.transform, false);
         _nodes[462] = go_462;
@@ -12496,7 +12496,7 @@ public static class GeneratedUI_traderuifixed
         le_462.preferredHeight = 32.4f;
         le_462.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_463 = new GameObject("TextRow");
         go_463.transform.SetParent(svContent_416.transform, false);
         _nodes[463] = go_463;
@@ -12523,7 +12523,7 @@ public static class GeneratedUI_traderuifixed
         le_463.preferredHeight = 32.4f;
         le_463.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_464 = new GameObject("TextRow");
         go_464.transform.SetParent(svContent_416.transform, false);
         _nodes[464] = go_464;
@@ -12550,7 +12550,7 @@ public static class GeneratedUI_traderuifixed
         le_464.preferredHeight = 32.4f;
         le_464.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_465 = new GameObject("TextRow");
         go_465.transform.SetParent(svContent_416.transform, false);
         _nodes[465] = go_465;
@@ -12577,7 +12577,7 @@ public static class GeneratedUI_traderuifixed
         le_465.preferredHeight = 32.4f;
         le_465.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_466 = new GameObject("TextRow");
         go_466.transform.SetParent(svContent_416.transform, false);
         _nodes[466] = go_466;
@@ -12604,7 +12604,7 @@ public static class GeneratedUI_traderuifixed
         le_466.preferredHeight = 32.4f;
         le_466.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_467 = new GameObject("TextRow");
         go_467.transform.SetParent(svContent_416.transform, false);
         _nodes[467] = go_467;
@@ -12631,7 +12631,7 @@ public static class GeneratedUI_traderuifixed
         le_467.preferredHeight = 32.4f;
         le_467.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_468 = new GameObject("TextRow");
         go_468.transform.SetParent(svContent_416.transform, false);
         _nodes[468] = go_468;
@@ -12659,7 +12659,7 @@ public static class GeneratedUI_traderuifixed
         le_468.flexibleHeight = 0f;
 
 
-        // ?? ScrollView: "TotalStock" ??
+        // -- ScrollView: "TotalStock" --
         var go_469 = new GameObject("TotalStock");
         go_469.transform.SetParent(go_1.transform, false);
         _nodes[469] = go_469;
@@ -12704,7 +12704,7 @@ public static class GeneratedUI_traderuifixed
         scrollRect_469.scrollSensitivity = 54f;
         scrollRect_469.elasticity = 0.1f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_470 = new GameObject("TextRow");
         go_470.transform.SetParent(svContent_469.transform, false);
         _nodes[470] = go_470;
@@ -12731,7 +12731,7 @@ public static class GeneratedUI_traderuifixed
         le_470.preferredHeight = 32.4f;
         le_470.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_471 = new GameObject("TextRow");
         go_471.transform.SetParent(svContent_469.transform, false);
         _nodes[471] = go_471;
@@ -12758,7 +12758,7 @@ public static class GeneratedUI_traderuifixed
         le_471.preferredHeight = 32.4f;
         le_471.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_472 = new GameObject("TextRow");
         go_472.transform.SetParent(svContent_469.transform, false);
         _nodes[472] = go_472;
@@ -12785,7 +12785,7 @@ public static class GeneratedUI_traderuifixed
         le_472.preferredHeight = 32.4f;
         le_472.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_473 = new GameObject("TextRow");
         go_473.transform.SetParent(svContent_469.transform, false);
         _nodes[473] = go_473;
@@ -12812,7 +12812,7 @@ public static class GeneratedUI_traderuifixed
         le_473.preferredHeight = 32.4f;
         le_473.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_474 = new GameObject("TextRow");
         go_474.transform.SetParent(svContent_469.transform, false);
         _nodes[474] = go_474;
@@ -12839,7 +12839,7 @@ public static class GeneratedUI_traderuifixed
         le_474.preferredHeight = 32.4f;
         le_474.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_475 = new GameObject("TextRow");
         go_475.transform.SetParent(svContent_469.transform, false);
         _nodes[475] = go_475;
@@ -12866,7 +12866,7 @@ public static class GeneratedUI_traderuifixed
         le_475.preferredHeight = 32.4f;
         le_475.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_476 = new GameObject("TextRow");
         go_476.transform.SetParent(svContent_469.transform, false);
         _nodes[476] = go_476;
@@ -12893,7 +12893,7 @@ public static class GeneratedUI_traderuifixed
         le_476.preferredHeight = 32.4f;
         le_476.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_477 = new GameObject("TextRow");
         go_477.transform.SetParent(svContent_469.transform, false);
         _nodes[477] = go_477;
@@ -12920,7 +12920,7 @@ public static class GeneratedUI_traderuifixed
         le_477.preferredHeight = 32.4f;
         le_477.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_478 = new GameObject("TextRow");
         go_478.transform.SetParent(svContent_469.transform, false);
         _nodes[478] = go_478;
@@ -12947,7 +12947,7 @@ public static class GeneratedUI_traderuifixed
         le_478.preferredHeight = 32.4f;
         le_478.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_479 = new GameObject("TextRow");
         go_479.transform.SetParent(svContent_469.transform, false);
         _nodes[479] = go_479;
@@ -12974,7 +12974,7 @@ public static class GeneratedUI_traderuifixed
         le_479.preferredHeight = 32.4f;
         le_479.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_480 = new GameObject("TextRow");
         go_480.transform.SetParent(svContent_469.transform, false);
         _nodes[480] = go_480;
@@ -13001,7 +13001,7 @@ public static class GeneratedUI_traderuifixed
         le_480.preferredHeight = 32.4f;
         le_480.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_481 = new GameObject("TextRow");
         go_481.transform.SetParent(svContent_469.transform, false);
         _nodes[481] = go_481;
@@ -13028,7 +13028,7 @@ public static class GeneratedUI_traderuifixed
         le_481.preferredHeight = 32.4f;
         le_481.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_482 = new GameObject("TextRow");
         go_482.transform.SetParent(svContent_469.transform, false);
         _nodes[482] = go_482;
@@ -13055,7 +13055,7 @@ public static class GeneratedUI_traderuifixed
         le_482.preferredHeight = 32.4f;
         le_482.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_483 = new GameObject("TextRow");
         go_483.transform.SetParent(svContent_469.transform, false);
         _nodes[483] = go_483;
@@ -13082,7 +13082,7 @@ public static class GeneratedUI_traderuifixed
         le_483.preferredHeight = 32.4f;
         le_483.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_484 = new GameObject("TextRow");
         go_484.transform.SetParent(svContent_469.transform, false);
         _nodes[484] = go_484;
@@ -13109,7 +13109,7 @@ public static class GeneratedUI_traderuifixed
         le_484.preferredHeight = 32.4f;
         le_484.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_485 = new GameObject("TextRow");
         go_485.transform.SetParent(svContent_469.transform, false);
         _nodes[485] = go_485;
@@ -13136,7 +13136,7 @@ public static class GeneratedUI_traderuifixed
         le_485.preferredHeight = 32.4f;
         le_485.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_486 = new GameObject("TextRow");
         go_486.transform.SetParent(svContent_469.transform, false);
         _nodes[486] = go_486;
@@ -13163,7 +13163,7 @@ public static class GeneratedUI_traderuifixed
         le_486.preferredHeight = 32.4f;
         le_486.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_487 = new GameObject("TextRow");
         go_487.transform.SetParent(svContent_469.transform, false);
         _nodes[487] = go_487;
@@ -13190,7 +13190,7 @@ public static class GeneratedUI_traderuifixed
         le_487.preferredHeight = 32.4f;
         le_487.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_488 = new GameObject("TextRow");
         go_488.transform.SetParent(svContent_469.transform, false);
         _nodes[488] = go_488;
@@ -13217,7 +13217,7 @@ public static class GeneratedUI_traderuifixed
         le_488.preferredHeight = 32.4f;
         le_488.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_489 = new GameObject("TextRow");
         go_489.transform.SetParent(svContent_469.transform, false);
         _nodes[489] = go_489;
@@ -13244,7 +13244,7 @@ public static class GeneratedUI_traderuifixed
         le_489.preferredHeight = 32.4f;
         le_489.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_490 = new GameObject("TextRow");
         go_490.transform.SetParent(svContent_469.transform, false);
         _nodes[490] = go_490;
@@ -13271,7 +13271,7 @@ public static class GeneratedUI_traderuifixed
         le_490.preferredHeight = 32.4f;
         le_490.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_491 = new GameObject("TextRow");
         go_491.transform.SetParent(svContent_469.transform, false);
         _nodes[491] = go_491;
@@ -13298,7 +13298,7 @@ public static class GeneratedUI_traderuifixed
         le_491.preferredHeight = 32.4f;
         le_491.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_492 = new GameObject("TextRow");
         go_492.transform.SetParent(svContent_469.transform, false);
         _nodes[492] = go_492;
@@ -13325,7 +13325,7 @@ public static class GeneratedUI_traderuifixed
         le_492.preferredHeight = 32.4f;
         le_492.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_493 = new GameObject("TextRow");
         go_493.transform.SetParent(svContent_469.transform, false);
         _nodes[493] = go_493;
@@ -13352,7 +13352,7 @@ public static class GeneratedUI_traderuifixed
         le_493.preferredHeight = 32.4f;
         le_493.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_494 = new GameObject("TextRow");
         go_494.transform.SetParent(svContent_469.transform, false);
         _nodes[494] = go_494;
@@ -13379,7 +13379,7 @@ public static class GeneratedUI_traderuifixed
         le_494.preferredHeight = 32.4f;
         le_494.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_495 = new GameObject("TextRow");
         go_495.transform.SetParent(svContent_469.transform, false);
         _nodes[495] = go_495;
@@ -13406,7 +13406,7 @@ public static class GeneratedUI_traderuifixed
         le_495.preferredHeight = 32.4f;
         le_495.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_496 = new GameObject("TextRow");
         go_496.transform.SetParent(svContent_469.transform, false);
         _nodes[496] = go_496;
@@ -13433,7 +13433,7 @@ public static class GeneratedUI_traderuifixed
         le_496.preferredHeight = 32.4f;
         le_496.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_497 = new GameObject("TextRow");
         go_497.transform.SetParent(svContent_469.transform, false);
         _nodes[497] = go_497;
@@ -13460,7 +13460,7 @@ public static class GeneratedUI_traderuifixed
         le_497.preferredHeight = 32.4f;
         le_497.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_498 = new GameObject("TextRow");
         go_498.transform.SetParent(svContent_469.transform, false);
         _nodes[498] = go_498;
@@ -13487,7 +13487,7 @@ public static class GeneratedUI_traderuifixed
         le_498.preferredHeight = 32.4f;
         le_498.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_499 = new GameObject("TextRow");
         go_499.transform.SetParent(svContent_469.transform, false);
         _nodes[499] = go_499;
@@ -13514,7 +13514,7 @@ public static class GeneratedUI_traderuifixed
         le_499.preferredHeight = 32.4f;
         le_499.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_500 = new GameObject("TextRow");
         go_500.transform.SetParent(svContent_469.transform, false);
         _nodes[500] = go_500;
@@ -13541,7 +13541,7 @@ public static class GeneratedUI_traderuifixed
         le_500.preferredHeight = 32.4f;
         le_500.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_501 = new GameObject("TextRow");
         go_501.transform.SetParent(svContent_469.transform, false);
         _nodes[501] = go_501;
@@ -13568,7 +13568,7 @@ public static class GeneratedUI_traderuifixed
         le_501.preferredHeight = 32.4f;
         le_501.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_502 = new GameObject("TextRow");
         go_502.transform.SetParent(svContent_469.transform, false);
         _nodes[502] = go_502;
@@ -13595,7 +13595,7 @@ public static class GeneratedUI_traderuifixed
         le_502.preferredHeight = 32.4f;
         le_502.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_503 = new GameObject("TextRow");
         go_503.transform.SetParent(svContent_469.transform, false);
         _nodes[503] = go_503;
@@ -13622,7 +13622,7 @@ public static class GeneratedUI_traderuifixed
         le_503.preferredHeight = 32.4f;
         le_503.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_504 = new GameObject("TextRow");
         go_504.transform.SetParent(svContent_469.transform, false);
         _nodes[504] = go_504;
@@ -13649,7 +13649,7 @@ public static class GeneratedUI_traderuifixed
         le_504.preferredHeight = 32.4f;
         le_504.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_505 = new GameObject("TextRow");
         go_505.transform.SetParent(svContent_469.transform, false);
         _nodes[505] = go_505;
@@ -13676,7 +13676,7 @@ public static class GeneratedUI_traderuifixed
         le_505.preferredHeight = 32.4f;
         le_505.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_506 = new GameObject("TextRow");
         go_506.transform.SetParent(svContent_469.transform, false);
         _nodes[506] = go_506;
@@ -13703,7 +13703,7 @@ public static class GeneratedUI_traderuifixed
         le_506.preferredHeight = 32.4f;
         le_506.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_507 = new GameObject("TextRow");
         go_507.transform.SetParent(svContent_469.transform, false);
         _nodes[507] = go_507;
@@ -13730,7 +13730,7 @@ public static class GeneratedUI_traderuifixed
         le_507.preferredHeight = 32.4f;
         le_507.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_508 = new GameObject("TextRow");
         go_508.transform.SetParent(svContent_469.transform, false);
         _nodes[508] = go_508;
@@ -13757,7 +13757,7 @@ public static class GeneratedUI_traderuifixed
         le_508.preferredHeight = 32.4f;
         le_508.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_509 = new GameObject("TextRow");
         go_509.transform.SetParent(svContent_469.transform, false);
         _nodes[509] = go_509;
@@ -13784,7 +13784,7 @@ public static class GeneratedUI_traderuifixed
         le_509.preferredHeight = 32.4f;
         le_509.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_510 = new GameObject("TextRow");
         go_510.transform.SetParent(svContent_469.transform, false);
         _nodes[510] = go_510;
@@ -13811,7 +13811,7 @@ public static class GeneratedUI_traderuifixed
         le_510.preferredHeight = 32.4f;
         le_510.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_511 = new GameObject("TextRow");
         go_511.transform.SetParent(svContent_469.transform, false);
         _nodes[511] = go_511;
@@ -13838,7 +13838,7 @@ public static class GeneratedUI_traderuifixed
         le_511.preferredHeight = 32.4f;
         le_511.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_512 = new GameObject("TextRow");
         go_512.transform.SetParent(svContent_469.transform, false);
         _nodes[512] = go_512;
@@ -13865,7 +13865,7 @@ public static class GeneratedUI_traderuifixed
         le_512.preferredHeight = 32.4f;
         le_512.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_513 = new GameObject("TextRow");
         go_513.transform.SetParent(svContent_469.transform, false);
         _nodes[513] = go_513;
@@ -13892,7 +13892,7 @@ public static class GeneratedUI_traderuifixed
         le_513.preferredHeight = 32.4f;
         le_513.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_514 = new GameObject("TextRow");
         go_514.transform.SetParent(svContent_469.transform, false);
         _nodes[514] = go_514;
@@ -13919,7 +13919,7 @@ public static class GeneratedUI_traderuifixed
         le_514.preferredHeight = 32.4f;
         le_514.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_515 = new GameObject("TextRow");
         go_515.transform.SetParent(svContent_469.transform, false);
         _nodes[515] = go_515;
@@ -13946,7 +13946,7 @@ public static class GeneratedUI_traderuifixed
         le_515.preferredHeight = 32.4f;
         le_515.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_516 = new GameObject("TextRow");
         go_516.transform.SetParent(svContent_469.transform, false);
         _nodes[516] = go_516;
@@ -13973,7 +13973,7 @@ public static class GeneratedUI_traderuifixed
         le_516.preferredHeight = 32.4f;
         le_516.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_517 = new GameObject("TextRow");
         go_517.transform.SetParent(svContent_469.transform, false);
         _nodes[517] = go_517;
@@ -14000,7 +14000,7 @@ public static class GeneratedUI_traderuifixed
         le_517.preferredHeight = 32.4f;
         le_517.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_518 = new GameObject("TextRow");
         go_518.transform.SetParent(svContent_469.transform, false);
         _nodes[518] = go_518;
@@ -14027,7 +14027,7 @@ public static class GeneratedUI_traderuifixed
         le_518.preferredHeight = 32.4f;
         le_518.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_519 = new GameObject("TextRow");
         go_519.transform.SetParent(svContent_469.transform, false);
         _nodes[519] = go_519;
@@ -14054,7 +14054,7 @@ public static class GeneratedUI_traderuifixed
         le_519.preferredHeight = 32.4f;
         le_519.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_520 = new GameObject("TextRow");
         go_520.transform.SetParent(svContent_469.transform, false);
         _nodes[520] = go_520;
@@ -14081,7 +14081,7 @@ public static class GeneratedUI_traderuifixed
         le_520.preferredHeight = 32.4f;
         le_520.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_521 = new GameObject("TextRow");
         go_521.transform.SetParent(svContent_469.transform, false);
         _nodes[521] = go_521;
@@ -14109,7 +14109,7 @@ public static class GeneratedUI_traderuifixed
         le_521.flexibleHeight = 0f;
 
 
-        // ?? ScrollView: "RestockTime" ??
+        // -- ScrollView: "RestockTime" --
         var go_522 = new GameObject("RestockTime");
         go_522.transform.SetParent(go_1.transform, false);
         _nodes[522] = go_522;
@@ -14154,7 +14154,7 @@ public static class GeneratedUI_traderuifixed
         scrollRect_522.scrollSensitivity = 54f;
         scrollRect_522.elasticity = 0.1f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_523 = new GameObject("TextRow");
         go_523.transform.SetParent(svContent_522.transform, false);
         _nodes[523] = go_523;
@@ -14181,7 +14181,7 @@ public static class GeneratedUI_traderuifixed
         le_523.preferredHeight = 32.4f;
         le_523.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_524 = new GameObject("TextRow");
         go_524.transform.SetParent(svContent_522.transform, false);
         _nodes[524] = go_524;
@@ -14208,7 +14208,7 @@ public static class GeneratedUI_traderuifixed
         le_524.preferredHeight = 32.4f;
         le_524.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_525 = new GameObject("TextRow");
         go_525.transform.SetParent(svContent_522.transform, false);
         _nodes[525] = go_525;
@@ -14235,7 +14235,7 @@ public static class GeneratedUI_traderuifixed
         le_525.preferredHeight = 32.4f;
         le_525.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_526 = new GameObject("TextRow");
         go_526.transform.SetParent(svContent_522.transform, false);
         _nodes[526] = go_526;
@@ -14262,7 +14262,7 @@ public static class GeneratedUI_traderuifixed
         le_526.preferredHeight = 32.4f;
         le_526.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_527 = new GameObject("TextRow");
         go_527.transform.SetParent(svContent_522.transform, false);
         _nodes[527] = go_527;
@@ -14289,7 +14289,7 @@ public static class GeneratedUI_traderuifixed
         le_527.preferredHeight = 32.4f;
         le_527.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_528 = new GameObject("TextRow");
         go_528.transform.SetParent(svContent_522.transform, false);
         _nodes[528] = go_528;
@@ -14316,7 +14316,7 @@ public static class GeneratedUI_traderuifixed
         le_528.preferredHeight = 32.4f;
         le_528.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_529 = new GameObject("TextRow");
         go_529.transform.SetParent(svContent_522.transform, false);
         _nodes[529] = go_529;
@@ -14343,7 +14343,7 @@ public static class GeneratedUI_traderuifixed
         le_529.preferredHeight = 32.4f;
         le_529.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_530 = new GameObject("TextRow");
         go_530.transform.SetParent(svContent_522.transform, false);
         _nodes[530] = go_530;
@@ -14370,7 +14370,7 @@ public static class GeneratedUI_traderuifixed
         le_530.preferredHeight = 32.4f;
         le_530.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_531 = new GameObject("TextRow");
         go_531.transform.SetParent(svContent_522.transform, false);
         _nodes[531] = go_531;
@@ -14397,7 +14397,7 @@ public static class GeneratedUI_traderuifixed
         le_531.preferredHeight = 32.4f;
         le_531.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_532 = new GameObject("TextRow");
         go_532.transform.SetParent(svContent_522.transform, false);
         _nodes[532] = go_532;
@@ -14424,7 +14424,7 @@ public static class GeneratedUI_traderuifixed
         le_532.preferredHeight = 32.4f;
         le_532.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_533 = new GameObject("TextRow");
         go_533.transform.SetParent(svContent_522.transform, false);
         _nodes[533] = go_533;
@@ -14451,7 +14451,7 @@ public static class GeneratedUI_traderuifixed
         le_533.preferredHeight = 32.4f;
         le_533.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_534 = new GameObject("TextRow");
         go_534.transform.SetParent(svContent_522.transform, false);
         _nodes[534] = go_534;
@@ -14478,7 +14478,7 @@ public static class GeneratedUI_traderuifixed
         le_534.preferredHeight = 32.4f;
         le_534.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_535 = new GameObject("TextRow");
         go_535.transform.SetParent(svContent_522.transform, false);
         _nodes[535] = go_535;
@@ -14505,7 +14505,7 @@ public static class GeneratedUI_traderuifixed
         le_535.preferredHeight = 32.4f;
         le_535.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_536 = new GameObject("TextRow");
         go_536.transform.SetParent(svContent_522.transform, false);
         _nodes[536] = go_536;
@@ -14532,7 +14532,7 @@ public static class GeneratedUI_traderuifixed
         le_536.preferredHeight = 32.4f;
         le_536.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_537 = new GameObject("TextRow");
         go_537.transform.SetParent(svContent_522.transform, false);
         _nodes[537] = go_537;
@@ -14559,7 +14559,7 @@ public static class GeneratedUI_traderuifixed
         le_537.preferredHeight = 32.4f;
         le_537.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_538 = new GameObject("TextRow");
         go_538.transform.SetParent(svContent_522.transform, false);
         _nodes[538] = go_538;
@@ -14586,7 +14586,7 @@ public static class GeneratedUI_traderuifixed
         le_538.preferredHeight = 32.4f;
         le_538.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_539 = new GameObject("TextRow");
         go_539.transform.SetParent(svContent_522.transform, false);
         _nodes[539] = go_539;
@@ -14613,7 +14613,7 @@ public static class GeneratedUI_traderuifixed
         le_539.preferredHeight = 32.4f;
         le_539.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_540 = new GameObject("TextRow");
         go_540.transform.SetParent(svContent_522.transform, false);
         _nodes[540] = go_540;
@@ -14640,7 +14640,7 @@ public static class GeneratedUI_traderuifixed
         le_540.preferredHeight = 32.4f;
         le_540.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_541 = new GameObject("TextRow");
         go_541.transform.SetParent(svContent_522.transform, false);
         _nodes[541] = go_541;
@@ -14667,7 +14667,7 @@ public static class GeneratedUI_traderuifixed
         le_541.preferredHeight = 32.4f;
         le_541.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_542 = new GameObject("TextRow");
         go_542.transform.SetParent(svContent_522.transform, false);
         _nodes[542] = go_542;
@@ -14694,7 +14694,7 @@ public static class GeneratedUI_traderuifixed
         le_542.preferredHeight = 32.4f;
         le_542.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_543 = new GameObject("TextRow");
         go_543.transform.SetParent(svContent_522.transform, false);
         _nodes[543] = go_543;
@@ -14721,7 +14721,7 @@ public static class GeneratedUI_traderuifixed
         le_543.preferredHeight = 32.4f;
         le_543.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_544 = new GameObject("TextRow");
         go_544.transform.SetParent(svContent_522.transform, false);
         _nodes[544] = go_544;
@@ -14748,7 +14748,7 @@ public static class GeneratedUI_traderuifixed
         le_544.preferredHeight = 32.4f;
         le_544.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_545 = new GameObject("TextRow");
         go_545.transform.SetParent(svContent_522.transform, false);
         _nodes[545] = go_545;
@@ -14775,7 +14775,7 @@ public static class GeneratedUI_traderuifixed
         le_545.preferredHeight = 32.4f;
         le_545.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_546 = new GameObject("TextRow");
         go_546.transform.SetParent(svContent_522.transform, false);
         _nodes[546] = go_546;
@@ -14802,7 +14802,7 @@ public static class GeneratedUI_traderuifixed
         le_546.preferredHeight = 32.4f;
         le_546.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_547 = new GameObject("TextRow");
         go_547.transform.SetParent(svContent_522.transform, false);
         _nodes[547] = go_547;
@@ -14829,7 +14829,7 @@ public static class GeneratedUI_traderuifixed
         le_547.preferredHeight = 32.4f;
         le_547.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_548 = new GameObject("TextRow");
         go_548.transform.SetParent(svContent_522.transform, false);
         _nodes[548] = go_548;
@@ -14856,7 +14856,7 @@ public static class GeneratedUI_traderuifixed
         le_548.preferredHeight = 32.4f;
         le_548.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_549 = new GameObject("TextRow");
         go_549.transform.SetParent(svContent_522.transform, false);
         _nodes[549] = go_549;
@@ -14883,7 +14883,7 @@ public static class GeneratedUI_traderuifixed
         le_549.preferredHeight = 32.4f;
         le_549.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_550 = new GameObject("TextRow");
         go_550.transform.SetParent(svContent_522.transform, false);
         _nodes[550] = go_550;
@@ -14910,7 +14910,7 @@ public static class GeneratedUI_traderuifixed
         le_550.preferredHeight = 32.4f;
         le_550.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_551 = new GameObject("TextRow");
         go_551.transform.SetParent(svContent_522.transform, false);
         _nodes[551] = go_551;
@@ -14937,7 +14937,7 @@ public static class GeneratedUI_traderuifixed
         le_551.preferredHeight = 32.4f;
         le_551.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_552 = new GameObject("TextRow");
         go_552.transform.SetParent(svContent_522.transform, false);
         _nodes[552] = go_552;
@@ -14964,7 +14964,7 @@ public static class GeneratedUI_traderuifixed
         le_552.preferredHeight = 32.4f;
         le_552.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_553 = new GameObject("TextRow");
         go_553.transform.SetParent(svContent_522.transform, false);
         _nodes[553] = go_553;
@@ -14991,7 +14991,7 @@ public static class GeneratedUI_traderuifixed
         le_553.preferredHeight = 32.4f;
         le_553.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_554 = new GameObject("TextRow");
         go_554.transform.SetParent(svContent_522.transform, false);
         _nodes[554] = go_554;
@@ -15018,7 +15018,7 @@ public static class GeneratedUI_traderuifixed
         le_554.preferredHeight = 32.4f;
         le_554.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_555 = new GameObject("TextRow");
         go_555.transform.SetParent(svContent_522.transform, false);
         _nodes[555] = go_555;
@@ -15045,7 +15045,7 @@ public static class GeneratedUI_traderuifixed
         le_555.preferredHeight = 32.4f;
         le_555.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_556 = new GameObject("TextRow");
         go_556.transform.SetParent(svContent_522.transform, false);
         _nodes[556] = go_556;
@@ -15072,7 +15072,7 @@ public static class GeneratedUI_traderuifixed
         le_556.preferredHeight = 32.4f;
         le_556.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_557 = new GameObject("TextRow");
         go_557.transform.SetParent(svContent_522.transform, false);
         _nodes[557] = go_557;
@@ -15099,7 +15099,7 @@ public static class GeneratedUI_traderuifixed
         le_557.preferredHeight = 32.4f;
         le_557.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_558 = new GameObject("TextRow");
         go_558.transform.SetParent(svContent_522.transform, false);
         _nodes[558] = go_558;
@@ -15126,7 +15126,7 @@ public static class GeneratedUI_traderuifixed
         le_558.preferredHeight = 32.4f;
         le_558.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_559 = new GameObject("TextRow");
         go_559.transform.SetParent(svContent_522.transform, false);
         _nodes[559] = go_559;
@@ -15153,7 +15153,7 @@ public static class GeneratedUI_traderuifixed
         le_559.preferredHeight = 32.4f;
         le_559.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_560 = new GameObject("TextRow");
         go_560.transform.SetParent(svContent_522.transform, false);
         _nodes[560] = go_560;
@@ -15180,7 +15180,7 @@ public static class GeneratedUI_traderuifixed
         le_560.preferredHeight = 32.4f;
         le_560.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_561 = new GameObject("TextRow");
         go_561.transform.SetParent(svContent_522.transform, false);
         _nodes[561] = go_561;
@@ -15207,7 +15207,7 @@ public static class GeneratedUI_traderuifixed
         le_561.preferredHeight = 32.4f;
         le_561.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_562 = new GameObject("TextRow");
         go_562.transform.SetParent(svContent_522.transform, false);
         _nodes[562] = go_562;
@@ -15234,7 +15234,7 @@ public static class GeneratedUI_traderuifixed
         le_562.preferredHeight = 32.4f;
         le_562.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_563 = new GameObject("TextRow");
         go_563.transform.SetParent(svContent_522.transform, false);
         _nodes[563] = go_563;
@@ -15261,7 +15261,7 @@ public static class GeneratedUI_traderuifixed
         le_563.preferredHeight = 32.4f;
         le_563.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_564 = new GameObject("TextRow");
         go_564.transform.SetParent(svContent_522.transform, false);
         _nodes[564] = go_564;
@@ -15288,7 +15288,7 @@ public static class GeneratedUI_traderuifixed
         le_564.preferredHeight = 32.4f;
         le_564.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_565 = new GameObject("TextRow");
         go_565.transform.SetParent(svContent_522.transform, false);
         _nodes[565] = go_565;
@@ -15315,7 +15315,7 @@ public static class GeneratedUI_traderuifixed
         le_565.preferredHeight = 32.4f;
         le_565.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_566 = new GameObject("TextRow");
         go_566.transform.SetParent(svContent_522.transform, false);
         _nodes[566] = go_566;
@@ -15342,7 +15342,7 @@ public static class GeneratedUI_traderuifixed
         le_566.preferredHeight = 32.4f;
         le_566.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_567 = new GameObject("TextRow");
         go_567.transform.SetParent(svContent_522.transform, false);
         _nodes[567] = go_567;
@@ -15369,7 +15369,7 @@ public static class GeneratedUI_traderuifixed
         le_567.preferredHeight = 32.4f;
         le_567.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_568 = new GameObject("TextRow");
         go_568.transform.SetParent(svContent_522.transform, false);
         _nodes[568] = go_568;
@@ -15396,7 +15396,7 @@ public static class GeneratedUI_traderuifixed
         le_568.preferredHeight = 32.4f;
         le_568.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_569 = new GameObject("TextRow");
         go_569.transform.SetParent(svContent_522.transform, false);
         _nodes[569] = go_569;
@@ -15423,7 +15423,7 @@ public static class GeneratedUI_traderuifixed
         le_569.preferredHeight = 32.4f;
         le_569.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_570 = new GameObject("TextRow");
         go_570.transform.SetParent(svContent_522.transform, false);
         _nodes[570] = go_570;
@@ -15450,7 +15450,7 @@ public static class GeneratedUI_traderuifixed
         le_570.preferredHeight = 32.4f;
         le_570.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_571 = new GameObject("TextRow");
         go_571.transform.SetParent(svContent_522.transform, false);
         _nodes[571] = go_571;
@@ -15477,7 +15477,7 @@ public static class GeneratedUI_traderuifixed
         le_571.preferredHeight = 32.4f;
         le_571.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_572 = new GameObject("TextRow");
         go_572.transform.SetParent(svContent_522.transform, false);
         _nodes[572] = go_572;
@@ -15504,7 +15504,7 @@ public static class GeneratedUI_traderuifixed
         le_572.preferredHeight = 32.4f;
         le_572.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_573 = new GameObject("TextRow");
         go_573.transform.SetParent(svContent_522.transform, false);
         _nodes[573] = go_573;
@@ -15531,7 +15531,7 @@ public static class GeneratedUI_traderuifixed
         le_573.preferredHeight = 32.4f;
         le_573.flexibleHeight = 0f;
 
-        // ?? Text: "TextRow" ??
+        // -- Text: "TextRow" --
         var go_574 = new GameObject("TextRow");
         go_574.transform.SetParent(svContent_522.transform, false);
         _nodes[574] = go_574;

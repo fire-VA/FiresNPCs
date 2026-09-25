@@ -97,6 +97,10 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static void RPC_BankReq(long senderId, ZPackage pkg)
         {
             if (!IsServer || pkg == null) return;
+            // Guarantee the shared Core vault is configured before ANY balance read/write. If a server-init step
+            // threw before VaultOfKnowledge configured it, every Open() would throw and deposits would vanish;
+            // this idempotent ensure closes that window (no-op once configured).
+            global::FiresRPGmaker.Modules.Vault.VaultOfKnowledge.EnsureVaultConfigured();
             try
             {
                 long playerId    = pkg.ReadLong();
@@ -143,7 +147,15 @@ namespace FiresRPGmaker.Modules.Marketplace
             int room = Mathf.Max(0, limit - current);
             int banked = Mathf.Min(amount, room);
             int refund = amount - banked;
-            if (banked > 0) BankRepository.Deposit(ownerId, hash, banked);
+            if (banked > 0 && !BankRepository.Deposit(ownerId, hash, banked))
+            {
+                // Storage write failed (BankRepository logged why + the vault config state). Refund the WHOLE
+                // amount so the coins the client already consumed come back instead of vanishing; balance
+                // stays as it was. This is the safety net that makes a deposit transactional from the player's
+                // point of view even when the server-side persist is broken.
+                ReplyOne(senderId, currency, current, deposited: 0, withdrawn: 0, refunded: amount);
+                return;
+            }
             ReplyOne(senderId, currency, current + banked, deposited: banked, withdrawn: 0, refunded: refund);
         }
 
@@ -278,9 +290,10 @@ namespace FiresRPGmaker.Modules.Marketplace
                 }
 
                 string status =
-                    withdrawn > 0 ? $"Withdrew {withdrawn} {cur}." :
-                    refunded  > 0 ? $"Deposited {deposited} {cur} — bank full, refunded {refunded}." :
-                    deposited > 0 ? $"Deposited {deposited} {cur}." : "";
+                    withdrawn > 0                 ? $"Withdrew {withdrawn} {cur}." :
+                    deposited > 0 && refunded > 0 ? $"Deposited {deposited} {cur}; bank full, refunded {refunded}." :
+                    refunded  > 0                 ? $"Couldn't bank {cur} — refunded {refunded}." :
+                    deposited > 0                 ? $"Deposited {deposited} {cur}." : "";
                 OnResult?.Invoke(status);
             }
             catch (Exception ex) { Debug.LogWarning($"{LogPrefix} RPC_BankRes error: {ex.Message}"); }
@@ -292,7 +305,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             var pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
             var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
             if (drop != null && inv.CanAddItem(drop.m_itemData, amount))
-                inv.AddItem(prefab, amount, 1, 0, 0L, "");
+                inv.AddItem(prefab, amount, 1, 0, 0L, "", false);
             else if (drop != null)
                 ItemDrop.DropItem(drop.m_itemData, amount, player.transform.position + player.transform.forward, Quaternion.identity);
         }

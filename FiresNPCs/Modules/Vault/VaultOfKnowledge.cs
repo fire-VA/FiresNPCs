@@ -35,6 +35,26 @@ namespace FiresRPGmaker.Modules.Vault
             return name.Length == 0 ? "default" : name;
         }
 
+        // Idempotent, Instance-independent vault configuration. Called from Init AND from every server-side
+        // economy handler entry (banker / mail / marketplace) so a missing or THROWN VaultOfKnowledge.Init
+        // can never leave the shared Core vault unconfigured — which otherwise makes every DB-backed op throw
+        // inside VaultDatabase.Open() and silently read back as a zero balance (the vanishing-deposit bug).
+        // No-op off-server or before the world name is available (the next economy op retries).
+        public static void EnsureVaultConfigured()
+        {
+            if (FiresCore.Storage.VaultDatabase.IsConfigured) return;
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            string world = ZNet.instance.GetWorldName();
+            if (string.IsNullOrEmpty(world)) return;
+            try
+            {
+                string path = Path.Combine(FiresCore.Storage.FiresConfigPaths.Worlds, SanitizeWorldName(world), "vault.db");
+                FiresCore.Storage.VaultDatabase.Configure(path);
+                FiresLogger.LogInfo($"[FiresRPGmaker] VaultDatabase configured (per-world): {path}");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] EnsureVaultConfigured failed: {ex.Message}"); }
+        }
+
         public ServerVaultData serverData = new();
 
         // pending requests from peers (key = peerUid, value = (requested playerId, requested playerName))
@@ -54,7 +74,7 @@ namespace FiresRPGmaker.Modules.Vault
             if (Instance != null) return;
             Instance = new VaultOfKnowledge();
 
-            // Log PlayerFileStorage version (verbose-only ï¿½ only useful for debugging DLL loading issues)
+            // Log PlayerFileStorage version (verbose-only - only useful for debugging DLL loading issues)
             if (FiresLogger.VerboseEnabled)
             {
                 try
@@ -71,22 +91,20 @@ namespace FiresRPGmaker.Modules.Vault
             // server.json holds server-authoritative state and is profile-global; only the
             // server may load it. A client loading it would carry one server's timers/global
             // state onto another on a shared r2modman profile. Clients get pushed state via RPC.
+            // Guarded: a corrupt/locked server.json must NOT abort Init — everything below (vault config,
+            // RPC registration, quest/dialogue init in the caller coroutine) depends on Init running to
+            // completion. An unguarded throw here was a path to a silently unconfigured vault.
             if (ZNet.instance != null && ZNet.instance.IsServer())
-                Instance.LoadServerData();
+            {
+                try { Instance.LoadServerData(); }
+                catch (Exception ex) { Debug.LogError($"[FiresRPGmaker] LoadServerData failed (continuing init): {ex.Message}"); }
+            }
 
             // Configure the shared Core LiteDB vault (per-world) on the server so PlayerIdentity capture and
-            // the leaderboard repository actually persist. Server-only — clients receive board snapshots via RPC,
-            // they never open the DB. Nothing else in the family configured it, so without this every Core repo
-            // op no-ops on its IsConfigured guard.
-            if (ZNet.instance != null && ZNet.instance.IsServer() && !FiresCore.Storage.VaultDatabase.IsConfigured)
-            {
-                try
-                {
-                    FiresCore.Storage.VaultDatabase.Configure(Instance.VaultDbPath);
-                    FiresLogger.LogVerbose($"[FiresRPGmaker] VaultDatabase configured (per-world): {FiresCore.Storage.VaultDatabase.DatabasePath}");
-                }
-                catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] VaultDatabase.Configure failed: {ex.Message}"); }
-            }
+            // the leaderboard/banker/mail repositories actually persist. Server-only — clients receive snapshots
+            // via RPC, they never open the DB. This is now the same idempotent path the economy RPC handlers
+            // call defensively, so configuration can't be lost if an earlier server-init step throws.
+            EnsureVaultConfigured();
 
             EnsureRpcsRegistered();
 
@@ -280,7 +298,7 @@ namespace FiresRPGmaker.Modules.Vault
 
         // Safe wrapper for invoking routed RPCs to avoid NullReferenceExceptions when ZRoutedRpc.instance is not available.
         // Delegates to SafeRoutedRpc so every Vault RPC is also size-gated
-        // (<= 480 KB per-message ceiling) ? an oversized ZPackage is now refused and logged
+        // (<= 480 KB per-message ceiling) - an oversized ZPackage is now refused and logged
         // instead of crashing Steam's 512 KB per-message cap.
         public static void SafeInvokeRoutedRPC(long target, string method, ZPackage pkg)
         {
@@ -1098,8 +1116,8 @@ namespace FiresRPGmaker.Modules.Vault
         // SanitizeFileName: produce a path-safe representation of a real player
         // name. Returns NULL for empty / whitespace / sanitization-collapses-to-
         // empty input, so callers can early-out instead of producing an
-        // "Unknown_*" filename. The legacy behavior â€” returning the literal
-        // string "Unknown" as a fallback â€” was the root of the recurring
+        // "Unknown_*" filename. The legacy behavior - returning the literal
+        // string "Unknown" as a fallback - was the root of the recurring
         // "Unknown_<id>.json saves rejected downstream" warning class; that
         // fallback is intentionally gone. Per the save-method contract: we
         // write a real player's file, or we write nothing.
@@ -1118,7 +1136,7 @@ namespace FiresRPGmaker.Modules.Vault
 
         // GetPlayerFileName: returns the path-safe save filename for a player,
         // or NULL if the supplied name doesn't resolve to a real value. NULL
-        // is the canonical "do not save" signal â€” every caller must check and
+        // is the canonical "do not save" signal - every caller must check and
         // abort the save rather than substituting a placeholder.
         private string GetPlayerFileName(long playerId, string playerName)
         {
@@ -1132,7 +1150,7 @@ namespace FiresRPGmaker.Modules.Vault
         // TryResolvePlayerNameById: best-effort resolution of a player's real
         // display name from their player ID. Mirrors the resolver pattern used
         // elsewhere in the mod (see GuildSyncManager.ResolvePlayerName) but
-        // omits the synthetic "Player_<id>" fallback â€” for save-path use we
+        // omits the synthetic "Player_<id>" fallback - for save-path use we
         // want a definitive yes-or-no answer, not a placeholder. Returns null
         // when no real name is reachable from the current process state, which
         // is the signal to callers that we cannot safely write a file for this
@@ -1144,7 +1162,7 @@ namespace FiresRPGmaker.Modules.Vault
         //
         // Both sources return real display names set by the player. Neither
         // exists in scope of this method while the player is genuinely offline
-        // and not in the local scene â€” exactly the case where no JSON file
+        // and not in the local scene - exactly the case where no JSON file
         // should be created.
         // A name is "unresolved" (must NOT become a save filename) when it's blank, the "Unknown" placeholder
         // in ANY shape (Unknown, Unknown_<id>, Unknown-<id>, "Unknown 123"), the vanilla mid-load "..." name,
@@ -1232,7 +1250,7 @@ namespace FiresRPGmaker.Modules.Vault
         /// <summary>
         /// Public wrapper around the on-disk loader.  Used by external callers
         /// (e.g. <c>Player_OnSpawned_ServerUpdateVault</c>) that need to read
-        /// the canonical disk copy of a player's vault data ï¿½ typically to
+        /// the canonical disk copy of a player's vault data - typically to
         /// preserve fields like <c>Companions</c> that are deliberately
         /// excluded from <see cref="DeserializeFromCustomData"/>.  Returns
         /// <c>null</c> if no file exists for that player ID.
@@ -1250,7 +1268,7 @@ namespace FiresRPGmaker.Modules.Vault
         //
         // CALLERS: anything that wants the canonical "give me this player's
         // data, materialising a default if needed" semantics. SAVE-PATH
-        // SAFEGUARDS MUST NOT CALL THIS ï¿½ see ReadPlayerDataFromDiskNoCreate
+        // SAFEGUARDS MUST NOT CALL THIS - see ReadPlayerDataFromDiskNoCreate
         // below for the recursion-safe variant.
         private PlayerVaultData LoadPlayerData(long playerId)
         {
@@ -1259,7 +1277,7 @@ namespace FiresRPGmaker.Modules.Vault
 
             // No file on disk. Before we write a "sample" record for this
             // player, resolve their real display name. Without a real name we
-            // would be writing "Unknown_<id>.json" â€” exactly the case the save
+            // would be writing "Unknown_<id>.json" - exactly the case the save
             // method contract forbids: we save a real player's file, or we
             // write nothing.
             //
@@ -1269,7 +1287,7 @@ namespace FiresRPGmaker.Modules.Vault
             // which is the correct outcome. The mutation stays in process
             // memory until either (a) the player joins and a real save flow
             // creates their file with a resolved name, or (b) the process
-            // exits and the delta is discarded â€” preferable to writing a
+            // exits and the delta is discarded - preferable to writing a
             // phantom file to disk for someone we can't identify.
             var newData = new PlayerVaultData(playerId);
 
@@ -1307,7 +1325,7 @@ namespace FiresRPGmaker.Modules.Vault
         /// CRITICAL: this is the variant that must be used by any
         /// <see cref="SavePlayerData"/> / <see cref="SavePlayerDataFromZDO"/>
         /// companion-wipe safeguard. Those safeguards are "what's already on
-        /// disk so I don't overwrite it?" ï¿½ they must not trigger
+        /// disk so I don't overwrite it?" - they must not trigger
         /// <see cref="LoadPlayerData"/>'s "create sample on miss" branch
         /// because that branch calls <see cref="SavePlayerData"/> recursively
         /// to write the sample. On a brand-new world (no save file yet) the
@@ -1322,17 +1340,17 @@ namespace FiresRPGmaker.Modules.Vault
         ///                                        //  reached its File.Write
         ///                                        //  yet) -> create sample
         ///             SavePlayerData(p, newer)
-        ///               ï¿½
+        ///               ...
         /// 
-        /// Unbounded recursion ? StackOverflowException. The CLR cannot
+        /// Unbounded recursion -> StackOverflowException. The CLR cannot
         /// catch <see cref="StackOverflowException"/> via managed try/catch,
         /// so the process terminates instantly with no managed exception
-        /// and no log entry ï¿½ exactly the symptom that surfaced as the
+        /// and no log entry - exactly the symptom that surfaced as the
         /// fresh-world hard-crash on listen-server hosts.
         /// 
         /// The safeguards have been switched to call THIS method instead,
         /// breaking the recursion. They retain identical functional intent
-        /// ï¿½ they just no-op the "create sample" side effect, which the
+        /// - they just no-op the "create sample" side effect, which the
         /// outer SavePlayerData call is about to do anyway.
         /// </summary>
         private PlayerVaultData ReadPlayerDataFromDiskNoCreate(long playerId)
@@ -1439,7 +1457,7 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     // No customData payload yet (player has joined but the ZDO
                     // hasn't seeded vault state). Resolve the player's real
-                    // name from the runtime â€” first directly from the live
+                    // name from the runtime - first directly from the live
                     // Player object, then from the broader runtime resolver
                     // (online peer list, in-scene Player roster). If neither
                     // yields a real name, this player isn't identifiable to
@@ -1455,7 +1473,7 @@ namespace FiresRPGmaker.Modules.Vault
                     {
                         if (FiresLogger.VerboseEnabled)
                             FiresLogger.LogVerbose(
-                                $"SavePlayerDataFromZDO: player {playerId} has no resolved name (no customData, no runtime Player name, no peer match) â€” skipping save.");
+                                $"SavePlayerDataFromZDO: player {playerId} has no resolved name (no customData, no runtime Player name, no peer match) - skipping save.");
                         return;
                     }
 
@@ -1493,7 +1511,7 @@ namespace FiresRPGmaker.Modules.Vault
                     {
                         if (FiresLogger.VerboseEnabled)
                             FiresLogger.LogVerbose(
-                                $"SavePlayerDataFromZDO: player {playerId} has no resolvable PlayerName (customData had '{data.PlayerName}') â€” skipping save.");
+                                $"SavePlayerDataFromZDO: player {playerId} has no resolvable PlayerName (customData had '{data.PlayerName}') - skipping save.");
                         return;
                     }
                     data.PlayerName = reResolved;
@@ -1506,8 +1524,8 @@ namespace FiresRPGmaker.Modules.Vault
                 // RECURSION-SAFE READ: must call ReadPlayerDataFromDiskNoCreate,
                 // not LoadPlayerData. LoadPlayerData on a no-file miss recurses
                 // back into SavePlayerData to write a sample, which on a
-                // brand-new world produces unbounded recursion ? unhandlable
-                // StackOverflowException ? instant native process death.
+                // brand-new world produces unbounded recursion -> unhandlable
+                // StackOverflowException -> instant native process death.
                 try
                 {
                     var diskData = ReadPlayerDataFromDiskNoCreate(playerId);
@@ -1527,14 +1545,14 @@ namespace FiresRPGmaker.Modules.Vault
                 Directory.CreateDirectory(PlayersDir);
 
                 // Defense in depth: name was validated above, but if it sanitizes
-                // to empty (all-invalid chars) GetPlayerFileName returns null â€”
+                // to empty (all-invalid chars) GetPlayerFileName returns null -
                 // we don't write rather than fall through to a placeholder.
                 string playerFileName = GetPlayerFileName(playerId, data.PlayerName);
                 if (playerFileName == null)
                 {
                     if (FiresLogger.VerboseEnabled)
                         FiresLogger.LogVerbose(
-                            $"SavePlayerDataFromZDO: player {playerId} PlayerName '{data.PlayerName}' sanitized to empty â€” skipping save.");
+                            $"SavePlayerDataFromZDO: player {playerId} PlayerName '{data.PlayerName}' sanitized to empty - skipping save.");
                     return;
                 }
                 string file = Path.Combine(PlayersDir, playerFileName);
@@ -1733,6 +1751,9 @@ namespace FiresRPGmaker.Modules.Vault
                 bool anyChange = false;
                 for (int i = data.ActiveQuests.Count - 1; i >= 0; i--)
                 {
+                    // kg AllowMultipleQuestsScore (default false): one kill event scores only the FIRST
+                    // matching active quest; the toggle restores every-matching-quest scoring.
+                    if (anyChange && !global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.AllowMultipleQuestScore) break;
                     var active = data.ActiveQuests[i];
                     var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
                     if (def == null || def.QuestType != "Kill") continue;
@@ -1942,8 +1963,12 @@ namespace FiresRPGmaker.Modules.Vault
                 if (player == null) return;
                 PlayerVaultData data = null;
 
+                bool eventScored = false;
                 foreach (var active in ActiveQuestStore.Active.ToList())
                 {
+                    // kg AllowMultipleQuestsScore (default false): one harvest/craft/build/talk event
+                    // scores only the FIRST matching quest unless the toggle enables multi-scoring.
+                    if (eventScored && !global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.AllowMultipleQuestScore) break;
                     var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
                     if (def?.QuestTargets == null) continue;
                     int tc = def.QuestTargets.Count;
@@ -1958,6 +1983,7 @@ namespace FiresRPGmaker.Modules.Vault
                         int cur = active.GetTargetProgress(ti, tc);
                         if (cur >= t.Amount) break;
                         int next = Math.Min(t.Amount, cur + Math.Max(1, amount));
+                        eventScored = true;
                         ActiveQuestStore.SetTargetProgress(active.QuestId, ti, next, tc);
                         Debug.Log($"[QuestPipe] Progress {active.QuestId} obj{ti} {objType}:{prefab} {cur}->{next}/{t.Amount}");
 
@@ -2670,9 +2696,9 @@ namespace FiresRPGmaker.Modules.Vault
                 FiresLogger.LogVerbose($"[FiresRPGmaker] Responded to RequestPlayerData for {playerId} to {sender}");
 
                 // NOTE: quest-files / QuestDB are NOT re-sent here. They're already pushed:
-                //   1. VaultPatches.RPC_PeerInfo (T+0) â€” eager SendAllQuestFilesToPeer +
+                //   1. VaultPatches.RPC_PeerInfo (T+0) - eager SendAllQuestFilesToPeer +
                 //      BroadcastQuestDatabaseToPeer.
-                //   2. CompanionPatches.RPC_CharacterID (after character ZDO spawns) â€”
+                //   2. CompanionPatches.RPC_CharacterID (after character ZDO spawns) -
                 //      ServerConfigFileWatcher.SendAllConfigsToClient pushes everything
                 //      (Quests/, QuestProfiles/, Dialogues/, UILayouts/, etc.).
                 // Re-pushing here would duplicate the entire config set (visible as a
@@ -2719,7 +2745,7 @@ namespace FiresRPGmaker.Modules.Vault
                     int bankItems = data.BankItems?.Count ?? 0;
                     Debug.Log($"[FiresRPGmaker] RPC_ReceivePlayerData scheduling customData write for player {data.PlayerId} (activeQuests={activeQuests}, completedQuests={completedQuests}, companions={companions}, bankItems={bankItems})");
 
-                    // Defer the write â€” server push can land while the client is mid-teleport
+                    // Defer the write - server push can land while the client is mid-teleport
                     // / mid-respawn, and writing to m_customData during engine teardown of the
                     // Player MonoBehaviour has been observed to wedge the loading screen.
                     PlayerVaultData capturedData = data;
@@ -2779,7 +2805,7 @@ namespace FiresRPGmaker.Modules.Vault
                 if (local != null && rewardCount > 0)
                 {
                     // Read all rewards out of the package synchronously (the ZPackage is single-use
-                    // and won't survive the deferred frame) â€” only the customData write is gated.
+                    // and won't survive the deferred frame) - only the customData write is gated.
                     try
                     {
                         PlayerVaultData pv = null;
@@ -2936,7 +2962,7 @@ namespace FiresRPGmaker.Modules.Vault
 
             // Contract: we save a real player's file, or we save nothing.
             // An unresolved PlayerName used to fall through to "Unknown_<id>.json"
-            // and get rejected downstream â€” that produced the recurring
+            // and get rejected downstream - that produced the recurring
             // "REJECTED: Cannot save file with Unknown_ prefix" + "SavePlayerData
             // skipped/failed" warning pair. The literal "Unknown" (legacy
             // RealmLedger default) counts as unresolved too — it sanitizes to a
@@ -2949,7 +2975,7 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     if (FiresLogger.VerboseEnabled)
                         FiresLogger.LogVerbose(
-                            $"SavePlayerData: player {playerId} has no resolvable PlayerName (had '{data.PlayerName}') â€” skipping save (caller responsibility to populate PlayerName before invoking).");
+                            $"SavePlayerData: player {playerId} has no resolvable PlayerName (had '{data.PlayerName}') - skipping save (caller responsibility to populate PlayerName before invoking).");
                     return;
                 }
                 data.PlayerName = resolved;
@@ -2965,15 +2991,15 @@ namespace FiresRPGmaker.Modules.Vault
 
             try
             {
-                // ?? COMPANION-WIPE SAFEGUARD ???????????????????????????????????
+                // -- COMPANION-WIPE SAFEGUARD -----------------------------------
                 // CRITICAL: prevent the "I had 3 companions and now I have 1"
                 // bug-class.  Most non-companion code paths build `data` via
-                //   GetPlayerData ? DeserializeFromCustomData
+                //   GetPlayerData -> DeserializeFromCustomData
                 // which by design EXCLUDES companions (see the comments on
-                // DeserializeFromCustomData around line 1212/407 ï¿½ the exclusion
+                // DeserializeFromCustomData around line 1212/407 - the exclusion
                 // is to prevent cross-server companion pollution).  Those callers
                 // then update something unrelated (a stat, a quest, a name field,
-                // etc.) and call SavePlayerData ? which used to blindly serialize
+                // etc.) and call SavePlayerData - which used to blindly serialize
                 // the now companion-less object and overwrite the GOOD on-disk
                 // copy of the player's companion list.
                 //
@@ -2990,7 +3016,7 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     try
                     {
-                        // RECURSION-SAFE READ ï¿½ see ReadPlayerDataFromDiskNoCreate
+                        // RECURSION-SAFE READ - see ReadPlayerDataFromDiskNoCreate
                         // doc-comment for why we cannot call LoadPlayerData here.
                         // Short version: LoadPlayerData on a no-file miss calls
                         // SavePlayerData to write a sample, which is exactly
@@ -3003,7 +3029,7 @@ namespace FiresRPGmaker.Modules.Vault
                         {
                             data.Companions = diskData.Companions;
                             Debug.LogWarning(
-                                $"[FiresRPGmaker] SavePlayerData: incoming data had 0 companions but disk had {diskCompanionCount} for player {playerId} ï¿½ preserved disk copy to prevent companion wipe. " +
+                                $"[FiresRPGmaker] SavePlayerData: incoming data had 0 companions but disk had {diskCompanionCount} for player {playerId} - preserved disk copy to prevent companion wipe. " +
                                 $"(This is normal when a non-companion-related code path saves player data; the safeguard correctly retained the companion list.)");
                         }
                     }
@@ -3012,7 +3038,7 @@ namespace FiresRPGmaker.Modules.Vault
                         Debug.LogWarning($"[FiresRPGmaker] SavePlayerData: companion-wipe safeguard read failed for player {playerId}: {preserveEx.Message}");
                     }
                 }
-                // ???????????????????????????????????????????????????????????????
+                // ===============================================================
 
                 // Ensure players directory exists
                 Directory.CreateDirectory(PlayersDir);
@@ -3027,7 +3053,7 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     if (FiresLogger.VerboseEnabled)
                         FiresLogger.LogVerbose(
-                            $"SavePlayerData: player {playerId} PlayerName '{data.PlayerName}' sanitized to empty â€” skipping save.");
+                            $"SavePlayerData: player {playerId} PlayerName '{data.PlayerName}' sanitized to empty - skipping save.");
                     return;
                 }
                 string filePath = Path.Combine(PlayersDir, fileName);

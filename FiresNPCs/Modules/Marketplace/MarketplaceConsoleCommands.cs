@@ -291,11 +291,11 @@ namespace FiresRPGmaker.Modules.Marketplace
             // Preview a firesbooks 3D book (default the animated opening book) rendered live to a centered panel —
             // for confirming the render/animation/orientation before wiring the book into the quest journal.
             new Terminal.ConsoleCommand("firesnpcs_bookview",
-                "- preview an animated book. no arg=toggle; <PrefabName>; 'capture'; 'set y p distMul hMul ex ey ez'. Renders to Tools/bookview/",
+                "- preview an animated book. no arg=toggle; <PrefabName>; 'capture'; 'set y p distMul hMul ex ey ez'. Renders to BepInEx/config/FiresRPGmaker/Debug/BookView/",
                 args =>
                 {
                     global::FiresRPGmaker.UI.Books.BookViewWindow.Command(args.Args);
-                    args.Context?.AddString("[firesnpcs] bookview command run — render snapshots + state written to Tools/bookview/");
+                    args.Context?.AddString("[firesnpcs] bookview command run — render snapshots + state written to BepInEx/config/FiresRPGmaker/Debug/BookView/");
                 });
         }
 

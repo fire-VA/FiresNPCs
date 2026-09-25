@@ -1,4 +1,4 @@
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 // AUTO-GENERATED UI CODE from layout: npcdialogueuitest1
 // Display Name: NPCDialogueUITest1
 // Category: Bundle
@@ -21,7 +21,7 @@
 //   FindAllByTag(tag)    — returns List<GameObject> for repeated tags (e.g. inventory slots)
 //   FindByPath(path)     — full hierarchy path (e.g. "Root/Header/TitleText")
 //   Static fields        — direct references for uniquely-tagged elements
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 
 using System;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ using UnityEngine.UI;
 // ReSharper disable InconsistentNaming
 public static class GeneratedUI_npcdialogueuitest1
 {
-    // ?? Element references ??
+    // -- Element references --
     // Populated during Instantiate(). Use these to access elements directly,
     // or use FindByTag() / FindByPath() / FindAllByTag() helpers for dynamic lookup.
     private static readonly Dictionary<string, GameObject> _tagLookup = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
@@ -53,7 +53,7 @@ public static class GeneratedUI_npcdialogueuitest1
         _pathLookup.Clear();
         _nodes = new GameObject[8];
 
-        // ?? Panel: "NPCDialogueUI_Prev" ??
+        // -- Panel: "NPCDialogueUI_Prev" --
         var go_0 = new GameObject("NPCDialogueUI_Prev");
         go_0.transform.SetParent(parent, false);
         _nodes[0] = go_0;
@@ -67,7 +67,7 @@ public static class GeneratedUI_npcdialogueuitest1
         _pathLookup["NPCDialogueUI_Prev"] = go_0;
         _tagLookup["NPCDialogueUI_Prev"] = go_0;
 
-        // ?? Divider: "GO" ??
+        // -- Divider: "GO" --
         var go_1 = new GameObject("GO");
         go_1.transform.SetParent(go_0.transform, false);
         _nodes[1] = go_1;
@@ -95,7 +95,7 @@ public static class GeneratedUI_npcdialogueuitest1
         csf_1.horizontalFit = (ContentSizeFitter.FitMode)0;
         csf_1.verticalFit = (ContentSizeFitter.FitMode)2;
 
-        // ?? Panel: "BACKGROUND" ??
+        // -- Panel: "BACKGROUND" --
         var go_2 = new GameObject("BACKGROUND");
         go_2.transform.SetParent(go_1.transform, false);
         _nodes[2] = go_2;
@@ -117,7 +117,7 @@ public static class GeneratedUI_npcdialogueuitest1
         le_2.ignoreLayout = true;
         go_2.SetActive(true);
 
-        // ?? Image: "frame" ??
+        // -- Image: "frame" --
         var go_3 = new GameObject("frame");
         go_3.transform.SetParent(go_1.transform, false);
         _nodes[3] = go_3;
@@ -141,7 +141,7 @@ public static class GeneratedUI_npcdialogueuitest1
         var le_3 = go_3.AddComponent<LayoutElement>();
         le_3.ignoreLayout = true;
 
-        // ?? Text: "NPC_Name" ??
+        // -- Text: "NPC_Name" --
         var go_4 = new GameObject("NPC_Name");
         go_4.transform.SetParent(go_1.transform, false);
         _nodes[4] = go_4;
@@ -165,7 +165,7 @@ public static class GeneratedUI_npcdialogueuitest1
         tmp_4.lineSpacing = 1f;
         tmp_4.raycastTarget = true;
 
-        // ?? Panel: "empty" ??
+        // -- Panel: "empty" --
         var go_5 = new GameObject("empty");
         go_5.transform.SetParent(go_1.transform, false);
         _nodes[5] = go_5;
@@ -182,7 +182,7 @@ public static class GeneratedUI_npcdialogueuitest1
         img_5.raycastTarget = false;
         img_5.type = (Image.Type)0;
 
-        // ?? Text: "Dialogue_Text" ??
+        // -- Text: "Dialogue_Text" --
         var go_6 = new GameObject("Dialogue_Text");
         go_6.transform.SetParent(go_1.transform, false);
         _nodes[6] = go_6;
@@ -210,7 +210,7 @@ public static class GeneratedUI_npcdialogueuitest1
         csf_6.horizontalFit = (ContentSizeFitter.FitMode)0;
         csf_6.verticalFit = (ContentSizeFitter.FitMode)2;
 
-        // ?? Panel: "empty" ??
+        // -- Panel: "empty" --
         var go_7 = new GameObject("empty");
         go_7.transform.SetParent(go_1.transform, false);
         _nodes[7] = go_7;

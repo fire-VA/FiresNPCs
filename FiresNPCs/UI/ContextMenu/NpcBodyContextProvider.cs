@@ -52,6 +52,14 @@ namespace FiresRPGmaker.UI.ContextMenu
                 items.Add(ContextMenuItem.Row($"Show patrol route ({route})", () =>
                     global::FiresCore.Npc.Patrol.PatrolRouteVisualizer.Show(route)));
 
+            items.Add(ContextMenuItem.Row(npc.mapPinned ? "Map pin: ON (click to hide)" : "Map pin: OFF (click to show)", () =>
+            {
+                npc.mapPinned = !npc.mapPinned;
+                npc.SaveToZDO();
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft,
+                    npc.mapPinned ? $"{npc.GetDisplayName()} pinned to the map (updates within ~30s)."
+                                  : $"{npc.GetDisplayName()} unpinned from the map.");
+            }));
             items.Add(ContextMenuItem.Sep());
             items.Add(ContextMenuItem.Row("Edit NPC", () => NpcBookController.ShowForNpc(npc)));
 

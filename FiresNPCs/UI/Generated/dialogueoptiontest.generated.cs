@@ -1,4 +1,4 @@
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 // AUTO-GENERATED UI CODE from layout: dialogueoptiontest
 // Display Name: Dialogue_OptionTest
 // Category: Bundle
@@ -21,7 +21,7 @@
 //   FindAllByTag(tag)    — returns List<GameObject> for repeated tags (e.g. inventory slots)
 //   FindByPath(path)     — full hierarchy path (e.g. "Root/Header/TitleText")
 //   Static fields        — direct references for uniquely-tagged elements
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 
 using System;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ using UnityEngine.UI;
 // ReSharper disable InconsistentNaming
 public static class GeneratedUI_dialogueoptiontest
 {
-    // ?? Element references ??
+    // -- Element references --
     // Populated during Instantiate(). Use these to access elements directly,
     // or use FindByTag() / FindByPath() / FindAllByTag() helpers for dynamic lookup.
     private static readonly Dictionary<string, GameObject> _tagLookup = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
@@ -53,7 +53,7 @@ public static class GeneratedUI_dialogueoptiontest
         _pathLookup.Clear();
         _nodes = new GameObject[6];
 
-        // ?? Button: "Dialogue_Option_Prev" ??
+        // -- Button: "Dialogue_Option_Prev" --
         var go_0 = new GameObject("Dialogue_Option_Prev");
         go_0.transform.SetParent(parent, false);
         _nodes[0] = go_0;
@@ -113,7 +113,7 @@ public static class GeneratedUI_dialogueoptiontest
         csf_0.horizontalFit = (ContentSizeFitter.FitMode)0;
         csf_0.verticalFit = (ContentSizeFitter.FitMode)2;
 
-        // ?? Image: "darken" ??
+        // -- Image: "darken" --
         var go_1 = new GameObject("darken");
         go_1.transform.SetParent(go_0.transform, false);
         _nodes[1] = go_1;
@@ -137,7 +137,7 @@ public static class GeneratedUI_dialogueoptiontest
         var le_1 = go_1.AddComponent<LayoutElement>();
         le_1.ignoreLayout = true;
 
-        // ?? Panel: "Indexer" ??
+        // -- Panel: "Indexer" --
         var go_2 = new GameObject("Indexer");
         go_2.transform.SetParent(go_0.transform, false);
         _nodes[2] = go_2;
@@ -161,7 +161,7 @@ public static class GeneratedUI_dialogueoptiontest
         var le_2 = go_2.AddComponent<LayoutElement>();
         le_2.ignoreLayout = true;
 
-        // ?? Text: "Text" ??
+        // -- Text: "Text" --
         var go_3 = new GameObject("Text");
         go_3.transform.SetParent(go_2.transform, false);
         _nodes[3] = go_3;
@@ -188,7 +188,7 @@ public static class GeneratedUI_dialogueoptiontest
         csf_3.verticalFit = (ContentSizeFitter.FitMode)2;
 
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_4 = new GameObject("Text");
         go_4.transform.SetParent(go_0.transform, false);
         _nodes[4] = go_4;
@@ -205,7 +205,7 @@ public static class GeneratedUI_dialogueoptiontest
         img_4.raycastTarget = true;
         img_4.type = (Image.Type)0;
 
-        // ?? Image: "Icon" ??
+        // -- Image: "Icon" --
         var go_5 = new GameObject("Icon");
         go_5.transform.SetParent(go_4.transform, false);
         _nodes[5] = go_5;

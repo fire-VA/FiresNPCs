@@ -62,6 +62,11 @@ namespace FiresRPGmaker.Managers
         /// <summary>Seconds between trader-gold restocks (refills the pool back to MaxGold). 0 = no
         /// auto-restock. Header key: <c>GoldRestock=</c>.</summary>
         public int GoldRestockSeconds { get; set; } = 0;
+
+        /// <summary>kg `[name=NeedToKnow]` flag: trades are hidden until the player KNOWS every item on
+        /// both sides (Player.m_knownMaterial by shared name — kg Trader_UI gate). Also accepted as a
+        /// bare <c>NeedToKnow</c> token in the Fires header comma list.</summary>
+        public bool NeedToKnow { get; set; }
     }
 
     /// <summary>
@@ -72,7 +77,7 @@ namespace FiresRPGmaker.Managers
     /// Legacy (4-5 values):
     ///   ItemA, AmountA, ItemB, AmountB[, LevelB]
     ///   Example: Coins, 100, SwordIron, 1, 2
-    ///   ? Give 100 Coins, receive 1 SwordIron level 2
+    ///   -> Give 100 Coins, receive 1 SwordIron level 2
     ///
     /// New multi-item (= separator):
     ///   CostItem1, Amount1[, Level1], ... = RewardItem1, Amount1[, Level1], ...
@@ -114,7 +119,7 @@ namespace FiresRPGmaker.Managers
             }
             else
             {
-                // Client also loads local files � server data overrides via ApplyServerData
+                // Client also loads local files - server data overrides via ApplyServerData
                 LoadAllProfiles();
                 Debug.Log($"[TraderProfileManager] Client loaded {_profiles.Count} local trader profiles");
             }
@@ -220,6 +225,9 @@ namespace FiresRPGmaker.Managers
                 {
                     profile.Trades.Clear();
                 }
+                // kg `[name=NeedToKnow]` — the CfgParser preserves the raw =flag on the section.
+                if (string.Equals(section.EqFlag, "NeedToKnow", StringComparison.OrdinalIgnoreCase))
+                    profile.NeedToKnow = true;
                 profileCount++;
 
                 foreach (var cfgLine in section.Lines)
@@ -286,6 +294,7 @@ namespace FiresRPGmaker.Managers
                 string header = name.Trim();
                 if (existing != null)
                 {
+                    if (existing.NeedToKnow) header += "=NeedToKnow";   // kg's flag form — round-trips both parsers
                     if (existing.DefaultStock != -1) header += $",Stock={existing.DefaultStock}";
                     if (existing.DefaultRestockSeconds != 0) header += $",Restock={existing.DefaultRestockSeconds}";
                     if (existing.MaxGold != -1) header += $",MaxGold={existing.MaxGold}";
@@ -331,19 +340,27 @@ namespace FiresRPGmaker.Managers
                     // Split on comma to separate name from optional key=value pairs
                     var headerParts = inner.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                     string profileName = headerParts[0].Trim();
-                    // Strip MP-style `=flag` suffix from the name (e.g. `[botanistbuy_mp=True]` → "botanistbuy_mp").
+                    // MP-style `=flag` suffix on the name (e.g. `[armorer=NeedToKnow]`): capture the kg
+                    // NeedToKnow flag, then strip whatever the flag was from the profile key.
+                    bool needToKnow = false;
                     int nameEq = profileName.IndexOf('=');
-                    if (nameEq >= 0) profileName = profileName.Substring(0, nameEq).Trim();
+                    if (nameEq >= 0)
+                    {
+                        needToKnow = profileName.Substring(nameEq + 1).Trim().Equals("NeedToKnow", StringComparison.OrdinalIgnoreCase);
+                        profileName = profileName.Substring(0, nameEq).Trim();
+                    }
 
                     int defaultStock = -1;
                     int defaultRestock = 0;
                     int maxGold = -1;
                     int goldRestock = 0;
 
-                    // Parse optional key=value pairs from the header
+                    // Parse optional key=value pairs from the header (a bare NeedToKnow token also counts)
                     for (int i = 1; i < headerParts.Length; i++)
                     {
-                        ParseHeaderKeyValue(headerParts[i].Trim(), ref defaultStock, ref defaultRestock, ref maxGold, ref goldRestock);
+                        string tok = headerParts[i].Trim();
+                        if (tok.Equals("NeedToKnow", StringComparison.OrdinalIgnoreCase)) { needToKnow = true; continue; }
+                        ParseHeaderKeyValue(tok, ref defaultStock, ref defaultRestock, ref maxGold, ref goldRestock);
                     }
 
                     if (_profiles.TryGetValue(profileName, out var existing))
@@ -357,6 +374,7 @@ namespace FiresRPGmaker.Managers
                         if (defaultRestock != 0) currentProfile.DefaultRestockSeconds = defaultRestock;
                         if (maxGold != -1) currentProfile.MaxGold = maxGold;
                         if (goldRestock != 0) currentProfile.GoldRestockSeconds = goldRestock;
+                        if (needToKnow) currentProfile.NeedToKnow = true;
                     }
                     else
                     {
@@ -368,6 +386,7 @@ namespace FiresRPGmaker.Managers
                             DefaultRestockSeconds = defaultRestock,
                             MaxGold = maxGold,
                             GoldRestockSeconds = goldRestock,
+                            NeedToKnow = needToKnow,
                         };
                         _profiles[profileName] = currentProfile;
                     }
@@ -458,7 +477,7 @@ namespace FiresRPGmaker.Managers
         /// Strips trailing Key=Value tokens (Stock=X, Restock=Y) from a trade line,
         /// returning the cleaned item-only portion.
         /// Example: "Coins, 100, SwordIron, 1, Stock=30, Restock=400"
-        ///   ? returns "Coins, 100, SwordIron, 1" and sets stock=30, restock=400
+        ///   -> returns "Coins, 100, SwordIron, 1" and sets stock=30, restock=400
         /// </summary>
         private static string StripEntryKeyValues(string line, ref int stock, ref int restock,
             ref bool hasStock, ref bool hasRestock)
@@ -648,7 +667,7 @@ namespace FiresRPGmaker.Managers
 # All trades default to Stock=25, Restock=600
 # Sell wood for coins
 Wood, 10, Coins, 50
-# Buy iron sword for coins (level 2) � override stock for this entry only
+# Buy iron sword for coins (level 2) - override stock for this entry only
 Coins, 100, SwordIron, 1, 2, Stock=5, Restock=1200
 # Multi-item trade: give blackmetal + coins for upgraded weapon
 BlackMetal, 5, Coins, 100 = SwordIron, 1, 3

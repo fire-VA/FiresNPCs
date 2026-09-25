@@ -305,6 +305,8 @@ Quests = KillBoarSample
                                         def.Requirements = req.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
                                     }
                                 }
+                                // kg optional 8th line: "TransferQuestName[,PopupText]" chain-completion
+                                if (pos < block.Count) ApplyTransferComplitionLine(def, block[pos++]);
                                 // For legacy KG positional files, default to autocomplete if not set
                                 try
                                 {
@@ -446,6 +448,21 @@ Quests = KillBoarSample
                                         case "oncompletequest":
                                             def.LifecycleEvents["OnCompleteQuest"] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
                                             break;
+                                        // NOTE the key normalizer strips "Quest" before matching, so kg's
+                                        // OnCancelQuest/OnQuestTimeout arrive here as oncancel/ontimeout.
+                                        case "oncancel":
+                                            def.LifecycleEvents[global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnCancel] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "ontimeout":
+                                            def.LifecycleEvents[global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnTimeout] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "ondeath":
+                                            def.LifecycleEvents[global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnDeath] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "transfercomplition":   // kg's spelling
+                                        case "transfercompletion":   // corrected-spelling alias
+                                            ApplyTransferComplitionLine(def, value);
+                                            break;
                                     }
                                 }
                             }
@@ -458,6 +475,7 @@ Quests = KillBoarSample
                     Debug.LogError($"[FiresRPGmaker] Failed to load quest file {kv.Key}: {ex.Message}");
                 }
             }
+            MergeQuestEventFiles();
             FiresLogger.LogVerbose($"Loaded {questDatabase.Count} quests");
         }
 
@@ -947,7 +965,7 @@ Quests = KillBoarSample
         // namespaces that ServerConfigFileWatcher registers at init, so quest files
         // whose client-side SHA-256 matches the server's on-disk copy get skipped.
         // This path used to re-ship every .cfg on every RequestPlayerData round-trip
-        // regardless of whether anything had changed � a double-whammy with
+        // regardless of whether anything had changed - a double-whammy with
         // SendAllConfigsToClientCoroutine's own traversal of the same folders.
         //
         // If the client hasn't replied to a manifest request yet (first call of the
@@ -958,7 +976,7 @@ Quests = KillBoarSample
         {
             try
             {
-                // Fire parallel manifest requests up front � safe to call even if the
+                // Fire parallel manifest requests up front - safe to call even if the
                 // main config coroutine has already cached them; the request clears
                 // and re-fetches, which is still fast.
                 ManifestDiffSync.RequestFromPeer(peerUid, "Cfg:Quests");
@@ -979,7 +997,7 @@ Quests = KillBoarSample
 
             // Best-effort short wait so a manifest request fired moments ago has a
             // chance to arrive. We can't yield here (non-coroutine caller), so the
-            // poll runs on the calling thread � keep it tight (250 ms max).
+            // poll runs on the calling thread - keep it tight (250 ms max).
             bool haveManifest = false;
             for (int i = 0; i < 5; i++)
             {
@@ -1005,7 +1023,7 @@ Quests = KillBoarSample
 
                 if (haveManifest)
                 {
-                    string relPath = fileName; // top-level .cfg � relative path = filename
+                    string relPath = fileName; // top-level .cfg - relative path = filename
                     string localHash = ManifestDiffSync.ComputeSha256(content);
                     if (ManifestDiffSync.HasSameHash(peerUid, manifestNamespace, relPath, localHash))
                     {
@@ -1090,6 +1108,91 @@ Quests = KillBoarSample
                 Debug.Log($"[FiresRPGmaker] Broadcast {sent} quest-profile file(s) to peer {peerUid} (blind reliable send).");
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] SendQuestProfilesBlind failed: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// kg QuestEvents family (Configs/QuestEvents/*.cfg + our Quests/Events group): `[questname]`
+        /// sections holding `EventName:command` lines (OnAcceptQuest / OnCancelQuest / OnCompleteQuest /
+        /// OnQuestTimeout / OnDeath — kg Quests_Main_Server.cs:340 grammar). Merged into the ALREADY
+        /// loaded definitions: multiple lines per event append. Full-reload call appends onto fresh
+        /// definitions; the per-quest overload serves the in-memory sync path (one fresh def at a time)
+        /// so nothing ever double-appends.
+        /// </summary>
+        private void MergeQuestEventFiles(QuestDefinition onlyInto = null)
+        {
+            int merged = 0;
+            void ParseEventLines(System.Collections.Generic.IEnumerable<string> lines)
+            {
+                QuestDefinition current = null;
+                foreach (var raw in lines)
+                {
+                    var line = raw?.Trim();
+                    if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("//")) continue;
+                    if (line.StartsWith("["))
+                    {
+                        string qname = line.Trim('[', ']').Replace(" ", "").Trim();
+                        var def = GetQuestDefinition(qname);
+                        current = (onlyInto == null || ReferenceEquals(def, onlyInto)) ? def : null;
+                        continue;
+                    }
+                    if (current == null) continue;
+                    int c = line.IndexOf(':');
+                    if (c <= 0) continue;
+                    string evKey = NormalizeQuestEventKey(line.Substring(0, c));
+                    string command = line.Substring(c + 1).Trim();
+                    if (evKey == null || command.Length == 0) continue;
+                    if (!current.LifecycleEvents.TryGetValue(evKey, out var list) || list == null)
+                        current.LifecycleEvents[evKey] = list = new List<string>();
+                    list.Add(command);
+                    merged++;
+                }
+            }
+
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("QuestEvents"))
+            {
+                try { ParseEventLines(kv.Value); }
+                catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] QuestEvents file {kv.Key} failed: {ex.Message}"); }
+            }
+            try
+            {
+                // kg drop-in tree (config/Marketplace/Configs/QuestEvents) — sibling of the Traders folder.
+                string kgFolder = Path.Combine(Path.GetDirectoryName(FiresCore.Compat.MarketplacePaths.TradersFolder) ?? "", "QuestEvents");
+                if (Directory.Exists(kgFolder))
+                    foreach (var f in Directory.GetFiles(kgFolder, "*.cfg", SearchOption.AllDirectories))
+                        ParseEventLines(File.ReadAllLines(f));
+            }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] kg QuestEvents drop-in read failed: {ex.Message}"); }
+
+            if (merged > 0 && onlyInto == null)
+                FiresLogger.LogVerbose($"Merged {merged} quest-event command line(s) from the QuestEvents family");
+        }
+
+        private static string NormalizeQuestEventKey(string evName)
+        {
+            switch ((evName ?? "").Replace(" ", "").ToLowerInvariant())
+            {
+                case "onacceptquest": case "onaccept": return global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnAccept;
+                case "oncancelquest": case "oncancel": return global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnCancel;
+                case "oncompletequest": case "oncomplete": return global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnComplete;
+                case "onquesttimeout": case "ontimeout": return global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnTimeout;
+                case "ondeath": return global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnDeath;
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// kg's optional trailing quest-block line (schema Quests.md offset +7):
+        /// "TransferQuestName[,PopupText]" — completing this quest chain-accepts/credits the named
+        /// quest and shows the popup text. Shared by both positional parse paths.
+        /// </summary>
+        private static void ApplyTransferComplitionLine(QuestDefinition def, string line)
+        {
+            if (def == null || string.IsNullOrEmpty(line)) return;
+            var t = line.Trim();
+            if (t.Length == 0 || t.Equals("None", StringComparison.OrdinalIgnoreCase)) return;
+            int c = t.IndexOf(',');
+            def.TransferComplition = (c < 0 ? t : t.Substring(0, c)).Trim();
+            if (c >= 0) def.TransferComplitionText = t.Substring(c + 1).Trim();
         }
 
         /// <summary>
@@ -1744,6 +1847,8 @@ Quests = KillBoarSample
                                     var req = block[pos++].Trim();
                                     if (!string.IsNullOrEmpty(req) && !req.Equals("None", StringComparison.OrdinalIgnoreCase)) def.Requirements = req.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
                                 }
+                                // kg optional 8th line: "TransferQuestName[,PopupText]" chain-completion
+                                if (pos < block.Count) ApplyTransferComplitionLine(def, block[pos++]);
                                 if (usePositional && !def.Autocomplete) def.Autocomplete = true;
                             }
                             else
@@ -1823,11 +1928,28 @@ Quests = KillBoarSample
                                         case "oncompletequest":
                                             def.LifecycleEvents["OnCompleteQuest"] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
                                             break;
+                                        // NOTE the key normalizer strips "Quest" before matching, so kg's
+                                        // OnCancelQuest/OnQuestTimeout arrive here as oncancel/ontimeout.
+                                        case "oncancel":
+                                            def.LifecycleEvents[global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnCancel] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "ontimeout":
+                                            def.LifecycleEvents[global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnTimeout] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "ondeath":
+                                            def.LifecycleEvents[global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.EventOnDeath] = value.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                                            break;
+                                        case "transfercomplition":   // kg's spelling
+                                        case "transfercompletion":   // corrected-spelling alias
+                                            ApplyTransferComplitionLine(def, value);
+                                            break;
                                     }
                                 }
                             }
-                            // Merge into in-memory DB
+                            // Merge into in-memory DB, then re-attach this quest's QuestEvents-family
+                            // commands (the def is fresh, so the append can't duplicate).
                             questDatabase[def.QuestId] = def;
+                            try { MergeQuestEventFiles(def); } catch { }
                         }
                     }
 

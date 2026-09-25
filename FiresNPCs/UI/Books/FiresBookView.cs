@@ -36,7 +36,7 @@ namespace FiresRPGmaker.UI.Books
         public static Color LeatherTint = new Color(0.62f, 0.28f, 0.20f, 1f); // red-brown multiplier for the leather cover (parchment keeps MatTint)
 
         // DEV TOOL, off by default (bound from [Debug] BookViewCaptures in Ascend). When on, opening a book view
-        // dumps render PNGs + a state file to Tools/bookview so framing can be tuned. Left the login-capture stall
+        // dumps render PNGs + a state file to FiresConfigPaths.Debug/BookView so framing can be tuned. Left the login-capture stall
         // + [FiresBookView] captured spam when it was always-on.
         public static bool DebugCapture = false;
 
@@ -103,8 +103,7 @@ namespace FiresRPGmaker.UI.Books
             return true;
         }
 
-        // Fixed output I can read directly (this machine): render snapshots across the open animation + a state dump.
-        private const string CaptureDir = @"C:\Users\travi\OneDrive\Desktop\valheimRip2\Tools\bookview";
+        private static string CaptureDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug, "BookView");
 
         private IEnumerator AutoCapture()
         {
@@ -123,7 +122,8 @@ namespace FiresRPGmaker.UI.Books
         {
             try
             {
-                Directory.CreateDirectory(CaptureDir);
+                string captureDir = CaptureDir;
+                Directory.CreateDirectory(captureDir);
                 if (_camera != null) _camera.Render();
                 var prev = RenderTexture.active;
                 RenderTexture.active = _rt;
@@ -133,9 +133,9 @@ namespace FiresRPGmaker.UI.Books
                 RenderTexture.active = prev;
                 byte[] png = EncodePng(tex);
                 Destroy(tex);
-                if (png != null) File.WriteAllBytes(Path.Combine(CaptureDir, $"capture_{idx}.png"), png);
-                File.WriteAllText(Path.Combine(CaptureDir, $"state_{idx}.txt"), StateString(idx));
-                Debug.Log($"[FiresBookView] captured #{idx} -> {CaptureDir}");
+                if (png != null) File.WriteAllBytes(Path.Combine(captureDir, $"capture_{idx}.png"), png);
+                File.WriteAllText(Path.Combine(captureDir, $"state_{idx}.txt"), StateString(idx));
+                Debug.Log($"[FiresBookView] captured #{idx} -> {captureDir}");
             }
             catch (Exception e) { Debug.LogWarning("[FiresBookView] capture failed: " + e.Message); }
         }

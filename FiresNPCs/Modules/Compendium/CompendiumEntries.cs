@@ -129,12 +129,12 @@ Companions can equip weapons and armor just like players.
 
 <color=yellow>Archetype Requirements:</color>
 Your companion's archetype is determined by their equipped weapon:
-• Bow/Crossbow ? Ranger
-• Staff ? Mage or Healer
-• Shield + Weapon ? Tank or Paladin
-• Two-handed ? Berserker
-• Knives ? Rogue
-• Unarmed/Fists ? Monk
+• Bow/Crossbow -> Ranger
+• Staff -> Mage or Healer
+• Shield + Weapon -> Tank or Paladin
+• Two-handed -> Berserker
+• Knives -> Rogue
+• Unarmed/Fists -> Monk
 
 <color=yellow>Quality Matters:</color>
 Higher quality equipment provides better stats.

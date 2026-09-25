@@ -96,7 +96,7 @@ namespace FiresRPGmaker.Managers
         /// <summary>
         /// Per-folder manifest namespace used by <see cref="ManifestDiffSync"/>.
         /// Kept prefixed so it can't collide with ad-hoc namespace keys used by other
-        /// subsystems (SavedNPCs, UILayouts, ?). The server queries this namespace on
+        /// subsystems (SavedNPCs, UILayouts, ...). The server queries this namespace on
         /// login so clients that already have identical config files on disk get skipped.
         /// </summary>
         private static string ManifestNamespaceFor(string folder) => "Cfg:" + folder;
@@ -104,7 +104,7 @@ namespace FiresRPGmaker.Managers
         /// <summary>
         /// Register every cfg-watched folder with <see cref="ManifestDiffSync"/>
         /// so clients can answer {relativePath -&gt; sha256} manifest queries. Called once
-        /// from <c>Ascend.cs</c> during plugin init on BOTH server and client ? the client
+        /// from <c>Ascend.cs</c> during plugin init on BOTH server and client - the client
         /// is the responder. Folders that are already handled by a dedicated sync path
         /// (UILayouts has its own JSON manifest RPC, SavedNPCs uses the SavedNpcManager
         /// namespace) are skipped here to avoid double-registration.
@@ -310,7 +310,7 @@ namespace FiresRPGmaker.Managers
 
             if (_isDisposed) yield break;
 
-            // Check if this file was recently written by a server?client sync.
+            // Check if this file was recently written by a server->client sync.
             // On non-dedicated hosts both server and client code run in the same process,
             // so a client-side write from RPC_FileUpdate triggers the server's file watcher.
             // We must suppress this to prevent a re-broadcast loop.
@@ -405,7 +405,7 @@ namespace FiresRPGmaker.Managers
 
             Debug.Log($"[FiresRPGmaker] Processing config change: {folderName}/{fileName} ({changeType})");
 
-            // SavedNPCs uses its own dedicated RPC format � let SavedNpcManager handle everything
+            // SavedNPCs uses its own dedicated RPC format - let SavedNpcManager handle everything
             if (folderName.Equals("SavedNPCs", StringComparison.OrdinalIgnoreCase))
             {
                 SavedNpcManager.OnServerFileChanged(fileName);
@@ -655,8 +655,8 @@ namespace FiresRPGmaker.Managers
                 return;
             }
 
-            // Split into chunks by character count (conservative � UTF-8 could be wider,
-            // but config text is ASCII so 1 char ? 1 byte)
+            // Split into chunks by character count (conservative - UTF-8 could be wider,
+            // but config text is ASCII so 1 char = 1 byte)
             int charsPerChunk = MaxChunkBytes;
             int totalChunks = (content.Length + charsPerChunk - 1) / charsPerChunk;
 
@@ -812,7 +812,7 @@ namespace FiresRPGmaker.Managers
 
             foreach (var folder in WatchedFolders)
             {
-                // SavedNPCs uses its own dedicated RPC and .json files � handled separately below
+                // SavedNPCs uses its own dedicated RPC and .json files - handled separately below
                 if (folder.Equals("SavedNPCs", StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -1016,7 +1016,7 @@ namespace FiresRPGmaker.Managers
                     yield return null; // Spread over frames to avoid burst
                 }
 
-                // Drop the manifest now that we've used it ? keeps the cache from growing
+                // Drop the manifest now that we've used it - keeps the cache from growing
                 // unbounded across many reconnects.
                 FiresCore.UI.UILayoutSyncRPC.ForgetPeerManifest(peerUid);
 

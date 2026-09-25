@@ -18,7 +18,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
     /// 
     /// When a "StaticNpc" prefab is placed via the hammer, this component runs on Start()
     /// and sets up the NPC as a stationed quest NPC at its placed position. This bypasses
-    /// the normal companion pipeline (spawn companion ? claim ? Shift+P to station).
+    /// the normal companion pipeline (spawn companion -> claim -> Shift+P to station).
     /// 
     /// On first placement, the NPC gets randomized appearance and equipment matching
     /// the same style as companion NPCs (random Viking name, gender, hair, skin, eye
@@ -180,7 +180,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             bool alreadyInitialized = zdo.GetBool("npc_initialized", false);
             if (alreadyInitialized)
             {
-                // Already set up â€” restore appearance from ZDO on every machine.
+                // Already set up - restore appearance from ZDO on every machine.
                 // [persist] Dump the identity keys we're restoring FROM so a relog that loses dialogue/name/
                 // visuals is provable: if these are populated here but the NPC still shows wrong, the loss is
                 // downstream (a clobbering SaveToZDO / a parallel respawn body); if they're EMPTY here, the
@@ -216,7 +216,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
 
             // Non-server clients: components are set up but ZDO writes and first-time
             // randomization belong to the server. Restore whatever data is already in
-            // the ZDO (may be partial on brand-new placement â€” server will write it shortly).
+            // the ZDO (may be partial on brand-new placement - server will write it shortly).
             if (!isServer)
             {
                 StartCoroutine(RestoreAppearanceFromZDO(zdo));
@@ -516,7 +516,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             }
 
             // Set stationed position and apply state directly (no message, no vault save).
-            // Use _placementRotation captured in Awake() from the ZDO â€” transform.rotation
+            // Use _placementRotation captured in Awake() from the ZDO - transform.rotation
             // cannot be trusted since Character/AI systems may have overwritten it.
             npcModule.isStationedAsNpc = true;
             npcModule.SetStationedPositionDirect(transform.position, _placementRotation);
@@ -560,7 +560,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 gameObject.name, _placementRotation.eulerAngles.y, transform.rotation.eulerAngles.y,
                 visualYaw, transform.position.x, transform.position.z));
 
-            // Only the server should write to ZDO â€” clients can't write ZDOs they don't own
+            // Only the server should write to ZDO - clients can't write ZDOs they don't own
             bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
             if (isServer)
             {
@@ -806,64 +806,40 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
 
         private string PickRandomHairStyle()
         {
-            var valid = CompanionRandomLoadout.KnownHairStyles.Where(h => h != "HairNone").ToArray();
+            var valid = CompanionRandomLoadout.GetAvailableHairStyles().Where(h => h != "HairNone").ToArray();
             if (valid.Length == 0 || Random.value < 0.1f) return "";
             return valid[Random.Range(0, valid.Length)];
         }
 
         private string PickRandomBeardStyle()
         {
-            var valid = CompanionRandomLoadout.KnownBeardStyles.Where(b => b != "BeardNone").ToArray();
+            var valid = CompanionRandomLoadout.GetAvailableBeardStyles().Where(b => b != "BeardNone").ToArray();
             if (valid.Length == 0) return "";
             return valid[Random.Range(0, valid.Length)];
         }
 
+        private const int OutfitSeedSalt = 0x51A7_1C03;
+        private static readonly CompanionKitChances OutfitChances = new CompanionKitChances { Helmet = 0.4f, Chest = 0.7f, Legs = 0.6f, Cape = 0.3f };
+
         /// <summary>
-        /// Randomizes visual equipment on the NPC using the same biome-tiered item lists
-        /// that companions use. Equipment is stored in NpcController fields and ZDO.
+        /// Dresses the NPC in one archetype's kit from the companion gear table, at its biome's tier (seeded by the ZDO).
+        /// Equipment is stored in NpcController fields and ZDO.
         /// </summary>
         private void RandomizeEquipment(ZDO zdo, NpcController npcController)
         {
-            // Ensure the shared item cache is populated
-            CompanionRandomLoadout.CacheItemLists();
-            if (!CompanionRandomLoadout._itemListsCached) return;
+            if (!CompanionGearTable.Prepare()) return;
 
-            var biome = Heightmap.FindBiome(transform.position);
+            var rng = new System.Random(unchecked(zdo.m_uid.GetHashCode() ^ OutfitSeedSalt));
+            int biomeTier = CompanionGearTable.BiomeTier(Heightmap.FindBiome(transform.position));
+            var archetype = CompanionGearTable.RollArchetype(biomeTier, rng);
+            var kit = CompanionGearTable.BuildKit(archetype, CompanionGearTable.RollKitTier(biomeTier, rng), rng, OutfitChances);
 
-            var helmets = CompanionRandomLoadout.GetTierFilteredItems(CompanionRandomLoadout._allHelmets, biome);
-            var chests = CompanionRandomLoadout.GetTierFilteredItems(CompanionRandomLoadout._allChestArmor, biome);
-            var legs = CompanionRandomLoadout.GetTierFilteredItems(CompanionRandomLoadout._allLegArmor, biome);
-            var capes = CompanionRandomLoadout.GetTierFilteredItems(CompanionRandomLoadout._allCapes, biome);
-            var shoulders = CompanionRandomLoadout.GetTierFilteredItems(CompanionRandomLoadout._allShoulders, biome);
-            var shields = CompanionRandomLoadout.GetTierFilteredItems(CompanionRandomLoadout._allShields, biome);
-            var weapons = CompanionRandomLoadout.GetTierFilteredItems(CompanionRandomLoadout._allWeapons, biome);
-
-            string helmet = (Random.value < 0.4f && helmets.Count > 0) ? helmets[Random.Range(0, helmets.Count)] : "";
-            string chest = (Random.value < 0.7f && chests.Count > 0) ? chests[Random.Range(0, chests.Count)] : "";
-            string leg = (Random.value < 0.6f && legs.Count > 0) ? legs[Random.Range(0, legs.Count)] : "";
-            string shoulder = "";
-            if (Random.value < 0.3f && capes.Count > 0)
-                shoulder = capes[Random.Range(0, capes.Count)];
-            else if (Random.value < 0.25f && shoulders.Count > 0)
-                shoulder = shoulders[Random.Range(0, shoulders.Count)];
-
-            string rightHand = (weapons.Count > 0) ? weapons[Random.Range(0, weapons.Count)] : "";
-            string leftHand = "";
-            if (!string.IsNullOrEmpty(rightHand) && Random.value < 0.4f && shields.Count > 0)
-            {
-                // Only give shield if primary weapon is one-handed
-                var prefab = ZNetScene.instance?.GetPrefab(rightHand);
-                if (prefab != null)
-                {
-                    var itemDrop = prefab.GetComponent<ItemDrop>();
-                    if (itemDrop?.m_itemData?.m_shared != null)
-                    {
-                        var t = itemDrop.m_itemData.m_shared.m_itemType;
-                        if (t == ItemDrop.ItemData.ItemType.OneHandedWeapon)
-                            leftHand = shields[Random.Range(0, shields.Count)];
-                    }
-                }
-            }
+            string helmet = kit.Helmet ?? "";
+            string chest = kit.Chest ?? "";
+            string leg = kit.Legs ?? "";
+            string shoulder = kit.Shoulder ?? "";
+            string rightHand = kit.RightHand ?? "";
+            string leftHand = kit.LeftHand ?? "";
 
             // Store in NpcController
             if (npcController != null)
@@ -918,8 +894,8 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             visEquip.SetAppearance(modelIndex, "", "");
             string beardForGender = modelIndex == 1 ? "" : beard;
             string npcHairColor = NpcFashionManager.ColorToString(new Color(hairColorVec.x, hairColorVec.y, hairColorVec.z));
-            NpcFashionManager.ApplyHairToNpc(gameObject, hair, npcHairColor);
-            NpcFashionManager.ApplyBeardToNpc(gameObject, beardForGender, npcHairColor);
+            FiresCore.Bridge.NpcFashionBridge.ApplyHair(gameObject, hair, npcHairColor);
+            FiresCore.Bridge.NpcFashionBridge.ApplyBeard(gameObject, beardForGender, npcHairColor);
 
             // Re-load NpcController from ZDO so it picks up the randomized equipment
             // (NpcController.PerformStartInitialization runs earlier and reads empty ZDO)
@@ -970,8 +946,8 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             visEquip.SetAppearance(modelIndex, "", "");
             string beardForGender = modelIndex == 1 ? "" : beard;
             string npcHairColor = NpcFashionManager.ColorToString(new Color(hairColorVec.x, hairColorVec.y, hairColorVec.z));
-            NpcFashionManager.ApplyHairToNpc(gameObject, hair, npcHairColor);
-            NpcFashionManager.ApplyBeardToNpc(gameObject, beardForGender, npcHairColor);
+            FiresCore.Bridge.NpcFashionBridge.ApplyHair(gameObject, hair, npcHairColor);
+            FiresCore.Bridge.NpcFashionBridge.ApplyBeard(gameObject, beardForGender, npcHairColor);
 
             // Re-load NpcController from ZDO so it picks up the persisted equipment
             var npcController = GetComponent<NpcController>();

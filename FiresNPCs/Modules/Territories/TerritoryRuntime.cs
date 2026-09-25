@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -311,7 +311,7 @@ namespace FiresRPGmaker.Modules.Territories
                 // We used to call TerritorySyncedState.RequestFromServer() here whenever
                 // ClientTerritories was empty. That fired EVERY FRAME on a client whose
                 // server happens to have zero territories defined (or whose initial sync
-                // got dropped) ? each call ran Directory.GetFiles + MD5-hashed every
+                // got dropped) - each call ran Directory.GetFiles + MD5-hashed every
                 // .cfg in the Territories folder to build the manifest, which produced
                 // visible per-frame stalls and the "attempt 51, have 0 in cache" log
                 // spam users were reporting.
@@ -867,26 +867,44 @@ namespace FiresRPGmaker.Modules.Territories
             catch { }
         }
 
+        // Valheim 1.0 dropped Spawn's trailing "minLevelOverride"/"levelUpMultiplier" parameters -
+        // the level is now derived inside Spawn from critter.m_minLevel and GetLevelUpChance. Harmony
+        // binds patch parameters BY NAME, so leaving them declared made this ENTIRE class fail to
+        // attach (all 25 patches, not just this one).
+        //
+        // minLevelOverride used to seed the starting minLevel before vanilla's random level-up loop,
+        // so bumping critter.m_minLevel for the duration of the call reproduces it exactly. Spawn is
+        // synchronous and single-threaded, and the finalizer restores the field even if Spawn throws,
+        // so the shared SpawnData is never left mutated.
+        private static SpawnSystem.SpawnData _levelBumpTarget;
+        private static int _levelBumpSaved;
+
         [HarmonyPatch(typeof(SpawnSystem), "Spawn")]
         [HarmonyPrefix]
-        private static bool SpawnSystem_Spawn_Prefix(SpawnSystem.SpawnData critter, Vector3 spawnPoint, bool eventSpawner, ref int minLevelOverride, ref float levelUpMultiplier)
+        private static bool SpawnSystem_Spawn_Prefix(SpawnSystem.SpawnData critter, Vector3 spawnPoint, bool eventSpawner)
         {
             var terr = GetTerritory(spawnPoint);
             if (terr == null) return true;
             if (terr.Flags.HasFlag(TerritoryFlags.NoMonsters))
                 return false;
 
-            if (terr.Flags.HasFlag(TerritoryFlags.MonstersAddStars))
+            if (critter != null && terr.Flags.HasFlag(TerritoryFlags.MonstersAddStars))
             {
-                int baseMin = critter != null ? critter.m_minLevel : 1;
                 int add = terr.AddMonsterLevel > 0 ? terr.AddMonsterLevel : 1;
-                int target = baseMin + add;
-                if (minLevelOverride >= 0)
-                    minLevelOverride = Mathf.Max(minLevelOverride, target);
-                else
-                    minLevelOverride = target;
+                _levelBumpTarget = critter;
+                _levelBumpSaved = critter.m_minLevel;
+                critter.m_minLevel = critter.m_minLevel + add;
             }
             return true;
+        }
+
+        [HarmonyPatch(typeof(SpawnSystem), "Spawn")]
+        [HarmonyFinalizer]
+        private static void SpawnSystem_Spawn_Finalizer()
+        {
+            if (_levelBumpTarget == null) return;
+            _levelBumpTarget.m_minLevel = _levelBumpSaved;
+            _levelBumpTarget = null;
         }
 
         [HarmonyPatch(typeof(Fireplace), "UpdateFireplace")]
@@ -902,9 +920,9 @@ namespace FiresRPGmaker.Modules.Territories
             }
         }
 
-        [HarmonyPatch(typeof(Player), "OnDeath")]
-        [HarmonyPrefix]
-        private static void NoDeathPenalty_Prefix(Player __instance)
+        /// <summary>Called from <see cref="Modules.RpgVanillaHooks.Player_OnDeath"/> (prefix): flags a protected
+        /// death before vanilla drains skills.</summary>
+        internal static void OnPlayerDeathPrefix(Player __instance)
         {
             var terr = GetTerritory(__instance);
             if (terr == null) return;

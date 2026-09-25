@@ -25,7 +25,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private string _profileName;
         private RectTransform _rowContent;
         private GameObject _rowTemplate;
-        private TMP_Text _profileSummary;
+        private TMP_Text _titleText;       // NPC name, centered in the header
+        private TMP_Text _profileSummary;  // interest line (the centered SubtitleText)
         private TMP_Text _statusText;
         private float _refreshTimer;
 
@@ -48,7 +49,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected override void BindPrefab(GameObject root)
         {
             var t = root.transform;
-            _profileSummary = FindTmp(t, "ProfileSummary");
+            _titleText      = FindTmp(t, "TitleText");
+            _profileSummary = FindTmp(t, "SubtitleText");   // interest line lives in the centered subtitle now
             _statusText     = FindTmp(t, "StatusText");
             _rowContent     = FindRect(t, "ScrollView/Viewport/Content");
             _rowTemplate    = Find(t, "RowTemplate");
@@ -62,6 +64,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected override void OnOpen(string profileName, string npcDisplayName)
         {
             _profileName = profileName;
+            // kg-style: the NPC's name is the centered header. RebuildRows fills the interest line beneath it
+            // (SubtitleText), overwriting the base panel's default "NPC - Profile" subtitle.
+            if (_titleText != null) _titleText.text = string.IsNullOrEmpty(npcDisplayName) ? "Banker" : npcDisplayName;
             BankerNetwork.OnResult = OnBankResult;
             RebuildRows();
             BankerNetwork.RequestBalance(_profileName);
@@ -147,8 +152,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var rowGo = Instantiate(_rowTemplate, _rowContent);
             rowGo.name = "Curr_" + currency;
             rowGo.SetActive(true);
-            SetRowHeight(rowGo, 40f);
-            EnsureRowIcon(rowGo, currency);   // kg parity: show the item's icon at the left of the row
+            SetRowHeight(rowGo, 42f);
+            EnsureRowIcon(rowGo, currency);   // set the baked Icon node's sprite
 
             int balance = BankerBalanceStore.Get(playerName, currency);
             int inventory = CountInInventory(currency);
@@ -228,9 +233,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             UpdateValues();
         }
 
-        // kg's Banker_UI sets each row's "Icon/IconItem" sprite from component.m_itemData.GetIcon(). Our baked
-        // row template has no icon slot, so create one on first build (left edge, 30px) and push the name label
-        // clear of it. Resolves the sprite from the item prefab (ObjectDB first, ZNetScene fallback).
+        // Resolves an item's inventory icon from its prefab (ObjectDB first, ZNetScene fallback). Set onto the
+        // row's BAKED Icon node — see EnsureRowIcon.
         private static Sprite ResolveItemIcon(string prefabName)
         {
             try
@@ -245,34 +249,19 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             return null;
         }
 
+        // The Icon node is BAKED into the row template (RowTemplate/IconSlot/Icon), so we only set its sprite.
+        // The old code created the icon at runtime and shoved the CurrencyLabel right to clear it, which
+        // collided with the tight columns — that was the overlapping-boxes bug. Now the layout is fixed in the
+        // prefab and this just fills in the art.
         private void EnsureRowIcon(GameObject rowGo, string prefab)
         {
-            var iconTf = rowGo.transform.Find("Icon");
-            Image img;
-            if (iconTf == null)
-            {
-                var go = new GameObject("Icon", typeof(RectTransform), typeof(Image));
-                go.transform.SetParent(rowGo.transform, false);
-                go.transform.SetAsFirstSibling();
-                var rt = (RectTransform)go.transform;
-                rt.anchorMin = new Vector2(0f, 0.5f); rt.anchorMax = new Vector2(0f, 0.5f); rt.pivot = new Vector2(0f, 0.5f);
-                rt.sizeDelta = new Vector2(30f, 30f);
-                rt.anchoredPosition = new Vector2(6f, 0f);
-                img = go.GetComponent<Image>();
-                img.preserveAspect = true; img.raycastTarget = false;
-                // Push the name label right so it clears the icon (only if it currently starts too far left).
-                var lbl = FindTmp(rowGo.transform, "CurrencyLabel");
-                if (lbl != null) { var lr = lbl.rectTransform; if (lr.offsetMin.x < 42f) lr.offsetMin = new Vector2(42f, lr.offsetMin.y); }
-            }
-            else img = iconTf.GetComponent<Image>() ?? iconTf.gameObject.AddComponent<Image>();
-
+            var iconGo = Find(rowGo.transform, "Icon");
+            var img = iconGo != null ? iconGo.GetComponent<Image>() : null;
+            if (img == null) return;
             var sprite = ResolveItemIcon(prefab);
-            if (img != null)
-            {
-                img.sprite = sprite;
-                img.color = Color.white;
-                img.enabled = sprite != null;   // hide the box when no icon resolves (e.g. a non-item currency)
-            }
+            img.sprite = sprite;
+            img.color = Color.white;
+            img.enabled = sprite != null;   // hide the slot's inner image when no icon resolves
         }
 
         private static int CountInInventory(string prefab)

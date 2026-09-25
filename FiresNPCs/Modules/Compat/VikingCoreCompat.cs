@@ -60,5 +60,9 @@ namespace FiresRPGmaker.Modules.Compat
         // True when an external mod owns the GUILD system specifically (TDV or FiresGuilds). RPG Maker then
         // stands its guild down — RPCs, UI, G hotkey, and the /g chat command — so the two never duplicate.
         public static bool GuildsDeferred => Present || FiresGuildsPresent;
+
+        // Which mod actually took guilds. Either one defers us, so a message that names only one of them sends
+        // whoever reads the log hunting for a mod that is not installed.
+        public static string GuildOwner => Present ? "VikingLands.Core" : FiresGuildsPresent ? "FiresGuilds" : null;
     }
 }

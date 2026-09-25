@@ -21,7 +21,7 @@ namespace FiresRPGmaker
     ///    never had them (WoodHouse, Ruin, ShipWreck, etc.), causing incorrect weather
     ///    and music to play whenever the player visits those locations.
     ///    Location.Awake_Postfix strips those components from any location that is not
-    ///    a dungeon or boss arena � the only vanilla locations that legitimately carry them.
+    ///    a dungeon or boss arena - the only vanilla locations that legitimately carry them.
     /// </summary>
     public static class BalrondAmazingNatureCompat
     {
@@ -31,7 +31,7 @@ namespace FiresRPGmaker
         // Detected ONCE in Apply() and read by every Harmony patch in this class.
         // The Harmony attribute scanner auto-applies all [HarmonyPatch] methods in
         // this class regardless of whether Apply() ran, so every patch body must
-        // gate itself on this flag � otherwise we'd run our compat-strip code
+        // gate itself on this flag - otherwise we'd run our compat-strip code
         // even on installations that don't have Balrond's mod loaded, breaking
         // perfectly fine vanilla locations.
         private static bool _balrondLoaded = false;
@@ -45,9 +45,9 @@ namespace FiresRPGmaker
             {
                 _balrondLoaded = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(BalrondGUID);
                 if (_balrondLoaded)
-                    Debug.Log("[BalrondCompat] Balrond Amazing Nature detected � location-strip patch ENABLED");
+                    Debug.Log("[BalrondCompat] Balrond Amazing Nature detected - location-strip patch ENABLED");
                 else
-                    Debug.Log("[BalrondCompat] Balrond Amazing Nature not detected � all compat patches disabled");
+                    Debug.Log("[BalrondCompat] Balrond Amazing Nature not detected - all compat patches disabled");
             }
             catch (Exception ex)
             {
@@ -55,7 +55,7 @@ namespace FiresRPGmaker
                 Debug.LogWarning($"[BalrondCompat] Mod-presence check failed, disabling compat: {ex.Message}");
             }
 
-            // DISABLED � Balrond Amazing Nature just updated. Re-enable after
+            // DISABLED - Balrond Amazing Nature just updated. Re-enable after
             // verifying the new version doesn't have the same issues.
             /*
             try
@@ -76,7 +76,7 @@ namespace FiresRPGmaker
             */
         }
 
-        // ?? Location weather / music strip ????????????????????????????????????????
+        // -- Location weather / music strip ----------------------------------------
         // Runs as a Harmony postfix on Location.Awake so it fires after Balrond's
         // LocationConstructor.GenerateLocationStructure has already injected child
         // prefabs into the location hierarchy.
@@ -88,7 +88,7 @@ namespace FiresRPGmaker
         //      would also run on installations that don't have Balrond, ripping
         //      legitimate EnvZone / MusicLocation off vanilla locations and
         //      leaving EnvMan in a stale state during teleports / dungeon
-        //      transitions � a known cause of black-screen-on-load lockups.
+        //      transitions - a known cause of black-screen-on-load lockups.
         //
         //   2) NARROW PREFAB ALLOWLIST.  Even with Balrond loaded, we only strip
         //      from a hard-coded list of vanilla prefab name prefixes that we
@@ -96,18 +96,18 @@ namespace FiresRPGmaker
         //      Valheim has legitimate EnvZone / MusicLocation on plenty of
         //      non-dungeon, non-boss locations (Hildir camps, Haldor vendor
         //      location, several Mistlands POIs, ambient frost-cave entrance
-        //      effects, �).  Stripping from those breaks vanilla weather/music
+        //      effects, ...).  Stripping from those breaks vanilla weather/music
         //      and was almost certainly a contributor to the dungeon-entry
         //      black screen.
         //
-        //   3) DUNGEONS AND BOSS ARENAS NEVER STRIPPED � even if they appear in
+        //   3) DUNGEONS AND BOSS ARENAS NEVER STRIPPED - even if they appear in
         //      the allowlist (defense in depth).
         [HarmonyPatch(typeof(Location), "Awake")]
         [HarmonyPostfix]
         [HarmonyPriority(Priority.Last)] // run after Balrond has already injected
         public static void Location_Awake_StripBalrondWeather(Location __instance)
         {
-            // Gate 1 � Balrond not loaded? Do nothing.  Even on installs where
+            // Gate 1 - Balrond not loaded? Do nothing.  Even on installs where
             // this mod has nothing to do, the [HarmonyPatch] attribute would
             // otherwise still fire this body for every Location.Awake.
             if (!_balrondLoaded) return;
@@ -116,18 +116,18 @@ namespace FiresRPGmaker
             {
                 if (__instance == null) return;
 
-                // Gate 3 � never touch dungeons.
+                // Gate 3 - never touch dungeons.
                 if (__instance.GetComponentInChildren<DungeonGenerator>(includeInactive: true) != null)
                     return;
 
-                // Gate 3 � never touch boss arenas.
+                // Gate 3 - never touch boss arenas.
                 string prefab = __instance.gameObject.name;
                 if (IsBossArena(prefab))
                     return;
 
-                // Gate 2 � narrow allowlist.  Only strip from prefabs we have
+                // Gate 2 - narrow allowlist.  Only strip from prefabs we have
                 // actually confirmed Balrond mis-injects into.  If you spot a
-                // new vanilla prefab Balrond breaks, add it here � DO NOT widen
+                // new vanilla prefab Balrond breaks, add it here - DO NOT widen
                 // this back to "everything".
                 if (!IsKnownBalrondAffectedPrefab(prefab))
                     return;
@@ -182,7 +182,7 @@ namespace FiresRPGmaker
             return _bossArenaPrefabs.Contains(clean);
         }
 
-        // ?? Known-Balrond-affected prefab allowlist ??????????????????????????
+        // -- Known-Balrond-affected prefab allowlist --------------------------
         // These are vanilla location prefab name PREFIXES we have actually
         // observed Balrond Amazing Nature mis-inject EnvZone or MusicLocation
         // into.  Keep this list NARROW.  Each entry should only be added after
@@ -192,7 +192,7 @@ namespace FiresRPGmaker
         //   (b) leaving Balrond's component in place causes a real visible
         //       weather/music problem at that location.
         //
-        // Anything not in this list is left completely alone � vanilla and
+        // Anything not in this list is left completely alone - vanilla and
         // every other mod retain full control over location weather/music.
         private static readonly string[] _balrondAffectedPrefabPrefixes = new[]
         {
@@ -200,7 +200,7 @@ namespace FiresRPGmaker
             "ShipWreck",
             "AbandonedLogCabin",
             "WoodHouse",
-            // Plain ruin variants (NOT "Ruin_dungeon" etc � prefix match catches the cosmetic ones)
+            // Plain ruin variants (NOT "Ruin_dungeon" etc - prefix match catches the cosmetic ones)
             "Ruin1",
             "Ruin2",
             "Ruin3",
@@ -210,7 +210,7 @@ namespace FiresRPGmaker
             "InfestedTree",
             // Fishing / dock surface POIs
             "Fishingvillage",
-            // Lore POIs � vanilla ships these without EnvZone/MusicLocation; anything
+            // Lore POIs - vanilla ships these without EnvZone/MusicLocation; anything
             // Balrond injects here is wrong.  Covers every biome/boss variant via the
             // common name prefix.
             "Runestone",       // Runestone_Boars, _Greydwarfs, _Elder, _Bonemass, _Mountains, _Plains, _Mistlands, _Crypts, _FaderArrival, etc.
@@ -235,7 +235,7 @@ namespace FiresRPGmaker
         }
 
         /*
-        // DISABLED � All unpatch methods commented out until we verify the new version
+        // DISABLED - All unpatch methods commented out until we verify the new version
 
         private static void UnpatchAddKnownLocationName(Harmony harmony)
         {
@@ -269,7 +269,7 @@ namespace FiresRPGmaker
                 }
 
                 if (TryUnpatchBalrondPostfix(harmony, target, out string owner))
-                    Debug.Log($"[BalrondCompat] Removed Balrond's Player.UpdateStats postfix ({owner}) � fixes SE_SitHeal message spam");
+                    Debug.Log($"[BalrondCompat] Removed Balrond's Player.UpdateStats postfix ({owner}) - fixes SE_SitHeal message spam");
             }
             catch (Exception ex)
             {
@@ -289,7 +289,7 @@ namespace FiresRPGmaker
                 }
 
                 if (TryUnpatchBalrondPostfix(harmony, target, out string owner))
-                    Debug.Log($"[BalrondCompat] Removed Balrond's Player.UpdateEnvStatusEffects postfix ({owner}) � fixes env status message spam");
+                    Debug.Log($"[BalrondCompat] Removed Balrond's Player.UpdateEnvStatusEffects postfix ({owner}) - fixes env status message spam");
             }
             catch (Exception ex)
             {

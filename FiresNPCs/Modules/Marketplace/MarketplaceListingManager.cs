@@ -21,6 +21,15 @@ namespace FiresRPGmaker.Modules.Marketplace
         public string SellerName;
         public long SellerId;
 
+        // kg MarketSlot item-fidelity fields: an upgraded/damaged/crafted item survives the round trip
+        // (captured on sell, carried on the wire, restored on buy). Defaults = a fresh quality-1 item.
+        public int Quality = 1;
+        public int Variant;
+        public byte DurabilityPercent = 100;
+        public string CrafterName = "";
+        public long CrafterID;
+        public string CustomData = "{}";
+
         /// <summary>Cached category for filtering — derived from the ItemDrop's ItemType the first
         /// time we look at it (vanilla Armor/Weapon/Bow/Shield → KG bucket). All=passes everything.</summary>
         public MarketCategory Category = MarketCategory.All;
@@ -64,7 +73,9 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             long myId = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerID() : 0L;
             IEnumerable<MarketplaceListing> q = _live;
-            if (myListingsOnly)
+            // Admins see EVERY listing on the My Listings tab (kg's admin-remove surface): the existing
+            // Cancel flow then routes non-owned removals through the server's admin branch.
+            if (myListingsOnly && !global::FiresCore.Sync.AdminSyncing.IsLocalAdmin())
                 q = q.Where(l => myId != 0L && l.SellerId == myId);
             if (!string.IsNullOrEmpty(filterLower))
                 q = q.Where(l => (l.ItemPrefab ?? "").ToLowerInvariant().Contains(filterLower)
@@ -124,10 +135,27 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 string nm = item?.m_dropPrefab != null ? item.m_dropPrefab.name : item?.m_shared?.m_name ?? "?";
                 if (!string.IsNullOrEmpty(filterLower) && !nm.ToLowerInvariant().Contains(filterLower)) continue;
+                // kg parity: MarketSellBlockedPrefabs never appear in the sell list (the server would
+                // reject-and-refund anyway; hiding them here avoids the confusing round-trip).
+                if (MarketplaceGlobals.IsBlockedPrefab(nm)) continue;
+                byte durPct = 100;
+                try
+                {
+                    if (item.m_shared != null && item.m_shared.m_useDurability)
+                    {
+                        float max = item.GetMaxDurability();
+                        if (max > 0f) durPct = (byte)Mathf.Clamp(Mathf.RoundToInt(item.m_durability / max * 100f), 0, 100);
+                    }
+                }
+                catch { }
+                string custom = "{}";
+                try { if (item.m_customData != null && item.m_customData.Count > 0) custom = Newtonsoft.Json.JsonConvert.SerializeObject(item.m_customData); } catch { }
                 result.Add(new MarketplaceListing
                 {
                     ItemPrefab = nm, Count = item.m_stack, Price = 10, Currency = "Coins",
                     SellerName = p.GetPlayerName(), SellerId = p.GetPlayerID(),
+                    Quality = item.m_quality, Variant = item.m_variant, DurabilityPercent = durPct,
+                    CrafterName = item.m_crafterName ?? "", CrafterID = item.m_crafterID, CustomData = custom,
                 });
             }
             return result;

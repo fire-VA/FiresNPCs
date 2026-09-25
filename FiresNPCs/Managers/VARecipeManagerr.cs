@@ -78,12 +78,30 @@ namespace FiresRPGmaker.Managers
                     continue;
                 }
 
-                piece.m_resources = requirements;
+                // Every piece we own is admin-gated by INGREDIENT, not by a UI
+                // check: the recipe requires a cheat-sword, which only an admin
+                // can spawn. That holds even if the piece reaches a non-admin's
+                // build menu. Forced here rather than left to config, so an
+                // existing cfg carrying the old default (or an admin editing
+                // the string) can't drop the gate.
+                if (!FiresCore.Items.AdminRecipeGate.TryEnsureGated(requirements, out var gatedRequirements))
+                {
+                    // Gate item unresolved = ObjectDB not built yet, not a
+                    // missing item. Leave the piece's existing recipe alone
+                    // rather than write an ungated one; this pass re-runs on
+                    // config reload and will apply then.
+                    Debug.LogWarning($"{FiresRPGmaker.PluginName}: '{pieceName}' recipe NOT applied — " +
+                                     $"{FiresCore.Items.AdminRecipeGate.GateItemName} not resolvable yet. " +
+                                     "Existing recipe left intact; will retry on next reload.");
+                    continue;
+                }
+
+                piece.m_resources = gatedRequirements;
                 anyApplied = true;
 
                 if (ConfigManager.Instance.configVerboseLogging.Value)
                 {
-                    string reqList = string.Join(" | ", requirements.Select(r => $"{r.m_resItem.m_itemData.m_shared.m_name} x{r.m_amount}"));
+                    string reqList = string.Join(" | ", gatedRequirements.Select(r => $"{r.m_resItem.m_itemData.m_shared.m_name} x{r.m_amount}"));
                     Debug.Log($"{FiresRPGmaker.PluginName}: Applied recipe to {pieceName}: {reqList}");
                 }
             }

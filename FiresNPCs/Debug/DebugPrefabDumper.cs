@@ -374,7 +374,7 @@ namespace FiresRPGmaker
             items = items.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).ToList();
 
             var sb = new StringBuilder();
-            sb.AppendLine($"# Item Prefab Dump � {items.Count} items");
+            sb.AppendLine($"# Item Prefab Dump - {items.Count} items");
             sb.AppendLine($"# Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             if (hasFilter) sb.AppendLine($"# Filter: {filter}");
             sb.AppendLine();

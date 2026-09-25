@@ -12,7 +12,7 @@ namespace FiresRPGmaker.Modules.Progression
         private static ProgressionConfig _instance;
         public static ProgressionConfig Instance => _instance ?? (_instance = new ProgressionConfig());
 
-        // ?? Keys ??
+        // -- Keys --
         public bool UsePrivateKeys { get; set; } = true;
         public bool BlockAllGlobalKeys { get; set; } = true;
         public HashSet<string> BlockedGlobalKeys { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -22,15 +22,15 @@ namespace FiresRPGmaker.Modules.Progression
         public HashSet<string> AllowedPrivateKeys { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> EnforcedPrivateKeys { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // ?? Raids ??
+        // -- Raids --
         public bool UsePrivateRaids { get; set; } = true;
 
-        // ?? Blocked action feedback ??
+        // -- Blocked action feedback --
         public bool UseBlockedMessage { get; set; } = true;
         public string BlockedMessage { get; set; } = "You are not ready for this yet.";
         public bool UseBlockedEffect { get; set; } = false;
 
-        // ?? Locking features (all OFF by default) ??
+        // -- Locking features (all OFF by default) --
         // Each lock has a bool toggle and a required key name.
         // When the toggle is ON, the player must have the specified key
         // (checked against global keys, private keys, custom player keys, and EWP keys).
@@ -52,7 +52,7 @@ namespace FiresRPGmaker.Modules.Progression
         public bool LockBossSummons { get; set; } = false;
         public string LockBossSummonsKey { get; set; } = "";
 
-        // ?? Admin ??
+        // -- Admin --
         public bool AdminBypass { get; set; } = true;
 
         /// <summary>
@@ -101,7 +101,7 @@ namespace FiresRPGmaker.Modules.Progression
             string steamId = Dialogues.EwpDataBridge.GetLocalSteamId();
             if (Dialogues.EwpDataBridge.HasKey(steamId, requiredKey)) return false;
 
-            // Player doesn't have the key � blocked
+            // Player doesn't have the key - blocked
             return true;
         }
     }

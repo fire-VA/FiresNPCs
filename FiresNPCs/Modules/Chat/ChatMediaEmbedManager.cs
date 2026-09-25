@@ -8,14 +8,14 @@ namespace FiresRPGmaker.Modules.ChatSystem
     /// Manages a standalone, always-active overlay container for GIF/image
     /// embeds triggered by chat messages.
     ///
-    /// The container lives under Hud.instance (IngameGui) � NOT inside the
-    /// chat window hierarchy � so embeds remain visible and their coroutines
+    /// The container lives under Hud.instance (IngameGui) - NOT inside the
+    /// chat window hierarchy - so embeds remain visible and their coroutines
     /// keep running even when the player closes chat. This eliminates the
     /// "Coroutine couldn't be started because the game object is inactive"
     /// error entirely.
     ///
     /// Layout:
-    ///   Anchor (1,0)-(1,0)  Pivot (1,0)  � bottom-right corner
+    ///   Anchor (1,0)-(1,0)  Pivot (1,0)  - bottom-right corner
     ///   Position  X -80  Y 400
     ///   Size      W 713.06   H 783.27
     ///   - Contains a ScrollRect so multiple embeds can stack and scroll.
@@ -28,7 +28,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         private const int MaxVisibleEmbeds = 3;
         private const float EmbedPadding = 8f;
 
-        // Container positioning and sizing � anchored to top-right so content
+        // Container positioning and sizing - anchored to top-right so content
         // grows downward from the anchor point, keeping embeds at a fixed screen position.
         private const float ContainerWidth = 713.06f;
         private const float ContainerHeight = 783.27f;
@@ -53,7 +53,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             EnsureOverlay();
             if (_contentRect == null) return;
 
-            // Enforce max visible embeds � remove oldest
+            // Enforce max visible embeds - remove oldest
             while (_activeEmbeds.Count >= MaxVisibleEmbeds)
             {
                 var oldest = _activeEmbeds[0];
@@ -120,9 +120,9 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _contentRect = null;
         }
 
-        // ?????????????????????????????????????????????????????????
+        // =========================================================
         // Overlay construction
-        // ?????????????????????????????????????????????????????????
+        // =========================================================
 
         private static void EnsureOverlay()
         {
@@ -159,7 +159,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
 
         private static void BuildOverlay(Transform parent)
         {
-            // ?? Root container ??
+            // -- Root container --
             _overlayRoot = new GameObject("VA_ChatMediaOverlay");
             _overlayRoot.transform.SetParent(parent, false);
 
@@ -172,7 +172,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _overlayRect.sizeDelta = new Vector2(ContainerWidth, ContainerHeight);
             _overlayRect.anchoredPosition = new Vector2(ContainerPosX, ContainerPosY);
 
-            // ?? Scroll Rect (masks children, allows vertical scroll) ??
+            // -- Scroll Rect (masks children, allows vertical scroll) --
             var scrollGo = new GameObject("Scroll");
             scrollGo.transform.SetParent(_overlayRoot.transform, false);
 
@@ -192,7 +192,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _scrollRect.movementType = ScrollRect.MovementType.Clamped;
             _scrollRect.scrollSensitivity = 30f;
 
-            // ?? Content area (VerticalLayoutGroup stacks embeds bottom-up) ??
+            // -- Content area (VerticalLayoutGroup stacks embeds bottom-up) --
             var contentGo = new GameObject("Content");
             contentGo.transform.SetParent(scrollGo.transform, false);
 
@@ -220,9 +220,9 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _scrollRect.viewport = scrollRt;
         }
 
-        // ?????????????????????????????????????????????????????????
+        // =========================================================
         // Helpers
-        // ?????????????????????????????????????????????????????????
+        // =========================================================
 
         private static void ScrollToBottom()
         {

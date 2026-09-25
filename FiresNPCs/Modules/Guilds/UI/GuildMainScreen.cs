@@ -11,23 +11,23 @@ using FiresRPGmaker.UI;
 namespace FiresRPGmaker.Modules.Guilds.UI
 {
     /// <summary>
-    /// Main guild management screen â€” tabbed layout:
+    /// Main guild management screen - tabbed layout:
     ///   [Roster] [Applications] [Chat] [Settings]
     ///
     /// STYLE
     /// -----
     /// Matches the warm brown/gold palette used by CompanionRadialMenu and
     /// GroupHudController throughout the mod.  All geometry is procedural
-    /// Unity UI â€” no asset-bundle dependency.
+    /// Unity UI - no asset-bundle dependency.
     /// </summary>
     public class GuildMainScreen : MonoBehaviour
     {
-        // â”€â”€ Events back to GuildScreenManager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Events back to GuildScreenManager --------------------------------
         public event Action OnClose;
         public event Action OnOpenSearch;
         public event Action OnOpenCreate;
 
-        // â”€â”€ Colours (match existing mod palette) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Colours (match existing mod palette) ------------------------------
         // Match the info-UI panel opacity (UIFontConfig.Colors.PanelBackground = alpha 0.85)
         // so guild screens feel consistent with InfoNpcPlayerPanel and friends.
         private static readonly Color BgColor      = new Color(0.04f, 0.04f, 0.06f, 0.85f);
@@ -47,7 +47,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
         private static readonly Color OnlineColor  = new Color(0.40f, 0.85f, 0.40f, 1f);
         private static readonly Color OfflineColor = new Color(0.45f, 0.40f, 0.35f, 1f);
 
-        // â”€â”€ Layout constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Layout constants --------------------------------------------------
         private const float SCREEN_W  = 760f;
         private const float SCREEN_H  = 540f;
         private const float TAB_H     = 34f;
@@ -60,7 +60,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
         private const float FONT_MD   = 13f;
         private const float FONT_LG   = 16f;
 
-        // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- State -------------------------------------------------------------
         private GuildData _guild;
         private bool _built;
         private bool _isDragging;
@@ -70,7 +70,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
         private enum Tab { Roster, Applications, Chat, Settings }
         private Tab _activeTab = Tab.Roster;
 
-        // â”€â”€ Root objects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Root objects ------------------------------------------------------
         private GameObject     _canvasRoot;
         private GameObject     _root;
         private GameObject     _tabContent;
@@ -102,7 +102,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
         private readonly List<TextMeshProUGUI> _chatLines = new List<TextMeshProUGUI>();
         private const int MAX_CHAT_LINES = 50;
 
-        // Persistent chat-history buffer â€” captures messages even when the
+        // Persistent chat-history buffer - captures messages even when the
         // panel is closed so opening the Chat tab shows the recent backlog.
         // Subscribed once on first Show(); never unsubscribed.
         private static readonly List<string> _chatHistory = new List<string>();
@@ -117,7 +117,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
         private Image          _colorPreview;
         private Slider         _colorR, _colorG, _colorB;
 
-        // â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Lifecycle ---------------------------------------------------------
 
         public void Show(GuildData guild)
         {
@@ -140,7 +140,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
 
-            Debug.Log($"[GuildMain] Show() â€” InputBlocked={GUIManager.IsInputBlocked} " +
+            Debug.Log($"[GuildMain] Show() - InputBlocked={GUIManager.IsInputBlocked} " +
                       $"Cursor.visible={Cursor.visible} Cursor.lockState={Cursor.lockState} " +
                       $"EventSystem={(EventSystem.current != null ? EventSystem.current.name : "NULL")}");
         }
@@ -206,7 +206,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             return false;
         }
 
-        // â”€â”€ Event callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Event callbacks ---------------------------------------------------
 
         private void OnGuildsUpdated(System.Collections.Generic.IReadOnlyList<GuildData> guilds)
         {
@@ -264,11 +264,11 @@ namespace FiresRPGmaker.Modules.Guilds.UI
         /// <summary>Called by GuildScreenManager when the server pushes a fresh chat backlog.</summary>
         public void RebuildChatLogPublic() => RebuildChatLogFromHistory();
 
-        // â”€â”€ Full UI build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Full UI build -----------------------------------------------------
 
         private void Build()
         {
-            // DEDICATED CANVAS â€” we used to share Hud.instance's Canvas to inherit
+            // DEDICATED CANVAS - we used to share Hud.instance's Canvas to inherit
             // its cursor/raycaster behavior, but that caused a Canvas Rebuild Storm:
             // every guild-UI layout change dirtied the entire HUD canvas (575+ HUD
             // nodes), tanking FPS to ~5 while the screen was open. The cursor
@@ -304,7 +304,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             // Solid semi-transparent background to match the info-UI panels.
             // (Previously this path optionally used crafting_panel_bkg at alpha
             // 0.75, which made the guild screens look noticeably different
-            // from InfoNpcPlayerPanel etc. â€” using the shared PanelBackground
+            // from InfoNpcPlayerPanel etc. - using the shared PanelBackground
             // keeps the whole mod's panel styling consistent.)
             var rootBg = _root.GetComponent<Image>();
             rootBg.sprite = null;
@@ -346,7 +346,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             dt.anchorMin = new Vector2(0, 0); dt.anchorMax = new Vector2(0.7f, 0.5f);
             dt.offsetMin = new Vector2(28f, 0); dt.offsetMax = new Vector2(-PADDING, 0);
 
-            // Close button â€” small, anchored to the very top-right corner
+            // Close button - small, anchored to the very top-right corner
             // so it doesn't compete for space with the member count.
             const float CLOSE_SIZE = 22f;
             var closeBtn = MakeButton(header.transform, "X", CLOSE_SIZE, CLOSE_SIZE, BtnDanger, TextDanger);
@@ -413,7 +413,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             SwitchTab(Tab.Roster);
         }
 
-        // â”€â”€ Roster tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Roster tab --------------------------------------------------------
 
         private void BuildRosterTab()
         {
@@ -485,11 +485,11 @@ namespace FiresRPGmaker.Modules.Guilds.UI
                     bhl.childControlWidth = false; bhl.childControlHeight = true;
 
                     if (_guild.CanPromote(localId, memberId))
-                        AddSmallButton(btnContainer.transform, "â†‘", BtnNormal, GoldAccent,
+                        AddSmallButton(btnContainer.transform, "\u2191", BtnNormal, GoldAccent,
                             () => GuildAPI.PromoteMember(memberId));
 
                     if (_guild.CanDemote(localId, memberId))
-                        AddSmallButton(btnContainer.transform, "â†“", BtnNormal, TextMuted,
+                        AddSmallButton(btnContainer.transform, "\u2193", BtnNormal, TextMuted,
                             () => GuildAPI.DemoteMember(memberId));
 
                     if (_guild.CanKick(localId, memberId))
@@ -504,7 +504,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             }
         }
 
-        // â”€â”€ Applications tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Applications tab --------------------------------------------------
 
         private void BuildApplicationsTab()
         {
@@ -568,7 +568,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             }
         }
 
-        // â”€â”€ Chat tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Chat tab ----------------------------------------------------------
 
         private void BuildChatTab()
         {
@@ -621,7 +621,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             txt.alignment = TextAlignmentOptions.TopLeft;
             txt.overflowMode = TextOverflowModes.Overflow;
             // TMP implements ILayoutElement.preferredHeight using the wrapped
-            // text height â€” VLG (childControlHeight=true) uses that directly,
+            // text height - VLG (childControlHeight=true) uses that directly,
             // so no LayoutElement is needed for chat lines.
 
             _chatLines.Add(txt);
@@ -641,7 +641,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             }
         }
 
-        // â”€â”€ Settings tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Settings tab ------------------------------------------------------
 
         private void BuildSettingsTab()
         {
@@ -679,7 +679,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             var trt = toggleGO.GetComponent<RectTransform>();
             SetAnchored(trt, PADDING, y, 24f, 24f);
 
-            // Checkmark child â€” Toggle.graphic; only visible while isOn.
+            // Checkmark child - Toggle.graphic; only visible while isOn.
             var checkGO = new GameObject("Checkmark", typeof(RectTransform));
             checkGO.transform.SetParent(toggleGO.transform, false);
             var checkImg = checkGO.AddComponent<Image>();
@@ -719,7 +719,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             saveBtn.GetComponent<Button>().onClick.AddListener(SaveSettings);
             y -= BTN_H + PADDING;
 
-            // Transfer leadership â€” moved up into the gap that used to sit
+            // Transfer leadership - moved up into the gap that used to sit
             // between Save and the divider. The divider is dropped so the
             // bottom-row danger buttons (Dissolve / Leave) have headroom
             // inside the settings tab content area.
@@ -733,7 +733,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             SetAnchored(deleteBtn.GetComponent<RectTransform>(), PADDING, y, BTN_W * 1.5f, BTN_H);
             deleteBtn.GetComponent<Button>().onClick.AddListener(ConfirmDeleteGuild);
 
-            // Leave guild â€” same row as Dissolve.
+            // Leave guild - same row as Dissolve.
             var leaveBtn = MakeButton(inner, "Leave Guild", BTN_H, BTN_W * 1.5f, BtnDanger, TextDanger);
             SetAnchored(leaveBtn.GetComponent<RectTransform>(), PADDING * 2 + BTN_W * 1.5f, y, BTN_W * 1.5f, BTN_H);
             leaveBtn.GetComponent<Button>().onClick.AddListener(ConfirmLeaveGuild);
@@ -791,7 +791,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Guild settings saved.");
         }
 
-        // â”€â”€ Tab switching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Tab switching -----------------------------------------------------
 
         private void SwitchTab(Tab tab)
         {
@@ -831,7 +831,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             RefreshTabContent();
         }
 
-        // â”€â”€ Confirmation dialogs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Confirmation dialogs ----------------------------------------------
 
         private void ConfirmKick(long memberId, string name)
         {
@@ -897,7 +897,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             return null;
         }
 
-        // â”€â”€ Utility builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Utility builders --------------------------------------------------
 
         private static string FormatLastSeen(long ticks)
         {
@@ -932,13 +932,13 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             sliderGO.transform.SetParent(parent, false);
             SetAnchored(sliderGO.GetComponent<RectTransform>(), PADDING + 25f, y, SCREEN_W - PADDING * 3 - 25f, 18f);
 
-            // Background â€” fills the slider rect.
+            // Background - fills the slider rect.
             var bg = MakeImage(sliderGO.transform, "Background", new Color(0.15f, 0.12f, 0.08f));
             var bgRT = bg.GetComponent<RectTransform>();
             bgRT.anchorMin = Vector2.zero; bgRT.anchorMax = Vector2.one;
             bgRT.offsetMin = bgRT.offsetMax = Vector2.zero;
 
-            // Fill area + Fill â€” Slider expects the fillRect to live inside an
+            // Fill area + Fill - Slider expects the fillRect to live inside an
             // area whose anchors stretch the slider width. Without this the
             // Fill image renders at default 100x100 size and overlaps the rest
             // of the panel (this was the giant yellow blob).
@@ -957,7 +957,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             fillRT.offsetMin = Vector2.zero;
             fillRT.offsetMax = Vector2.zero;
 
-            // Handle â€” a thin draggable bar.
+            // Handle - a thin draggable bar.
             var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
             handleArea.transform.SetParent(sliderGO.transform, false);
             var haRT = handleArea.GetComponent<RectTransform>();
@@ -985,7 +985,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             btn.GetComponent<Button>().onClick.AddListener(action);
         }
 
-        // â”€â”€ Primitive UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Primitive UI helpers ----------------------------------------------
 
         private static GameObject MakePanel(Transform parent, float w, float h, Color color, float x = 0, float y = 0)
         {
@@ -1003,7 +1003,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
         private static Image MakeImage(Transform parent, string name, Color color)
         {
             // Image has [RequireComponent(typeof(RectTransform))] so the RT is
-            // added automatically â€” calling AddComponent<RectTransform>() here
+            // added automatically - calling AddComponent<RectTransform>() here
             // would just print a redundant warning to the log.
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -1065,7 +1065,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
 
             // Viewport. RectMask2D (scissor-rect based) is dramatically faster
             // than the older Mask component for ScrollRects with many children
-            // â€” Mask adds 2 stencil draw calls per masked element, which with
+            // - Mask adds 2 stencil draw calls per masked element, which with
             // 50 chat lines + roster + apps balloons the UI draw call count
             // and tanks frame rate. RectMask2D adds zero draw calls.
             // We still need a transparent raycast-target Image so the scroll
@@ -1112,7 +1112,7 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             return scroll;
         }
 
-        // Variant for the Settings tab â€” children use absolute SetAnchored
+        // Variant for the Settings tab - children use absolute SetAnchored
         // positions, so no VerticalLayoutGroup. Caller must set
         // contentRT.sizeDelta after placing children.
         private static Transform MakeManualScrollView(Transform parent, out RectTransform contentRT)

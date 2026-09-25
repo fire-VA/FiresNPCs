@@ -752,11 +752,16 @@ namespace FiresRPGmaker.UI.Screens
         {
             _tradePairs.Clear();
             var byKey = new Dictionary<string, TradePair>();
+            bool needToKnow = _currentProfile.NeedToKnow;
             foreach (var trade in _currentProfile.Trades)
             {
                 var primaryReward = trade.RewardItems.FirstOrDefault();
                 var primaryCost = trade.CostItems.FirstOrDefault();
                 if (primaryReward == null || primaryCost == null) continue;
+
+                // kg NeedToKnow gate (Trader_UI): the trade is hidden unless the player KNOWS every item
+                // on BOTH sides (m_knownMaterial by shared name).
+                if (needToKnow && !PlayerKnowsAllItems(trade)) continue;
 
                 var displayItem = FindDisplayItem(trade);
                 if (displayItem == null) continue;
@@ -780,6 +785,32 @@ namespace FiresRPGmaker.UI.Screens
             if (pair?.DisplayItem == null) return false;
             ResolveItemInfo(pair.DisplayItem.PrefabName, out string displayName, out _);
             return displayName != null && displayName.ToLowerInvariant().Contains(_searchLower);
+        }
+
+        // kg NeedToKnow: every cost AND reward item's shared name must be in the player's known
+        // materials. Unresolvable prefabs count as unknown (kg hides those rows too).
+        private static bool PlayerKnowsAllItems(global::FiresRPGmaker.Managers.TradeEntry trade)
+        {
+            var player = Player.m_localPlayer;
+            if (player == null) return false;
+            foreach (var stack in trade.CostItems)
+                if (!PlayerKnowsItem(player, stack?.PrefabName)) return false;
+            foreach (var stack in trade.RewardItems)
+                if (!PlayerKnowsItem(player, stack?.PrefabName)) return false;
+            return true;
+        }
+
+        private static bool PlayerKnowsItem(Player player, string prefab)
+        {
+            if (string.IsNullOrEmpty(prefab)) return false;
+            try
+            {
+                var pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
+                var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
+                string shared = drop?.m_itemData?.m_shared?.m_name;
+                return !string.IsNullOrEmpty(shared) && player.m_knownMaterial.Contains(shared);
+            }
+            catch { return false; }
         }
 
         private void AddTradeRow(TradePair pair)

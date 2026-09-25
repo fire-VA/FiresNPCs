@@ -19,6 +19,10 @@ namespace FiresRPGmaker.Modules.Territories
         private static bool _initialized;
         private static readonly List<Territory> _territories = new();
         private static readonly HashSet<string> _loggedColorNames = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> _loggedFlagProblems = new(StringComparer.Ordinal);
+        private static readonly char[] FlagSegmentTerminators = { '=', ',', '|', ';' };
+        private const string HeightBoundsFlag = "HeightBounds";
+        private const string NoFlagsMarker = "None";
 
         private static string BaseDir => Path.Combine(FiresCore.Storage.FiresConfigPaths.Territories);
         private static string LegacyDir => Path.Combine(BaseDir, "legacy");
@@ -79,6 +83,7 @@ catch (Exception ex)
    var sw = Stopwatch.StartNew();
             _territories.Clear();
         _loggedColorNames.Clear();
+        _loggedFlagProblems.Clear();
     var sources = new[] { LegacyDir, OutlinesDir, DrawnDir };
      int fileCount = 0;
         foreach (var dir in sources)
@@ -119,6 +124,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
         private static void ParseLegacyFile(string path)
         {
             var lines = File.ReadAllLines(path).ToList();
+            var relativePath = path.Substring(BaseDir.Length).TrimStart('\\', '/').Replace('\\', '/');
             string currentProfile = "default";
             int currentPriority = 1;
             for (int i = 0; i < lines.Count; i++)
@@ -194,10 +200,11 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                 territory.Flags = TerritoryFlags.None;
                 territory.AdditionalFlags = AdditionalTerritoryFlags.None;
                 var flagsLine = lines[i + 3];
-                var flagTokens = SplitFlagTokens(flagsLine).ToList();
+                var flagsSource = $"{relativePath}:{i + 4}";
+                var flagTokens = SplitFlagTokens(flagsLine);
 
                 // If the command pushed alpha onto the flags line (numeric first token), consume it as alpha override
-                if (flagTokens.Count > 0 && byte.TryParse(flagTokens[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var alphaOverride))
+                if (flagTokens.Count > 0 && byte.TryParse(flagTokens[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var alphaOverride))
                 {
                     if (territory.Colors.Count > 0)
                     {
@@ -207,16 +214,14 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     flagTokens.RemoveAt(0);
                 }
 
-                foreach (var rawFlag in flagTokens)
+                foreach (var flagToken in flagTokens)
                 {
-                    var flagToken = rawFlag.Trim();
-                    if (string.IsNullOrEmpty(flagToken)) continue;
                     var parts = flagToken.Split(new[] { '=' }, 2, StringSplitOptions.None);
                     var flagName = parts[0].Trim();
                     var custom = parts.Length > 1 ? parts[1].Trim() : string.Empty;
 
                     // Height bounds custom syntax: HeightBounds=min,max (max optional, defaults to 600; min defaults to 0)
-                    if (flagName.Equals("HeightBounds", StringComparison.OrdinalIgnoreCase))
+                    if (flagName.Equals(HeightBoundsFlag, StringComparison.OrdinalIgnoreCase))
                     {
                         int minY = 0;
                         int maxY = 600;
@@ -235,14 +240,19 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     if (TryParseAdditionalFlag(flagName, out var addFlag) && addFlag != AdditionalTerritoryFlags.None)
                     {
                         territory.AdditionalFlags |= addFlag;
-                        ApplyAdditionalData(territory, addFlag, custom);
+                        if (!ApplyAdditionalData(territory, addFlag, custom))
+                            WarnFlagProblem(territory, flagsSource, flagsLine, $"invalid {flagName} value '{custom}'");
                         continue;
                     }
                     if (TryParseTerritoryFlag(flagName, out var tflag) && tflag != TerritoryFlags.None)
                     {
                         territory.Flags |= tflag;
-                        ApplyFlagData(territory, tflag, custom);
+                        if (!ApplyFlagData(territory, tflag, custom))
+                            WarnFlagProblem(territory, flagsSource, flagsLine, $"invalid {flagName} value '{custom}'");
+                        continue;
                     }
+                    if (!flagName.Equals(NoFlagsMarker, StringComparison.OrdinalIgnoreCase))
+                        WarnFlagProblem(territory, flagsSource, flagsLine, $"unknown flag '{flagToken}'");
                 }
 
                 // permitted owners line
@@ -252,7 +262,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
             }
         }
 
-        private static void ApplyFlagData(Territory territory, TerritoryFlags flag, string custom)
+        private static bool ApplyFlagData(Territory territory, TerritoryFlags flag, string custom)
         {
             switch (flag)
             {
@@ -260,57 +270,30 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     territory.CustomEnvironment = (custom ?? string.Empty).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                     break;
                 case TerritoryFlags.PeriodicDamage:
-                    float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out territory.PeriodicDamageValue);
-                    break;
+                    return TryAssignOptionalFloat(custom, ref territory.PeriodicDamageValue);
                 case TerritoryFlags.PeriodicHeal:
                 case TerritoryFlags.PeriodicHealALL:
-                    if (!string.IsNullOrWhiteSpace(custom))
-                    {
-                        var partsHeal = custom.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (partsHeal.Length >= 1 && float.TryParse(partsHeal[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var interval))
-                        {
-                            territory.PeriodicHealInterval = interval;
-                        }
-                        if (partsHeal.Length >= 2 && float.TryParse(partsHeal[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var healVal))
-                        {
-                            territory.PeriodicHealValue = healVal;
-                        }
-                        else if (partsHeal.Length == 1 && float.TryParse(partsHeal[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var healOnly))
-                        {
-                            // If a single number provided and interval wasn't set (e.g., old style), treat it as heal amount
-                            if (territory.PeriodicHealInterval == 1f)
-                                territory.PeriodicHealValue = healOnly;
-                        }
-                    }
-                    break;
+                    return ApplyPeriodicHeal(territory, custom);
                 case TerritoryFlags.IncreasedMonsterDamage:
-                    float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out territory.IncreasedMonsterDamageValue);
-                    break;
+                    return TryAssignOptionalFloat(custom, ref territory.IncreasedMonsterDamageValue);
                 case TerritoryFlags.IncreasedPlayerDamage:
-                    float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out territory.IncreasedPlayerDamageValue);
-                    break;
+                    return TryAssignOptionalFloat(custom, ref territory.IncreasedPlayerDamageValue);
                 case TerritoryFlags.MoveSpeedMultiplier:
-                    float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out territory.MoveSpeedMultiplier);
-                    break;
+                    return TryAssignOptionalFloat(custom, ref territory.MoveSpeedMultiplier);
                 case TerritoryFlags.ForceGroundHeight:
                 case TerritoryFlags.AddGroundHeight:
                 case TerritoryFlags.LimitZoneHeight:
-                    float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out territory.OverridenHeight);
-                    break;
+                    return TryAssignOptionalFloat(custom, ref territory.OverridenHeight);
                 case TerritoryFlags.ForceBiome:
                     if (int.TryParse(custom, NumberStyles.Integer, CultureInfo.InvariantCulture, out var biomeVal) && IsValidBiomeValue(biomeVal))
                     {
                         territory.OverridenBiome = biomeVal;
+                        break;
                     }
-                    else
-                    {
-                        territory.OverridenBiome = 0;
-                        Debug.LogWarning($"[FiresRPGmaker] Invalid ForceBiome value '{custom}' for territory '{territory.Name}', ignoring override.");
-                    }
-                    break;
+                    territory.OverridenBiome = 0;
+                    return false;
                 case TerritoryFlags.MonstersAddStars:
-                    int.TryParse(custom, NumberStyles.Integer, CultureInfo.InvariantCulture, out territory.AddMonsterLevel);
-                    break;
+                    return TryAssignOptionalInt(custom, ref territory.AddMonsterLevel);
                 case TerritoryFlags.CustomPaint:
                     if (int.TryParse(custom, out var paintVal))
                     {
@@ -320,20 +303,61 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     {
                         territory.PaintGround = paintEnum;
                     }
+                    else
+                    {
+                        return string.IsNullOrWhiteSpace(custom);
+                    }
                     break;
             }
+            return true;
         }
 
-        private static void ApplyAdditionalData(Territory territory, AdditionalTerritoryFlags flag, string custom)
+        /// <summary>PeriodicHeal / PeriodicHealALL take "amount" (KG form, healed every 1 s tick) or "interval,amount".</summary>
+        private static bool ApplyPeriodicHeal(Territory territory, string custom)
+        {
+            var values = custom.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            if (values.Length == 0) return true;
+            if (values.Length > 2) return false;
+            if (!float.TryParse(values[values.Length - 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var healAmount)) return false;
+            if (values.Length == 2)
+            {
+                if (!float.TryParse(values[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var interval)) return false;
+                territory.PeriodicHealInterval = interval;
+            }
+            territory.PeriodicHealValue = healAmount;
+            return true;
+        }
+
+        private static bool TryAssignOptionalFloat(string custom, ref float target)
+        {
+            if (string.IsNullOrWhiteSpace(custom)) return true;
+            if (!float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)) return false;
+            target = parsed;
+            return true;
+        }
+
+        private static bool TryAssignOptionalInt(string custom, ref int target)
+        {
+            if (string.IsNullOrWhiteSpace(custom)) return true;
+            if (!int.TryParse(custom, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)) return false;
+            target = parsed;
+            return true;
+        }
+
+        private static void WarnFlagProblem(Territory territory, string flagsSource, string flagsLine, string problem)
+        {
+            if (!_loggedFlagProblems.Add($"{territory.Name}|{flagsLine}|{problem}")) return;
+            Debug.LogWarning($"[FiresRPGmaker] Territory '{territory.Name}' ({flagsSource}): {problem}, ignoring it. Flags line: \"{flagsLine.Trim()}\"");
+        }
+
+        private static bool ApplyAdditionalData(Territory territory, AdditionalTerritoryFlags flag, string custom)
         {
             switch (flag)
             {
                 case AdditionalTerritoryFlags.ForceWind:
-                    float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out territory.Wind);
-                    break;
+                    return TryAssignOptionalFloat(custom, ref territory.Wind);
                 case AdditionalTerritoryFlags.DropMultiplier:
-                    float.TryParse(custom, NumberStyles.Float, CultureInfo.InvariantCulture, out territory.DropMultiplier);
-                    break;
+                    return TryAssignOptionalFloat(custom, ref territory.DropMultiplier);
                 case AdditionalTerritoryFlags.OnlyForGuild:
                     territory.OnlyForGuild = custom;
                     break;
@@ -375,6 +399,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     }
                     break;
             }
+            return true;
         }
 
         private static void WriteSampleIfMissing()
@@ -433,23 +458,54 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
             }
         }
 
-        private static IEnumerable<string> SplitFlagTokens(string flagsLine)
+        /// <summary>
+        /// Splits on '|', ';' and ','. Inside a Flag=value a comma only splits when the text after it names a flag,
+        /// so multi-value flags (HeightBounds=0,600, PeriodicHeal=1,5, CustomEnvironment=a,b) keep their commas.
+        /// </summary>
+        private static List<string> SplitFlagTokens(string flagsLine)
         {
-            if (string.IsNullOrWhiteSpace(flagsLine)) yield break;
-            var sb = new System.Text.StringBuilder();
-            bool seenEquals = false;
-            foreach (char c in flagsLine)
+            var tokens = new List<string>();
+            int tokenStart = 0;
+            bool insideValue = false;
+            for (int index = 0; index < flagsLine.Length; index++)
             {
-                if (c == '|' || c == ';' || (c == ',' && !seenEquals))
+                char character = flagsLine[index];
+                if (character == '=')
                 {
-                    if (sb.Length > 0) { yield return sb.ToString(); sb.Clear(); }
-                    seenEquals = false;
+                    insideValue = true;
                     continue;
                 }
-                if (c == '=') seenEquals = true;
-                sb.Append(c);
+                bool endsToken = character == '|' || character == ';'
+                    || (character == ',' && (!insideValue || NextSegmentNamesFlag(flagsLine, index + 1)));
+                if (!endsToken) continue;
+                AddFlagToken(tokens, flagsLine.Substring(tokenStart, index - tokenStart));
+                tokenStart = index + 1;
+                insideValue = false;
             }
-            if (sb.Length > 0) yield return sb.ToString();
+            AddFlagToken(tokens, flagsLine.Substring(tokenStart));
+            return tokens;
+        }
+
+        private static void AddFlagToken(List<string> tokens, string token)
+        {
+            token = token.Trim();
+            if (token.Length > 0) tokens.Add(token);
+        }
+
+        private static bool NextSegmentNamesFlag(string flagsLine, int segmentStart)
+        {
+            int segmentEnd = flagsLine.IndexOfAny(FlagSegmentTerminators, segmentStart);
+            if (segmentEnd < 0) segmentEnd = flagsLine.Length;
+            return IsFlagName(flagsLine.Substring(segmentStart, segmentEnd - segmentStart).Trim());
+        }
+
+        /// <summary>Letter-first because Enum.TryParse also accepts numbers ("20" parses as NoAttack|NoPickaxe).</summary>
+        private static bool IsFlagName(string candidate)
+        {
+            if (candidate.Length == 0 || !char.IsLetter(candidate[0])) return false;
+            if (candidate.Equals(HeightBoundsFlag, StringComparison.OrdinalIgnoreCase)) return true;
+            return (TryParseAdditionalFlag(candidate, out var additionalFlag) && additionalFlag != AdditionalTerritoryFlags.None)
+                || (TryParseTerritoryFlag(candidate, out var territoryFlag) && territoryFlag != TerritoryFlags.None);
         }
 
         private static CustomSpawnDef ParseCustomSpawnDef(string custom)

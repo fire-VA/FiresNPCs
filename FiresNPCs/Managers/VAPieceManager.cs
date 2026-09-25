@@ -112,7 +112,7 @@ namespace FiresRPGmaker.Managers
             }
 
             // Load NPC prefabs from npc/ folder (in vaitems)
-            // StaticNpc is a dedicated bundle prefab for quest NPCs Ã¢â‚¬â€ safe to modify directly.
+            // StaticNpc is a dedicated bundle prefab for quest NPCs - safe to modify directly.
             // BaseNpc is handled separately by CompanionPrefabManager for companion placement.
             foreach (var npcName in NpcPrefabNames)
             {
@@ -199,7 +199,7 @@ namespace FiresRPGmaker.Managers
 
                     FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Found piece prefab at path: {normalizedPath}");
                     // CRITICAL: protect the bundle prefab from scene-unload destruction.
-                    // See VAItemManager.LoadItems for the full rationale Ã¢â‚¬â€ the static
+                    // See VAItemManager.LoadItems for the full rationale - the static
                     // piecePrefabs list survives logout but the bundle GameObjects do
                     // not unless DDOL'd, which leaves Unity fake-null references that
                     // crash other mods on the next world load.
@@ -239,7 +239,7 @@ namespace FiresRPGmaker.Managers
                 if (prefab != null)
                 {
                     FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Found NPC prefab at path: {normalizedPath}");
-                    // Protect from scene-unload destruction Ã¢â‚¬â€ see LoadPiecePrefab.
+                    // Protect from scene-unload destruction - see LoadPiecePrefab.
                     UnityEngine.Object.DontDestroyOnLoad(prefab);
                     return prefab;
                 }
@@ -306,7 +306,7 @@ namespace FiresRPGmaker.Managers
             // The bundle prefab carries a Piece with broken cross-bundle EffectList
             // prefab references that cause "The Object you want to instantiate is null"
             // in Player.PlacePiece. Companions (BaseNpc/CompanionNpc) never hit this
-            // because they don't ship with a Piece in the bundle Ã¢â‚¬â€ they get one added
+            // because they don't ship with a Piece in the bundle - they get one added
             // fresh via AddComponent in AddCompanionsToPieceTable. We do the same here.
             // IN-PLACE CONFIGURATION (2026-07): the old DestroyImmediate-and-re-add here silently
             // FAILED — the loaded bundle prefab is a persistent ASSET, and Unity refuses component
@@ -397,7 +397,7 @@ namespace FiresRPGmaker.Managers
 
             // Disable VisEquipment and add NpcVisEquipment at prefab-build time.
             // VisEquipment.OnEnable registers with MonoUpdaters, which then calls
-            // CustomUpdate Ã¢â€ â€™ UpdateVisuals Ã¢â€ â€™ UpdateColors every frame. On a freshly
+            // CustomUpdate -> UpdateVisuals -> UpdateColors every frame. On a freshly
             // spawned NPC those methods crash because the body shader is wrong and
             // the model arrays haven't been set up yet. Disabling it here means
             // OnEnable never fires, MonoUpdaters never gets the component, and there
@@ -407,7 +407,7 @@ namespace FiresRPGmaker.Managers
             if (visEquipment != null)
             {
                 visEquipment.enabled = false;
-                FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Disabled VisEquipment on {npcName} prefab Ã¢â‚¬â€ NpcVisEquipment owns init");
+                FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Disabled VisEquipment on {npcName} prefab - NpcVisEquipment owns init");
             }
 
             var npcVisEquipment = npcPrefab.GetComponent<FiresCore.Npc.NpcVisEquipment>();
@@ -422,7 +422,7 @@ namespace FiresRPGmaker.Managers
             if (zNetView != null)
                 zNetView.m_syncInitialScale = true;
 
-            // Strip WearNTear if the bundle prefab shipped one Ã¢â‚¬â€ its RPC registrations
+            // Strip WearNTear if the bundle prefab shipped one - its RPC registrations
             // conflict with the companion component stack added by SetupCompanionPrefab.
             var wearNTear = npcPrefab.GetComponent<WearNTear>();
             if (wearNTear != null)
@@ -506,7 +506,7 @@ namespace FiresRPGmaker.Managers
         /// <c>ZDOMan.Load</c> instantiates persistent ZDOs. Without this,
         /// vanilla's <c>ZNetScene.CreateObject</c> sees the wayshrine ZDO
         /// hash, doesn't find the prefab, and runs
-        /// <c>"Destroyed invalid predab ZDO:..."</c> Ã¢â‚¬â€ wiping placed shrines
+        /// <c>"Destroyed invalid predab ZDO:..."</c> - wiping placed shrines
         /// from the world on every world load. Items + companions register
         /// here for the same reason; pieces have to too. PieceTable
         /// registration stays in <see cref="AddPiecesToHammer"/> because
@@ -608,7 +608,7 @@ namespace FiresRPGmaker.Managers
 
             var pieceTable = itemDrop.m_itemData.m_shared.m_buildPieces;
 
-            // CRITICAL: PieceTable is a ScriptableObject Ã¢â‚¬â€ it survives scene unload,
+            // CRITICAL: PieceTable is a ScriptableObject - it survives scene unload,
             // unlike the GameObjects it references. On a second world load in the same
             // game session, any unprotected piece prefab in m_pieces becomes a Unity
             // fake-null. Other mods (Jotunn, Balrond, etc.) iterate this list during
@@ -714,7 +714,7 @@ namespace FiresRPGmaker.Managers
                 return;
             }
 
-            // Add Piece component if missing Ã¢â‚¬â€ same pattern as companion registration
+            // Add Piece component if missing - same pattern as companion registration
             var piece = piecePrefab.GetComponent<Piece>();
             if (piece == null)
             {
@@ -740,7 +740,7 @@ namespace FiresRPGmaker.Managers
                 zNetView.m_persistent = true;
             }
 
-            // Register to ZNetScene at the same time as hammer Ã¢â‚¬â€ mirrors companion pattern.
+            // Register to ZNetScene at the same time as hammer - mirrors companion pattern.
             // This prevents other mods from claiming our prefabs before we add them to the hammer.
             if (ZNetScene.instance != null && ZNetScene.instance.GetPrefab(piecePrefab.name) == null)
             {

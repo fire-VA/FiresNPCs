@@ -131,6 +131,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                     if (parts.Length > 8) DecodeDict(parts[8], s.BuiltByCategory);
                     if (parts.Length > 9 && int.TryParse(parts[9], out var tf)) s.Terraformed = tf;
                     if (parts.Length > 10 && int.TryParse(parts[10], out var cv)) s.Cultivated = cv;
+                    if (parts.Length > 11) DecodeDict(parts[11], s.KilledByCause);
+                    if (parts.Length > 12) DecodeDict(parts[12], s.KilledByPrefab);
                     _byPlayer[s.PlayerName] = s;
                 }
             }
@@ -143,14 +145,15 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var path = StorePath;
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
-                var lines = new List<string> { "# player,killedCreatures,killedPlayers,builtStructures,itemsCrafted,died,mapExplored,harvested,builtByCategory,terraformed,cultivated" };
+                var lines = new List<string> { "# player,killedCreatures,killedPlayers,builtStructures,itemsCrafted,died,mapExplored,harvested,builtByCategory,terraformed,cultivated,killedByCause,killedByPrefab" };
                 foreach (var s in _byPlayer.Values)
                 {
                     lines.Add(string.Join(",",
                         s.PlayerName, s.KilledCreatures, s.KilledPlayers, s.BuiltStructures,
                         s.ItemsCrafted, s.Died, s.MapExplored.ToString("0.####"),
                         EncodeDict(s.HarvestedByPrefab), EncodeDict(s.BuiltByCategory),
-                        s.Terraformed, s.Cultivated));
+                        s.Terraformed, s.Cultivated,
+                        EncodeDict(s.KilledByCause), EncodeDict(s.KilledByPrefab)));
                 }
                 File.WriteAllLines(path, lines);
             }
@@ -183,131 +186,73 @@ namespace FiresRPGmaker.Modules.Marketplace
         }
     }
 
-    /// <summary>Harmony patches that increment <see cref="LeaderboardTracker"/> counters from real game events.</summary>
-    public static class LeaderboardTrackerPatches
+    /// <summary>
+    /// What the leaderboard's game-event hooks record into the local tracker. The hooks themselves live once, in
+    /// <see cref="LeaderboardFeedPatches"/>, which also feeds the server: one Harmony patch per vanilla method.
+    /// </summary>
+    internal static class LeaderboardTrackerRecorder
     {
-        [HarmonyPatch(typeof(Character), nameof(Character.OnDeath))]
-        public static class Character_OnDeath_Patch
+        internal static void OwnDeath(string killerKey)
         {
-            [HarmonyPostfix]
-            private static void Postfix(Character __instance)
+            var s = LeaderboardTracker.Local;
+            s.Died++;
+            if (!string.IsNullOrEmpty(killerKey))
             {
-                if (__instance == null) return;
-                var local = Player.m_localPlayer;
-                // Player death
-                if (__instance == (Character)local)
-                {
-                    LeaderboardTracker.Local.Died++;
-                    LeaderboardTracker.NotifyChanged();
-                    return;
-                }
-                // Creature/player killed by us (local credited). m_lastHit is protected; reach for it via
-                // Harmony's AccessTools so we don't need a publicized assembly_valheim ref.
-                var hit = AccessTools.Field(typeof(Character), "m_lastHit").GetValue(__instance) as HitData;
-                var attacker = hit?.GetAttacker();
-                if (attacker != null && attacker == (Character)local)
-                {
-                    var s = LeaderboardTracker.Local;
-                    if (__instance is Player) { s.KilledPlayers++; }
-                    else
-                    {
-                        s.KilledCreatures++;
-                        string name = __instance.gameObject.name.Replace("(Clone)", "").Trim();
-                        s.KilledByPrefab.TryGetValue(name, out var n); s.KilledByPrefab[name] = n + 1;
-                    }
-                    LeaderboardTracker.NotifyChanged();
-                }
+                s.KilledByCause.TryGetValue(killerKey, out var n);
+                s.KilledByCause[killerKey] = n + 1;
             }
+            LeaderboardTracker.NotifyChanged();
         }
 
-        [HarmonyPatch(typeof(InventoryGui), "DoCrafting")]
-        public static class InventoryGui_DoCrafting_Patch
+        internal static void Kill(Character victim)
         {
-            [HarmonyPostfix]
-            private static void Postfix(Player player)
+            var s = LeaderboardTracker.Local;
+            if (victim is Player) s.KilledPlayers++;
+            else
             {
-                if (player != Player.m_localPlayer) return;
-                var s = LeaderboardTracker.Local;
-                s.ItemsCrafted++;
-                LeaderboardTracker.NotifyChanged();
+                s.KilledCreatures++;
+                string name = victim.gameObject.name.Replace("(Clone)", "").Trim();
+                s.KilledByPrefab.TryGetValue(name, out var n);
+                s.KilledByPrefab[name] = n + 1;
             }
+            LeaderboardTracker.NotifyChanged();
         }
 
-        [HarmonyPatch(typeof(Piece), nameof(Piece.SetCreator))]
-        public static class Piece_SetCreator_Patch
+        internal static void Crafted()
         {
-            [HarmonyPostfix]
-            private static void Postfix(Piece __instance, long uid)
-            {
-                if (Player.m_localPlayer == null || __instance == null) return;
-                if (uid != Player.m_localPlayer.GetPlayerID()) return;
-                var s = LeaderboardTracker.Local;
-                // Same split as the server feed: hoe/cultivator pieces are terraform/cultivate ops, not builds.
-                switch (LeaderboardServerFeed.ClassifyPiece(__instance))
-                {
-                    case LeaderboardServerFeed.PieceKind.Cultivate: s.Cultivated++; break;
-                    case LeaderboardServerFeed.PieceKind.Terraform: s.Terraformed++; break;
-                    default:
-                        s.BuiltStructures++;
-                        string cat = __instance.m_category.ToString();
-                        s.BuiltByCategory.TryGetValue(cat, out var n); s.BuiltByCategory[cat] = n + 1;
-                        break;
-                }
-                LeaderboardTracker.NotifyChanged();
-            }
+            LeaderboardTracker.Local.ItemsCrafted++;
+            LeaderboardTracker.NotifyChanged();
         }
 
-        // Map exploration — see LeaderboardServerFeed.Player_Update_Explore for rationale. Hook on Player.Update
-        // (fires every frame regardless of movement), throttle by accumulated Time.deltaTime, and apply the 4/π
-        // (1.27323949f) normalization so a fully-explored circular world reads as 1.0 instead of ~0.785.
-        [HarmonyPatch(typeof(Player), nameof(Player.Update))]
-        public static class Player_Update_Explore_Patch
+        internal static void Piece(Piece piece, LeaderboardServerFeed.PieceKind kind)
         {
-            private const float WriteIntervalSeconds = 30f;
-            private const float CircleNormalization = 1.27323949f;
-            private static float _accum;
-
-            [HarmonyPostfix]
-            private static void Postfix(Player __instance)
+            var s = LeaderboardTracker.Local;
+            switch (kind)
             {
-                if (__instance == null || __instance != Player.m_localPlayer || Minimap.instance == null) return;
-                _accum += Time.deltaTime;
-                if (_accum < WriteIntervalSeconds) return;
-                _accum = 0f;
-
-                var arr = Minimap.instance.m_explored;
-                if (arr == null || arr.Length == 0) return;
-                int explored = 0;
-                for (int i = 0; i < arr.Length; i++) if (arr[i]) explored++;
-                LeaderboardTracker.Local.MapExplored = Mathf.Min(1f, (float)explored / arr.Length * CircleNormalization);
-                LeaderboardTracker.NotifyChanged();
+                case LeaderboardServerFeed.PieceKind.Cultivate: s.Cultivated++; break;
+                case LeaderboardServerFeed.PieceKind.Terraform: s.Terraformed++; break;
+                default:
+                    s.BuiltStructures++;
+                    string category = piece.m_category.ToString();
+                    s.BuiltByCategory.TryGetValue(category, out var n);
+                    s.BuiltByCategory[category] = n + 1;
+                    break;
             }
+            LeaderboardTracker.NotifyChanged();
         }
 
-        // Pickable.Interact's return is m_useInteractAnimation (a static flag), NOT a did-pick signal. Credit a
-        // non-repeat interact with an UN-picked pickable (prefix __state == false) by the local player. We do
-        // NOT re-check GetPicked() afterward: on a dedicated server the pick RPC routes to the ZDO owner and
-        // m_picked flips a frame LATER, so a post-interact check would miss every client harvest. Optimistic
-        // (a contested pick can over-credit by 1 — fine for an achievement counter).
-        [HarmonyPatch(typeof(Pickable), nameof(Pickable.Interact))]
-        public static class Pickable_Interact_Patch
+        internal static void Explored(float fraction)
         {
-            [HarmonyPrefix]
-            private static void Prefix(Pickable __instance, out bool __state)
-                => __state = __instance != null && __instance.GetPicked();
+            LeaderboardTracker.Local.MapExplored = fraction;
+            LeaderboardTracker.NotifyChanged();
+        }
 
-            [HarmonyPostfix]
-            private static void Postfix(Pickable __instance, Humanoid character, bool repeat, bool __state)
-            {
-                if (repeat || __state) return;                       // repeat-use, or already picked before this interact
-                if (__instance == null || character == null) return;
-                var lp = Player.m_localPlayer;
-                if (lp == null || character != (Humanoid)lp) return;
-                var s = LeaderboardTracker.Local;
-                string name = __instance.gameObject.name.Replace("(Clone)", "").Trim();
-                s.HarvestedByPrefab.TryGetValue(name, out var n); s.HarvestedByPrefab[name] = n + 1;
-                LeaderboardTracker.NotifyChanged();
-            }
+        internal static void Harvested(string prefab)
+        {
+            var s = LeaderboardTracker.Local;
+            s.HarvestedByPrefab.TryGetValue(prefab, out var n);
+            s.HarvestedByPrefab[prefab] = n + 1;
+            LeaderboardTracker.NotifyChanged();
         }
     }
 }

@@ -644,7 +644,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             if (zm == null) return false;
             var near = new List<ZDO>();
             var distant = new List<ZDO>();
-            try { zm.FindSectorObjects(ZoneSystem.GetZone(home), 1, 0, near, distant); }
+            try { zm.FindSectorObjects(ZoneSystem.GetZone(home), new SimulationDistance(1, 0), near, distant); }
             catch { return false; }
             foreach (var z in near)
             {

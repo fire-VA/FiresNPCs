@@ -67,8 +67,8 @@ namespace FiresRPGmaker.Modules.Guilds.UI
             // might steal focus while our manager Update is still ticking.
             if (IsAnyInputFieldFocused()) return;
 
-            var key = ConfigManager.Instance?.configGuildHotkey?.Value ?? KeyCode.G;
-            if (key != KeyCode.None && ZInput.GetKeyDown(key) && !ZInput.IsGamepadActive())
+            var sc = ConfigManager.Instance?.configGuildHotkey?.Value ?? new BepInEx.Configuration.KeyboardShortcut(KeyCode.G);
+            if (sc.MainKey != KeyCode.None && FiresCore.Input.Chord.IsDown(sc) && !ZInput.IsGamepadActive())
                 Toggle();
         }
 

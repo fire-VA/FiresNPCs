@@ -13,8 +13,8 @@ namespace FiresRPGmaker.Modules.Progression
     /// 
     /// Custom player key commands (ZDO int + EWP sync):
     ///   va_addcustomkey, va_removecustomkey, va_listcustomkeys
-    ///   � No args = targets yourself (auto-resolved steam ID)
-    ///   � Optional [steamId] at the end = admin targets another player
+    ///   - No args = targets yourself (auto-resolved steam ID)
+    ///   - Optional [steamId] at the end = admin targets another player
     /// </summary>
     [HarmonyPatch]
     public static class ProgressionConsoleCommands
@@ -30,9 +30,9 @@ namespace FiresRPGmaker.Modules.Progression
                 if (_added) return;
                 _added = true;
 
-                // ?????? Private Key commands (boss progression) ??????
+                // ------ Private Key commands (boss progression) ------
 
-                new Terminal.ConsoleCommand("va_setprivatekey", "[key] � Adds a private key to local player",
+                new Terminal.ConsoleCommand("va_setprivatekey", "[key] - Adds a private key to local player",
                     args =>
                     {
                         if (args.Length >= 2)
@@ -45,7 +45,7 @@ namespace FiresRPGmaker.Modules.Progression
                             args.Context.AddString("Usage: va_setprivatekey <key>");
                     }, isCheat: true);
 
-                new Terminal.ConsoleCommand("va_removeprivatekey", "[key] � Removes a private key from local player",
+                new Terminal.ConsoleCommand("va_removeprivatekey", "[key] - Removes a private key from local player",
                     args =>
                     {
                         if (args.Length >= 2)
@@ -82,12 +82,12 @@ namespace FiresRPGmaker.Modules.Progression
                         args.Context.AddString($"Private boss keys: {priv}/7, Global boss keys: {glob}/7");
                     });
 
-                // ?????? Custom Player Key commands (ZDO + EWP sync) ??????
+                // ------ Custom Player Key commands (ZDO + EWP sync) ------
                 // Steam ID is auto-resolved from the local player.
                 // Optional [steamId] at end for admin-targeting another player.
 
                 new Terminal.ConsoleCommand("va_addcustomkey",
-                    "<key> [steamId] � Adds a custom key to your player (ZDO + EWP + private key). Optional steamId to admin-target another player.",
+                    "<key> [steamId] - Adds a custom key to your player (ZDO + EWP + private key). Optional steamId to admin-target another player.",
                     args =>
                     {
                         if (args.Length < 2)
@@ -118,7 +118,7 @@ namespace FiresRPGmaker.Modules.Progression
                     }, isCheat: true);
 
                 new Terminal.ConsoleCommand("va_removecustomkey",
-                    "<key> [steamId] � Removes a custom key from your player (ZDO + EWP + private key). Optional steamId to admin-target another player.",
+                    "<key> [steamId] - Removes a custom key from your player (ZDO + EWP + private key). Optional steamId to admin-target another player.",
                     args =>
                     {
                         if (args.Length < 2)
@@ -149,7 +149,7 @@ namespace FiresRPGmaker.Modules.Progression
                     }, isCheat: true);
 
                 new Terminal.ConsoleCommand("va_listcustomkeys",
-                    "[steamId] � Lists your custom keys (ZDO + EWP). Optional steamId to view another player's EWP keys.",
+                    "[steamId] - Lists your custom keys (ZDO + EWP). Optional steamId to view another player's EWP keys.",
                     args =>
                     {
                         string steamId = args.Length >= 2 ? args[1].Trim() : EwpDataBridge.GetLocalSteamId();
@@ -164,17 +164,17 @@ namespace FiresRPGmaker.Modules.Progression
                                 var zdo = nview.GetZDO();
                                 // Check known custom keys by scanning ZDO ints
                                 // ZDO doesn't expose iteration, so we check the keys we know about
-                                args.Context.AddString("� ZDO custom keys (player object):");
+                                args.Context.AddString("- ZDO custom keys (player object):");
                                 args.Context.AddString("  (ZDO keys are set on the player object and not enumerable.");
                                 args.Context.AddString("   Use 'va_listcustomkeys' with a key name to check: va_hascustomkey <key>)");
                             }
                         }
 
-                        // List EWP keys (server-side file read � only works on server/host)
+                        // List EWP keys (server-side file read - only works on server/host)
                         var ewpKeys = EwpDataBridge.ListKeys(steamId);
                         if (ewpKeys.Count > 0)
                         {
-                            args.Context.AddString($"� EWP keys for {steamId} ({ewpKeys.Count}):");
+                            args.Context.AddString($"- EWP keys for {steamId} ({ewpKeys.Count}):");
                             foreach (var kv in ewpKeys.OrderBy(k => k.Key))
                             {
                                 if (kv.Value == 1)
@@ -189,7 +189,7 @@ namespace FiresRPGmaker.Modules.Progression
                         var privateKeys = PrivateKeyManager.PrivateKeys;
                         if (privateKeys.Count > 0)
                         {
-                            args.Context.AddString($"� Private keys ({privateKeys.Count}):");
+                            args.Context.AddString($"- Private keys ({privateKeys.Count}):");
                             foreach (var pk in privateKeys.OrderBy(k => k))
                                 args.Context.AddString($"  {pk}");
                             totalCount += privateKeys.Count;

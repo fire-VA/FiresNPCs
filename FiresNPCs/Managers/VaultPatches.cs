@@ -518,6 +518,16 @@ namespace FiresRPGmaker.Modules.Vault
                     
                     Debug.Log($"[FiresRPGmaker] OnSpawned: Player {playerName} (ID {playerId}) connected from {data.PlatformId}, admin={data.IsAdmin}");
                 }
+                else if (player == Player.m_localPlayer)
+                {
+                    // The host's own player (single player, listen server) has no peer: the platform id is the local
+                    // user's, admin is the host's, and the quest files are already in this process.
+                    data.PlatformId = FiresCore.Identity.OwnerKeys.ResolveEconomyOwner(ZNet.GetUID(), playerId);
+                    data.Platform = ZNet.m_onlineBackend.ToString();
+                    data.IsAdmin = FiresCore.Sync.AdminSyncing.IsLocalAdmin();
+                    VaultOfKnowledge.Instance.ProcessPendingRequestForPeer(ZNet.GetUID(), playerId);
+                    Debug.Log($"[FiresRPGmaker] OnSpawned: host player {playerName} (ID {playerId}) as {data.PlatformId}, admin={data.IsAdmin}");
+                }
                 else
                 {
                     Debug.LogWarning($"[FiresRPGmaker] OnSpawned: Could not find peer for player {playerName}");

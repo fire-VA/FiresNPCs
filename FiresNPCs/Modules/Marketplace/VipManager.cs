@@ -10,9 +10,12 @@ namespace FiresRPGmaker.Modules.Marketplace
     /// <summary>
     /// The minimal VIP flag (owner decision 2026-07-07): an admin-managed player list plus the tax
     /// and interest multipliers that go with it. The list + rates live in the SAME MarketPlace.cfg
-    /// the Marketplace admin tab already edits (keys VIPplayersList / Taxes / VIPplayersTaxes /
-    /// VIPplayersBankerMultiplier), which FiresConfigSync pushes to every client — so both the
-    /// server (tax/interest math) and clients (IsVIP dialogue condition) read the same synced values.
+    /// the Marketplace admin tab already edits, under kg's exact key names (VIPplayersList /
+    /// MarketTaxes / VIPplayersTaxes / BankerVIPIncomeMultiplier — the spellings kg's
+    /// Global_Configs writes and the corpus carries), which FiresConfigSync pushes to every client —
+    /// so both the server (tax/interest math) and clients (IsVIP dialogue condition) read the same
+    /// synced values. Defaults when a key is absent match kg (0% tax, no VIP boost) — nothing is
+    /// hardcoded; the admin tab's fields are the authority.
     ///
     /// Match is normalized like the admin list: a token equals a player's bare SteamID64, its
     /// Steam_-prefixed form, or its display name (case-insensitive). Substring matching (MP's raw
@@ -23,7 +26,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static string CfgPath => Path.Combine(Paths.ConfigPath, "Marketplace", "MarketPlace.cfg");
 
         private static readonly HashSet<string> _vipTokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private static float _tax = 5f, _vipTax = 2f, _bankerVipMult = 1f;
+        private static float _tax = 0f, _vipTax = 0f, _bankerVipMult = 1f;
         private static bool _loaded;
         private static float _nextStaleCheck;
         private static DateTime _seenWrite = DateTime.MinValue;
@@ -74,7 +77,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             _loaded = true;
             _nextStaleCheck = Time.unscaledTime + 5f;
             _vipTokens.Clear();
-            _tax = 5f; _vipTax = 2f; _bankerVipMult = 1f;
+            _tax = 0f; _vipTax = 0f; _bankerVipMult = 1f;
 
             try
             {
@@ -99,9 +102,9 @@ namespace FiresRPGmaker.Modules.Marketplace
                             _vipTokens.Add(t);   // also keep the raw form so a name token matches by name
                         }
                     }
-                    else if (key.Equals("Taxes", StringComparison.OrdinalIgnoreCase)) TryFloat(val, ref _tax);
+                    else if (key.Equals("MarketTaxes", StringComparison.OrdinalIgnoreCase)) TryFloat(val, ref _tax);
                     else if (key.Equals("VIPplayersTaxes", StringComparison.OrdinalIgnoreCase)) TryFloat(val, ref _vipTax);
-                    else if (key.Equals("VIPplayersBankerMultiplier", StringComparison.OrdinalIgnoreCase)) TryFloat(val, ref _bankerVipMult);
+                    else if (key.Equals("BankerVIPIncomeMultiplier", StringComparison.OrdinalIgnoreCase)) TryFloat(val, ref _bankerVipMult);
                 }
             }
             catch (Exception ex) { Debug.LogWarning($"[VipManager] read failed: {ex.Message}"); }

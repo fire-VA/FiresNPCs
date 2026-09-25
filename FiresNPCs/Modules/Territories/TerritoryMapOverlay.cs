@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using Unity.Collections;
 using UnityEngine;
 using FiresRPGmaker.Managers;
 using Debug = UnityEngine.Debug;
@@ -14,11 +15,24 @@ namespace FiresRPGmaker.Modules.Territories
     [HarmonyPatch]
     internal static class TerritoryMapOverlay
     {
+        // The overlay keeps its own copy of the untouched minimap so each pass can rebuild from it, plus a scratch
+        // copy it paints into. Compact mode stores those in the textures' own formats: the map as Color32 (the map
+        // texture is RGB24, so this is exact) and the height as raw RHalf bits, converted only for the handful of
+        // pixels a territory clamps. On a 2048 map that is ~50 MB held instead of ~270 MB as Color[], which is four
+        // arrays of 16 bytes a pixel. Legacy mode keeps the original Color[] pair so the two can be compared in
+        // game; only one set is ever allocated, and switching re-captures.
         private static Color[] _baseMap;
         private static Color[] _baseHeight;
-        // Reusable scratch buffers � avoids ~192 MB of GC pressure per overlay call
         private static Color[] _scratchMap;
         private static Color[] _scratchHeight;
+        private static Color32[] _baseMap32;
+        private static Color32[] _scratchMap32;
+        private static ushort[] _baseHeightRaw;
+        private static ushort[] _scratchHeightRaw;
+        private static bool _capturedCompact;
+        // True while the height texture holds pixels this overlay clamped: the next pass has to upload the restored
+        // scratch even if it clamps nothing itself, or the old clamp stays on screen.
+        private static bool _heightDirtyOnTexture;
         private static readonly List<GameObject> _visualizers = new();
         private static Material _vizMat;
         private static bool _visualizerDisabled;
@@ -33,6 +47,32 @@ namespace FiresRPGmaker.Modules.Territories
         private static int GetInt(Minimap mm, string name) => AccessTools.Field(mm.GetType(), name)?.GetValue(mm) is int i ? i : 2048;
 
         private static bool VisualizersEnabled => ConfigManager.Instance?.configTerritoryVisualizers?.Value ?? false;
+        private static bool CompactBuffers => ConfigManager.Instance?.configCompactMapOverlayBuffers?.Value ?? true;
+
+        // Map pixel as the paint code wants it (float Color), whichever buffer is live.
+        private static Color ReadScratchMap(int idx) => _scratchMap32 != null ? (Color)_scratchMap32[idx] : _scratchMap[idx];
+
+        private static void WriteScratchMap(int idx, Color value)
+        {
+            if (_scratchMap32 != null) _scratchMap32[idx] = value;
+            else _scratchMap[idx] = value;
+        }
+
+        /// <summary>Clamps one height pixel into the range the water line needs, in whichever buffer is live.
+        /// Raw mode converts the single pixel rather than the whole 4-million-pixel array.</summary>
+        private static void ClampScratchHeight(int idx, float min, float max)
+        {
+            if (_scratchHeightRaw != null)
+            {
+                float metres = Mathf.HalfToFloat(_scratchHeightRaw[idx]);
+                float clamped = Mathf.Clamp(metres, min, max);
+                if (clamped != metres) _scratchHeightRaw[idx] = Mathf.FloatToHalf(clamped);
+                return;
+            }
+            var hc = _scratchHeight[idx];
+            hc.r = Mathf.Clamp(hc.r, min, max);
+            _scratchHeight[idx] = hc;
+        }
 
         public static void OnTerritoriesChanged()
         {
@@ -132,9 +172,17 @@ namespace FiresRPGmaker.Modules.Territories
                 Debug.Log("[FiresRPGmaker] ApplyOverlay skipped - Minimap.instance is null");
                 return;
             }
-            if (_baseMap == null)
+            // Flipping CompactMapOverlayBuffers takes effect on the next pass: the base copy is re-taken in the
+            // other form and the old buffers are dropped, so an A/B comparison needs no relog.
+            if (_baseTexturesCaptured && _capturedCompact != CompactBuffers)
             {
-                Debug.Log("[FiresRPGmaker] ApplyOverlay skipped - _baseMap is null, attempting to capture...");
+                Debug.Log($"[FiresRPGmaker] Map overlay buffers switching to {(CompactBuffers ? "compact" : "legacy")} - re-capturing base textures");
+                ReleaseBuffers();
+                _baseTexturesCaptured = false;
+            }
+            if (BasePixelCount() == 0)
+            {
+                Debug.Log("[FiresRPGmaker] ApplyOverlay skipped - no base map captured, attempting to capture...");
                 if (TryCaptureBaseTextures())
                 {
                     Debug.Log("[FiresRPGmaker] Successfully captured base textures in ApplyOverlay");
@@ -161,27 +209,56 @@ namespace FiresRPGmaker.Modules.Territories
                 return;
             }
 
-            int len = _baseMap.Length;
+            int len = BasePixelCount();
 
-            // Reuse scratch buffers to avoid ~128-192 MB of GC pressure per call
-            if (_scratchMap == null || _scratchMap.Length != len)
-                _scratchMap = new Color[len];
-            Array.Copy(_baseMap, _scratchMap, len);
+            // Scratch buffers are reused and refilled from the base copy, so a pass never allocates them again.
+            if (_baseMap32 != null)
+            {
+                if (_scratchMap32 == null || _scratchMap32.Length != len) _scratchMap32 = new Color32[len];
+                Array.Copy(_baseMap32, _scratchMap32, len);
+            }
+            else
+            {
+                if (_scratchMap == null || _scratchMap.Length != len) _scratchMap = new Color[len];
+                Array.Copy(_baseMap, _scratchMap, len);
+            }
 
-            Color[] heightColors = null;
-            bool hasHeight = _baseHeight != null && heightTex != null;
-            if (hasHeight)
+            bool hasHeight = heightTex != null && (_baseHeightRaw != null || _baseHeight != null);
+            if (hasHeight && _baseHeightRaw != null)
+            {
+                if (_scratchHeightRaw == null || _scratchHeightRaw.Length != _baseHeightRaw.Length)
+                    _scratchHeightRaw = new ushort[_baseHeightRaw.Length];
+                Array.Copy(_baseHeightRaw, _scratchHeightRaw, _baseHeightRaw.Length);
+            }
+            else if (hasHeight)
             {
                 if (_scratchHeight == null || _scratchHeight.Length != _baseHeight.Length)
                     _scratchHeight = new Color[_baseHeight.Length];
                 Array.Copy(_baseHeight, _scratchHeight, _baseHeight.Length);
-                heightColors = _scratchHeight;
             }
+            bool heightTouched = false;
 
-            // Read live fog directly into a local � no base snapshot needed
-            Color[] fogColors = null;
+            // Live fog, read and written through the texture's own buffer. GetPixels() built a 64 MB Color[] on
+            // EVERY call (2048x2048 at 16 B/px) to change a handful of pixels - the biggest allocation in a
+            // profiled run. Vanilla creates the fog as R8G8_UNorm, falling back to RGBA32, so the stride is
+            // derived from the texture rather than assumed, and only byte 0 (the fog amount) is touched.
+            NativeArray<byte> fogData = default;
+            int fogStride = 0;
+            bool fogTouched = false;
             if (fogTex != null)
-                fogColors = fogTex.GetPixels();
+            {
+                try
+                {
+                    int fogPixels = fogTex.width * fogTex.height;
+                    fogData = fogTex.GetPixelData<byte>(0);
+                    if (fogPixels > 0) fogStride = fogData.Length / fogPixels;
+                }
+                catch (Exception ex)
+                {
+                    fogStride = 0;
+                    Debug.LogWarning($"[FiresRPGmaker] fog pixels unavailable, territory reveal skipped this pass: {ex.Message}");
+                }
+            }
 
             float pixelSize = GetFloat(mm, "m_pixelSize");
             int texSize = GetInt(mm, "m_textureSize");
@@ -200,16 +277,15 @@ namespace FiresRPGmaker.Modules.Territories
                         if (WorldGenerator.IsDeepnorth(wx, wz))
                         {
                             int idx = y * texSize + x;
-                            var c = _scratchMap[idx];
+                            Color c = ReadScratchMap(idx);
                             // Tint with icy blue
                             Color band = new Color(0.55f, 0.7f, 0.9f, 0.2f);
                             c = Color.Lerp(c, band, 0.6f);
-                            _scratchMap[idx] = c;
-                            if (heightColors != null)
+                            WriteScratchMap(idx, c);
+                            if (hasHeight)
                             {
-                                var hc = heightColors[idx];
-                                hc.r = Mathf.Clamp(hc.r, 29f, 89f);
-                                heightColors[idx] = hc;
+                                ClampScratchHeight(idx, 29f, 89f);
+                                heightTouched = true;
                             }
                         }
                     }
@@ -287,39 +363,66 @@ namespace FiresRPGmaker.Modules.Territories
                         c = terr.GetColor();
                     }
                     if (c.a <= 0f) c.a = 0.31f;
-                    _scratchMap[idx] = c;
+                    WriteScratchMap(idx, c);
 
-                    if (terr.ShowExternalWater && heightColors != null)
+                    if (terr.ShowExternalWater && hasHeight)
                     {
-                        var hc = heightColors[idx];
-                        hc.r = Mathf.Clamp(hc.r, 29f, 89f);
-                        heightColors[idx] = hc;
+                        ClampScratchHeight(idx, 29f, 89f);
+                        heightTouched = true;
                     }
-                    if (hasReveal && fogColors != null)
+                    if (hasReveal && fogStride > 0)
                     {
-                        var f = fogColors[idx];
-                        f.r = 0f;
-                        fogColors[idx] = f;
+                        fogData[idx * fogStride] = 0;
+                        fogTouched = true;
                     }
                 }
             }
         }
 
-            mapTex.SetPixels(_scratchMap);
+            if (_scratchMap32 != null) mapTex.SetPixels32(_scratchMap32);
+            else mapTex.SetPixels(_scratchMap);
             mapTex.Apply(false);
-            if (heightColors != null && heightTex != null)
+
+            // Upload the height when this pass clamped something, and once more after a pass that did not, to put
+            // back what the last one changed.
+            if (hasHeight && (heightTouched || _heightDirtyOnTexture))
             {
-                heightTex.SetPixels(heightColors);
+                if (_scratchHeightRaw != null) heightTex.GetPixelData<ushort>(0).CopyFrom(_scratchHeightRaw);
+                else heightTex.SetPixels(_scratchHeight);
                 heightTex.Apply(false);
+                _heightDirtyOnTexture = heightTouched;
             }
-            if (fogColors != null && fogTex != null)
-            {
-                fogTex.SetPixels(fogColors);
-                fogTex.Apply(false);
-            }
+            // Only upload when a territory actually revealed something; the pixels are already in the texture's buffer.
+            if (fogTouched) fogTex.Apply(false);
             _overlayDirty = false;
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] Territory overlay applied to minimap - drew {drawnCount} territories in {sw.ElapsedMilliseconds}ms");
+            Debug.Log($"[FiresRPGmaker] Territory overlay applied to minimap - drew {drawnCount} territories in {sw.ElapsedMilliseconds}ms " +
+                      $"({(_capturedCompact ? "compact" : "legacy")} buffers, {HeldMegabytes():F0} MB held)");
+        }
+
+        private static int BasePixelCount() => _baseMap32?.Length ?? _baseMap?.Length ?? 0;
+
+        /// <summary>What the overlay's four buffers hold, for comparing the two modes in a run.</summary>
+        private static float HeldMegabytes()
+        {
+            long bytes = 0L;
+            if (_baseMap != null) bytes += (long)_baseMap.Length * 16;
+            if (_scratchMap != null) bytes += (long)_scratchMap.Length * 16;
+            if (_baseHeight != null) bytes += (long)_baseHeight.Length * 16;
+            if (_scratchHeight != null) bytes += (long)_scratchHeight.Length * 16;
+            if (_baseMap32 != null) bytes += (long)_baseMap32.Length * 4;
+            if (_scratchMap32 != null) bytes += (long)_scratchMap32.Length * 4;
+            if (_baseHeightRaw != null) bytes += (long)_baseHeightRaw.Length * 2;
+            if (_scratchHeightRaw != null) bytes += (long)_scratchHeightRaw.Length * 2;
+            return bytes / (1024f * 1024f);
+        }
+
+        private static void ReleaseBuffers()
+        {
+            _baseMap = _scratchMap = _baseHeight = _scratchHeight = null;
+            _baseMap32 = _scratchMap32 = null;
+            _baseHeightRaw = _scratchHeightRaw = null;
+            _heightDirtyOnTexture = false;
         }
 
         private static IEnumerable<Territory> GetTerritories()
@@ -350,11 +453,25 @@ namespace FiresRPGmaker.Modules.Territories
           }
  try
         {
-    _baseMap = map.GetPixels();
-    _baseHeight = ht != null ? ht.GetPixels() : null;
-    // fog snapshot removed � live fog is read each ApplyOverlay call
-    _baseTexturesCaptured = true;
-    Debug.Log($"[FiresRPGmaker] Base textures captured successfully - map size: {_baseMap.Length}");
+            bool compact = CompactBuffers;
+            ReleaseBuffers();
+            // fog snapshot removed - live fog is read each ApplyOverlay call
+            if (compact)
+            {
+                _baseMap32 = map.GetPixels32();
+                // RHalf is one ushort per pixel, so the raw buffer copies straight out and back with no conversion.
+                if (ht != null && ht.format == TextureFormat.RHalf) _baseHeightRaw = ht.GetPixelData<ushort>(0).ToArray();
+                else if (ht != null) _baseHeight = ht.GetPixels();
+            }
+            else
+            {
+                _baseMap = map.GetPixels();
+                _baseHeight = ht != null ? ht.GetPixels() : null;
+            }
+            _capturedCompact = compact;
+            _baseTexturesCaptured = true;
+            Debug.Log($"[FiresRPGmaker] Base textures captured successfully - map size: {BasePixelCount()}, " +
+                      $"buffers {(compact ? "compact" : "legacy")} holding {HeldMegabytes():F0} MB");
        return true;
   }
           catch (Exception ex)

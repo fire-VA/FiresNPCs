@@ -337,6 +337,37 @@ namespace FiresRPGmaker.Modules.Quest
                         Debug.LogWarning($"[FiresRPGmaker] RPC_UpdateStat failed: {ex.Message}");
                     }
 
+                    // kg AllowKillQuestsInParty parity (Quest_ProgressionHook): share the kill with every party
+                    // member within kg's 100m receiver rule so THEIR kill quests progress too. Runs before the
+                    // killer's own quest filtering — a member gets credit even when the killer has no kill quest.
+                    // Server applies each member's credit against their own active quests (no-op without one).
+                    try
+                    {
+                        if (global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.AllowKillQuestsInParty
+                            && ZRoutedRpc.instance != null && target != null
+                            && Player.m_localPlayer != null && Player.m_localPlayer.GetPlayerID() == playerId)
+                        {
+                            var party = global::FiresRPGmaker.Modules.Party.PartyManager.GetLocalParty();
+                            if (party != null && party.Members != null && party.Members.Count > 1)
+                            {
+                                foreach (var member in party.Members)
+                                {
+                                    if (member == null || member.PlayerId == playerId) continue;
+                                    var inst = global::FiresRPGmaker.Modules.Party.PartyManager.FindLocalPlayerInstance(member.PlayerId);
+                                    if (inst == null) continue;
+                                    if (Vector3.Distance(inst.transform.position, target.transform.position) > 100f) continue;
+                                    var sharePkg = new ZPackage();
+                                    sharePkg.Write(member.PlayerId);
+                                    sharePkg.Write(prefab);
+                                    sharePkg.Write(star);
+                                    sharePkg.Write(false);   // shared credit carries no companion attribution
+                                    ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_KillEvent", sharePkg);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
                     bool anyChange = false;
 
                     // Helper to process a vault-styled active quest list
@@ -344,6 +375,10 @@ namespace FiresRPGmaker.Modules.Quest
                     {
                         for (int i = activeList.Count - 1; i >= 0; i--)
                         {
+                            // kg AllowMultipleQuestsScore (default false): one kill scores only the FIRST
+                            // matching quest — also caps this loop at ONE KillEvent RPC, since the server
+                            // treats each RPC as its own event.
+                            if (anyChange && !global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.AllowMultipleQuestScore) break;
                             var active = activeList[i];
                             var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
                             if (def == null || def.QuestType != "Kill") continue;
@@ -434,7 +469,7 @@ namespace FiresRPGmaker.Modules.Quest
                                             {
                                                 active.SetTargetProgress(optIdx, optCur + 1, def.QuestTargets.Count);
                                                 // write into local customData so DeserializeFromCustomData will reflect change.
-                                                // Optimistic â€” server resyncs via RPC_ReceivePlayerData if this gets dropped.
+                                                // Optimistic - server resyncs via RPC_ReceivePlayerData if this gets dropped.
                                                 var capturedVaultData = vaultData;
                                                 var capturedQuestId = active.QuestId;
                                                 var capturedProgress = active.Progress;
@@ -457,6 +492,9 @@ namespace FiresRPGmaker.Modules.Quest
                                     }
                                     catch { }
 
+                                    // Mark the event as scored so the outer first-match guard (kg
+                                    // AllowMultipleQuestsScore=false) stops after ONE KillEvent RPC.
+                                    anyChange = true;
                                     // Server is authoritative; it will send back the corrected data. Break to avoid local authoritative changes.
                                     break;
                                 }

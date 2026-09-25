@@ -174,10 +174,10 @@ namespace FiresRPGmaker.UI.Patches
     /// Runs only on the server (it owns the ownerless NPC ZDOs); returns true so vanilla death/destroy
     /// proceeds normally (the NPC really dies — it just comes back 60s later). Never fires while the
     /// invulnerability toggle is on, since the NPC can't reach 0 health.</summary>
-    [HarmonyPatch(typeof(Character), "OnDeath")]
     internal static class StaticNpc_DeathRespawn
     {
-        private static void Prefix(Character __instance)
+        /// <summary>Called from <see cref="Modules.RpgVanillaHooks.Character_OnDeath"/> (prefix).</summary>
+        internal static void OnCharacterDeath(Character __instance)
         {
             if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
             if (!StaticNpcProtection.IsStaticNpc(__instance)) return;

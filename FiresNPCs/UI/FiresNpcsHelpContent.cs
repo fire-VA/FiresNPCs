@@ -25,15 +25,16 @@ namespace FiresRPGmaker.UI
         {
             HelpRegistry.RegisterSection(ModId, "", "Getting Started", 0, BuildGettingStarted);
 
-            HelpRegistry.RegisterSection(ModId, "Companions", "Companions Overview", 10, BuildCompanionsOverview);
-            HelpRegistry.RegisterSection(ModId, "Companions", "Companion Commands", 11, BuildCompanionCommands);
-            HelpRegistry.RegisterSection(ModId, "Companions", "Companion Idle Work", 12, BuildCompanionIdleWork);
-            HelpRegistry.RegisterSection(ModId, "Companions", "Companion Management", 13, BuildCompanionManagement);
-            HelpRegistry.RegisterSection(ModId, "Companions", "Combat & Abilities", 14, BuildCombatAbilities);
+            // Tamed-companion gameplay moved to the standalone FiresCompanions mod (Core engine +
+            // FiresCompanions frontend) — it registers its own help group. What remains here is the
+            // static/placed-NPC layer and the vault recovery commands.
+            HelpRegistry.RegisterSection(ModId, "Companions", "Companions & Static NPCs", 10, BuildCompanionsHandoff);
 
             HelpRegistry.RegisterSection(ModId, "Social", "Guilds", 20, BuildGuilds);
             HelpRegistry.RegisterSection(ModId, "Social", "Party", 21, BuildParty);
             HelpRegistry.RegisterSection(ModId, "Social", "Chat Channels", 22, BuildChatChannels);
+            HelpRegistry.RegisterSection(ModId, "Social", "Player Titles", 23, BuildPlayerTitles);
+            HelpRegistry.RegisterSection(ModId, "Social", "Factions", 24, BuildFactions);
 
             HelpRegistry.RegisterSection(ModId, "World", "NPC Types & Setup", 30, BuildNpcTypes);
             HelpRegistry.RegisterSection(ModId, "World", "Quests & Journal", 31, BuildQuestsAndJournal);
@@ -51,9 +52,17 @@ namespace FiresRPGmaker.UI
             HelpRegistry.RegisterSection(ModId, "Marketplace", "Marketplace Listings (Buy/Sell)", 26, BuildMarketplaceListings);
             HelpRegistry.RegisterSection(ModId, "Marketplace", "Banker", 27, BuildBanker);
             HelpRegistry.RegisterSection(ModId, "Marketplace", "Transmog", 28, BuildTransmog);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Mail", 28, BuildMail);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Buff Station", 28, BuildBuffStation);
+            HelpRegistry.RegisterSection(ModId, "Marketplace", "Leaderboard & Achievements", 28, BuildLeaderboard);
             HelpRegistry.RegisterSection(ModId, "Marketplace", "Public API Surface", 29, BuildMarketplaceAPI, adminOnly: true);
 
+            HelpRegistry.RegisterSection(ModId, "Games", "Gambler Games", 36, BuildGamblerGames);
+            HelpRegistry.RegisterSection(ModId, "Games", "Board Games & Poker", 37, BuildBoardGames);
+
             HelpRegistry.RegisterSection(ModId, "Interface", "Globe HUD Overlay", 40, BuildGlobeHud);
+            HelpRegistry.RegisterSection(ModId, "Interface", "Quest Tracker HUD", 40, BuildQuestTracker);
+            HelpRegistry.RegisterSection(ModId, "Interface", "Custom Chat Window", 41, BuildCustomChatWindow);
             HelpRegistry.RegisterSection(ModId, "Interface", "UI Customization", 41, BuildUICustomization);
             HelpRegistry.RegisterSection(ModId, "Interface", "Keyboard Shortcuts", 42, BuildKeyboardShortcuts);
             HelpRegistry.RegisterSection(ModId, "Interface", "Troubleshooting", 43, BuildTroubleshooting);
@@ -63,13 +72,15 @@ namespace FiresRPGmaker.UI
             HelpRegistry.RegisterSection(ModId, "Authoring (Admin)", "Territory Config", 52, BuildTerritoryConfig, adminOnly: true);
 
             HelpRegistry.RegisterSection(ModId, "Server (Admin)", "Config Reference", 60, BuildConfigReference, adminOnly: true);
+            HelpRegistry.RegisterSection(ModId, "Server (Admin)", "Config Delivery & Push/Pull", 60, BuildConfigDelivery, adminOnly: true);
             HelpRegistry.RegisterSection(ModId, "Server (Admin)", "Progression & Key Locking", 61, BuildProgression, adminOnly: true);
             HelpRegistry.RegisterSection(ModId, "Server (Admin)", "File & Folder Layout", 62, BuildFileLayout, adminOnly: true);
 
             HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Admin Commands Overview", 70, BuildAdminCommandsOverview, adminOnly: true);
             HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Companion Admin Commands", 71, BuildCompanionAdminCommands, adminOnly: true);
+            HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Quest, Key & Migration Commands", 71, BuildQuestKeyCommands, adminOnly: true);
             HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Compendium Admin Commands", 72, BuildCompendiumAdminCommands, adminOnly: true);
-            HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "FX Testing Commands", 73, BuildFxTestingCommands, adminOnly: true);
+            HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Diagnostics & Dump Commands", 73, BuildDiagnosticsCommands, adminOnly: true);
             HelpRegistry.RegisterSection(ModId, "Commands (Admin)", "Parity Test Commands (firesrpg_test)", 74, BuildParityTestCommands, adminOnly: true);
         }
 
@@ -103,22 +114,19 @@ namespace FiresRPGmaker.UI
             w.Bullet("E — Interact with an NPC, chest, workbench, etc.");
             w.Bullet("J — Open the Quest Journal (configurable in Hotkeys.QuestJournalKey)");
             w.Bullet("G — Open the Guild screen (configurable in Hotkeys.GuildScreenKey)");
-            w.Bullet("Hold R on a companion — open the companion command radial");
-            w.Bullet("Hold H on a companion — open the idle-behavior radial");
-            w.Bullet("Shift+Middle Mouse on a target — ping a companion to act on it");
+            w.Bullet("L — Open the Leaderboard & Achievements panel (Hotkeys.LeaderboardKey)");
             w.Bullet("Tab (while typing in chat) — cycle chat channels");
             w.Bullet("Escape — close any open Verdant's Ascent panel");
-            w.Paragraph("See the Keyboard Shortcuts section for the full reference.");
+            w.Paragraph("Companion controls (Hold R / Hold H radials, Shift+MMB ping) are documented in " +
+                "the FiresCompanions help group. See the Keyboard Shortcuts section for the full reference.");
             w.Divider();
 
             w.SubHeader("Player Slash Commands");
-            w.Bullet("/guild — open the guild screen (same as G)");
-            w.Bullet("/gcreate <name> [description] — found a new guild");
-            w.Bullet("/ginvite <player> — invite an online player");
-            w.Bullet("/g <message> — guild-only chat");
+            w.Bullet("/g <message> — guild-only chat (routes through the active guild system)");
             w.Bullet("/gping — drop a guild-only map ping at the cursor");
             w.Bullet("/invite <player> — invite to your party (separate from guilds)");
             w.Bullet("/leave  /disband — leave or disband your party");
+            w.Bullet("/feedback <message> — send feedback straight to the server's Discord");
 
             if (IsCurrentPlayerAdmin())
             {
@@ -126,9 +134,12 @@ namespace FiresRPGmaker.UI
                 w.AdminHeader("Admin: First-Time Server Setup");
                 w.Bullet("Main config: BepInEx/config/com.Fire.FiresRPGmaker.cfg");
                 w.Bullet("Set General.ServerAuthority = true to lock config changes to admins.");
-                w.Bullet("Per-feature .cfg files live under BepInEx/config/FiresRPGmaker/.");
+                w.Bullet("Per-feature content lives under BepInEx/config/FiresRPGmaker/ ON THE SERVER — " +
+                    "clients receive it in memory, so client-side files are not read on a dedicated server.");
                 w.Bullet("File watchers auto-reload .cfg changes on the server — no restart needed.");
-                w.Bullet("Open the NPC admin panel by shift-clicking the NPC (or via admin access).");
+                w.Bullet("Shift+E an NPC to open the admin book and assign its role/profile.");
+                w.Bullet("firesnpcs_pull_configs / firesnpcs_push_configs move content between your " +
+                    "machine and the server — see Config Delivery & Push/Pull.");
                 w.Bullet("See Config Reference, Progression & Key Locking, and File & Folder Layout.");
             }
         }
@@ -136,39 +147,50 @@ namespace FiresRPGmaker.UI
         private static void BuildNpcTypes(HelpContentWriter w)
         {
             w.Header("NPC Types & Setup");
-            w.Paragraph("NPCs have four types, each offering a different interaction when a player presses E.");
+            w.Paragraph("Every placed NPC has a ROLE that decides what happens when a player presses E on it. " +
+                "A freshly placed NPC starts as 'None' (decorative) until an admin assigns a role.");
             w.Divider();
 
-            w.SubHeader("Quest NPC");
-            w.Paragraph("Offers quests from a quest profile. Shows a quest interaction screen with " +
-                "a list of available quests, details, and Accept/Cancel buttons.");
-            w.Bullet("Requires: questProfile assigned to a .cfg profile name");
+            w.SubHeader("Content Roles");
+            w.Bullet("Quest — offers quests from a quest profile (list, details, Accept/Cancel).");
+            w.Bullet("Info — shows an info panel: header, optional image, rich-text body. Lore and signage.");
+            w.Bullet("Dialogue — runs a branching dialogue tree with conditions, commands, and icons.");
+            w.Divider();
 
-            w.SubHeader("Info NPC");
-            w.Paragraph("Displays an info panel with a header, optional image, and rich text body. " +
-                "Useful for lore, signs, or world-building content.");
-            w.Bullet("Requires: infoProfile assigned to a ServerInfos config");
+            w.SubHeader("Economy Roles");
+            w.Bullet("Trader — buy/sell book UI from a Traders/ profile. See Trader Setup & Use.");
+            w.Bullet("Banker — currency vault with deposits, withdrawals, and interest. See Banker.");
+            w.Bullet("Marketplace — player-to-player listings (Buy / Sell / My Listings). See Marketplace Listings.");
+            w.Bullet("Transmog — visual gear override station. See Transmog.");
+            w.Bullet("Mail — send items and messages to other players. See Mail.");
+            w.Bullet("Buffer — buff station selling status-effect packages. See Buff Station.");
+            w.Divider();
 
-            w.SubHeader("Dialogue NPC");
-            w.Paragraph("Runs branching dialogue trees with conditions, commands, and option icons. " +
-                "Players navigate through dialogue nodes by clicking options.");
-            w.Bullet("Requires: dialogueProfile assigned to a dialogue .cfg UID");
+            w.SubHeader("Activity Roles");
+            w.Bullet("Gambler — dice, rune, and wheel wager games. See Gambler Games.");
+            w.Bullet("Leaderboard / Achievement — opens the leaderboard panel on the Stats or Achievements tab.");
+            w.Bullet("Teleporter — wayshrine-style travel point.");
+            w.Bullet("None — decorative only (dress-up mannequins, scenery characters).");
+            w.Divider();
 
-            w.SubHeader("Trader NPC");
-            w.Paragraph("(Future) Trading interface with buy/sell inventories.");
+            w.Paragraph("One NPC has exactly one role. Point several NPCs at the same profile file to reuse " +
+                "content in multiple places.");
 
             if (IsCurrentPlayerAdmin())
             {
                 w.AdminDivider();
                 w.AdminHeader("Admin: NPC Configuration");
-                w.Bullet("npcProfileName — Display name shown above the NPC");
-                w.Bullet("displayNameOverride — Optional floating name override");
-                w.Bullet("questProfile — Name of the quest profile from QuestProfiles/");
+                w.Paragraph("Shift+E while looking at an NPC opens the two-page parchment admin book " +
+                    "(UI.UseBookAdminPanel, on by default — disabling it falls back to the legacy panel). " +
+                    "Pick the role on the left page; the right page shows that role's form.");
+                w.Bullet("npcProfileName — display name shown above the NPC");
+                w.Bullet("displayNameOverride — optional floating-name override");
+                w.Bullet("questProfile — profile name from QuestProfiles/");
                 w.Bullet("dialogueProfile — UID of the root dialogue node from Dialogues/");
-                w.Bullet("infoProfile — Profile name from ServerInfos/");
-                w.Bullet("modelOverride — Swap the NPC visual model");
-                w.Paragraph("Open the admin panel by shift+clicking the NPC or using admin access. " +
-                    "Use the tabs to switch between Quest Config, Info Config, Dialogue Editor, and Dressing Room.");
+                w.Bullet("infoProfile — profile name from ServerInfos/");
+                w.Bullet("Trader/Banker/Gambler/etc. profiles — named profile from that role's config folder");
+                w.Bullet("modelOverride — swap the NPC's visual model (Dressing Room)");
+                w.Paragraph("Any player can see and talk to the NPC; only admins can edit it.");
             }
         }
 
@@ -396,259 +418,61 @@ namespace FiresRPGmaker.UI
             }
         }
 
-        private static void BuildCompanionsOverview(HelpContentWriter w)
+        private static void BuildCompanionsHandoff(HelpContentWriter w)
         {
-            w.Header("Companions Overview");
-            w.Paragraph("Companions are tamed creatures that follow you, fight alongside you with " +
-                "RPG archetypes and abilities, and perform idle work tasks when left in Stay mode. " +
-                "All state is persisted through Valheim's ZDO system, so companions survive logout, " +
-                "server restart, and world reload.");
+            w.Header("Companions & Static NPCs");
+            w.Paragraph("Tamed companions — the follow/stay AI, archetypes, abilities, radial menus, " +
+                "inventory screens, kennel, and wild spawns — ship in the standalone FiresCompanions " +
+                "mod. Look for the FiresCompanions group in this help panel's sidebar for the full " +
+                "companion guide.");
             w.Divider();
 
-            w.SubHeader("Getting a Companion");
-            w.Bullet("Tame a creature using the vanilla Valheim taming system (feed it the right food).");
-            w.Bullet("Once tamed, it follows you and fights enemies that threaten you.");
-            w.Bullet("Companions can be set to Follow or Stay mode (Stay enables idle work).");
-            w.Bullet("Wild companions (named NPC squads) also spawn in some biomes — see WildSpawn.");
+            w.SubHeader("What Lives Here");
+            w.Paragraph("Verdant's Ascent provides the STATIC NPC layer — companions and characters " +
+                "'placed' as stationary world NPCs (innkeepers, vendors, quest givers, decoration) — " +
+                "plus the vault, the per-player save store that remembers your companions.");
+            w.Bullet("Shift + P — station a companion as a static NPC at its current position");
+            w.Bullet("Shift + U — unstation it back into companion mode");
+            w.Bullet("Shift + I — toggle idle wandering for a stationed NPC");
+            w.Bullet("Static NPCs respawn with the world and can host any NPC role (see NPC Types & Setup).");
             w.Divider();
 
-            w.SubHeader("Companion HUD");
-            w.Bullet("Billboard — floating health bar and name above each companion's head");
-            w.Bullet("Group HUD — right-side panel showing all companion status bars (drag to move)");
-            w.Bullet("Map marker — companions appear as pins on the world map");
-            w.Bullet("Both HUD elements can be toggled in [Companions] (ShowBillboardHealthBar, ShowGroupHud).");
-            w.Divider();
-
-            w.SubHeader("Base Archetypes (8)");
-            w.Paragraph("Each companion has a primary archetype that determines its stat bonuses, " +
-                "weapon preferences, and ability tree. Equipping a weapon the archetype prefers unlocks " +
-                "its ability progression.");
-            w.Bullet("Guardian (Tank) — shield + 1H melee. High stamina, taunts, protects allies.");
-            w.Bullet("Paladin — shield + mace/sword. Balanced offense/defense, can heal allies.");
-            w.Bullet("Berserker — two-handed or dual wield. High damage, rage at low health.");
-            w.Bullet("Rogue — daggers/knives. Backstab bonuses, dodge, high mobility.");
-            w.Bullet("Monk — unarmed/clubs. Chi abilities, attack speed, stamina regen.");
-            w.Bullet("Ranger — bow/crossbow. Long-range, kiting, draw-speed bonuses.");
-            w.Bullet("Mage — offensive staff. Eitr regen, elemental damage, AoE.");
-            w.Bullet("Healer (Cleric) — support staff. Buffs, heals, eitr pool.");
-            w.Divider();
-
-            w.SubHeader("Hybrid Archetypes");
-            w.Paragraph("Companions can have a secondary (sub) archetype which combines with the primary " +
-                "to form a hybrid with a unique name and special ability. There are 50+ hybrids " +
-                "(70% main / 30% sub stat blend). A few examples:");
-            w.Bullet("Tank + Paladin → Crusader (Divine Bulwark)");
-            w.Bullet("Tank + Berserker → Juggernaut (Unstoppable Charge)");
-            w.Bullet("Rogue + Mage → Spellthief");
-            w.Bullet("Ranger + Mage → Arcane Archer");
-            w.Bullet("Monk + Healer → Chi Healer");
-            w.Paragraph("See the Combat & Abilities section for how abilities unlock and how group " +
-                "synergy combos work.");
-            w.Divider();
-
-            w.SubHeader("Companion Progression");
-            w.Paragraph("Companions level up from combat experience and idle work, gaining stat scaling " +
-                "and unlocking new abilities. View progression in the Companion Stats screen.");
-            w.Bullet("Stat bonuses scale by level (LevelScalingRate, ~2% per level by default)");
-            w.Bullet("Abilities unlock at archetype-specific thresholds (Novice → Ultimate)");
-            w.Bullet("Skills track per companion (Swords, Bows, BloodMagic, etc.)");
-        }
-
-        private static void BuildCompanionCommands(HelpContentWriter w)
-        {
-            w.Header("Companion Commands");
-            w.Paragraph("There are four ways to direct a companion: the command radial, the idle-behavior " +
-                "radial, the Shift+MMB target ping, and Shift+key NPC controls. All require you to be " +
-                "looking at the companion (or, for ping, looking at the target).");
-            w.Divider();
-
-            w.SubHeader("Command Radial — Hold R");
-            w.Paragraph("Look at one of your companions and hold R for ~0.15s. A radial menu opens with " +
-                "high-level commands. Release R to dismiss.");
-            w.Bullet("Follow / Stay — toggle between following you and holding position");
-            w.Bullet("Open inventory / equipment screens");
-            w.Bullet("View stats and attribute screens");
-            w.Bullet("Issue specific orders (return home, dismiss, etc.)");
-            w.Divider();
-
-            w.SubHeader("Idle Behavior Radial — Hold H");
-            w.Paragraph("Look at a companion and hold H to open the idle-behavior toggle radial. " +
-                "Each segment turns one Stay-mode work behavior on or off for that companion.");
-            w.Bullet("Cooking, Fishing, Farming, Wood Gathering, Resource Gathering");
-            w.Bullet("Chest Deposit, Loot Pickup, Smart Storage");
-            w.Bullet("Fire Tending, Workstation Interaction, Crafting Upgrade, Smelter");
-            w.Bullet("Building Repair, Bow Training");
-            w.Paragraph("Per-companion toggles are stored on the companion's ZDO and persist.");
-            w.Divider();
-
-            w.SubHeader("Target Ping — Shift + Middle Mouse");
-            w.Paragraph("Hold Shift and click the middle mouse button on something while a companion is " +
-                "near you. The companion runs to that target and performs the appropriate action.");
-            w.Bullet("Enemy / creature → priority attack target");
-            w.Bullet("Chair / bench / stool → pathfind and sit");
-            w.Bullet("Archery target → begin bow training");
-            w.Bullet("Ground / terrain → move to that position");
-            w.Bullet("Destructible → attack it");
-            w.Bullet("Container → move to it (loot coming later)");
-            w.Paragraph("A visible ping marker appears at the target for ~3 seconds. Commands clear " +
-                "after completion or after 30 seconds.");
-            w.Divider();
-
-            w.SubHeader("Static NPC Controls");
-            w.Paragraph("Companions can be 'placed' as stationary NPCs (innkeepers, vendors, decoration). " +
-                "While looking at the companion:");
-            w.Bullet("Shift + P — place / station the NPC at its current position");
-            w.Bullet("Shift + U — unstation back into companion mode");
-            w.Bullet("Shift + I — toggle idle wandering for the placed NPC");
-            w.Divider();
-
-            w.SubHeader("Idle Wander (Stay mode)");
-            w.Bullet("Default wander radius: 20m (Companions.Behavior.IdleWanderRadius)");
-            w.Bullet("Return-home radius: 25m (Companions.Behavior.ReturnHomeRadius)");
-            w.Bullet("Stay-mode work search radius: 50m (Companions.Behavior.StayModeWorkRadius)");
-            w.Bullet("Each companion can override these via its own ZDO settings.");
+            w.SubHeader("Static NPC Config");
+            w.Bullet("Companions.StaticNpcs.NameplateStyle — how stationed NPC names render");
+            w.Bullet("Companions.StaticNpcs.StaticNpcInvulnerable — placed NPCs can't be killed");
+            w.Bullet("Companions.Persistence.PersistentCompanions — companions persist in-world like vanilla tames [Synced]");
+            w.Bullet("Companions.Persistence.KeepZonesLoadedForOfflinePlayers — keep offline players' companions alive [Synced]");
 
             if (IsCurrentPlayerAdmin())
             {
                 w.AdminDivider();
-                w.AdminHeader("Admin: Behavior Config");
-                w.Bullet("IdleWanderRadius — default wander radius (5-100m)");
-                w.Bullet("ReturnHomeRadius — auto-return threshold (10-100m)");
-                w.Bullet("StayModeWorkRadius — work-task search range (10-100m)");
-                w.Bullet("ChestSearchRadius — chest search for smelters/kilns/deposit (5-100m)");
-                w.Bullet("ChestAutoSortRadius — auto-sort range for chest organization (5-30m)");
+                w.AdminHeader("Admin: Vault Recovery");
+                w.Paragraph("The vault-side companion commands (companioninfo, recovercompanion, " +
+                    "restorecompanions, purgeallcompanions...) are documented under Commands (Admin) → " +
+                    "Companion Admin Commands.");
             }
-        }
-
-        private static void BuildCompanionIdleWork(HelpContentWriter w)
-        {
-            w.Header("Companion Idle Work");
-            w.Paragraph("When a companion is in Stay mode, it scans for available work within its " +
-                "StayModeWorkRadius (default 50m) and performs whichever behaviors are enabled on the " +
-                "Hold-H idle-behavior radial. Each behavior can be toggled per-companion.");
-            w.Divider();
-
-            w.SubHeader("Gathering Behaviors");
-            w.Bullet("Wood Gathering — chops fallen trees and collects logs");
-            w.Bullet("Resource Gathering — mines stone/copper/tin and harvests other resources");
-            w.Bullet("Loot Pickup — collects dropped items and ground loot within radius");
-            w.Bullet("Fishing — fishes from nearby shorelines (requires fishing rod + bait)");
-            w.Divider();
-
-            w.SubHeader("Farming");
-            w.Bullet("Multi-phase farming: scouts plantable ground, plants seeds, harvests when grown");
-            w.Bullet("Spaces plants automatically using the cultivator's spacing rules");
-            w.Bullet("Picks the right seed/sapling from nearby chests if available");
-            w.Divider();
-
-            w.SubHeader("Storage & Cooking");
-            w.Bullet("Chest Deposit — sorts collected items into nearby chests by category");
-            w.Bullet("Smart Storage — auto-sorts items across multiple chests when you open one");
-            w.Bullet("Cooking — operates cooking stations and ovens, feeds raw food, removes cooked");
-            w.Divider();
-
-            w.SubHeader("Crafting & Workstations");
-            w.Bullet("Fire Tending — keeps campfires, torches, hearths, and bonfires fueled");
-            w.Bullet("Smelter Operator — runs smelters, kilns, blast furnaces (fuel + ore from chests)");
-            w.Bullet("Workstation Interaction — operates stations that need periodic input");
-            w.Bullet("Crafting Upgrade — runs workbenches and forges to upgrade items");
-            w.Bullet("Building Repair — repairs damaged structures within radius (with hammer)");
-            w.Divider();
-
-            w.SubHeader("Training");
-            w.Bullet("Bow Training — practices on nearby archery targets to gain Bows skill XP");
-            w.Divider();
-
-            w.SubHeader("How It Works");
-            w.Paragraph("An occupancy manager prevents two companions from using the same " +
-                "smelter/workbench/chest at once. Companions pick tasks by proximity and availability. " +
-                "Toggle individual behaviors with the Hold-H radial — disabled behaviors are skipped " +
-                "even if the work is available.");
-        }
-
-        private static void BuildCompanionManagement(HelpContentWriter w)
-        {
-            w.Header("Companion Management");
-            w.Paragraph("Four screens give you detailed control of each companion. Open them from " +
-                "the Hold-R command radial, or from buttons inside one screen that link to the others.");
-            w.Divider();
-
-            w.SubHeader("Roster Screen");
-            w.Bullet("Lists every companion you own (across all worlds on this character)");
-            w.Bullet("Shows name, archetype, level, location, and current status");
-            w.Bullet("Click a row to open that companion's other screens");
-            w.Bullet("Search/filter by name, archetype, or location");
-            w.Divider();
-
-            w.SubHeader("Stats Screen");
-            w.Bullet("Health, stamina, eitr — current and max values");
-            w.Bullet("Damage breakdown (slash/blunt/pierce/fire/frost/poison/spirit/lightning)");
-            w.Bullet("Armor, block, parry, movement speed, and other derived stats");
-            w.Bullet("Skill levels (Swords, Bows, BloodMagic, etc.) with XP progress bars");
-            w.Bullet("Kill count and combat experience");
-            w.Divider();
-
-            w.SubHeader("Attribute Screen");
-            w.Bullet("Allocate level-up attribute points (Strength/Agility/Constitution/etc.)");
-            w.Bullet("Each attribute scales specific stats (e.g., STR raises melee damage)");
-            w.Bullet("Reset / respec available via the screen's button");
-            w.Divider();
-
-            w.SubHeader("Inventory Screen");
-            w.Bullet("Equip weapons, armor, shield, ammo, and consumables");
-            w.Bullet("Equipped weapons gate which abilities the companion can use");
-            w.Bullet("Drag items between your inventory and the companion's");
-            w.Bullet("Companions consume potions, healing items, and food automatically when needed");
-        }
-
-        private static void BuildCombatAbilities(HelpContentWriter w)
-        {
-            w.Header("Combat & Abilities");
-            w.Paragraph("Each archetype has an ability tree that unlocks as the companion gains levels. " +
-                "Companions cast abilities automatically based on context — there is no manual targeting. " +
-                "Effective combat depends on archetype, equipped weapon, level, and group composition.");
-            w.Divider();
-
-            w.SubHeader("Ability Unlock Progression");
-            w.Bullet("Each archetype has tiers: Novice → Apprentice → Expert → Master → Ultimate");
-            w.Bullet("Abilities unlock at level thresholds (visible in the Stats screen)");
-            w.Bullet("Some abilities require a specific weapon type to be equipped to fire");
-            w.Bullet("Hybrid archetypes get an extra unique ability from their main+sub combination");
-            w.Divider();
-
-            w.SubHeader("Group Roles");
-            w.Paragraph("When multiple companions follow you, the group role manager assigns " +
-                "tactical roles automatically based on archetype:");
-            w.Bullet("Frontline (Tank, Paladin, Berserker) — engage and absorb damage");
-            w.Bullet("Flank (Rogue, Monk) — flanking attacks, mobility");
-            w.Bullet("Backline (Ranger, Mage) — stay at range, kite, AoE");
-            w.Bullet("Support (Healer, sub-Healer hybrids) — heal and buff allies");
-            w.Divider();
-
-            w.SubHeader("Group Synergy Combos");
-            w.Paragraph("Certain ability combinations between two companions trigger synergy bonuses. " +
-                "Examples: a Mage's Frost-staff slow followed by a Berserker's heavy strike adds bonus " +
-                "damage; a Paladin's blessing followed by a Ranger's shot adds holy damage.");
-            w.Divider();
-
-            w.SubHeader("Status Effects");
-            w.Paragraph("Companions apply and receive a wide range of mod-defined status effects. " +
-                "Categories include:");
-            w.Bullet("Defensive — Fortify, Iron Wall, Divine Protection, Arcane Shield, Sanctuary");
-            w.Bullet("Offensive — Berserk Rage, Warcry, Holy Smite, Hunter's Mark, Death Mark");
-            w.Bullet("Crowd control — Caltrops, Poison, Stealth, Rooted, Slowed");
-            w.Bullet("Support / heal — Lay on Hands, Inner Peace, Purify, Divine Hymn");
-            w.Bullet("Ultimate — Avatar of Light/War/Life, Immortal Stance, Way of Perfection");
-            w.Divider();
-
-            w.SubHeader("Taunt");
-            w.Paragraph("Tank-class companions periodically taunt nearby enemies, drawing their " +
-                "attention away from you and your other companions. Taunt range scales with level.");
         }
 
         private static void BuildGuilds(HelpContentWriter w)
         {
             w.Header("Guilds");
+
+            // Build callbacks run at render time, so this adapts to the actual installation:
+            // with FiresGuilds (or TDV) present, RPGmaker's built-in guild module is dormant
+            // and documenting its slash commands would be wrong.
+            if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
+            {
+                w.Paragraph("On this installation the guild system is provided by a dedicated guild " +
+                    "mod (FiresGuilds or VikingLands) — Verdant's Ascent's built-in guild module is " +
+                    "standing down so the two never fight over your guild data.");
+                w.Bullet("Press G to open the guild screen (provided by the guild mod).");
+                w.Bullet("See the FiresGuilds group in this help panel's sidebar for the full guide — " +
+                    "ranks, applications, tags, emblems, and settings.");
+                w.Bullet("The Guild chat channel and the /g message prefix still work here — chat " +
+                    "routes through the shared guild bridge. See Chat Channels.");
+                return;
+            }
+
             w.Paragraph("Guilds are persistent, server-wide groups of players. They have ranks, a " +
                 "shared chat channel, map pings, member rosters, applications, and shared storage. " +
                 "Press G or type /guild to open the guild screen.");
@@ -924,6 +748,16 @@ namespace FiresRPGmaker.UI
 
             w.SubHeader("Custom Spawn Format");
             w.CodeBlock("CustomSpawn=PrefabName, Amount, Level, X, Y, Z, RespawnSeconds");
+            w.Divider();
+
+            w.SubHeader("Drawing Territories In-Game");
+            w.Paragraph("Instead of hand-typing coordinates, walk the world and draw:");
+            w.Bullet("drawterritory — create a territory at your current position");
+            w.Bullet("startmarking / stopmarking — walk a path; markers are recorded automatically");
+            w.Bullet("startoutline / stopoutline — record an outline area as you walk it");
+            w.Bullet("listdrawnterritories — list territories created by drawing");
+            w.Bullet("removeterritory — remove a drawn territory");
+            w.Paragraph("Drawn territories persist alongside the .cfg-defined ones.");
         }
 
         private static void BuildGlobeHud(HelpContentWriter w)
@@ -992,8 +826,10 @@ namespace FiresRPGmaker.UI
             w.Divider();
 
             w.SubHeader("Hotkeys");
-            w.Bullet("QuestJournalKey — Quest Journal hotkey (default: J, set None to disable)");
-            w.Bullet("GuildScreenKey — Guild screen hotkey (default: G, set None to disable)");
+            w.Bullet("QuestJournalKey — Quest Journal hotkey (default: J; chords like J + LeftAlt supported)");
+            w.Bullet("GuildScreenKey — Guild screen hotkey (default: G; chords supported)");
+            w.Bullet("LeaderboardKey — Leaderboard hotkey (default: L; chords supported)");
+            w.Bullet("Set any of them to None to disable.");
             w.Divider();
 
             w.SubHeader("Guilds [Synced]");
@@ -1014,43 +850,60 @@ namespace FiresRPGmaker.UI
             w.Bullet("EnableDeepNorthMapOverlay — Deep North icy-blue tint (default: true; disable when using mods that draw their own)");
             w.Divider();
 
-            w.SubHeader("Companions");
-            w.Bullet("ShowBillboardHealthBar — floating HP bar above companions (default: true)");
-            w.Bullet("ShowGroupHud — right-side group HUD panel (default: true)");
+            w.SubHeader("Companions (static-NPC side)");
+            w.Bullet("Companions.ShowBillboardHealthBar / ShowGroupHud — companion HUD toggles");
+            w.Bullet("Companions.Behavior.* — wander/work radii (read by the companion engine)");
+            w.Bullet("Companions.Persistence.PersistentCompanions — persist in-world like vanilla tames [Synced]");
+            w.Bullet("Companions.Persistence.KeepZonesLoadedForOfflinePlayers — keep offline players' companions alive [Synced]");
+            w.Bullet("Companions.StaticNpcs.NameplateStyle / StaticNpcInvulnerable — stationed-NPC options");
+            w.Paragraph("The full companion system ships in FiresCompanions — see its help group for " +
+                "gameplay configuration.");
             w.Divider();
 
             w.SubHeader("UI");
-            w.Bullet("UseGlobeHud — globe-style health/stamina/eitr/adrenaline HUD (default: true; false reverts to vanilla bars)");
+            w.Bullet("UseGlobeHud — globe-style health/stamina/eitr/adrenaline HUD (default: true)");
+            w.Bullet("UseBookAdminPanel — two-page parchment NPC admin book (default: true; false = legacy panel)");
+            w.Bullet("ShowAdminHints — admin hint overlays (default: true)");
+            w.Bullet("ExtendedInteractRange — longer E-interact reach for NPCs");
+            w.Bullet("QuestBookOpenSpeed — journal book open animation speed");
+            w.Bullet("NPC Panel / Quest Journal Position X/Y, Size, Locked — panel layout persistence");
+            w.Bullet("LeaderboardBackground / LeaderboardBackgroundToggle — leaderboard backdrop");
             w.Divider();
 
-            w.SubHeader("UI.GroupHud");
-            w.Bullet("MaxRowsPerColumn — rows visible before scrolling, 1-20 (default: 8)");
-            w.Bullet("Columns — 1 (single list) or 2 (side-by-side) (default: 1)");
-            w.Bullet("DefaultPosX — X offset from top-right (default: -10)");
-            w.Bullet("DefaultPosY — Y offset from top-right (default: -200)");
+            w.SubHeader("UI.GroupHud / UI.Dialogue / UI.QuestTracker / UI.Territory");
+            w.Bullet("GroupHud: MaxRowsPerColumn (8), Columns (1-2), DefaultPosX/Y — companion side panel");
+            w.Bullet("Dialogue: DialogueBackgroundOpacity / InfoBackgroundOpacity");
+            w.Bullet("QuestTracker: ShowQuestTracker, Collapsed, PosX/PosY — on-screen objective tracker");
+            w.Bullet("Territory: HudPosX/HudPosY, HideMinimapBackdrop — territory HUD placement");
             w.Divider();
 
-            w.SubHeader("Companions.Behavior");
-            w.Bullet("IdleWanderRadius — Stay mode wander range, 5-100m (default: 20)");
-            w.Bullet("ReturnHomeRadius — auto-return threshold, 10-100m (default: 25)");
-            w.Bullet("ChestSearchRadius — chest range for smelters/kilns, 5-100m (default: 50)");
-            w.Bullet("StayModeWorkRadius — work-task search range, 10-100m (default: 50)");
-            w.Bullet("ChestAutoSortRadius — auto-sort range, 5-30m (default: 10)");
+            w.SubHeader("Main (Marketplace Economy) [Synced]");
+            w.Bullet("MarketTaxes — percentage tax applied to marketplace sales");
+            w.Bullet("VIPplayersList / VIPplayersTaxes — reduced tax rate for listed players");
+            w.Bullet("PossibleCurrencies — currencies accepted for listings");
+            w.Bullet("ItemMarketLimit — max simultaneous listings per player");
+            w.Bullet("MarketSellBlockedPrefabs — items that can never be listed");
+            w.Bullet("BlockedPlayers — players barred from the marketplace");
             w.Divider();
 
-            w.SubHeader("Underwater Bubble");
-            w.Bullet("MinRadius — bubble min size (default: 5m)");
-            w.Bullet("MaxRadius — bubble max size (default: 25m)");
-            w.Bullet("MaxFuel — fuel capacity (default: 20)");
-            w.Bullet("BaseDrainRate — drain per second (default: 0.005)");
-            w.Bullet("DepthDrainMultiplier — extra drain per meter (default: 0.02)");
-            w.Bullet("FuelPerItem — fuel per Surtling Core (default: 1)");
+            w.SubHeader("Quests");
+            w.Bullet("RewardOverflowDelivery — how quest rewards arrive when your inventory is full");
             w.Divider();
 
-            w.SubHeader("AutoWater");
-            w.Bullet("MaxPaths — water-path generation cap, 250-10000 (default: 2000)");
-            w.Bullet("HeightCacheResolution — terrain cache grid, 1024-20480 (default: 4096)");
-            w.Bullet("HeightCacheSamplesPerFrame — frame budget for cache build (default: 5000)");
+            w.SubHeader("Chat");
+            w.Bullet("ActiveChannel — last-selected channel (persists)");
+            w.Bullet("CustomChatWindow, PanelOffsetX/Y, PanelScale, ArrangeHotkey — see Custom Chat Window");
+            w.Divider();
+
+            w.SubHeader("Games");
+            w.Bullet("Chess: Difficulty (Easy/Medium/Hard/Master), UiScale, OffsetX/Y");
+            w.Bullet("Fanorona: UiScale, OffsetX/Y");
+            w.Bullet("Poker: Difficulty, PlayerTurnSeconds, CashCurrency, CashBuyIn, CashBigBlind, UiScale, OffsetX/Y");
+            w.Divider();
+
+            w.SubHeader("Leaderboard / Feedback");
+            w.Bullet("Leaderboard.AchievementProfile — which achievement set the world uses");
+            w.Bullet("Feedback.WebhookUrl — Discord webhook for /feedback (server-side; keep private)");
             w.Divider();
 
             w.SubHeader("Progression [Synced]");
@@ -1072,25 +925,38 @@ namespace FiresRPGmaker.UI
             if (IsCurrentPlayerAdmin())
             {
                 w.AdminDivider();
-                w.AdminHeader("Admin: Discord & Anti-Cheat");
-                w.Bullet("Discord.* — webhook integration for chat, server events, anti-cheat alerts");
-                w.Bullet("Discord.BotListener — optional bot for log-request reactions");
-                w.Bullet("VAngarde.* — anti-cheat (mod validation, cheat detection, kick/ban)");
-                w.Bullet("ClientLogRelay — admin pipeline for collecting client login artifacts");
-                w.Bullet("HeightmapOverride — extend terrain height range past Valheim's ±8 clamp");
+                w.AdminHeader("Admin: Moved to Standalone Mods");
+                w.Bullet("Discord integration (webhooks, chat relay, death screenshots) — now the " +
+                    "FiresDiscordIntegration mod; see its help group.");
+                w.Bullet("Anti-cheat / mod validation / character enforcement — now the FiresVAngarde " +
+                    "mod; see its help group.");
+                w.Bullet("Terrain height-range override — now [HeightmapOverride] in FiresUnifiedCore.");
             }
         }
 
         private static void BuildFileLayout(HelpContentWriter w)
         {
             w.Header("File & Folder Layout");
+            w.Paragraph("These folders live ON THE SERVER (or the host in singleplayer). Connected clients " +
+                "receive the content in memory — use firesnpcs_pull_configs to copy the server's tree to " +
+                "your machine for editing, and firesnpcs_push_configs to send edits back.");
             w.CodeBlock("BepInEx/config/\n" +
                 "  com.Fire.FiresRPGmaker.cfg    Main config file\n" +
                 "  FiresRPGmaker/\n" +
                 "    Quests/                      Quest definition .cfg files\n" +
-                "    QuestProfiles/               Quest profile assignment .cfg files\n" +
+                "    QuestProfiles/               Quest profile assignments\n" +
+                "    QuestEvents/                 Quest lifecycle event hooks\n" +
                 "    Dialogues/                   Dialogue tree .cfg files\n" +
+                "    Traders/                     Trader profiles\n" +
+                "    Bankers/                     Banker profiles\n" +
+                "    Gamblers/                    Gambler game profiles\n" +
+                "    Marketplace/                 Marketplace listing configs\n" +
+                "    Transmogrifications/         Transmog option sets\n" +
+                "    Mail/                        Mail profiles\n" +
+                "    Buffers/ BufferProfiles/     Buff station content\n" +
+                "    LeaderboardAchievements/     Achievement definitions\n" +
                 "    Territories/                 Territory zone .cfg files\n" +
+                "    Factions/                    Faction definitions (yaml)\n" +
                 "    ServerInfos/                 Info NPC content files\n" +
                 "    Guilds/                      Per-world guild storage (server)\n" +
                 "    Compendium/                  Discovery state cache\n" +
@@ -1136,16 +1002,19 @@ namespace FiresRPGmaker.UI
             w.Bullet("E — Interact with an NPC, chest, workbench, sign, etc.");
             w.Bullet("J — Open the Quest Journal (Hotkeys.QuestJournalKey)");
             w.Bullet("G — Open the Guild screen (Hotkeys.GuildScreenKey)");
+            w.Bullet("L — Open the Leaderboard panel (Hotkeys.LeaderboardKey)");
             w.Bullet("Escape — Close any Verdant's Ascent panel");
+            w.Paragraph("The J / G / L hotkeys support multi-key CHORDS (e.g. L + LeftAlt) — set them " +
+                "in the F8 config window: click the key box, press your combination, click Apply.");
             w.Divider();
 
-            w.SubHeader("Companions");
-            w.Bullet("Hold R on a companion — open the command radial (~0.15s hold)");
-            w.Bullet("Hold H on a companion — open the idle-behavior radial");
-            w.Bullet("Shift + Middle Mouse on a target — ping a companion to act on it");
-            w.Bullet("Shift + P — place an NPC in the world (companion mode → static)");
+            w.SubHeader("Companions & Static NPCs");
+            w.Bullet("Companion controls (Hold R / Hold H radials, Shift+MMB ping) — see the " +
+                "FiresCompanions help group");
+            w.Bullet("Shift + P — station a companion as a static NPC at its current position");
             w.Bullet("Shift + U — unstation an NPC back into companion mode");
             w.Bullet("Shift + I — toggle idle wandering for a stationed NPC");
+            w.Bullet("Shift + E on an NPC — open the admin config book (admins only)");
             w.Divider();
 
             w.SubHeader("Chat");
@@ -1239,16 +1108,13 @@ namespace FiresRPGmaker.UI
                 w.Bullet("[ChatChannel] — channel switching");
                 w.Bullet("[CompanionAI] / [Archetype*] / [CompanionProgression] — companion behavior");
                 w.Bullet("[GlobeHud] / [GroupHud] — HUD overlays");
-                w.Bullet("[VAngarde] — anti-cheat scans, mod validation, kicks");
-                w.Bullet("[ClientLogRelay] — client log artifact pipeline (Discord webhook, disk)");
                 w.Bullet("Enable General.VerboseLogging = true for detailed output across all subsystems.");
 
                 w.AdminDivider();
-                w.AdminHeader("Admin: Discord Client-Log Relay");
-                w.Bullet("Requires VAngarde anti-cheat enabled to solicit logs from clients.");
-                w.Bullet("Configure Discord.Webhooks.* and Discord.ClientLogs.* in the main config.");
-                w.Bullet("Reaction polling: react with the configured emoji (default 📥) on a kick message to request the player's full client log.");
-                w.Bullet("Logs are fanned out via ClientLogRelay to the disk consumer and Discord webhook consumer.");
+                w.AdminHeader("Admin: Discord & Anti-Cheat");
+                w.Paragraph("Discord relay (chat, deaths, screenshots, client-log requests) is the " +
+                    "FiresDiscordIntegration mod, and anti-cheat/mod-validation is the FiresVAngarde " +
+                    "mod — both have their own help groups in the sidebar.");
             }
         }
 
@@ -1273,25 +1139,32 @@ namespace FiresRPGmaker.UI
         private static void BuildCompanionAdminCommands(HelpContentWriter w)
         {
             w.Header("Companion Admin Commands");
+            w.Paragraph("Companion state lives in two places: live objects in the world, and the vault " +
+                "(per-player saved data). These commands inspect and repair both sides.");
+            w.Divider();
 
-            w.SubHeader("Spawning");
-            w.Bullet("companion_spawn [name] — spawn a companion");
-            w.Bullet("companion_spawn_random — spawn with a random loadout");
+            w.SubHeader("Spawning & Inspecting");
+            w.Bullet("spawncompanion [prefabName] — spawn a companion NPC in front of you");
+            w.Bullet("companioninfo — show your companions as stored in the vault");
+            w.Bullet("findcompanion <name> — mark a companion's location on the map");
+            w.Bullet("listcompanions — list all loaded companion PREFABS (use companioninfo for yours)");
+            w.Bullet("listlostcompanions — vault companions that are not currently in the world");
+            w.Divider();
 
-            w.SubHeader("Management");
-            w.Bullet("companion_setlevel <level> — set companion level");
-            w.Bullet("companion_setarchetype <type> — force an archetype");
-            w.Bullet("companion_heal — heal all companions");
-            w.Bullet("companion_kill — kill the targeted companion");
+            w.SubHeader("Recovery");
+            w.Bullet("recovercompanion <name> — restore a lost companion from vault data");
+            w.Bullet("restorecompanions — force-restore your FOLLOWING companions (teleports existing, spawns missing)");
+            w.Divider();
 
-            w.SubHeader("Debugging");
-            w.Bullet("companion_debug — toggle the debug overlay");
-            w.Bullet("companion_list — list all active companions");
-            w.Bullet("companion_stats <id> — show detailed stats");
+            w.SubHeader("Removal (destructive)");
+            w.Bullet("deletecompanion <name> — permanently delete one companion");
+            w.Bullet("purgeallcompanions CONFIRM — delete ALL your companions from world AND vault");
+            w.Bullet("destroyallcompanionnpcs CONFIRM — destroy every CompanionNpc object in loaded chunks");
+            w.Divider();
 
-            w.SubHeader("Testing");
-            w.Bullet("companion_testability <name> — trigger an ability");
-            w.Bullet("companion_testfx <name> — play an effect");
+            w.SubHeader("Vault Maintenance");
+            w.Bullet("savevault — force a save of vault data");
+            w.Bullet("vaultclean — prune stale vault entries");
         }
 
         private static void BuildCompendiumAdminCommands(HelpContentWriter w)
@@ -1316,27 +1189,32 @@ namespace FiresRPGmaker.UI
             w.Bullet("ability_* — ability descriptions");
         }
 
-        private static void BuildFxTestingCommands(HelpContentWriter w)
+        private static void BuildDiagnosticsCommands(HelpContentWriter w)
         {
-            w.Header("FX Testing Commands");
+            w.Header("Diagnostics & Dump Commands");
+            w.Paragraph("Inspection commands for finding prefab names, checking what's loaded, and " +
+                "debugging UI state. Dumps print to the console / log.");
+            w.Divider();
 
-            w.SubHeader("Listing Effects");
-            w.Bullet("listfx — list all available FX");
-            w.Bullet("listfxcategory <category> — list FX by category");
+            w.SubHeader("Content Dumps");
+            w.Bullet("dumpitems — every item prefab the game knows");
+            w.Bullet("dumpprefabs — every registered prefab");
+            w.Bullet("dumprecipes — all crafting recipes");
+            w.Bullet("dumpenvironments — weather/environment names (for ForceEnvironment territories)");
+            w.Bullet("dumpglobalshaders / dumpskybox — rendering state dumps");
+            w.Divider();
 
-            w.SubHeader("Testing Effects");
-            w.Bullet("testfx <name> — play FX at the player position");
-            w.Bullet("testfx <name> <duration> — play for a set duration");
+            w.SubHeader("Listing");
+            w.Bullet("listquests [term] / listquestprofiles / listdialogues — loaded quest & dialogue content");
+            w.Bullet("listassets / listicons / listsprites / listshaders — loaded asset inventories");
+            w.Bullet("listdestructibles / listminerocks / listpickables / listtrees — world-object categories");
+            w.Divider();
 
-            w.SubHeader("Categories");
-            w.Bullet("hit — impact effects");
-            w.Bullet("spawn — spawn / summon effects");
-            w.Bullet("buff — buff visual effects");
-            w.Bullet("aoe — area of effect");
-            w.Bullet("projectile — projectile trails");
-
-            w.SubHeader("Common FX Names");
-            w.CodeBlock("vfx_FireHit\nvfx_IceHit\nvfx_LightningHit\nfx_Guardian_Activate\nvfx_Potion_health_medium");
+            w.SubHeader("UI Debugging");
+            w.Bullet("testnpcui / closenpcui / uistatus — open, close, and report the NPC UI state");
+            w.Bullet("reloadui — reload UI configuration (dialogues, quest profiles)");
+            w.Bullet("dump_chat_ui — dump the chat window hierarchy");
+            w.Bullet("firesnpcs_bookview — preview an animated book; 'capture' renders frames to BepInEx/config/FiresRPGmaker/Debug/BookView/");
         }
 
         // ── Trader / Marketplace family ──────────────────────────────────────
@@ -1688,6 +1566,287 @@ namespace FiresRPGmaker.UI
             w.Bullet("firesrpg_test api — dump API.ClientSide output for the player's position");
             w.Bullet("firesrpg_test territory_flag <flagName> — report which territory has the named flag at your position");
             w.Bullet("firesrpg_test marketplace [profile] — open the Marketplace UI panel directly");
+        }
+
+        // ── Social: titles & factions ───────────────────────────────────────
+
+        private static void BuildPlayerTitles(HelpContentWriter w)
+        {
+            w.Header("Player Titles");
+            w.Paragraph("Titles are short honorifics shown on your floating nameplate for everyone to see.");
+            w.Bullet("mytag <title> — set your own title");
+            w.Bullet("mytag none — remove it");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin");
+                w.Bullet("settag <player|me> <title|none> — set (or clear) any player's title");
+            }
+        }
+
+        private static void BuildFactions(HelpContentWriter w)
+        {
+            w.Header("Factions");
+            w.Paragraph("Factions are server-defined allegiances a character can join. Your faction shows " +
+                "on your nameplate with its icon, and can carry a passive faction buff while you're a member.");
+            w.Divider();
+
+            w.SubHeader("Joining & Leaving");
+            w.Bullet("faction — print your current faction");
+            w.Bullet("faction <id> — join that faction");
+            w.Bullet("faction none — leave your faction");
+            w.Bullet("factionlist — list every faction on this server");
+            w.Bullet("Dialogue NPCs can also grant or strip factions (setfaction / removefaction commands), " +
+                "so servers can gate membership behind quests or story beats.");
+            w.Divider();
+
+            w.SubHeader("What Membership Does");
+            w.Bullet("Faction name/icon on your nameplate");
+            w.Bullet("Optional passive buff applied while you're a member (reapplied on change)");
+            w.Bullet("Membership is saved on your character and survives logout");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin: Authoring Factions");
+                w.Bullet("factioneditor — open the faction editor window (create/edit factions live)");
+                w.Bullet("factionreload — reload faction definitions from disk");
+                w.Bullet("Definitions live in FiresRPGmaker/Factions/ (yaml, server-synced to clients).");
+                w.Bullet("The MP single-file format (Marketplace/Configs/Factions.yml) also loads.");
+            }
+        }
+
+        // ── Marketplace: mail, buffs, leaderboard ───────────────────────────
+
+        private static void BuildMail(HelpContentWriter w)
+        {
+            w.Header("Mail");
+            w.Paragraph("Mail NPCs let players send messages and item attachments to each other — including " +
+                "to players who are offline. Mail waits server-side until the recipient opens a mailbox.");
+            w.Divider();
+
+            w.SubHeader("Using a Mailbox");
+            w.Bullet("Press E on a Mail NPC to open your mailbox.");
+            w.Bullet("Compose: pick a recipient, write a message, optionally attach items.");
+            w.Bullet("Attachments are removed from your inventory when sent, and claimed by the recipient.");
+            w.Bullet("Unread mail is waiting for you whenever you next open any mailbox.");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin");
+                w.Bullet("Assign the Mail role to an NPC in the admin book (Shift+E).");
+                w.Bullet("Server-seeded mail profiles live in FiresRPGmaker/Mail/.");
+                w.Bullet("mail_reset — reload Mail profiles from disk (re-fills claimed attachments; for testing).");
+            }
+        }
+
+        private static void BuildBuffStation(HelpContentWriter w)
+        {
+            w.Header("Buff Station");
+            w.Paragraph("Buffer NPCs sell status-effect packages — timed buffs you buy with currency. " +
+                "Think of them as potion vendors whose potions apply instantly.");
+            w.Divider();
+
+            w.SubHeader("Buying Buffs");
+            w.Bullet("Press E on a Buffer NPC to open its buff shop.");
+            w.Bullet("Each entry shows the effects, duration, and price. Click to buy — the buff applies immediately.");
+            w.Bullet("Purchases are validated server-side, so prices and effects are always the server's.");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin: Building Buff Profiles");
+                w.Bullet("firesnpcs_buff_admin — open the profile builder: browse every status effect in the " +
+                    "game and assemble named buff packages.");
+                w.Bullet("firesnpcs_buff_shop [profileKey] — open a shop UI for any profile to preview it.");
+                w.Bullet("firesnpcs_buff_apply — apply a buff directly (testing).");
+                w.Bullet("firesnpcs_buffer_dump / firesnpcs_buffer_list_se — dump profiles / list status effects.");
+                w.Bullet("Content lives in FiresRPGmaker/Buffers/ and BufferProfiles/.");
+            }
+        }
+
+        private static void BuildLeaderboard(HelpContentWriter w)
+        {
+            w.Header("Leaderboard & Achievements");
+            w.Paragraph("The server tracks per-player stats (kills, deaths, building, harvesting, and more) " +
+                "and a configurable achievement set. Press L to see where you stand.");
+            w.Divider();
+
+            w.SubHeader("The Panel");
+            w.Bullet("L (Hotkeys.LeaderboardKey) — open the leaderboard");
+            w.Bullet("Stats tab — ranked standings per stat category");
+            w.Bullet("Achievements tab — your achievement progress and score");
+            w.Bullet("firesnpcs_leaderboard / firesnpcs_achievements — open either tab by command");
+            w.Bullet("Leaderboard and Achievement NPC roles open the same panel from the world.");
+            w.Divider();
+
+            w.SubHeader("Seasons");
+            w.Paragraph("Standings can run in seasons — the server can archive a season and start fresh " +
+                "while lifetime achievements persist.");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin");
+                w.Bullet("Leaderboard.AchievementProfile — which achievement set this world uses");
+                w.Bullet("firesnpcs_gen_achievements — generate the achievement definition template");
+                w.Bullet("firesnpcs_leaderboard_newseason — archive current standings, start a new season");
+                w.Bullet("firesnpcs_leaderboard_wipe — wipe standings entirely");
+                w.Bullet("Definitions live in FiresRPGmaker/LeaderboardAchievements/; data in the per-world vault.");
+            }
+        }
+
+        // ── Games ───────────────────────────────────────────────────────────
+
+        private static void BuildGamblerGames(HelpContentWriter w)
+        {
+            w.Header("Gambler Games");
+            w.Paragraph("Gambler NPCs run wager minigames — stake currency, play, win or lose the pot. " +
+                "Each gambler's games, stakes, and odds come from its server-side profile.");
+            w.Divider();
+
+            w.SubHeader("The Games");
+            w.Bullet("Casting the Bones — dice game");
+            w.Bullet("The Gamble for Hísing — dice duel against the Jarl");
+            w.Bullet("Cast the Runes — rune-draw game");
+            w.Bullet("Wheel of Fortune — spin for a prize from the wheel's item pool");
+            w.Divider();
+
+            w.Paragraph("Press E on a Gambler NPC and pick a game. Stakes are taken up front; winnings pay " +
+                "out immediately.");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin");
+                w.Bullet("Assign the Gambler role in the admin book; profiles live in FiresRPGmaker/Gamblers/.");
+                w.Bullet("Preview any game free (client UI only, no cost/reward): firesnpcs_dice [count], " +
+                    "firesnpcs_duel, firesnpcs_runes [count], firesnpcs_wheel.");
+            }
+        }
+
+        private static void BuildBoardGames(HelpContentWriter w)
+        {
+            w.Header("Board Games & Poker");
+            w.Paragraph("Playable tables you can sit at in the world — chess, fanorona, and poker. " +
+                "Games run against other seated players or an AI opponent.");
+            w.Divider();
+
+            w.SubHeader("Chess");
+            w.Bullet("Interact with a placed chess table to sit and play.");
+            w.Bullet("Play a seated human opponent, or the AI when alone.");
+            w.Bullet("Chess.Difficulty — Easy / Medium / Hard / Master (hot-reloads).");
+            w.Divider();
+
+            w.SubHeader("Fanorona");
+            w.Paragraph("The Malagasy capture board game, same table flow as chess. UI scale and position " +
+                "are configurable under [Fanorona].");
+            w.Divider();
+
+            w.SubHeader("Poker");
+            w.Bullet("Sit at a poker table to join the hand. Open (cash) tables buy in from your BANK " +
+                "balance — deposit currency with a Banker first.");
+            w.Bullet("Poker.CashCurrency / CashBuyIn / CashBigBlind — table stakes (server-set).");
+            w.Bullet("Poker.PlayerTurnSeconds — act within the timer or auto-fold (default 60s).");
+            w.Bullet("Empty seats are filled by AI opponents (Poker.Difficulty).");
+
+            if (IsCurrentPlayerAdmin())
+            {
+                w.AdminDivider();
+                w.AdminHeader("Admin");
+                w.Bullet("Tables are placeable pieces — chess ships as an in-world table prefab.");
+                w.Bullet("Test commands: firesnpcs_chess, firesnpcs_fanorona, firesnpcs_poker (+ _test/_sim " +
+                    "variants for AI-vs-AI soak runs).");
+            }
+        }
+
+        // ── Interface: tracker & chat window ────────────────────────────────
+
+        private static void BuildQuestTracker(HelpContentWriter w)
+        {
+            w.Header("Quest Tracker HUD");
+            w.Paragraph("A compact on-screen tracker that shows your active quests and live objective " +
+                "progress without opening the journal.");
+            w.Bullet("UI.QuestTracker.ShowQuestTracker — turn the tracker on/off");
+            w.Bullet("Click its header to collapse/expand (UI.QuestTracker.Collapsed persists)");
+            w.Bullet("Drag to reposition — the spot is saved (PosX/PosY, UserPositioned)");
+            w.Bullet("Objectives tick up in real time as you kill/collect/build");
+        }
+
+        private static void BuildCustomChatWindow(HelpContentWriter w)
+        {
+            w.Header("Custom Chat Window");
+            w.Paragraph("Verdant's Ascent can re-skin and re-arrange Valheim's chat into the Fires " +
+                "brown-and-gold look with movable panels.");
+            w.Bullet("Chat.CustomChatWindow — enable the custom chat window");
+            w.Bullet("Chat.ArrangeHotkey — enter arrange mode to drag the chat panel around");
+            w.Bullet("Chat.PanelOffsetX / PanelOffsetY / PanelScale — saved placement and size");
+            w.Bullet("The channel selector column (Local/Global/Group/Guild) docks to the chat window — " +
+                "see Chat Channels for how channels work");
+        }
+
+        // ── Server (Admin): config delivery ─────────────────────────────────
+
+        private static void BuildConfigDelivery(HelpContentWriter w)
+        {
+            w.AdminHeader("Config Delivery & Push/Pull");
+            w.Paragraph("On a dedicated server, FiresRPGmaker content (quests, dialogues, traders, ...) " +
+                "lives ONLY on the server. Clients receive it in memory on connect — nothing under " +
+                "config/FiresRPGmaker/ on a client machine is read while connected to a dedi. That kills " +
+                "the old failure mode where a stale local file shadowed the server's content.");
+            w.AdminDivider();
+
+            w.SubHeader("The Editing Loop");
+            w.Bullet("firesnpcs_pull_configs — download the server's whole FiresRPGmaker config tree to " +
+                "your machine for editing in a real editor.");
+            w.Bullet("Edit locally, then: firesnpcs_push_configs <folder|all> — push a content folder " +
+                "(Quests, QuestProfiles, QuestEvents, Dialogues, Traders, ServerInfos, Bankers, Gamblers, " +
+                "Transmogrifications, Mail, Buffers, BufferProfiles, LeaderboardAchievements, Territories) " +
+                "back to the server. Admin-gated; the server hot-reloads.");
+            w.Bullet("pushcfgs [--force] — legacy pusher for modified files (pushquests is an alias).");
+            w.Bullet("firesnpcs_reload [subsystem|all] — reload Marketplace-module .cfg files from disk " +
+                "(gambler, marketplace, achievement, leaderboard, mail, transmog, banker).");
+            w.Bullet("firesnpcs_reset_examples — re-seed the example content files.");
+            w.AdminDivider();
+
+            w.SubHeader("Any Other Mod's Config");
+            w.Paragraph("For configs OUTSIDE FiresRPGmaker/ (ExpandWorld yaml, any mod's .cfg), use " +
+                "FiresUnifiedCore's generic commands instead: pushconfigs / pullconfigs / deleteconfig " +
+                "with wildcard patterns — see the Fires Core help group.");
+        }
+
+        // ── Commands (Admin): quests, keys, migration ───────────────────────
+
+        private static void BuildQuestKeyCommands(HelpContentWriter w)
+        {
+            w.Header("Quest, Key & Migration Commands");
+
+            w.SubHeader("Quests");
+            w.Bullet("startquest=Quest Name — start a quest by display name");
+            w.Bullet("queststatus — show your current quest state");
+            w.Bullet("listquests [term] / listquestprofiles — list loaded content");
+            w.Bullet("startsamplequest — start the KillBoarSample debug quest");
+            w.Bullet("firesnpcs_dialogue_cooldown_reset — clear dialogue cooldowns");
+            w.Divider();
+
+            w.SubHeader("Progression Keys (va_*)");
+            w.Bullet("va_listprivatekeys / va_listcustomkeys — list your private/custom keys");
+            w.Bullet("va_setprivatekey [key] / va_removeprivatekey [key] — grant/remove a private key");
+            w.Bullet("va_addcustomkey / va_removecustomkey — custom key management");
+            w.Bullet("va_resetprivatekeys / va_clearmykeys / va_clearallkeys — bulk clears");
+            w.Bullet("va_bosscount — show defeated boss-key count");
+            w.Divider();
+
+            w.SubHeader("KG-Marketplace Migration");
+            w.Bullet("fires_migrate_kg — scan/convert kg Marketplace NPC ZDOs to Fires NPCs " +
+                "(scan first, then confirm)");
+            w.Bullet("firesnpcs_import_kg — import kg-format content configs");
+            w.Divider();
+
+            w.SubHeader("Books");
+            w.Bullet("firesnpcs_bookview — preview an animated book; 'capture' renders frames to BepInEx/config/FiresRPGmaker/Debug/BookView/");
         }
     }
 }

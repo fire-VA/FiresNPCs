@@ -410,6 +410,7 @@ What stays: `BuildSaveData` + `RestoreCompanion` (used by `CompanionZdoSnapshot`
 #### Out of scope
 
 - `ZNetSceneStaleInstanceDiagnostic.cs` retained. The original NRE flood it was hunting is a separate concern from the save-flow refactor; without a play-test confirming the spam has stopped post-Phase-6 we don't have evidence to delete it. Tagged for separate investigation.
+- 2026-09-17: `ZNetSceneStaleInstanceDiagnostic.cs` and its companion `CharacterDeathCascadeDiagnostic.cs` (`va_orphan_stats`) deleted in FiresRPGmaker 0.0.443. No STALE line appeared in any current log, and the sweep walked every ZNetScene instance twice per CreateDestroyObjects pass (see Toolsull_modstack_run_20260917.md).
 - `CompanionPatches.ClearRespawnStateInVault` and `CompanionRosterScreen` direct vault Remove call retained. Vault is a debug mirror; the next periodic flush rebuilds the JSON from authoritative state, so these immediate-clear sites are at most "make the on-disk dump current right now" optimisations. Low-risk to leave; can be retired in a follow-up if desired.
 
 #### Build clean.

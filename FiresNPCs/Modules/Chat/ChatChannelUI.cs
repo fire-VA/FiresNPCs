@@ -489,7 +489,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         private void HandleArrange()
         {
             var key = ChatChannelManager.ArrangeKey;
-            if (key != null && key.Value.IsDown()) ToggleArrange(!_arranging);
+            if (key != null && FiresCore.Input.Chord.IsDown(key.Value)) ToggleArrange(!_arranging);
             else if (_arranging && UnityEngine.Input.GetKeyDown(KeyCode.Escape)) ToggleArrange(false);
         }
 

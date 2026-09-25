@@ -30,7 +30,7 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             var mm = Minimap.instance;
             if (mm == null || mm.m_mapImageLarge == null) return false;
             var rt = mm.m_mapImageLarge.transform as RectTransform;
-            return rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, ZInput.mousePosition, null);
+            return rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, ZInput.pointerPosition, null);
         }
 
         /// <summary>Cursor → flat world XZ on the open large map. Returns false if the cursor isn't over the map.</summary>
@@ -41,7 +41,7 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             if (mm == null || mm.m_mapImageLarge == null) return false;
             var rt = mm.m_mapImageLarge.transform as RectTransform;
             if (rt == null) return false;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, ZInput.mousePosition, null, out var localPt)) return false;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, ZInput.pointerPosition, null, out var localPt)) return false;
             Vector2 norm = Rect.PointToNormalized(rt.rect, localPt);
             Rect uv = mm.m_mapImageLarge.uvRect;
             float mx = uv.xMin + norm.x * uv.width;

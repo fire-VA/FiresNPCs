@@ -51,10 +51,10 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static readonly List<OptionEntry> _activeOptions = new List<OptionEntry>();
         private static readonly Stack<string> _navigationStack = new Stack<string>();
 
-        // Codegen panel reference � the "GO" VLG container where options are added
+        // Codegen panel reference - the "GO" VLG container where options are added
         private static Transform _goContainer;
 
-        // Pre-cached sprites & font for option rows � resolved once, reused per row
+        // Pre-cached sprites & font for option rows - resolved once, reused per row
         private static bool _optionAssetsCached;
         private static Sprite _cachedFrameWhite;
         private static Sprite _cachedBottomBarBg;
@@ -155,7 +155,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             var dialogue = DialogueCodex.Get(nextUID);
             if (dialogue == null)
             {
-                Debug.LogWarning($"[DialogueUI] Transition target '{nextUID}' not found � closing");
+                Debug.LogWarning($"[DialogueUI] Transition target '{nextUID}' not found - closing");
                 Hide();
                 return;
             }
@@ -180,7 +180,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             var dialogue = DialogueCodex.Get(previousUID);
             if (dialogue == null)
             {
-                Debug.LogWarning($"[DialogueUI] Back target '{previousUID}' not found � closing");
+                Debug.LogWarning($"[DialogueUI] Back target '{previousUID}' not found - closing");
                 Hide();
                 return;
             }
@@ -245,7 +245,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             // Hotbar keys (1-9 = options 0-8, 0 = option 9)
             HandleHotkeys();
 
-            // Fade animation � only update when not yet at target to avoid
+            // Fade animation - only update when not yet at target to avoid
             // dirtying the canvas every frame (which forces a full rebuild).
             if (_canvasGroup != null && !Mathf.Approximately(_canvasGroup.alpha, _fadeTarget))
             {
@@ -287,7 +287,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             var bodyFont = UIFontConfig.GetFontForCategory(UIFontConfig.FontCategory.Body);
             GeneratedUI_npcdialogueuitest1.ResolveAssets(CodegenUIWiring.ResolveSpriteByNamePublic, null, bodyFont, null);
 
-            // Fix the "frame" overlay � codegen sets fillCenter=true which paints a
+            // Fix the "frame" overlay - codegen sets fillCenter=true which paints a
             // solid white rectangle over the BACKGROUND sprite. The frame is a 9-slice
             // border and must NOT fill the center so the background texture shows through.
             var frameGO = GeneratedUI_npcdialogueuitest1.FindByTag("frame");
@@ -311,7 +311,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             var dialogueTextGO = GeneratedUI_npcdialogueuitest1.FindByTag("Dialogue_Text");
             _dialogueText = dialogueTextGO != null ? dialogueTextGO.GetComponent<TMP_Text>() : null;
 
-            // The "GO" container is the VLG that holds name, text, spacers � and where
+            // The "GO" container is the VLG that holds name, text, spacers - and where
             // we'll add option rows dynamically. Options go after the bottom spacer.
             var goContainer = GeneratedUI_npcdialogueuitest1.FindByTag("GO");
             _goContainer = goContainer != null ? goContainer.transform : null;
@@ -339,7 +339,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             // Activate the BACKGROUND child and apply background sprite.
             // Uses the same fallback chain as InfoNpcPlayerPanel:
             //   1. crafting_panel_bkg (vanilla Valheim sprite)
-            //   2. npcuibkg (mod asset bundle � always available)
+            //   2. npcuibkg (mod asset bundle - always available)
             //   3. solid dark color
             var bgGO = GeneratedUI_npcdialogueuitest1.FindByPath("NPCDialogueUI_Prev/GO/BACKGROUND");
             if (bgGO != null)
@@ -356,10 +356,10 @@ namespace FiresRPGmaker.Modules.Dialogues
                 _backgroundImage = null;
             }
 
-            // No close button in marketplace style � ESC closes
+            // No close button in marketplace style - ESC closes
             _closeButton = null;
 
-            // Back button � created as an option-style row, initially hidden
+            // Back button - created as an option-style row, initially hidden
             _backButtonGO = null;
             _backButton = null;
 
@@ -583,7 +583,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             bgImage.sprite = null;
             bgImage.color = UIFontConfig.Colors.PanelBackground;
             _defaultBgSprite = null;
-            Debug.LogWarning("[DialogueUI] No background sprite found � using solid color fallback");
+            Debug.LogWarning("[DialogueUI] No background sprite found - using solid color fallback");
         }
 
         #endregion
@@ -604,7 +604,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 ? Localization.instance.Localize(displayName)
                 : displayName;
 
-            // Background image � re-apply fallback chain if sprite is still missing,
+            // Background image - re-apply fallback chain if sprite is still missing,
             // then handle optional per-dialogue BG_Image override
             if (_backgroundImage != null)
             {
@@ -637,7 +637,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 _backgroundImage.gameObject.SetActive(true);
             }
 
-            // Dialogue text � wrap in quotes to match Marketplace presentation
+            // Dialogue text - wrap in quotes to match Marketplace presentation
             string rawText = dialogue.Text ?? "";
             rawText = DialogueCommandEngine.ApplyReplacements(rawText);
             string localizedText = Localization.instance != null
@@ -660,7 +660,8 @@ namespace FiresRPGmaker.Modules.Dialogues
 
                         case InteractionType.InRange:
                         case InteractionType.OutRange:
-                            // Proximity triggers � not shown as options (future)
+                            // Proximity triggers — fired by NpcController.FireProximityDialogueInteractions
+                            // on the 10m/12m range transition; never rendered as options.
                             break;
 
                         case InteractionType.Option:
@@ -708,7 +709,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             bool condPass = DialogueConditionEngine.EvaluateAll(option.Conditions, out string reason);
 
             if (!condPass && !option.AlwaysVisible)
-                return; // Hidden � don't show at all
+                return; // Hidden - don't show at all
 
             // Cooldown gate: if the server says this option is still cooling, hide or grey it.
             int cooldownRemaining = GetCooldownRemaining(option);
@@ -756,7 +757,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 rowVlg.padding = rowPad;
             }
 
-            // Apply pre-cached sprites & font directly � no per-row ResolveAssets call
+            // Apply pre-cached sprites & font directly - no per-row ResolveAssets call
             CacheOptionAssets();
             ApplyCachedOptionAssets(rowGO);
 
@@ -787,7 +788,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     displayText += $"\n<size=11><color=#B3261E><i>{errorMsg}</i></color></size>";
             }
 
-            // The "Text" panel (go_4) � add the label TMP directly as a child of
+            // The "Text" panel (go_4) - add the label TMP directly as a child of
             // the button root's VLG so that TMP's ILayoutElement preferred height
             // drives the row height.  go_4 keeps its Icon but is pulled out of
             // layout flow so it doesn't interfere with sizing.
@@ -880,6 +881,16 @@ namespace FiresRPGmaker.Modules.Dialogues
             // row fill comes from the 'darken' child (BottomBar_Background), so the text stays readable.
             var bronze = new Color(0.62f, 0.47f, 0.24f, 1f);
             var green = new Color(0.2235f, 1f, 0f, 1f);
+            // kg `Color: R,G,B` option tint (Dialogues_UI: line + Indexer/bg). White = the unset default →
+            // keep our bronze look. A custom color becomes the row's REST rim tint (hover still green) and
+            // tints the number chip, mapping kg's two accent surfaces onto ours.
+            bool hasCustomColor = option.Color.r != 255 || option.Color.g != 255 || option.Color.b != 255;
+            if (hasCustomColor)
+            {
+                bronze = new Color(option.Color.r / 255f, option.Color.g / 255f, option.Color.b / 255f, 1f);
+                var badgeImg = rowGO.transform.Find("Indexer")?.GetComponent<Image>();
+                if (badgeImg != null) badgeImg.color = bronze;
+            }
             var rootImg = rowGO.GetComponent<Image>();
             if (rootImg != null)
             {
@@ -953,7 +964,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
             if (option.Cooldown == CooldownScope.None)
             {
-                // No cooldown � run commands locally exactly as before.
+                // No cooldown - run commands locally exactly as before.
                 RunOptionCommands(option);
             }
             else
@@ -979,7 +990,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
             else
             {
-                // No transition � close dialogue
+                // No transition - close dialogue
                 Hide();
             }
         }
@@ -1165,7 +1176,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     }
                 }
 
-                // 2) Try ZNetScene prefab � could be an item or a creature
+                // 2) Try ZNetScene prefab - could be an item or a creature
                 if (ZNetScene.instance != null)
                 {
                     var prefab = ZNetScene.instance.GetPrefab(iconName);
@@ -1187,7 +1198,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     }
                 }
 
-                // 3) Try the trophy item directly (e.g. user typed "Boar" ? look for "TrophyBoar")
+                // 3) Try the trophy item directly (e.g. user typed "Boar" -> look for "TrophyBoar")
                 if (ObjectDB.instance != null)
                 {
                     var trophyPrefab = ObjectDB.instance.GetItemPrefab("Trophy" + iconName);

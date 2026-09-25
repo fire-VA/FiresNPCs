@@ -26,6 +26,11 @@ namespace FiresRPGmaker.UI
 
         [Header("Profiles")]
         public string dialogueProfile;
+
+        // kg map pin parity (KGmarketPinned/KGmarketPinIcon): when pinned, NpcMapPins shows this NPC on
+        // every player's map (server scans + broadcasts). Icon = an item prefab name; empty = default.
+        public bool mapPinned;
+        public string mapPinIcon;
         public string questProfile;
         public string infoProfile;
         public string traderProfile;
@@ -81,6 +86,14 @@ namespace FiresRPGmaker.UI
         // Visuals still use the prefab-name fields above; these are combat-stat fidelity only.
         public string equipRightHandData;
         public string equipLeftHandData;
+
+        // Appearance lives on the ZDO, not in the fashion JSON. The JSON is a transport format for
+        // templates and the kg migrator; these four keys are what the dressing room reads and what
+        // StaticNpcInitializer re-applies on every zone load, so they are the source of truth.
+        public string hairItem;
+        public string hairColor;
+        public string beardItem;
+        public string beardColor;
 
      private ZNetView _nview;
         private string _appliedModelOverride;
@@ -160,7 +173,7 @@ namespace FiresRPGmaker.UI
             }
             catch
             {
-                // Non-critical Ã¯Â¿Â½ DelayedStart will handle it
+                // Non-critical - DelayedStart will handle it
             }
         }
 
@@ -212,7 +225,7 @@ namespace FiresRPGmaker.UI
                 LoadFromZDO();
 
                 // Always try the server-authoritative saved NPC data as the primary source.
-                // SavedNpcManager holds the server files Ã¯Â¿Â½ they override ZDO values.
+                // SavedNpcManager holds the server files - they override ZDO values.
                 SavedNpcManager.LoadIntoNpc(this);
 
                 if (!string.IsNullOrEmpty(modelOverride) && modelOverride != _appliedModelOverride)
@@ -255,25 +268,50 @@ private void Update()
    if (player == null) return;
 
       var fashionComp = GetComponent<NpcFashionComponent>();
-          if (fashionComp == null) return;
 
        float distance = Vector3.Distance(transform.position, player.transform.position);
         bool playerInRange = _playerWasInRange ? distance <= ProximityExitRange : distance <= ProximityRange;
 
        if (playerInRange && !_playerWasInRange)
       {
-       fashionComp.PlayGreetAnimation();
+       fashionComp?.PlayGreetAnimation();
+       FireProximityDialogueInteractions(InteractionType.InRange);
            if (FiresLogger.VerboseEnabled)
                Debug.Log($"[NpcController] Player entered range of {GetDisplayName()} - playing greet animation");
       }
       else if (!playerInRange && _playerWasInRange)
  {
-     fashionComp.PlayByeAnimation();
+     fashionComp?.PlayByeAnimation();
+     FireProximityDialogueInteractions(InteractionType.OutRange);
  if (FiresLogger.VerboseEnabled)
      Debug.Log($"[NpcController] Player left range of {GetDisplayName()} - playing bye animation");
             }
 
             _playerWasInRange = playerInRange;
+        }
+
+        /// <summary>
+        /// kg InRange/OutRange dialogue interactions (Market_NPC FixedUpdate parity, same 10m enter /
+        /// 12m exit hysteresis this proximity check already uses for greet/bye): on the range transition,
+        /// every option of the NPC's dialogue with the matching InteractionType whose conditions pass
+        /// fires its commands. Auto-fire only — these options never render in the dialogue window.
+        /// </summary>
+        private void FireProximityDialogueInteractions(InteractionType type)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(dialogueProfile)) return;
+                var dlg = DialogueCodex.Get(dialogueProfile.Trim().ToLowerInvariant());
+                if (dlg?.Interactions == null) return;
+                foreach (var opt in dlg.Interactions)
+                {
+                    if (opt == null || opt.Type != type) continue;
+                    if (!DialogueConditionEngine.EvaluateAll(opt.Conditions, out _)) continue;
+                    if (opt.Commands != null && opt.Commands.Length > 0)
+                        DialogueCommandEngine.ExecuteAll(opt.Commands, _nview);
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning($"[NpcController] proximity dialogue interactions failed: {ex.Message}"); }
         }
 
         #region Follow Mode (Companion System)
@@ -501,6 +539,7 @@ if (_isFollowing && _followTarget == player)
             }
 
           _visEquipment.ApplyEquipment(GetEquipmentData().ToDictionary(kv => (CompanionInventory.EquipmentSlot)(int)kv.Key, kv => kv.Value));
+      FiresCore.Services.VanillaAssetResolver.RepairBrokenShaders(gameObject, $"npc '{GetDisplayName()}' after equip");
       Debug.Log($"[NpcController] Applied visual equipment to {GetDisplayName()}");
         }
 
@@ -590,6 +629,10 @@ if (_isFollowing && _followTarget == player)
 
         #region Valheim Hoverable Interface
 
+        // Valheim 1.0 added GetHoverOffset to the Hoverable interface; it is ADDED to
+        // Player.m_maxInteractDistance, so 0 preserves the previous interact range exactly.
+        public float GetHoverOffset() => 0f;
+
         public string GetHoverText()
         {
             if (GUIManager.IsCustomPanelOpen())
@@ -652,6 +695,8 @@ if (_isFollowing && _followTarget == player)
             npcProfileName = zdo.GetString("npc_profile", npcProfileName ?? "NPC");
       displayNameOverride = zdo.GetString("npc_name_override", displayNameOverride ?? "");
   dialogueProfile = zdo.GetString("npc_dialogue_profile", dialogueProfile ?? "");
+            mapPinned = zdo.GetBool("npc_map_pinned", mapPinned);
+            mapPinIcon = zdo.GetString("npc_map_pin_icon", mapPinIcon ?? "");
      questProfile = zdo.GetString("npc_quest_profile", questProfile ?? "");
     infoProfile = zdo.GetString("npc_info_profile", infoProfile ?? "");
    traderProfile = zdo.GetString("npc_trader_profile", traderProfile ?? "");
@@ -695,6 +740,11 @@ if (_isFollowing && _followTarget == player)
             equipRightHandData = zdo.GetString("npc_equip_righthand_data", "");
             equipLeftHandData = zdo.GetString("npc_equip_lefthand_data", "");
 
+            hairItem = zdo.GetString("npc_hair", "");
+            hairColor = zdo.GetString("npc_hair_color", "");
+            beardItem = zdo.GetString("npc_beard", "");
+            beardColor = zdo.GetString("npc_beard_color", "");
+
 string fashionJson = zdo.GetString("npc_fashion_json", "");
             if (!string.IsNullOrEmpty(fashionJson))
    {
@@ -715,6 +765,8 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             zdo.Set("npc_profile", npcProfileName ?? "");
       zdo.Set("npc_name_override", displayNameOverride ?? "");
             zdo.Set("npc_dialogue_profile", dialogueProfile ?? "");
+            zdo.Set("npc_map_pinned", mapPinned);
+            zdo.Set("npc_map_pin_icon", mapPinIcon ?? "");
             zdo.Set("npc_quest_profile", questProfile ?? "");
             zdo.Set("npc_info_profile", infoProfile ?? "");
     zdo.Set("npc_trader_profile", traderProfile ?? "");
@@ -752,6 +804,11 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
   zdo.Set("npc_equip_leftback", equipLeftBack ?? "");
             zdo.Set("npc_equip_righthand_data", equipRightHandData ?? "");
             zdo.Set("npc_equip_lefthand_data", equipLeftHandData ?? "");
+
+            zdo.Set("npc_hair", hairItem ?? "");
+            zdo.Set("npc_hair_color", hairColor ?? "");
+            zdo.Set("npc_beard", beardItem ?? "");
+            zdo.Set("npc_beard_color", beardColor ?? "");
 
          string fashionJson = null;
         try
@@ -985,7 +1042,7 @@ visualGO.transform.SetParent(transform, false);
                 for (int i = targetVisual.childCount - 1; i >= 0; i--)
                 {
                     var child = targetVisual.GetChild(i);
-                    // Skip previously hidden originals Ã¯Â¿Â½ don't stack hidden copies
+                    // Skip previously hidden originals - don't stack hidden copies
                     if (child.name.StartsWith("__OriginalVisual_")) continue;
                     child.gameObject.SetActive(false);
                     child.name = "__OriginalVisual_" + child.name;
@@ -1079,20 +1136,16 @@ visualGO.transform.SetParent(transform, false);
       CleanupModelCloneArtifacts(clonedVisual, disableParticles: sourceIsCharacter);
   }
 
-         CopyAnimatorFromPrefab(sourcePrefab);
+         CopyAnimatorFromPrefab(sourcePrefab, targetVisual);
 
             // kg parity post-steps:
             //   @humanoid → the creature rig plays the PLAYER's animation set (emotes work).
             //   Player_Female → swap in the female body mesh/textures from the Player's VisEquipment.
-            //   Always rebind ZSyncAnimation to whatever animator now drives the model, so networked
-            //   emote triggers (greet/bye/periodic) replicate on overridden models.
+            //   Always bind the NPC to whatever animator now drives the model, so locomotion and
+            //   networked emote triggers (greet/bye/periodic) play on overridden models.
             if (forcePlayerController) ApplyPlayerAnimatorController(targetVisual);
             if (femalePlayerModel) ApplyFemalePlayerBodyModel(targetVisual);
-            RebindZSyncAnimation(targetVisual);
-
-            // The animator controller changed — the dressing-room emote dropdowns are cached per NPC and
-            // must rebuild against the new controller's emote params.
-            DressingRoomScreenController.InvalidateAnimationCache();
+            BindModelAnimator(targetVisual);
        EnableAllRenderers(targetVisual.gameObject);
             FiresCore.Services.VanillaAssetResolver.ApplyToPrefab(gameObject, FiresCore.Services.VanillaAssetResolver.AssetSwapMode.Shader);
 
@@ -1109,7 +1162,7 @@ visualGO.transform.SetParent(transform, false);
                 }
                 else if (existingVisEquip != null)
                 {
-                    // No NpcVisEquipment wrapper Ã¯Â¿Â½ point VisEquipment at the new body,
+                    // No NpcVisEquipment wrapper - point VisEquipment at the new body,
                     // but only enable it if the model uses the Custom/Player shader.
                     // Non-humanoid overrides (e.g. Boar) use Standard shader which
                     // lacks _SkinBumpMap/_ChestTex/_LegsTex and causes
@@ -1220,6 +1273,7 @@ HandleInfoNpcInteraction(player);
       case NpcType.Mail:         Screens.PlayerPanels.MailPlayerPanel.Show(mailProfile, GetDisplayName());                 break;
       case NpcType.Transmog:     Screens.PlayerPanels.TransmogPlayerPanel.Show(transmogProfile, GetDisplayName());         break;
       case NpcType.Teleporter:   Bridges.WayshrinesBridge.OpenSelectionForProfile(player, teleporterProfile);            break;
+      case NpcType.Feedback:     Modules.Fringe.FeedbackModule.PromptAndSubmit(GetDisplayName());                        break;
       // Achievement + Leaderboard are legacy global panels now, and None = an unconfigured NPC
       // (freshly hammer-placed template). Plain E must NEVER open a config UI — that's Shift+E's
       // job (the book). A player poking an NPC with no player-facing role just gets a neutral line.
@@ -1444,24 +1498,20 @@ private bool HasParameter(Animator animator, string paramName)
             return false;
     }
 
-        private void CopyAnimatorFromPrefab(GameObject sourcePrefab)
+        private void CopyAnimatorFromPrefab(GameObject sourcePrefab, Transform targetVisual)
         {
      var sourceAnimator = sourcePrefab.GetComponent<Animator>()
     ?? sourcePrefab.GetComponentInChildren<Animator>(true);
 
             if (sourceAnimator == null || sourceAnimator.runtimeAnimatorController == null) return;
 
-            Transform visual = transform.Find("Visual");
-      if (visual != null)
-   {
-        var visualAnimator = visual.GetComponentInChildren<Animator>(true);
-     if (visualAnimator != null && visualAnimator.runtimeAnimatorController != null)
-   {
-       visualAnimator.enabled = true;
-       visualAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-               visualAnimator.applyRootMotion = false;
-     return;
-                }
+            var cloneAnimator = FindCloneAnimator(targetVisual);
+            if (cloneAnimator != null && cloneAnimator.runtimeAnimatorController != null)
+            {
+                cloneAnimator.enabled = true;
+                cloneAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                cloneAnimator.applyRootMotion = false;
+                return;
             }
 
             var targetAnimator = GetComponent<Animator>();
@@ -1481,22 +1531,27 @@ private bool HasParameter(Animator animator, string paramName)
         // controller (self-animated props / creature rigs), else the root animator CopyAnimatorFromPrefab set up.
         private Animator FindActiveModelAnimator(Transform targetVisual)
         {
-            if (targetVisual != null)
+            return FindCloneAnimator(targetVisual) ?? GetComponent<Animator>();
+        }
+
+        // The clone's animator: Visual's own Animator belongs to the hidden original rig, as does anything under an
+        // __OriginalVisual_ child.
+        private static Animator FindCloneAnimator(Transform targetVisual)
+        {
+            if (targetVisual == null) return null;
+            foreach (var anim in targetVisual.GetComponentsInChildren<Animator>(true))
             {
-                foreach (var anim in targetVisual.GetComponentsInChildren<Animator>(true))
+                if (anim == null || anim.transform == targetVisual) continue;
+                bool underHidden = false;
+                Transform check = anim.transform;
+                while (check != null && check != targetVisual)
                 {
-                    if (anim == null) continue;
-                    bool underHidden = false;
-                    Transform check = anim.transform;
-                    while (check != null && check != targetVisual)
-                    {
-                        if (check.name.StartsWith("__OriginalVisual_")) { underHidden = true; break; }
-                        check = check.parent;
-                    }
-                    if (!underHidden) return anim;
+                    if (check.name.StartsWith("__OriginalVisual_")) { underHidden = true; break; }
+                    check = check.parent;
                 }
+                if (!underHidden) return anim;
             }
-            return GetComponent<Animator>();
+            return null;
         }
 
         // "<prefab>@humanoid" (kg syntax): drive the creature rig with the PLAYER's animator controller so
@@ -1556,19 +1611,21 @@ private bool HasParameter(Animator animator, string paramName)
             catch (Exception ex) { Debug.LogWarning("[NpcController] Player_Female body swap failed: " + ex.Message); }
         }
 
-        // Point ZSyncAnimation at whatever animator now drives the model (kg rebinds zanim.m_animator the
-        // same way) — otherwise networked emote triggers on an overridden model hit the destroyed original
-        // animator and silently no-op.
-        private void RebindZSyncAnimation(Transform targetVisual)
+        // Everything that animates the NPC moves to the animator driving the model. ZSyncAnimation (kg rebinds
+        // zanim.m_animator the same way) and vanilla Character (state tags, tilt) cached the original rig's animator
+        // at Awake. That animator now only moves hidden bones, so it is switched off.
+        private void BindModelAnimator(Transform targetVisual)
         {
-            try
-            {
-                var zanim = GetComponent<ZSyncAnimation>();
-                if (zanim == null) return;
-                var anim = FindActiveModelAnimator(targetVisual);
-                if (anim != null) zanim.m_animator = anim;
-            }
-            catch (Exception ex) { Debug.LogWarning("[NpcController] ZSyncAnimation rebind failed: " + ex.Message); }
+            var anim = FindActiveModelAnimator(targetVisual);
+            if (anim == null) return;
+            anim.logWarnings = false;
+            var zanim = GetComponent<ZSyncAnimation>();
+            if (zanim != null) zanim.m_animator = anim;
+            var character = GetComponent<Character>();
+            if (character != null) character.m_animator = anim;
+            var original = targetVisual.GetComponent<Animator>();
+            if (original != null && original != anim) original.enabled = false;
+            _animator = anim;
         }
 
         // LODGroups on a stripped clone mis-cull, and creature particle systems (auras/trails) shouldn't

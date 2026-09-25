@@ -15,81 +15,6 @@ namespace FiresRPGmaker.UI
 
         #region Programmatic Panel Creation
 
-        private static GameObject CreateNpcPanelPrefab()
-        {
-            var panelGO = new GameObject("NpcMainPanel");
-
-   var panelRect = panelGO.AddComponent<RectTransform>();
-    panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRect.pivot = new Vector2(0.5f, 0.5f);
-       panelRect.sizeDelta = new Vector2(500, 600);
-
-       var panelImage = panelGO.AddComponent<Image>();
-            panelImage.color = new Color(0.1f, 0.1f, 0.1f, 0.95f);
-
-      var canvasGroup = panelGO.AddComponent<CanvasGroup>();
-            canvasGroup.alpha = 1f;
-     canvasGroup.blocksRaycasts = true;
-        canvasGroup.interactable = true;
-
-          var header = CreateHeader(panelGO.transform);
-      var tabBar = CreateTabBar(panelGO.transform);
-    var searchBar = CreateSearchBar(panelGO.transform);
-            var (scrollView, content) = GUIManager.CreateScrollView(panelGO.transform);
-    var scrollRect = scrollView.GetComponent<RectTransform>();
-            scrollRect.anchorMin = new Vector2(0, 0.15f);
-            scrollRect.anchorMax = new Vector2(1, 0.72f);
-            scrollRect.offsetMin = new Vector2(10, 0);
-            scrollRect.offsetMax = new Vector2(-10, 0);
-
- var detailPanel = CreateDetailPanel(panelGO.transform);
-            var pagination = CreatePagination(panelGO.transform);
- var loading = CreateLoadingIndicator(panelGO.transform);
-            var sizeBtn = CreateSizeButton(panelGO.transform);
-
-       var controller = panelGO.AddComponent<NpcMainPanelController>();
-
-       controller.headerText = header.GetComponentInChildren<TMP_Text>();
-  controller.closeButton = header.GetComponentInChildren<Button>();
-
-     var tabButtons = tabBar.GetComponentsInChildren<Button>();
-   if (tabButtons.Length >= 4)
-          {
-           controller.questNpcTabButton = tabButtons[0];
-      controller.infoNpcTabButton = tabButtons[1];
-   controller.dialogueNpcTabButton = tabButtons[2];
-     controller.traderTabButton = tabButtons[3];
-  }
-
-  controller.searchInput = searchBar.GetComponentInChildren<TMP_InputField>();
-    controller.contentParent = content;
-
-   controller.detailPanel = detailPanel;
-  SetupDetailPanelReferences(detailPanel, controller);
-
- var paginationButtons = pagination.GetComponentsInChildren<Button>();
-            if (paginationButtons.Length >= 2)
-            {
-       controller.prevPageButton = paginationButtons[0];
- controller.nextPageButton = paginationButtons[1];
-            }
- controller.pageText = pagination.GetComponentInChildren<TMP_Text>();
-
- controller.loadingIndicator = loading;
-        controller.sizeButton = sizeBtn.GetComponent<Button>();
-            controller.sizeText = sizeBtn.GetComponentInChildren<TMP_Text>();
-
-    controller.dialogueEntryPrefab = GetDialogueEntryPrefab();
-            controller.questEntryPrefab = GetQuestEntryPrefab();
-
-            ApplyFontsToHierarchy(panelGO);
-
-            Debug.Log($"[UIPrefabFactory] Created programmatic NPC panel prefab");
-
-      return panelGO;
-        }
-
         private static GameObject CreateHeader(Transform parent)
         {
 var headerGO = new GameObject("Header");
@@ -343,28 +268,6 @@ label.text = labelText;
       text.alignment = TextAlignmentOptions.Center;
      text.raycastTarget = false;
   }
-
-        private static void SetupDetailPanelReferences(GameObject detailPanel, NpcMainPanelController controller)
-        {
-        var inputs = detailPanel.GetComponentsInChildren<TMP_InputField>(true);
-          var buttons = detailPanel.GetComponentsInChildren<Button>(true);
-
- foreach (var input in inputs)
-   {
-            if (input.name.Contains("NameOverride"))
-        controller.nameOverrideInput = input;
-      else if (input.name.Contains("ModelOverride"))
-               controller.modelOverrideInput = input;
-      else if (input.name.Contains("Profile"))
-       controller.profileInput = input;
-  }
-
-   foreach (var button in buttons)
-            {
-    if (button.name.Contains("Apply"))
-  controller.applyButton = button;
-      }
-        }
 
         private static GameObject CreatePagination(Transform parent)
         {

@@ -398,8 +398,18 @@ namespace FiresRPGmaker.Modules.Dialogues
                 if (System.Enum.TryParse(statKey, ignoreCase: true, out PlayerStatType parsed))
                 {
                     var profile = Game.instance.GetPlayerProfile();
-                    if (profile != null && profile.m_playerStats.m_stats.TryGetValue(parsed, out var v))
-                        value = (int)v;
+                    if (profile != null && profile.m_playerStats != null)
+                    {
+                        // Valheim 1.0 split PlayerProfile.m_playerStats from ONE PlayerStats into a
+                        // PlayerStats[10] bucketed by world difficulty. Pre-1.0 this read the single
+                        // bucket, so sum every bucket - otherwise "has the player done X" silently
+                        // reads 0 for anyone who earned it on a difficulty other than the one we pick.
+                        float total = 0f;
+                        foreach (var bucket in profile.m_playerStats)
+                            if (bucket != null && bucket.m_stats != null && bucket.m_stats.TryGetValue(parsed, out var v))
+                                total += v;
+                        value = (int)total;
+                    }
                 }
             }
             catch { }

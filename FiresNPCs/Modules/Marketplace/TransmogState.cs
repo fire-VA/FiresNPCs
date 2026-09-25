@@ -144,61 +144,95 @@ namespace FiresRPGmaker.Modules.Marketplace
             var pick = TransmogState.Get(Player.m_localPlayer.GetPlayerName(), baseName);
             return string.IsNullOrEmpty(pick) ? fallback : pick;
         }
+        /// <summary>Valheim 1.0 changed VisEquipment.Set*Item to take an int itemHash instead of a
+        /// string name, and a hash cannot be turned back into a name - so this returns 0 for "no
+        /// override" and the caller leaves the incoming hash untouched.</summary>
+        private static int LookupReplacementHash(VisEquipment vis, System.Func<Player, ItemDrop.ItemData> equipped)
+        {
+            if (vis == null || Player.m_localPlayer == null) return 0;
+            if (vis.gameObject != Player.m_localPlayer.gameObject) return 0;
+            var item = equipped(Player.m_localPlayer);
+            string baseName = item?.m_dropPrefab != null ? item.m_dropPrefab.name : null;
+            if (string.IsNullOrEmpty(baseName)) return 0;
+            var pick = TransmogState.Get(Player.m_localPlayer.GetPlayerName(), baseName);
+            return string.IsNullOrEmpty(pick) ? 0 : pick.GetStableHashCode();
+        }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetHelmetItem))]
         public static class SetHelmetItem_Patch
         {
             [HarmonyPrefix]
-            private static void Prefix(VisEquipment __instance, ref string name)
-                => name = LookupReplacement(__instance, p => p.m_helmetItem, name);
+            private static void Prefix(VisEquipment __instance, ref int itemHash)
+            {
+                int repl = LookupReplacementHash(__instance, p => p.m_helmetItem);
+                if (repl != 0) itemHash = repl;
+            }
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetChestItem))]
         public static class SetChestItem_Patch
         {
             [HarmonyPrefix]
-            private static void Prefix(VisEquipment __instance, ref string name)
-                => name = LookupReplacement(__instance, p => p.m_chestItem, name);
+            private static void Prefix(VisEquipment __instance, ref int itemHash)
+            {
+                int repl = LookupReplacementHash(__instance, p => p.m_chestItem);
+                if (repl != 0) itemHash = repl;
+            }
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetLegItem))]
         public static class SetLegItem_Patch
         {
             [HarmonyPrefix]
-            private static void Prefix(VisEquipment __instance, ref string name)
-                => name = LookupReplacement(__instance, p => p.m_legItem, name);
+            private static void Prefix(VisEquipment __instance, ref int itemHash)
+            {
+                int repl = LookupReplacementHash(__instance, p => p.m_legItem);
+                if (repl != 0) itemHash = repl;
+            }
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetShoulderItem))]
         public static class SetShoulderItem_Patch
         {
             [HarmonyPrefix]
-            private static void Prefix(VisEquipment __instance, ref string name)
-                => name = LookupReplacement(__instance, p => p.m_shoulderItem, name);
+            private static void Prefix(VisEquipment __instance, ref int itemHash)
+            {
+                int repl = LookupReplacementHash(__instance, p => p.m_shoulderItem);
+                if (repl != 0) itemHash = repl;
+            }
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetRightItem))]
         public static class SetRightItem_Patch
         {
             [HarmonyPrefix]
-            private static void Prefix(VisEquipment __instance, ref string name)
-                => name = LookupReplacement(__instance, p => p.m_rightItem, name);
+            private static void Prefix(VisEquipment __instance, ref int itemHash)
+            {
+                int repl = LookupReplacementHash(__instance, p => p.m_rightItem);
+                if (repl != 0) itemHash = repl;
+            }
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetLeftItem))]
         public static class SetLeftItem_Patch
         {
             [HarmonyPrefix]
-            private static void Prefix(VisEquipment __instance, ref string name, ref int variant)
-                => name = LookupReplacement(__instance, p => p.m_leftItem, name);
+            private static void Prefix(VisEquipment __instance, ref int itemHash, ref int variant)
+            {
+                int repl = LookupReplacementHash(__instance, p => p.m_leftItem);
+                if (repl != 0) itemHash = repl;
+            }
         }
 
         [HarmonyPatch(typeof(VisEquipment), nameof(VisEquipment.SetUtilityItem))]
         public static class SetUtilityItem_Patch
         {
             [HarmonyPrefix]
-            private static void Prefix(VisEquipment __instance, ref string name)
-                => name = LookupReplacement(__instance, p => p.m_utilityItem, name);
+            private static void Prefix(VisEquipment __instance, ref int itemHash)
+            {
+                int repl = LookupReplacementHash(__instance, p => p.m_utilityItem);
+                if (repl != 0) itemHash = repl;
+            }
         }
     }
 }

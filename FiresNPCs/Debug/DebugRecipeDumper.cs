@@ -71,7 +71,7 @@ namespace FiresRPGmaker
                 if (recipe == null) continue;
                 if (recipe.m_item == null) { skipped++; continue; }
 
-                // Skip piece recipes � we only want craftable items
+                // Skip piece recipes - we only want craftable items
                 if (recipe.m_item.GetComponent<Piece>() != null) { skipped++; continue; }
 
                 string stationName = recipe.m_craftingStation != null
@@ -100,10 +100,10 @@ namespace FiresRPGmaker
                 string station = kvp.Key;
                 var stationRecipes = kvp.Value.OrderBy(r => r.m_item.name).ToList();
 
-                sb.AppendLine("??????????????????????????????????????????????????????????????");
+                sb.AppendLine("==============================================================");
                 sb.AppendLine($"  CRAFTING STATION: {station}");
                 sb.AppendLine($"  Recipes: {stationRecipes.Count}");
-                sb.AppendLine("??????????????????????????????????????????????????????????????");
+                sb.AppendLine("==============================================================");
                 sb.AppendLine();
 
                 foreach (var recipe in stationRecipes)

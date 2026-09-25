@@ -13,8 +13,8 @@ namespace FiresRPGmaker.UI.Screens
     /// Uses the same background/border style as the dialogue panel (crafting_panel_bkg).
     ///
     /// Layout modes:
-    ///   NO IMAGE  � Header at top, scrollable text fills the remaining area below.
-    ///   WITH IMAGE � Header at top, then image and scrollable text split the content
+    ///   NO IMAGE  - Header at top, scrollable text fills the remaining area below.
+    ///   WITH IMAGE - Header at top, then image and scrollable text split the content
     ///                area vertically (image top half, text bottom half).
     ///
     /// Hyperlinks:
@@ -112,11 +112,9 @@ namespace FiresRPGmaker.UI.Screens
                 }
             }
 
-            // Set content text with variable parsing
-            if (_contentText != null)
-            {
-                _contentText.text = ParseVariables(profile.InfoText);
-            }
+            // Render the ordered text/image block stack (kg ServerInfo inline `<image=...>` grammar; a
+            // profile with no image markers is just one text block — same path).
+            RenderContentBlocks(profile.InfoText);
 
             // Reset scroll position to top
             var scroll = _scrollArea?.GetComponent<ScrollRect>();
@@ -232,7 +230,7 @@ namespace FiresRPGmaker.UI.Screens
             panelRect.sizeDelta = new Vector2(500, 600);
             panelRect.anchoredPosition = Vector2.zero;
 
-            // Background � use crafting_panel_bkg to match the dialogue panel style
+            // Background - use crafting_panel_bkg to match the dialogue panel style
             var bgImage = _panelInstance.AddComponent<Image>();
             var bgSprite = CodegenUIWiring.ResolveSpriteByNamePublic("crafting_panel_bkg");
             if (bgSprite != null)
@@ -306,7 +304,7 @@ namespace FiresRPGmaker.UI.Screens
             _imageContainer.SetActive(false);
 
             // === ELEMENT 3: Scrollable Content Text ===
-            // ScrollRect container � anchors are adjusted at Show-time
+            // ScrollRect container - anchors are adjusted at Show-time
             _scrollArea = new GameObject("ScrollArea");
             _scrollArea.transform.SetParent(_panelInstance.transform, false);
             var scrollAreaRect = _scrollArea.AddComponent<RectTransform>();
@@ -350,9 +348,23 @@ namespace FiresRPGmaker.UI.Screens
             contentFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             contentFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            scrollRectComp.content = contentRect;
+            // kg ServerInfo parity: the page is an ORDERED STACK of text runs and inline images (the
+            // `<image=...>` blocks), so Content is a vertical layout of block children — _contentText is
+            // block 0 and RenderContentBlocks appends the rest per profile.
+            var contentVlg = contentGO.AddComponent<VerticalLayoutGroup>();
+            contentVlg.childControlWidth = true;
+            contentVlg.childControlHeight = true;
+            contentVlg.childForceExpandWidth = true;
+            contentVlg.childForceExpandHeight = false;
+            contentVlg.spacing = 8f;
 
-            _contentText = contentGO.AddComponent<TextMeshProUGUI>();
+            scrollRectComp.content = contentRect;
+            _blocksRoot = contentGO.transform;
+
+            var textBlock0 = new GameObject("TextBlock0");
+            textBlock0.transform.SetParent(contentGO.transform, false);
+            textBlock0.AddComponent<RectTransform>();
+            _contentText = textBlock0.AddComponent<TextMeshProUGUI>();
             _contentText.text = "";
             _contentText.fontSize = 16;
             _contentText.color = UIFontConfig.Colors.Gold;
@@ -362,7 +374,7 @@ namespace FiresRPGmaker.UI.Screens
             _contentText.overflowMode = TextOverflowModes.Overflow;
             UIBuilderHelper.ApplyValheimFont(_contentText);
 
-            // Link handler � detects clicks on <link="url"> tags and opens URLs
+            // Link handler - detects clicks on <link="url"> tags and opens URLs
             var linkHandler = _scrollArea.AddComponent<InfoPanelLinkHandler>();
             linkHandler.Initialize(_contentText);
 
@@ -527,6 +539,148 @@ namespace FiresRPGmaker.UI.Screens
             if (rect != null)
             {
                 rect.anchoredPosition = Vector2.zero;
+            }
+        }
+
+        private static Transform _blocksRoot;
+
+        /// <summary>
+        /// kg ServerInfo block grammar (schema ServerInfo.md): split the text on `<image=SRC>` markers
+        /// into an ordered Text / Image / Text… stack. Block 0 reuses _contentText; extra blocks are
+        /// (re)built per Show. Image sources resolve like kg: a path under config/Marketplace (e.g.
+        /// Marketplace_CachedImages/x.png), a runtime-sprites name, or an http(s) URL fetched once into
+        /// kg's Marketplace_CachedImages folder.
+        /// </summary>
+        private static void RenderContentBlocks(string infoText)
+        {
+            if (_contentText == null) return;
+            // Drop every block after TextBlock0 from the previous profile.
+            if (_blocksRoot != null)
+                for (int i = _blocksRoot.childCount - 1; i >= 1; i--)
+                    UnityEngine.Object.Destroy(_blocksRoot.GetChild(i).gameObject);
+
+            string text = infoText ?? "";
+            int firstMarker = text.IndexOf("<image=", StringComparison.OrdinalIgnoreCase);
+            if (firstMarker < 0 || _blocksRoot == null)
+            {
+                _contentText.text = ParseVariables(text);
+                return;
+            }
+
+            var segments = text.Split(new[] { "<image=" }, StringSplitOptions.None);
+            _contentText.text = ParseVariables(segments[0].TrimEnd('\n'));
+            for (int i = 1; i < segments.Length; i++)
+            {
+                string seg = segments[i];
+                int close = seg.IndexOf('>');
+                if (close < 0) { AddTextBlock("<image=" + seg); continue; }   // malformed — show verbatim
+                AddImageBlock(seg.Substring(0, close).Trim());
+                string rest = seg.Substring(close + 1).Trim('\n');
+                if (rest.Length > 0) AddTextBlock(rest);
+            }
+        }
+
+        private static void AddTextBlock(string text)
+        {
+            var go = new GameObject("TextBlock");
+            go.transform.SetParent(_blocksRoot, false);
+            go.AddComponent<RectTransform>();
+            var tmp = go.AddComponent<TextMeshProUGUI>();
+            tmp.text = ParseVariables(text);
+            tmp.fontSize = _contentText.fontSize;
+            tmp.color = _contentText.color;
+            tmp.alignment = TextAlignmentOptions.TopLeft;
+            tmp.textWrappingMode = TextWrappingModes.Normal;
+            tmp.richText = true;
+            UIBuilderHelper.ApplyValheimFont(tmp);
+            if (_scrollArea != null) _scrollArea.AddComponent<InfoPanelLinkHandler>().Initialize(tmp);
+        }
+
+        private static void AddImageBlock(string source)
+        {
+            var go = new GameObject("ImageBlock");
+            go.transform.SetParent(_blocksRoot, false);
+            go.AddComponent<RectTransform>();
+            var img = go.AddComponent<RawImage>();
+            img.color = new Color(1f, 1f, 1f, 0.06f);   // faint placeholder until the texture lands
+            var le = go.AddComponent<LayoutElement>();
+            le.preferredHeight = 220f;
+
+            var tex = ResolveBlockTexture(source);
+            if (tex != null) ApplyBlockTexture(img, le, tex);
+            else if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Game.instance != null) Game.instance.StartCoroutine(FetchBlockTexture(source, img, le));
+            }
+        }
+
+        private static void ApplyBlockTexture(RawImage img, LayoutElement le, Texture2D tex)
+        {
+            if (img == null || tex == null) return;
+            img.texture = tex;
+            img.color = Color.white;
+            // Keep the block at a readable height, aspect preserved via preferred height off the viewport width.
+            float aspect = tex.height > 0 ? (float)tex.height / tex.width : 0.5f;
+            le.preferredHeight = Mathf.Clamp(520f * aspect, 60f, 320f);
+        }
+
+        private static string KgCachedImagesFolder => Path.Combine(BepInEx.Paths.ConfigPath, "Marketplace", "Marketplace_CachedImages");
+
+        private static Texture2D ResolveBlockTexture(string source)
+        {
+            if (string.IsNullOrEmpty(source)) return null;
+            // kg-relative path ("Marketplace_CachedImages/wolf.png") under config/Marketplace.
+            try
+            {
+                string kgRel = Path.Combine(BepInEx.Paths.ConfigPath, "Marketplace", source.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(kgRel)) return LoadTexture(kgRel);
+            }
+            catch { }
+            // URL → previously fetched cache file (named by the URL's file name).
+            if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    string cached = Path.Combine(KgCachedImagesFolder, UrlCacheName(source));
+                    if (File.Exists(cached)) return LoadTexture(cached);
+                }
+                catch { }
+                return null;
+            }
+            // Plain name → the runtime sprites folder (existing loader).
+            return LoadTexture(source);
+        }
+
+        private static string UrlCacheName(string url)
+        {
+            string name = url;
+            int slash = name.LastIndexOf('/');
+            if (slash >= 0 && slash < name.Length - 1) name = name.Substring(slash + 1);
+            int q = name.IndexOf('?');
+            if (q >= 0) name = name.Substring(0, q);
+            foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+            if (name.Length == 0) name = "image";
+            if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+                name += ".png";
+            return name;
+        }
+
+        // One-time URL fetch → kg's cache folder → apply if the block still exists (panel may have closed).
+        private static System.Collections.IEnumerator FetchBlockTexture(string url, RawImage img, LayoutElement le)
+        {
+            using (var req = UnityEngine.Networking.UnityWebRequestTexture.GetTexture(url))
+            {
+                yield return req.SendWebRequest();
+                if (req.result != UnityEngine.Networking.UnityWebRequest.Result.Success) yield break;
+                var tex = UnityEngine.Networking.DownloadHandlerTexture.GetContent(req);
+                if (tex == null) yield break;
+                try
+                {
+                    Directory.CreateDirectory(KgCachedImagesFolder);
+                    File.WriteAllBytes(Path.Combine(KgCachedImagesFolder, UrlCacheName(url)), tex.EncodeToPNG());
+                }
+                catch { }
+                if (img != null) ApplyBlockTexture(img, le, tex);
             }
         }
 

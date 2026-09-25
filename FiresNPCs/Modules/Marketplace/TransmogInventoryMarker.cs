@@ -20,8 +20,8 @@ namespace FiresRPGmaker.Modules.Marketplace
         private const string MarkerName = "FiresTransmogMarker";
         private static readonly AccessTools.FieldRef<InventoryGrid, Inventory> _invRef =
             AccessTools.FieldRefAccess<InventoryGrid, Inventory>("m_inventory");
-        private static readonly AccessTools.FieldRef<InventoryGrid, List<InventoryGrid.Element>> _elementsRef =
-            AccessTools.FieldRefAccess<InventoryGrid, List<InventoryGrid.Element>>("m_elements");
+        private static readonly AccessTools.FieldRef<InventoryGrid, List<InventoryElement>> _elementsRef =
+            AccessTools.FieldRefAccess<InventoryGrid, List<InventoryElement>>("m_elements");
 
         [HarmonyPostfix]
         private static void Postfix(InventoryGrid __instance)
@@ -41,7 +41,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             // got a marker stamped previously.
             for (int i = 0; i < elements.Count; i++)
             {
-                var go = elements[i].m_go;
+                var go = elements[i].gameObject;
                 if (go == null) continue;
                 var existing = go.transform.Find(MarkerName);
                 if (existing != null) existing.gameObject.SetActive(false);
@@ -57,7 +57,7 @@ namespace FiresRPGmaker.Modules.Marketplace
 
                 int idx = item.m_gridPos.y * width + item.m_gridPos.x;
                 if (idx < 0 || idx >= elements.Count) continue;
-                EnsureMarker(elements[idx].m_go);
+                EnsureMarker(elements[idx].gameObject);
             }
         }
 

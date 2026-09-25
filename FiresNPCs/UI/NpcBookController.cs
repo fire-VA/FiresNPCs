@@ -98,6 +98,7 @@ namespace FiresRPGmaker.UI
             PopulateLeft();
             SelectTab(TabForType(npc.npcType));
             _panelGo.SetActive(true);
+            ApplyBookScale();   // user-configurable overall UI scale ([UI] BookScale)
             try { GUIManager.BlockInput(true); } catch { }
             try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
             // Valheim's crosshair "HoverName" raycastTarget sits at screen-center and would eat clicks on the
@@ -106,6 +107,23 @@ namespace FiresRPGmaker.UI
         }
 
         private readonly List<Graphic> _crosshairRaycasts = new List<Graphic>();
+
+        // User-configurable overall book scale ([UI] BookScale). Scaling the root panel's localScale scales
+        // EVERYTHING — text, fields, buttons — evenly from the centered pivot, and the manual hit-tests read
+        // scaled world rects so tabs/buttons/drag still line up. Re-applies live when the config changes.
+        private bool _bookScaleHooked;
+        private void ApplyBookScale()
+        {
+            if (_panelGo == null) return;
+            float s = 1f;
+            try { s = Mathf.Clamp(ConfigManager.Instance?.configBookScale?.Value ?? 1f, 0.5f, 2f); } catch { }
+            _panelGo.transform.localScale = new Vector3(s, s, 1f);
+            if (!_bookScaleHooked)
+            {
+                _bookScaleHooked = true;
+                try { ConfigManager.Instance.configBookScale.SettingChanged += (_, __) => { if (IsOpen) ApplyBookScale(); }; } catch { }
+            }
+        }
 
         public void Hide()
         {
@@ -535,6 +553,10 @@ namespace FiresRPGmaker.UI
             // NPCs are selectable, and so unknown values fall back to None (index 0) instead of Quest.
             if (!dd.options.Exists(o => string.Equals(o.text, "None", StringComparison.OrdinalIgnoreCase)))
                 dd.options.Insert(0, new TMP_Dropdown.OptionData("None"));
+            // Feedback (kg type 4) also post-dates the bake — appended so migrated/authored feedback NPCs
+            // are selectable without a prefab rebake.
+            if (!dd.options.Exists(o => string.Equals(o.text, "Feedback", StringComparison.OrdinalIgnoreCase)))
+                dd.options.Add(new TMP_Dropdown.OptionData("Feedback"));
             SetScreenDropdown(_leftPage, "NpcType_C", _npc.npcType.ToString());
             AttachTip(_leftPage, "NpcType_C", "NPC Type",
                 "The role this NPC plays. None = decorative (no [E] interaction). Pick a type, then set its profile on the matching tab.");
@@ -1323,12 +1345,20 @@ namespace FiresRPGmaker.UI
                 Canvas.ForceUpdateCanvases();
 
                 var dc = new Vector3[4]; descLbl.rectTransform.GetWorldCorners(dc);
-                float descRight = dc[3].x; float descCy = (dc[0].y + dc[1].y) * 0.5f;
+                // Anchor to the end of the actual TEXT, not the label's rect (which spans wide and shoved the
+                // toggle off the page edge). preferredWidth is the rendered text width in the label's local
+                // space → world via lossyScale. Small gap = half the label height, so it scales with the UI.
+                float descLeft = dc[0].x;
+                // GetPreferredValues gives the UNWRAPPED single-line text width. preferredWidth reflected the
+                // narrow label rect (the caption wraps "Quest / Description"), so it measured ~half and parked
+                // the toggle over the text. Use the true rendered width so it lands past the whole word.
+                float descTextRight = descLeft + descLbl.GetPreferredValues(descLbl.text).x * descLbl.transform.lossyScale.x;
+                float descCy = (dc[0].y + dc[1].y) * 0.5f;
                 var ac = new Vector3[4]; acNode.GetWorldCorners(ac);
                 float acLeft = ac[0].x; float acCy = (ac[0].y + ac[1].y) * 0.5f;
-                float gap = Mathf.Abs(dc[3].x - dc[0].x) * 0.12f + 6f;
-                acNode.position += new Vector3((descRight + gap) - acLeft, descCy - acCy, 0f);
-                Debug.Log($"[NpcBookController] quest layout: shiftX={shiftX:F1} acScale={scale:F2} descRight={descRight:F1} acPos={acNode.position}");
+                float gap = (dc[1].y - dc[0].y) * 0.5f;
+                acNode.position += new Vector3((descTextRight + gap) - acLeft, descCy - acCy, 0f);
+                Debug.Log($"[NpcBookController] quest layout: shiftX={shiftX:F1} acScale={scale:F2} descTextRight={descTextRight:F1} acPos={acNode.position}");
             }
             else
             {
@@ -1528,7 +1558,7 @@ namespace FiresRPGmaker.UI
             string questId = _pendingSaveQuestId, profileName = _pendingSaveProfile, cfg = _pendingSaveCfg;
             if (string.IsNullOrEmpty(questId) || string.IsNullOrEmpty(cfg)) return;
             string questDbPath = Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestDatabase, "QuestDatabase.cfg");
-            if (!WriteBlockInPlace(questDbPath, questId, cfg)) { Msg("Quest save failed (see log)"); return; }
+            if (!WriteBlockInPlace(questDbPath, questId, cfg, "Quests", "QuestDatabase.cfg")) { Msg("Quest save failed (see log)"); return; }
             try { global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Quests", "QuestDatabase.cfg", File.ReadAllText(questDbPath)); }
             catch (Exception ex) { Debug.LogWarning("[NpcBookController] quest DB push: " + ex.Message); }
             if (addToProfile)
@@ -2280,16 +2310,44 @@ namespace FiresRPGmaker.UI
         private static string MarketplaceCfgPath => Path.Combine(Paths.ConfigPath, "Marketplace", "MarketPlace.cfg");
 
         // Overwrite-in-place an INI-style [key] block (header line + lines until the next "[...]"), else append.
-        private bool WriteBlockInPlace(string filePath, string blockKey, string newBlock)
+        // The authoritative current lines of a synced cfg: the RAM sync store on a pure
+        // client (the config the admin actually RECEIVED), the on-disk file on the
+        // server/host. Writers upsert onto THIS so a client push is never sparser than
+        // the server's set — a client keeps the real cfg only in memory, so basing an
+        // edit on its (absent) disk copy is what let a single "save" wipe the server.
+        private string[] ReadSyncedBaseLines(string syncFolder, string syncFile, string diskPath)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(syncFolder)
+                    && global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
+                {
+                    foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.Enumerate(syncFolder))
+                    {
+                        string rel = kv.Key.Replace('\\', '/');
+                        string leaf = rel.Substring(rel.LastIndexOf('/') + 1);
+                        if (string.Equals(leaf, syncFile, StringComparison.OrdinalIgnoreCase))
+                            return SplitLines(kv.Value ?? "");
+                    }
+                    return new string[0]; // client, store has no such file yet → new file
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcBookController] ReadSyncedBaseLines: " + ex.Message); }
+            try { return File.Exists(diskPath) ? File.ReadAllLines(diskPath) : new string[0]; }
+            catch { return new string[0]; }
+        }
+
+        private bool WriteBlockInPlace(string filePath, string blockKey, string newBlock, string syncFolder = null, string syncFile = null)
         {
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath));
                 var outLines = new List<string>();
                 bool replaced = false;
-                if (File.Exists(filePath))
+                string[] baseLines = ReadSyncedBaseLines(syncFolder, syncFile, filePath);
+                if (baseLines.Length > 0)
                 {
-                    var lines = File.ReadAllLines(filePath);
+                    var lines = baseLines;
                     int i = 0;
                     while (i < lines.Length)
                     {

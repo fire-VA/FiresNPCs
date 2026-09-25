@@ -41,7 +41,7 @@ namespace FiresRPGmaker.UI
     /// Marketplace-compatible dialogue format with conditions, commands, branching, icons,
     /// and colors.
     /// 
-    /// Kept for backward compatibility � NpcController falls through to this if
+    /// Kept for backward compatibility - NpcController falls through to this if
     /// DialogueCodex has no matching dialogue UID.
     /// New dialogues should be authored using the Marketplace .cfg format and placed in
     /// Config/FiresRPGmaker/Dialogues/ (or created via the in-game Dialogue Editor).

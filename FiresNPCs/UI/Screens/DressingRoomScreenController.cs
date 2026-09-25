@@ -163,13 +163,16 @@ Shoulder,
     // Mouse-wheel scroll for the NPC stats strip (native ScrollRect is dead while the inventory is open).
     HandleStatsScroll();
 
+    // Keep the fashion scrollbar visible + its handle in sync (also creates it on first run).
+    UpdateFashionScrollbar();
+
       // Get current drag state for visual feedback only
             var draggedItem = GetDraggedItemFromInventory();
        var slotUnderMouse = GetSlotUnderMouse();
 
        if (draggedItem != null)
    {
-        // Only update visuals when the hovered slot or dragged item actually changed �
+        // Only update visuals when the hovered slot or dragged item actually changed -
         // setting Image.color every frame dirties the canvas even if the value is identical
         if (slotUnderMouse != _lastHoveredSlot || draggedItem != _lastDraggedItem)
         {
@@ -335,7 +338,12 @@ Shoulder,
             }
   }
 
-   // Next: check clicks on dropdown captions to open them
+   // Next: check clicks on dropdown captions to open them — ONLY inside the visible fashion-scroll
+   // viewport AND never over an equipment slot, so a dropdown scrolled up behind the grid can't fire
+   // when you drop an inventory item onto a slot (that was the reported bug).
+           bool overFashionViewport = _statsViewportRect == null
+                || RectTransformUtility.RectangleContainsScreenPoint(_statsViewportRect, mousePos, null);
+           if (overFashionViewport && GetSlotUnderMouse() == null)
            foreach (var dd in _dropdowns)
                 {
             if (dd == null) continue;
@@ -393,47 +401,22 @@ Shoulder,
 
             // Start dragging
   _isDragging = true;
-         var panelRect = NpcMainPanelController.Instance?.GetComponent<RectTransform>();
-if (panelRect != null)
-         {
-_dragOffset = (Vector2)panelRect.position - mousePos;
-           _dragStartPos = panelRect.anchoredPosition;
- }
           }
             }
 
-       // Continue drag
-          if (_isDragging && Input.GetMouseButton(0))
-   {
-        var panelRect = NpcMainPanelController.Instance?.GetComponent<RectTransform>();
-         if (panelRect != null)
-     {
-           panelRect.position = mousePos + _dragOffset;
-   }
-         }
 
             // End drag
       if (_isDragging && Input.GetMouseButtonUp(0))
   {
        _isDragging = false;
-                // Save position via main panel controller
-    NpcMainPanelController.Instance?.OnDragEnd();
        }
       }
 
      /// <summary>
-        /// Handles Size button click � cycles through panel sizes.
+        /// Handles Size button click - cycles through panel sizes.
         /// </summary>
      private void OnSizeButtonClicked()
         {
-            if (NpcMainPanelController.Instance != null)
-            {
-            var sizeButton = NpcMainPanelController.Instance.sizeButton;
-       if (sizeButton != null)
-                {
-         sizeButton.onClick.Invoke();
-  }
-     }
         }
 
         // Mouse-wheel scrolls the NPC stats strip content while the cursor is over its viewport. The native
@@ -449,6 +432,55 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
             var pos = _statsContentRect.anchoredPosition;
             pos.y = Mathf.Clamp(pos.y - wheel * 24f, 0f, max);
             _statsContentRect.anchoredPosition = pos;
+        }
+
+        // Visible scrollbar for the fashion/appearance scroll area, so it's obvious the list scrolls. The scroll
+        // itself is manual (HandleStatsScroll) because InventoryGui swallows the native ScrollRect, so this is a
+        // lightweight indicator we position ourselves. raycastTarget off — it's purely visual (wheel-driven).
+        private RectTransform _fashionScrollTrack, _fashionScrollHandle;
+        private void EnsureFashionScrollbar()
+        {
+            if (_fashionScrollTrack != null || _statsViewportRect == null) return;
+
+            var trackGo = new GameObject("FashionScrollTrack", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            trackGo.transform.SetParent(_statsViewportRect, false);
+            _fashionScrollTrack = (RectTransform)trackGo.transform;
+            _fashionScrollTrack.anchorMin = new Vector2(1f, 0f); _fashionScrollTrack.anchorMax = new Vector2(1f, 1f);
+            _fashionScrollTrack.pivot = new Vector2(1f, 1f);
+            _fashionScrollTrack.sizeDelta = new Vector2(7f, -4f);
+            // Sit in the narrow gap between the appearance fields and the right anim column: -1 overlapped the
+            // field/slider ends, +10 overshot into the right column — +4 lands in the gap, clear of both.
+            _fashionScrollTrack.anchoredPosition = new Vector2(4f, -2f);
+            var timg = trackGo.GetComponent<UnityEngine.UI.Image>();
+            timg.color = new Color(0.20f, 0.14f, 0.07f, 0.45f); timg.raycastTarget = false;
+
+            var handleGo = new GameObject("FashionScrollHandle", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            handleGo.transform.SetParent(_fashionScrollTrack, false);
+            _fashionScrollHandle = (RectTransform)handleGo.transform;
+            _fashionScrollHandle.anchorMin = new Vector2(0f, 1f); _fashionScrollHandle.anchorMax = new Vector2(1f, 1f);
+            _fashionScrollHandle.pivot = new Vector2(0.5f, 1f);
+            _fashionScrollHandle.sizeDelta = new Vector2(0f, 40f);
+            var himg = handleGo.GetComponent<UnityEngine.UI.Image>();
+            himg.color = new Color(0.58f, 0.44f, 0.20f, 0.95f); himg.raycastTarget = false;
+        }
+
+        private void UpdateFashionScrollbar()
+        {
+            EnsureFashionScrollbar();
+            if (_fashionScrollTrack == null || _statsViewportRect == null || _statsContentRect == null) return;
+
+            float vpH = _statsViewportRect.rect.height;
+            float contentH = _statsContentRect.rect.height;
+            if (contentH <= vpH + 1f) { if (_fashionScrollTrack.gameObject.activeSelf) _fashionScrollTrack.gameObject.SetActive(false); return; }
+            if (!_fashionScrollTrack.gameObject.activeSelf) _fashionScrollTrack.gameObject.SetActive(true);
+
+            float trackH = _fashionScrollTrack.rect.height;
+            float handleH = Mathf.Clamp(trackH * (vpH / contentH), 24f, trackH);
+            _fashionScrollHandle.sizeDelta = new Vector2(0f, handleH);
+
+            float maxScroll = Mathf.Max(1f, contentH - vpH);
+            float frac = Mathf.Clamp01(_statsContentRect.anchoredPosition.y / maxScroll); // 0 = top
+            _fashionScrollHandle.anchoredPosition = new Vector2(0f, -frac * (trackH - handleH));
         }
 
         /// <summary>
@@ -475,7 +507,7 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
                 break;
             }
 
-            // No dropdown open � cancel any in-progress drag.
+            // No dropdown open - cancel any in-progress drag.
             if (openContent == null)
             {
                 _isDraggingDropdown = false;
@@ -498,7 +530,7 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
                 }
             }
 
-            // Continue drag � clamp so content never scrolls past its ends.
+            // Continue drag - clamp so content never scrolls past its ends.
             if (_isDraggingDropdown && Input.GetMouseButton(0) && _dropdownDragContent == openContent)
             {
                 float viewportH = openViewport != null ? openViewport.rect.height : 0f;
@@ -668,7 +700,7 @@ _dragOffset = (Vector2)panelRect.position - mousePos;
 
             screenGo.SetActive(false);
 
-            Debug.Log($"[DressingRoomScreenController] WireFromCodegen � " +
+            Debug.Log($"[DressingRoomScreenController] WireFromCodegen - " +
                       $"Instructions={instructionsText != null}, " +
                       $"ClearAll={_clearAllButton != null}, Apply={_applyButton != null}, " +
                       $"Slots={_slots.Count}, Dropdowns={_dropdowns.Count}, Inputs={_inputFields.Count}, " +
@@ -1484,23 +1516,6 @@ _inputFields.Add(input);
         }
 
         /// <summary>
-        /// Fills an animation dropdown with the vanilla player emote set — the exact animations kg's
-        /// Marketplace drives via SetTrigger("emote_&lt;name&gt;") on the player rig, sourced live from the
-        /// game's Emotes enum so patches that add emotes show up automatically. "(none)" first.
-        /// </summary>
-        private static void PopulateEmoteDropdown(TMP_Dropdown dropdown)
-        {
-            if (dropdown == null) return;
-            var options = new List<string> { "(none)" };
-            foreach (var name in Enum.GetNames(typeof(Emotes)))
-            {
-                if (name == "Count") continue;   // enum sentinel, not an emote
-                options.Add(name);
-            }
-            RepopulateKeepingSelection(dropdown, options);
-        }
-
-        /// <summary>
         /// Fills the periodic-sound dropdown with the admin's custom sound clips
         /// (BepInEx/config/FiresRPGmaker/Sounds mp3s via FiresCustomAudioStore — the kg-style custom
         /// audio folder). Refreshed on every screen open since clips load async at startup.
@@ -1530,13 +1545,10 @@ _inputFields.Add(input);
             dropdown.RefreshShownValue();
         }
 
-        /// <summary>Fills the greet/bye/interact/periodic animation dropdowns + the periodic sound list.</summary>
+        /// <summary>Fills the periodic sound list and clears the greet/bye text; the animation dropdowns are filled per
+        /// NPC by <see cref="PopulateDropdowns"/>.</summary>
         private void PopulateFashionBehaviorDropdowns()
         {
-            PopulateEmoteDropdown(_periodicAnimationDropdown);
-            PopulateEmoteDropdown(_interactAnimationDropdown);
-            PopulateEmoteDropdown(_greetAnimationDropdown);
-            PopulateEmoteDropdown(_byeAnimationDropdown);
             PopulateSoundDropdown(_periodicSoundDropdown);
             if (_greetTextInput != null) _greetTextInput.text = "";
             if (_byeTextInput != null) _byeTextInput.text = "";
@@ -1597,18 +1609,6 @@ _inputFields.Add(input);
     RestoreFashionSelectionsFromNpc(npc);
             RestoreStatControlsFromNpc(npc);
 
-            if (NpcMainPanelController.Instance != null)
-     {
-string npcName = npc?.GetDisplayName() ?? "NPC";
-         PanelElementManager.ConfigureForMode(
-            NpcMainPanelController.Instance.transform,
-  PanelElementManager.ScreenMode.DressingRoom,
-     npcName);
-
- WireMainPanelButtons();
-    CacheMainPanelButtonRects();
-            }
-
    screenRoot.SetActive(true);
    screenRoot.transform.SetAsLastSibling();
  OpenPlayerInventory();
@@ -1651,12 +1651,35 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
             _currentNpc.ApplyMaxHealth();
         }
 
+        private const string NoneOptionText = "(none)";
+
+        private static void SelectDropdownOption(TMP_Dropdown dropdown, string optionText)
+        {
+            if (dropdown == null || string.IsNullOrEmpty(optionText)) return;
+            int index = dropdown.options.FindIndex(o => string.Equals(o.text, optionText, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return;
+            dropdown.value = index;
+            dropdown.RefreshShownValue();
+        }
+
+        /// <summary>The dropdowns use "(none)" as their empty placeholder; the ZDO stores an empty string.</summary>
+        private static string NormalizeDropdownValue(string value)
+            => string.IsNullOrEmpty(value) || value == NoneOptionText ? "" : value;
+
+        /// <summary>Appearance comes from the ZDO keys; the fashion JSON only fills fields they do not carry.
+        /// Reading hair and beard from the JSON alone left the dropdowns on "(none)" for every NPC seeded
+        /// straight onto the ZDO, and an Apply then wrote that blank back over a perfectly good style.</summary>
         private void RestoreFashionSelectionsFromNpc(NpcController npc)
         {
-    if (npc == null) return;
+            if (npc == null) return;
+
+            SelectDropdownOption(_hairItemDropdown, npc.hairItem);
+            SelectDropdownOption(_hairColorDropdown, npc.hairColor);
+            SelectDropdownOption(_beardItemDropdown, npc.beardItem);
+            SelectDropdownOption(_beardColorDropdown, npc.beardColor);
 
             string fashionJson = npc.GetPendingFashionJson();
-     if (string.IsNullOrEmpty(fashionJson)) return;
+            if (string.IsNullOrEmpty(fashionJson)) return;
 
  try
        {
@@ -1664,7 +1687,7 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
          if (fashion == null) return;
 
      // Restore hair dropdown selection
-             if (_hairItemDropdown != null && !string.IsNullOrEmpty(fashion.HairItem))
+             if (_hairItemDropdown != null && string.IsNullOrEmpty(npc.hairItem) && !string.IsNullOrEmpty(fashion.HairItem))
    {
   int hairIndex = _hairItemDropdown.options.FindIndex(o =>
             string.Equals(o.text, fashion.HairItem, StringComparison.OrdinalIgnoreCase));
@@ -1676,7 +1699,7 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
             }
 
  // Restore beard dropdown selection
-            if (_beardItemDropdown != null && !string.IsNullOrEmpty(fashion.BeardItem))
+            if (_beardItemDropdown != null && string.IsNullOrEmpty(npc.beardItem) && !string.IsNullOrEmpty(fashion.BeardItem))
    {
          int beardIndex = _beardItemDropdown.options.FindIndex(o =>
      string.Equals(o.text, fashion.BeardItem, StringComparison.OrdinalIgnoreCase));
@@ -1688,7 +1711,7 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
           }
 
     // Restore color dropdowns
-       if (_hairColorDropdown != null && !string.IsNullOrEmpty(fashion.HairColor))
+       if (_hairColorDropdown != null && string.IsNullOrEmpty(npc.hairColor) && !string.IsNullOrEmpty(fashion.HairColor))
      {
         int colorIndex = _hairColorDropdown.options.FindIndex(o =>
   string.Equals(o.text, fashion.HairColor, StringComparison.OrdinalIgnoreCase));
@@ -1699,7 +1722,7 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
              }
      }
 
-       if (_beardColorDropdown != null && !string.IsNullOrEmpty(fashion.BeardColor))
+       if (_beardColorDropdown != null && string.IsNullOrEmpty(npc.beardColor) && !string.IsNullOrEmpty(fashion.BeardColor))
        {
      int colorIndex = _beardColorDropdown.options.FindIndex(o =>
           string.Equals(o.text, fashion.BeardColor, StringComparison.OrdinalIgnoreCase));
@@ -1740,50 +1763,11 @@ string npcName = npc?.GetDisplayName() ?? "NPC";
                 if (_greetTextInput != null) _greetTextInput.text = fashion.GreetText ?? "";
                 if (_byeTextInput != null) _byeTextInput.text = fashion.ByeText ?? "";
 
-           // Restore animation dropdowns
-if (_periodicAnimationDropdown != null && !string.IsNullOrEmpty(fashion.PeriodicAnimation))
-          {
-       int idx = _periodicAnimationDropdown.options.FindIndex(o =>
-    string.Equals(o.text, fashion.PeriodicAnimation, StringComparison.OrdinalIgnoreCase));
-             if (idx >= 0)
-   {
-      _periodicAnimationDropdown.value = idx;
-         _periodicAnimationDropdown.RefreshShownValue();
-          }
-}
-
-       if (_interactAnimationDropdown != null && !string.IsNullOrEmpty(fashion.InteractAnimation))
-  {
-            int idx = _interactAnimationDropdown.options.FindIndex(o =>
-       string.Equals(o.text, fashion.InteractAnimation, StringComparison.OrdinalIgnoreCase));
-    if (idx >= 0)
-      {
-     _interactAnimationDropdown.value = idx;
- _interactAnimationDropdown.RefreshShownValue();
-             }
-  }
-
-     if (_greetAnimationDropdown != null && !string.IsNullOrEmpty(fashion.GreetAnimation))
-                {
-          int idx = _greetAnimationDropdown.options.FindIndex(o =>
-       string.Equals(o.text, fashion.GreetAnimation, StringComparison.OrdinalIgnoreCase));
-         if (idx >= 0)
-          {
-    _greetAnimationDropdown.value = idx;
-            _greetAnimationDropdown.RefreshShownValue();
-      }
-  }
-
- if (_byeAnimationDropdown != null && !string.IsNullOrEmpty(fashion.ByeAnimation))
-     {
-         int idx = _byeAnimationDropdown.options.FindIndex(o =>
-             string.Equals(o.text, fashion.ByeAnimation, StringComparison.OrdinalIgnoreCase));
-              if (idx >= 0)
-     {
-      _byeAnimationDropdown.value = idx;
-              _byeAnimationDropdown.RefreshShownValue();
-   }
-                }
+                // Restore animation dropdowns
+                SelectAnimationOption(_periodicAnimationDropdown, fashion.PeriodicAnimation);
+                SelectAnimationOption(_interactAnimationDropdown, fashion.InteractAnimation);
+                SelectAnimationOption(_greetAnimationDropdown, fashion.GreetAnimation);
+                SelectAnimationOption(_byeAnimationDropdown, fashion.ByeAnimation);
 
                 // Restore time inputs
       if (_periodicAnimationTimeInput != null && !string.IsNullOrEmpty(fashion.PeriodicAnimationTime))
@@ -1802,46 +1786,10 @@ if (_periodicAnimationDropdown != null && !string.IsNullOrEmpty(fashion.Periodic
 
         private void CacheMainPanelButtonRects()
    {
-       if (NpcMainPanelController.Instance == null) return;
-
-            var panelRoot = NpcMainPanelController.Instance.transform;
-
- var closeButton = panelRoot.Find("Header/CloseButton");
-          _closeButtonRect = closeButton?.GetComponent<RectTransform>();
-
-var prevButton = panelRoot.Find("PageControls/PrevButton");
-          _prevButtonRect = prevButton?.GetComponent<RectTransform>();
-
- var sizeButton = panelRoot.Find("SizeButton");
-   _sizeButtonRect = sizeButton?.GetComponent<RectTransform>();
-
-   var header = panelRoot.Find("Header");
-            _headerRect = header?.GetComponent<RectTransform>();
-
-  Debug.Log($"[DressingRoomScreen] Cached button rects - Close: {_closeButtonRect != null}, Prev: {_prevButtonRect != null}, Size: {_sizeButtonRect != null}, Header: {_headerRect != null}");
   }
 
         private void WireMainPanelButtons()
 {
- if (NpcMainPanelController.Instance == null) return;
-
-      var panelRoot = NpcMainPanelController.Instance.transform;
-
-            var closeButton = panelRoot.Find("Header/CloseButton")?.GetComponent<Button>();
-   if (closeButton != null)
-            {
-                closeButton.onClick.RemoveAllListeners();
-      closeButton.onClick.AddListener(OnCloseButtonClicked);
-             Debug.Log("[DressingRoomScreen] Wired main panel close button");
-}
-
-            var prevButton = panelRoot.Find("PageControls/PrevButton")?.GetComponent<Button>();
-       if (prevButton != null)
-   {
-       prevButton.onClick.RemoveAllListeners();
-          prevButton.onClick.AddListener(OnBackClicked);
-     Debug.Log("[DressingRoomScreen] Wired main panel prev/back button");
-  }
         }
 
   public void Hide()
@@ -1871,11 +1819,6 @@ _sizeButtonRect = null;
 
         private void RestoreMainPanelButtons()
         {
-            if (NpcMainPanelController.Instance != null)
-          {
-       NpcMainPanelController.Instance.RewireButtonListeners();
-    Debug.Log("[DressingRoomScreen] Restored main panel button wiring");
-      }
         }
 
         public bool IsVisible => screenRoot != null && screenRoot.activeSelf;
@@ -2162,7 +2105,7 @@ if (itemDrop == null)
               return;
      }
 
-     var addedItem = inventory.AddItem(prefabName, 1, itemDrop.m_itemData.m_quality, itemDrop.m_itemData.m_variant, 0, "");
+     var addedItem = inventory.AddItem(prefabName, 1, itemDrop.m_itemData.m_quality, itemDrop.m_itemData.m_variant, 0, "", false);
 
    if (addedItem != null)
    {
@@ -2274,15 +2217,19 @@ if (itemDrop == null) return prefabName;
   string fashionJson = null;
     try
        {
+    // The UI has no controls for interact sound, crafting-anim lock, or the look-at toggle —
+    // carry the NPC's current values through instead of blanking them (blanking broke migrated
+    // kg NPCs: crafting pose lost + LookAtPlayer forced true on every admin Apply).
+    var existingComp = _currentNpc.GetComponent<NpcFashionComponent>();
     var fashion = new NPCFashionData
   {
-      PeriodicAnimation = _periodicAnimationDropdown?.options[_periodicAnimationDropdown.value].text,
+      PeriodicAnimation = SelectedAnimationValue(_periodicAnimationDropdown),
   PeriodicAnimationTime = _periodicAnimationTimeInput?.text,
        PeriodicSound = _periodicSoundDropdown?.options[_periodicSoundDropdown.value].text,
  PeriodicSoundTime = _periodicSoundTimeInput?.text,
- InteractAnimation = _interactAnimationDropdown?.options[_interactAnimationDropdown.value].text,
-      GreetAnimation = _greetAnimationDropdown?.options[_greetAnimationDropdown.value].text,
-     ByeAnimation = _byeAnimationDropdown?.options[_byeAnimationDropdown.value].text,
+ InteractAnimation = SelectedAnimationValue(_interactAnimationDropdown),
+      GreetAnimation = SelectedAnimationValue(_greetAnimationDropdown),
+     ByeAnimation = SelectedAnimationValue(_byeAnimationDropdown),
       GreetText = _greetTextInput?.text,
       ByeText = _byeTextInput?.text,
         HairItem = _hairItemDropdown?.options[_hairItemDropdown.value].text,
@@ -2292,8 +2239,15 @@ if (itemDrop == null) return prefabName;
    SkinColor = _skinColorDropdown?.options[_skinColorDropdown.value].text,
       EyeColor = _eyeColorDropdown?.options[_eyeColorDropdown.value].text,
        ModelScale = _modelScaleInput?.text,
-       LookAtPlayer = "true" // Enable look-at by default for now
+       InteractAudioClip = existingComp != null ? existingComp.InteractSound : null,
+       CraftingAnimation = existingComp != null ? existingComp.CraftingAnimation.ToString() : null,
+       LookAtPlayer = existingComp != null ? (existingComp.LookAtPlayer ? "true" : "false") : "true"
     };
+
+            _currentNpc.hairItem = NormalizeDropdownValue(fashion.HairItem);
+            _currentNpc.hairColor = NormalizeDropdownValue(fashion.HairColor);
+            _currentNpc.beardItem = NormalizeDropdownValue(fashion.BeardItem);
+            _currentNpc.beardColor = NormalizeDropdownValue(fashion.BeardColor);
 
       fashionJson = JsonConvert.SerializeObject(fashion);
    NpcFashionManager.ApplyFashionJsonToNpc(fashionJson, _currentNpc);
@@ -2366,10 +2320,6 @@ if (itemDrop == null) return prefabName;
             Debug.Log("[DressingRoomScreen] Back button clicked");
    Hide();
 
-            if (NpcMainPanelController.Instance != null)
-     {
-    NpcMainPanelController.Instance.GoToMainScreen();
-     }
         }
 
         private void OnCloseButtonClicked()
@@ -2377,10 +2327,6 @@ if (itemDrop == null) return prefabName;
 Debug.Log("[DressingRoomScreen] Close button clicked");
      Hide();
 
-            if (NpcMainPanelController.Instance != null)
-            {
-                NpcMainPanelController.Instance.Hide();
-            }
       }
 
       #endregion

@@ -253,7 +253,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _selected = l; ShowConfirmPanelFor(l); Refresh(); }); }
 
             float fs = RowFontSize;
-            SetCell(rowGo, "ItemLabel",   l.ItemPrefab, fs);
+            string itemLabel = l.Quality > 1 ? l.ItemPrefab + " <color=#e0c060>★" + l.Quality + "</color>" : l.ItemPrefab;
+            if (l.DurabilityPercent < 100) itemLabel += " <color=#c07050>" + l.DurabilityPercent + "%</color>";
+            SetCell(rowGo, "ItemLabel",   itemLabel, fs);
             SetCell(rowGo, "QtyLabel",    l.Count.ToString(), fs);
             SetCell(rowGo, "PriceLabel",  l.Price + " " + l.Currency, fs);
             SetCell(rowGo, "SellerLabel", l.SellerName, fs);
@@ -283,21 +285,29 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
             if (sellTab)
             {
-                // Repopulate dropdown options from the union of every loaded Banker profile.
-                var currencies = BankerProfileManager.GetAllAcceptedCurrencies();
+                // Dropdown = banker-profile currency union INTERSECTED with MarketPlace.cfg PossibleCurrencies
+                // (the server coerces off-list currencies to the first allowed one, so only offer what sticks).
+                // Empty intersection falls back to the allowlist itself.
+                var currencies = BankerProfileManager.GetAllAcceptedCurrencies()
+                    .Where(c => string.Equals(MarketplaceGlobals.CoerceCurrency(c), c, System.StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (currencies.Count == 0) currencies.Add(MarketplaceGlobals.CoerceCurrency(null));
                 _currencyDropdown.ClearOptions();
                 var options = new System.Collections.Generic.List<TMP_Dropdown.OptionData>();
                 foreach (var c in currencies) options.Add(new TMP_Dropdown.OptionData(c));
                 _currencyDropdown.AddOptions(options);
                 // Default to the listing's currency if it's in the list.
-                int idx = currencies.ToList().FindIndex(c => string.Equals(c, l.Currency, System.StringComparison.OrdinalIgnoreCase));
+                int idx = currencies.FindIndex(c => string.Equals(c, l.Currency, System.StringComparison.OrdinalIgnoreCase));
                 _currencyDropdown.value = idx >= 0 ? idx : 0;
                 _currencyDropdown.RefreshShownValue();
             }
 
+            // On My Listings an admin also sees everyone else's rows — a non-owned row is an admin
+            // REMOVE (server hard-deletes, nothing granted), own rows stay a Cancel (goods returned).
+            bool ownListing = Player.m_localPlayer != null && l.SellerId == Player.m_localPlayer.GetPlayerID();
             _confirmActionLabel.text = _currentTab switch
             {
-                Tab.MyListings => "Cancel",
+                Tab.MyListings => ownListing ? "Cancel" : "Remove",
                 Tab.Sell       => "List",
                 _              => "Buy",
             };
@@ -354,12 +364,15 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 var player = Player.m_localPlayer; if (player == null) { _statusText.text = "No active player."; return; }
                 var inv = player.GetInventory();
                 if (qty <= 0 || price <= 0) { _statusText.text = "Quantity and price must be positive."; return; }
-                if (!ConsumeFromInventory(inv, l.ItemPrefab, qty)) { _statusText.text = "Couldn't consume " + qty + "x " + l.ItemPrefab + " from inventory."; return; }
+                // Consume the EXACT stack the row showed (prefab + quality + variant), so a level-4 sword
+                // listing can't eat the level-1 copy — the fidelity fields ride the listing to the server.
+                if (!ConsumeMatchingFromInventory(inv, l, qty)) { _statusText.text = "Couldn't consume " + qty + "x " + l.ItemPrefab + " from inventory."; return; }
                 string chosenCurrency = _currencyDropdown != null && _currencyDropdown.options.Count > 0
                     ? _currencyDropdown.options[_currencyDropdown.value].text
                     : l.Currency;
                 // Item already consumed; the server records the listing (or replies to refund it if it fails).
-                MarketplaceNetwork.RequestList(chosenCurrency, price, l.ItemPrefab, qty);
+                MarketplaceNetwork.RequestList(chosenCurrency, price, l.ItemPrefab, qty,
+                    l.Quality, l.Variant, l.DurabilityPercent, l.CrafterName, l.CrafterID, l.CustomData);
                 _statusText.text = "Listing…";
                 _selected = null; HideConfirmPanel();
                 return;
@@ -398,6 +411,24 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             {
                 if (remaining <= 0) break;
                 if (it?.m_dropPrefab == null || it.m_dropPrefab.name != prefab) continue;
+                int take = Mathf.Min(it.m_stack, remaining);
+                inv.RemoveItem(it, take);
+                remaining -= take;
+            }
+            return remaining == 0;
+        }
+
+        // Sell-consume that honors the listed stack's identity: prefab + quality + variant must match, so
+        // the item that leaves the inventory is the one whose fidelity fields ride the listing.
+        private static bool ConsumeMatchingFromInventory(Inventory inv, MarketplaceListing l, int amount)
+        {
+            int remaining = amount;
+            var copy = new System.Collections.Generic.List<ItemDrop.ItemData>(inv.GetAllItems());
+            foreach (var it in copy)
+            {
+                if (remaining <= 0) break;
+                if (it?.m_dropPrefab == null || it.m_dropPrefab.name != l.ItemPrefab) continue;
+                if (it.m_quality != l.Quality || it.m_variant != l.Variant) continue;
                 int take = Mathf.Min(it.m_stack, remaining);
                 inv.RemoveItem(it, take);
                 remaining -= take;

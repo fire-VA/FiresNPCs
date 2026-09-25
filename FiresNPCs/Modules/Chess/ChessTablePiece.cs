@@ -168,6 +168,9 @@ namespace FiresRPGmaker.Modules.Chess
             => Localization.instance.Localize("Chess\n[<color=yellow><b>$KEY_Use</b></color>] Play");
 
         public string GetHoverName() => "Chess";
+        // Valheim 1.0 added GetHoverOffset to the Hoverable interface; it is ADDED to
+        // Player.m_maxInteractDistance, so 0 preserves the previous interact range exactly.
+        public float GetHoverOffset() => 0f;
     }
 
     /// <summary>[E] on the placed Fanorona board opens the stone duel.</summary>
@@ -187,6 +190,9 @@ namespace FiresRPGmaker.Modules.Chess
             => Localization.instance.Localize("Fanorona\n[<color=yellow><b>$KEY_Use</b></color>] Play");
 
         public string GetHoverName() => "Fanorona";
+        // Valheim 1.0 added GetHoverOffset to the Hoverable interface; it is ADDED to
+        // Player.m_maxInteractDistance, so 0 preserves the previous interact range exactly.
+        public float GetHoverOffset() => 0f;
     }
 
     /// <summary>[E] on the placed saloon table: Solo vs the house AI, or queue for an online tournament. A player
@@ -240,5 +246,8 @@ namespace FiresRPGmaker.Modules.Chess
             => Localization.instance.Localize("Poker Table\n[<color=yellow><b>$KEY_Use</b></color>] Play Hold'em");
 
         public string GetHoverName() => "Poker Table";
+        // Valheim 1.0 added GetHoverOffset to the Hoverable interface; it is ADDED to
+        // Player.m_maxInteractDistance, so 0 preserves the previous interact range exactly.
+        public float GetHoverOffset() => 0f;
     }
 }

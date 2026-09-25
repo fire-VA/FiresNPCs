@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -216,11 +217,55 @@ return ColorPresets["(none)"];
         private static bool _prefabCacheInitialized = false;
 
         // Per-prefab attach_skin/attach child lookup cache. The attach child is
-        // a fixed property of the hair/beard prefab â€” finding it once and
+        // a fixed property of the hair/beard prefab - finding it once and
         // memoizing avoids the linear scan of every prefab's children on every
         // companion spawn. Populated on first miss; never invalidated (the
         // prefabs themselves don't change at runtime).
         private static readonly Dictionary<int, GameObject> _attachChildCache = new Dictionary<int, GameObject>();
+
+        private const string SkinnedAttachChildName = "attach_skin";
+        private const string EquipOffsetChildName = "equipoffset";
+        private const string EquippedEffectsChildName = "equiped";
+
+        /// <summary>True when the prefab carries an "attach_skin" child. Vanilla VisEquipment.AttachItem
+        /// dispatches on this name: "attach_skin" rebinds to the body skeleton, plain "attach" is a rigid
+        /// parent to the joint. 1.0 hair and beard ship "attach", so they must not take the skinned path.</summary>
+        private static bool UsesSkinnedAttach(GameObject prefab)
+        {
+            var attachChild = GetCachedAttachChild(prefab);
+            return attachChild != null && attachChild.name == SkinnedAttachChildName;
+        }
+
+        /// <summary>The joint vanilla parents hair and beard to (VisEquipment.AttachItem passes m_helmet
+        /// for both). Falls back to a name search only when the rig carries no VisEquipment.</summary>
+        private static Transform ResolveHelmetJoint(GameObject npcRoot, Transform visual)
+        {
+            var visEquipment = npcRoot != null ? npcRoot.GetComponent<VisEquipment>() : null;
+            if (visEquipment != null && visEquipment.m_helmet != null) return visEquipment.m_helmet;
+            return FindTransformRecursive(visual, "Helmet_attach") ?? FindTransformRecursive(visual, "Head");
+        }
+
+        /// <summary>Mirrors the equipoffset step of vanilla AttachItem, including its use of the offset
+        /// child's WORLD position and rotation rather than local ones.</summary>
+        private static void ApplyEquipOffset(GameObject prefab, Transform instance)
+        {
+            var equipOffset = prefab.transform.Find(EquipOffsetChildName);
+            if (equipOffset == null) return;
+            instance.localPosition += equipOffset.position;
+            instance.localRotation *= equipOffset.rotation;
+        }
+
+        private static void EnableEquippedEffects(GameObject instance)
+        {
+            var equipped = instance.transform.Find(EquippedEffectsChildName);
+            if (equipped != null) equipped.gameObject.SetActive(true);
+        }
+
+        private static void DisableAttachedColliders(GameObject instance)
+        {
+            foreach (var collider in instance.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
+        }
 
         // Applies serialized fashion JSON to an NPC: sets equipment and attaches an NpcFashionComponent
         public static void ApplyFashionJsonToNpc(string json, NpcController npc)
@@ -528,7 +573,7 @@ return ColorPresets["(none)"];
         /// Applies a hair item to the NPC by instantiating the hair mesh.
         /// Hair in Valheim uses SkinnedMeshRenderer bound to head bones.
         /// </summary>
-        /// <summary>NpcController shim ï¿½ delegates to the GameObject overload.</summary>
+        /// <summary>NpcController shim - delegates to the GameObject overload.</summary>
         public static void ApplyHairToNpc(NpcController npc, string hairItem, string hairColor = null)
         {
             if (npc == null) return;
@@ -582,7 +627,7 @@ return ColorPresets["(none)"];
 
                 Transform visual = go.transform.Find("Visual") ?? go.transform;
 
-                if (TryApplySkinnedMeshToNpc(hairPrefab, "NPC_Hair_", hairItem, visual, hairColor))
+                if (UsesSkinnedAttach(hairPrefab) && TryApplySkinnedMeshToNpc(hairPrefab, "NPC_Hair_", hairItem, visual, hairColor))
                 {
                     StampAppliedTag(visual, $"NPC_Hair_{hairItem}", hairItem, hairColor);
                     if (FiresLogger.VerboseEnabled)
@@ -590,7 +635,7 @@ return ColorPresets["(none)"];
                     return;
                 }
 
-                ApplyHairFallback(go.name, visual, hairPrefab, hairItem, hairColor);
+                ApplyHairToHelmetJoint(go, visual, hairPrefab, hairItem, hairColor);
                 StampAppliedTag(visual, $"NPC_Hair_{hairItem}", hairItem, hairColor);
             }
             catch (Exception ex)
@@ -667,18 +712,17 @@ return ColorPresets["(none)"];
             }
         }
 
-        /// <summary>
-        /// Fallback method to attach hair directly to head bone (for non-skinned hair).
-        /// </summary>
-        private static void ApplyHairFallback(string ownerName, Transform visual, GameObject hairPrefab, string hairItem, string hairColor)
+        /// <summary>Vanilla's rigid attach path (VisEquipment.AttachItem, the non-"attach_skin" branch):
+        /// parent the prefab's attach child to the helmet joint, zero the local transform, apply equipoffset.
+        /// 1.0 hair ships an "attach" child whose mesh has no bindposes, so this is its PRIMARY path.</summary>
+        private static void ApplyHairToHelmetJoint(GameObject npcRoot, Transform visual, GameObject hairPrefab, string hairItem, string hairColor)
         {
-            // Find head bone
-            Transform headAttach = FindTransformRecursive(visual, "Head")
-               ?? FindTransformRecursive(visual, "Helmet_attach");
+            string ownerName = npcRoot != null ? npcRoot.name : "<null>";
+            Transform helmetJoint = ResolveHelmetJoint(npcRoot, visual);
 
-            if (headAttach == null)
+            if (helmetJoint == null)
             {
-                Debug.LogError($"[NpcFashionManager] No head bone found on {ownerName}! Hair cannot be attached.");
+                Debug.LogError($"[NpcFashionManager] No helmet joint found on {ownerName}! Hair cannot be attached.");
                 return;
             }
 
@@ -690,16 +734,17 @@ return ColorPresets["(none)"];
                 return;
             }
 
-            // Instantiate the hair visual. Match vanilla AttachItem: instantiate UNPARENTED, then
-            // SetParent with worldPositionStays=TRUE, and NEVER write localScale — forcing localScale=one
-            // under the scaled head bone is the same 100x bug as the primary path.
+            // SetParent keeps worldPositionStays=TRUE and localScale is never written: forcing localScale=one
+            // under the scaled joint is the 100x bug.
             var hairGO = UnityEngine.Object.Instantiate(visualToClone);
-            hairGO.transform.SetParent(headAttach);
+            hairGO.transform.SetParent(helmetJoint);
             hairGO.name = $"NPC_Hair_{hairItem}";
             hairGO.transform.localPosition = Vector3.zero;
             hairGO.transform.localRotation = Quaternion.identity;
+            ApplyEquipOffset(hairPrefab, hairGO.transform);
+            DisableAttachedColliders(hairGO);
+            EnableEquippedEffects(hairGO);
 
-            // Strip unwanted components
             StripUnwantedComponents(hairGO);
 
             // Fix shaders first, then tint.
@@ -722,13 +767,13 @@ return ColorPresets["(none)"];
             EnableRenderers(hairGO);
             hairGO.SetActive(true);
 
-            Debug.Log($"[NpcFashionManager] Applied hair '{hairItem}' to {ownerName} via fallback method");
+            Debug.Log($"[NpcFashionManager] Attached hair '{hairItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
         }
 
         /// <summary>
         /// Applies a beard item to the NPC by instantiating the beard mesh.
         /// </summary>
-        /// <summary>NpcController shim ï¿½ delegates to the GameObject overload.</summary>
+        /// <summary>NpcController shim - delegates to the GameObject overload.</summary>
         public static void ApplyBeardToNpc(NpcController npc, string beardItem, string beardColor = null)
         {
             if (npc == null) return;
@@ -778,7 +823,7 @@ return ColorPresets["(none)"];
 
                 Transform visual = go.transform.Find("Visual") ?? go.transform;
 
-                if (TryApplySkinnedMeshToNpc(beardPrefab, "NPC_Beard_", beardItem, visual, beardColor))
+                if (UsesSkinnedAttach(beardPrefab) && TryApplySkinnedMeshToNpc(beardPrefab, "NPC_Beard_", beardItem, visual, beardColor))
                 {
                     StampAppliedTag(visual, $"NPC_Beard_{beardItem}", beardItem, beardColor);
                     if (FiresLogger.VerboseEnabled)
@@ -786,7 +831,7 @@ return ColorPresets["(none)"];
                     return;
                 }
 
-                ApplyBeardFallback(go.name, visual, beardPrefab, beardItem, beardColor);
+                ApplyBeardToHelmetJoint(go, visual, beardPrefab, beardItem, beardColor);
                 StampAppliedTag(visual, $"NPC_Beard_{beardItem}", beardItem, beardColor);
             }
             catch (Exception ex)
@@ -796,16 +841,16 @@ return ColorPresets["(none)"];
         }
 
         /// <summary>
-        /// Fallback method to attach beard directly to head bone.
+        /// Vanilla's rigid attach path for beards -- VisEquipment.AttachItem passes m_helmet for beard as well as hair.
         /// </summary>
-        private static void ApplyBeardFallback(string ownerName, Transform visual, GameObject beardPrefab, string beardItem, string beardColor)
+        private static void ApplyBeardToHelmetJoint(GameObject npcRoot, Transform visual, GameObject beardPrefab, string beardItem, string beardColor)
         {
-            Transform headAttach = FindTransformRecursive(visual, "Head")
-                ?? FindTransformRecursive(visual, "Helmet_attach");
+            string ownerName = npcRoot != null ? npcRoot.name : "<null>";
+            Transform helmetJoint = ResolveHelmetJoint(npcRoot, visual);
 
-            if (headAttach == null)
+            if (helmetJoint == null)
             {
-                Debug.LogError($"[NpcFashionManager] No head bone found on {ownerName}! Beard cannot be attached.");
+                Debug.LogError($"[NpcFashionManager] No helmet joint found on {ownerName}! Beard cannot be attached.");
                 return;
             }
 
@@ -816,13 +861,15 @@ return ColorPresets["(none)"];
                 return;
             }
 
-            // Match vanilla AttachItem: instantiate UNPARENTED, SetParent(worldPositionStays=true), never
-            // write localScale (forcing localScale=one under the scaled head bone is the 100x bug).
+            // localScale is never written: forcing localScale=one under the scaled joint is the 100x bug.
             var beardGO = UnityEngine.Object.Instantiate(visualToClone);
-            beardGO.transform.SetParent(headAttach);
+            beardGO.transform.SetParent(helmetJoint);
             beardGO.name = $"NPC_Beard_{beardItem}";
             beardGO.transform.localPosition = Vector3.zero;
             beardGO.transform.localRotation = Quaternion.identity;
+            ApplyEquipOffset(beardPrefab, beardGO.transform);
+            DisableAttachedColliders(beardGO);
+            EnableEquippedEffects(beardGO);
 
             StripUnwantedComponents(beardGO);
 
@@ -844,12 +891,12 @@ return ColorPresets["(none)"];
             EnableRenderers(beardGO);
             beardGO.SetActive(true);
 
-            Debug.Log($"[NpcFashionManager] Applied beard '{beardItem}' to {ownerName} via fallback method");
+            Debug.Log($"[NpcFashionManager] Attached beard '{beardItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
         }
 
         /// <summary>
         /// Finds the NPC's body SkinnedMeshRenderer via NpcVisEquipment.VisEquipment.m_bodyModel.
-        /// This is the authoritative body mesh ï¿½ Valheim uses it as the bone source and the
+        /// This is the authoritative body mesh - Valheim uses it as the bone source and the
         /// primary material target for _HairColor / _SkinColor in VisEquipment.UpdateColors().
         /// </summary>
         private static SkinnedMeshRenderer GetBodyModel(Transform visualRoot)
@@ -861,7 +908,7 @@ return ColorPresets["(none)"];
                     Debug.Log($"[NpcFashionManager] GetBodyModel: found via NpcVisEquipment on {npcVE.gameObject.name}, bodyModel={npcVE.VisEquipment.m_bodyModel.gameObject.name}");
                 return npcVE.VisEquipment.m_bodyModel;
             }
-            Debug.LogWarning($"[NpcFashionManager] GetBodyModel: NOT FOUND for visualRoot={visualRoot.name} ï¿½ color will only be applied to hair mesh material");
+            Debug.LogWarning($"[NpcFashionManager] GetBodyModel: NOT FOUND for visualRoot={visualRoot.name} - color will only be applied to hair mesh material");
             return null;
         }
 
@@ -875,14 +922,14 @@ return ColorPresets["(none)"];
             SkinnedMeshRenderer bodyModel,
             Color color)
         {
-            // NOTE: DO NOT use mat.HasProperty("_HairColor") ï¿½ in Valheim's Custom/Player shader
+            // NOTE: DO NOT use mat.HasProperty("_HairColor") - in Valheim's Custom/Player shader
             // _HairColor is set programmatically and is NOT declared in the Properties {} block,
             // so HasProperty always returns false. Valheim's own VisEquipment.UpdateColors() calls
             // mat.SetColor("_HairColor", color) unconditionally with no HasProperty guard.
             if (FiresLogger.VerboseEnabled)
                 Debug.Log($"[NpcFashionManager] ApplyHairColorToMeshAndBody: color={color}, bodyModel={(bodyModel != null ? bodyModel.gameObject.name : "<null>")}");
 
-            // Step 1 ï¿½ hair/beard mesh materials (mirrors VisEquipment.UpdateColors())
+            // Step 1 - hair/beard mesh materials (mirrors VisEquipment.UpdateColors())
             foreach (var smr in meshRenderers)
             {
                 if (smr == null) continue;
@@ -898,7 +945,7 @@ return ColorPresets["(none)"];
                 smr.materials = mats;
             }
 
-            // Step 2 ï¿½ body material (VisEquipment.UpdateColors also sets _HairColor on baseMaterial)
+            // Step 2 - body material (VisEquipment.UpdateColors also sets _HairColor on baseMaterial)
             if (bodyModel != null)
             {
                 // Hair color is applied to the hair INSTANCE's own material above (step 1, _SkinColor —
@@ -939,7 +986,7 @@ return ColorPresets["(none)"];
                 if (anySMR != null) attachChild = anySMR.gameObject;
             }
 
-            // Cache the result, including null â€” a prefab that has neither
+            // Cache the result, including null - a prefab that has neither
             // child will keep failing the same way; no point re-scanning.
             _attachChildCache[key] = attachChild;
             return attachChild;
@@ -948,17 +995,17 @@ return ColorPresets["(none)"];
         /// <summary>
         /// Attaches a hair or beard prefab as a skinned mesh bound to the NPC's skeleton.
         /// Follows the Balrond / vanilla-Valheim VisEquipment.AttachHair() pattern:
-        ///   ï¿½ find the attach_skin child specifically
-        ///   ï¿½ parent to bodyModel.transform.parent (sibling of the body mesh)
-        ///   ï¿½ copy rootBone + bones array directly from the body model
-        ///   ï¿½ apply _HairColor on both the hair mesh material AND the body material
+        ///   - find the attach_skin child specifically
+        ///   - parent to bodyModel.transform.parent (sibling of the body mesh)
+        ///   - copy rootBone + bones array directly from the body model
+        ///   - apply _HairColor on both the hair mesh material AND the body material
         /// </summary>
         private static bool TryApplySkinnedMeshToNpc(
             GameObject prefab, string namePrefix, string itemName,
             Transform visualRoot, string colorOverride)
         {
             // --- 1. Find attach_skin (Balrond / Valheim approach) ---
-            // Memoized per-prefab â€” see _attachChildCache. This used to scan the
+            // Memoized per-prefab - see _attachChildCache. This used to scan the
             // hair/beard prefab's children on every companion spawn.
             GameObject attachChild = GetCachedAttachChild(prefab);
             if (attachChild == null)
@@ -996,7 +1043,7 @@ return ColorPresets["(none)"];
                 // Strip Cloth components from the cloned tree BEFORE bone re-binding.
                 // Some hair / beard prefabs (long flowing hair, capes) ship with a
                 // Cloth on the SMR for sway physics. Cloth's per-vertex skin
-                // coefficients are baked against the prefab's ORIGINAL skeleton â€”
+                // coefficients are baked against the prefab's ORIGINAL skeleton -
                 // step 4 below reassigns smr.bones to the body skeleton, which makes
                 // those coefficients meaningless and forces Unity to disable the
                 // Cloth on the next frame with a per-NPC log line:
@@ -1039,28 +1086,32 @@ return ColorPresets["(none)"];
                     // sweep then disables, leaving the NPC bald. Reject up front and let
                     // the rigid head-attach fallback handle it (visually fine for
                     // hair/beard: it follows the head bone).
+                    // The bone-count check does not depend on the probe: Unity refuses a bones array whose length
+                    // differs from the mesh's bindposes and keeps the clone's own, unanimated skeleton, so the style
+                    // would hang in the air (Hair4_3: 55 bindposes against the player rig's 53).
                     float bodySkin = SkinScaleProbe(
                         bodyModel.sharedMesh != null ? bodyModel.sharedMesh.bindposes : null,
                         bodyModel.bones);
-                    if (bodySkin > 0f)
+                    int bodyBoneCount = bodyModel.bones?.Length ?? 0;
+                    foreach (var smr in smrs)
                     {
-                        int bodyBoneCount = bodyModel.bones?.Length ?? 0;
-                        foreach (var smr in smrs)
+                        var poses = smr.sharedMesh != null ? smr.sharedMesh.bindposes : null;
+                        bool countMismatch = poses == null || poses.Length != bodyBoneCount;
+                        float ratio = 1f;
+                        if (!countMismatch && bodySkin > 0f)
                         {
-                            var poses = smr.sharedMesh != null ? smr.sharedMesh.bindposes : null;
-                            bool countMismatch = poses == null || poses.Length != bodyBoneCount;
-                            float itemSkin = countMismatch ? -1f : SkinScaleProbe(poses, bodyModel.bones);
-                            float ratio = itemSkin > 0f ? itemSkin / bodySkin : -1f;
-                            if (countMismatch || ratio < 0.33f || ratio > 3f)
-                            {
-                                Debug.Log($"[NpcFashionManager] '{itemName}' skeleton incompatible with the player rig ("
-                                    + (countMismatch
-                                        ? $"bindposes={(poses?.Length ?? 0)} vs bones={bodyBoneCount}"
-                                        : $"skin-scale x{ratio:F1}")
-                                    + ") — using rigid head attach instead");
-                                UnityEngine.Object.Destroy(clonedGO);
-                                return false;
-                            }
+                            float itemSkin = SkinScaleProbe(poses, bodyModel.bones);
+                            ratio = itemSkin > 0f ? itemSkin / bodySkin : -1f;
+                        }
+                        if (countMismatch || ratio < 0.33f || ratio > 3f)
+                        {
+                            Debug.Log($"[NpcFashionManager] '{itemName}' skeleton incompatible with the player rig ("
+                                + (countMismatch
+                                    ? $"bindposes={(poses?.Length ?? 0)} vs bones={bodyBoneCount}"
+                                    : $"skin-scale x{ratio:F1}")
+                                + ") — using rigid head attach instead");
+                            UnityEngine.Object.Destroy(clonedGO);
+                            return false;
                         }
                     }
 
@@ -1113,7 +1164,7 @@ return ColorPresets["(none)"];
                     foreach (var smr in smrs)
                     {
                         // new Material() creates an independent instance so each NPC
-                        // gets their own copy ï¿½ setting _HairColor won't bleed across NPCs.
+                        // gets their own copy - setting _HairColor won't bleed across NPCs.
                         // Keep the hair prefab's OWN material (vanilla VisEquipment.AttachItem + KG
                         // never swap to the body atlas — the hair UVs are authored for the dedicated
                         // hair texture, so the body atlas paints body skin onto the hair = the blob).
@@ -1718,58 +1769,74 @@ bool isEyeMaterial = matName.Contains("eye") || objName.Contains("eye");
             }
         }
 
-    // Extracts fashion data from an NPC into JSON for persistence
-  public static string ExtractFashionJsonFromNpc(NpcController npc)
-      {
-      if (npc == null) return null;
-    try
-{
-            var comp = npc.GetComponent<NpcFashionComponent>();
-        var data = new NPCFashionData();
+        // Extracts fashion data from an NPC into JSON for persistence. This is what SaveToZDO writes
+        // into npc_fashion_json (preferred over the pending JSON), so it MUST echo EVERY field the
+        // NPC carries — any field omitted here is silently wiped from the NPC on the next admin
+        // Apply/save (the migrated-kg-NPC data-loss bug: GreetText/ByeText/InteractSound/
+        // CraftingAnimation/back-items/TextSize/TextHeight all vanished on save).
+        public static string ExtractFashionJsonFromNpc(NpcController npc)
+        {
+            if (npc == null) return null;
+            try
+            {
+                var comp = npc.GetComponent<NpcFashionComponent>();
+                var data = new NPCFashionData();
 
-         // Populate from component if present, otherwise fall back to npc equip fields
-    if (comp != null)
-  {
-        data.LeftItem = comp.LeftItem;
-              data.RightItem = comp.RightItem;
-    data.HelmetItem = comp.HelmetItem;
-         data.ChestItem = comp.ChestItem;
-  data.LegsItem = comp.LegsItem;
-    data.CapeItem = comp.CapeItem;
-        data.HairItem = comp.HairItem;
-    data.HairColor = comp.HairColor;
-  data.BeardItem = comp.BeardItem;
-        data.BeardColor = comp.BeardColor;
-           data.SkinColor = comp.SkinColor;
-  data.EyeColor = comp.EyeColor;
+                // Populate from component if present, otherwise fall back to npc equip fields
+                if (comp != null)
+                {
+                    data.LeftItem = comp.LeftItem;
+                    data.RightItem = comp.RightItem;
+                    data.HelmetItem = comp.HelmetItem;
+                    data.ChestItem = comp.ChestItem;
+                    data.LegsItem = comp.LegsItem;
+                    data.CapeItem = comp.CapeItem;
+                    data.HairItem = comp.HairItem;
+                    data.HairColor = comp.HairColor;
+                    data.BeardItem = comp.BeardItem;
+                    data.BeardColor = comp.BeardColor;
+                    data.SkinColor = comp.SkinColor;
+                    data.EyeColor = comp.EyeColor;
 
-   data.GreetAnimation = comp.GreetAnimation;
-         data.ByeAnimation = comp.ByeAnimation;
-  data.InteractAnimation = comp.InteractAnimation;
- data.PeriodicAnimation = comp.PeriodicAnimation;
-         data.PeriodicAnimationTime = comp.PeriodicAnimationTime.ToString();
-     data.PeriodicSound = comp.PeriodicSound;
-   data.PeriodicSoundTime = comp.PeriodicSoundTime.ToString();
-    data.ModelScale = comp.ModelScale.ToString();
-      data.LookAtPlayer = comp.LookAtPlayer ? "true" : "false";
-  }
-            else
- {
-       data.HelmetItem = npc.equipHelmet;
-          data.ChestItem = npc.equipChest;
-   data.LegsItem = npc.equipLegs;
-        data.CapeItem = npc.equipShoulder;
-              data.LeftItem = npc.equipLeftHand;
-           data.RightItem = npc.equipRightHand;
-        }
+                    data.GreetAnimation = comp.GreetAnimation;
+                    data.ByeAnimation = comp.ByeAnimation;
+                    data.InteractAnimation = comp.InteractAnimation;
+                    data.GreetText = comp.GreetText;
+                    data.ByeText = comp.ByeText;
+                    data.InteractAudioClip = comp.InteractSound;
+                    data.CraftingAnimation = comp.CraftingAnimation.ToString(CultureInfo.InvariantCulture);
+                    data.PeriodicAnimation = comp.PeriodicAnimation;
+                    data.PeriodicAnimationTime = comp.PeriodicAnimationTime.ToString(CultureInfo.InvariantCulture);
+                    data.PeriodicSound = comp.PeriodicSound;
+                    data.PeriodicSoundTime = comp.PeriodicSoundTime.ToString(CultureInfo.InvariantCulture);
+                    data.ModelScale = comp.ModelScale.ToString(CultureInfo.InvariantCulture);
+                    data.LookAtPlayer = comp.LookAtPlayer ? "true" : "false";
+                }
+                else
+                {
+                    data.HelmetItem = npc.equipHelmet;
+                    data.ChestItem = npc.equipChest;
+                    data.LegsItem = npc.equipLegs;
+                    data.CapeItem = npc.equipShoulder;
+                    data.LeftItem = npc.equipLeftHand;
+                    data.RightItem = npc.equipRightHand;
+                }
 
-    return JsonConvert.SerializeObject(data);
-  }
-    catch (Exception ex)
-      {
-    Debug.LogWarning($"[NpcFashionManager] Failed to extract fashion json: {ex.Message}");
-  return null;
-    }
+                // Fields whose authority lives on NpcController (own ZDO keys) — echoed so the JSON is
+                // the complete kg-parity document: back items (kg LeftItemHidden/RightItemHidden map to
+                // our back slots) and nameplate size/height (kg TextSize/TextHeight).
+                data.LeftItemHidden = npc.equipLeftBack;
+                data.RightItemHidden = npc.equipRightBack;
+                data.TextSize = npc.nameplateScale.ToString(CultureInfo.InvariantCulture);
+                data.TextHeight = npc.nameplateYOffset.ToString(CultureInfo.InvariantCulture);
+
+                return JsonConvert.SerializeObject(data);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[NpcFashionManager] Failed to extract fashion json: {ex.Message}");
+                return null;
+            }
         }
     }
 

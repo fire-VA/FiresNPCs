@@ -29,8 +29,8 @@ namespace FiresRPGmaker.UI
         {
             if (!CanProcessHotkey()) return;
             var cfg = ConfigManager.Instance?.configLeaderboardHotkey;
-            if (cfg == null || cfg.Value == KeyCode.None) return;
-            if (Input.GetKeyDown(cfg.Value))
+            if (cfg == null || cfg.Value.MainKey == KeyCode.None) return;
+            if (FiresCore.Input.Chord.IsDown(cfg.Value))
                 FiresLeaderboardGui.Open();
         }
 

@@ -219,6 +219,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _sendButton        = FindBtn(root, "Background/ContentArea/SendView/SendButton");
             _sendStatusText    = FindTmp(root, "Background/ContentArea/SendView/SendStatusText");
 
+            // Teach admins the broadcast address (server enforces the admin gate; non-admins just see the
+            // normal placeholder).
+            if (_sendTo != null && _sendTo.placeholder is TMP_Text toPh && global::FiresCore.Sync.AdminSyncing.IsLocalAdmin())
+                toPh.text = "Player name (* = everyone)";
+
             // The "Inbox" header is now rendered as the TOP envelope tab inside the stack (see
             // BuildHeaderTab), so the separate floating InboxLabel text + the envelope-behind-label
             // image are redundant. Blank the label's TEXT (keep its GameObject active — the stack is

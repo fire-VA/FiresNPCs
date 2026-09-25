@@ -107,6 +107,9 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static void RPC_MailReq(long senderId, ZPackage pkg)
         {
             if (!IsServer || pkg == null) return;
+            // Same guarantee as the banker: the shared Core vault must be configured before any mail read/write,
+            // even if an earlier server-init step threw before VaultOfKnowledge configured it (idempotent no-op).
+            global::FiresRPGmaker.Modules.Vault.VaultOfKnowledge.EnsureVaultConfigured();
             try
             {
                 long playerId    = pkg.ReadLong();
@@ -167,6 +170,35 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             if (string.IsNullOrWhiteSpace(toName) || string.IsNullOrWhiteSpace(subject))
             { ReplySendResult(senderId, false, "Recipient and subject are required."); return; }
+
+            // kg CMS admin broadcast parity: recipient "*" (or "all") fans the mail out to EVERY player the
+            // vault has ever registered (CentralizedMailSystem_Server loops its Users the same way). Admin-only.
+            string to = toName.Trim();
+            if (to == "*" || to.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!global::FiresCore.Sync.AdminSyncing.IsAdmin(senderId))
+                { ReplySendResult(senderId, false, "Only admins can broadcast mail."); return; }
+                int sent = 0;
+                foreach (var u in MailRepository.GetAllUsers())
+                {
+                    if (u == null || string.IsNullOrEmpty(u.UserID)) continue;
+                    MailRepository.AddMail(new FiresCore.Storage.MailEntry
+                    {
+                        Owner = u.UserID,
+                        Sender = senderName ?? "",
+                        Topic = subject.Trim(),
+                        Message = (body ?? "").Trim(),
+                        Created = DateTime.UtcNow.Ticks,
+                        Attachments = new List<StoredItem>(),
+                        Links = new List<StoredItem>(),
+                        WasRead = false,
+                        AttachmentsTaken = false,
+                    });
+                    sent++;
+                }
+                ReplySendResult(senderId, true, $"Broadcast to {sent} player(s).");
+                return;
+            }
 
             string toOwner = ResolveOwnerByName(toName);
             if (string.IsNullOrEmpty(toOwner))
@@ -398,7 +430,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
                 if (drop == null) continue;
                 if (inv.CanAddItem(drop.m_itemData, att.Count))
-                    inv.AddItem(att.Prefab, att.Count, 1, 0, 0L, "");
+                    inv.AddItem(att.Prefab, att.Count, 1, 0, 0L, "", false);
                 else
                     ItemDrop.DropItem(drop.m_itemData, att.Count, player.transform.position + player.transform.forward * 1.5f + Vector3.up * 1.5f, Quaternion.identity);
                 granted++;

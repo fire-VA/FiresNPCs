@@ -52,7 +52,7 @@ namespace FiresRPGmaker
             }
             else
             {
-                // No manifest yet Ã¯Â¿Â½ bootstrap from existing config files so the first push
+                // No manifest yet - bootstrap from existing config files so the first push
                 // doesn't re-send everything the server already synced to us on login.
                 try
                 {
@@ -92,8 +92,7 @@ namespace FiresRPGmaker
               return;
         }
 
-      NpcMainPanelController.ShowForNpc(mockNpc);
-        args.Context.AddString("[FiresRPGmaker] NPC UI panel opened for testing");
+        args.Context.AddString("[FiresRPGmaker] NPC UI panel retired — quest/admin UI now lives in the NPC book (NpcBookController)");
       }
        catch (Exception ex)
                 {
@@ -209,7 +208,7 @@ try
      try
          {
   args.Context.AddString("=== UI System Status ===");
-       args.Context.AddString($"Panel Instance: {(NpcMainPanelController.Instance != null ? "Created" : "Not created")}");
+       args.Context.AddString("Panel Instance: retired (NPC book UI)");
  args.Context.AddString($"Panel Visible: {GUIManager.IsCustomPanelOpen()}");
         args.Context.AddString($"Input Blocked: {GUIManager.IsInputBlocked}");
         args.Context.AddString($"Using Asset Bundle: {UIInitializer.IsUsingAssetBundle}");
@@ -886,7 +885,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
          }
      }
 
-     // Cache of file content read during IsModified Ã¯Â¿Â½ avoids double-read
+     // Cache of file content read during IsModified - avoids double-read
      var contentCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
      bool IsModified(string filePath, string folder, string name)
@@ -2234,17 +2233,6 @@ int worldCount = 0;
         catch (Exception ex)
         {
             Debug.LogWarning($"[FiresRPGmaker] Failed to register DebugPrefabDumper commands: {ex.Message}");
-        }
-
-        // Register orphan-stats command (cumulative ZNetView orphan counts).
-        try
-        {
-            global::FiresRPGmaker.Diagnostics.CharacterDeathCascadeDiagnostic.RegisterConsoleCommands();
-            FiresLogger.LogVerbose("CharacterDeathCascadeDiagnostic commands registered");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[FiresRPGmaker] Failed to register CharacterDeathCascadeDiagnostic commands: {ex.Message}");
         }
 
             FiresLogger.LogVerbose("Console commands registered: startsamplequest, queststatus, savevault, vaultclean, listquests, startquest, pushcfgs, spawncompanion, listcompanions, dumpglobalshaders");
@@ -4914,7 +4902,7 @@ public static Sprite FindSprite(string spriteName)
         {
             if (Chat.instance == null)
             {
-                args.Context.AddString("[FiresRPGmaker] Chat.instance is null Ã¯Â¿Â½ open the game first.");
+                args.Context.AddString("[FiresRPGmaker] Chat.instance is null - open the game first.");
                 return;
             }
 
@@ -5007,8 +4995,8 @@ public static Sprite FindSprite(string spriteName)
 
             if (rt != null)
             {
-                sb.Append($"  anchor({rt.anchorMin}Ã¯Â¿Â½{rt.anchorMax})");
-                sb.Append($"  offset({rt.offsetMin}Ã¯Â¿Â½{rt.offsetMax})");
+                sb.Append($"  anchor({rt.anchorMin}-{rt.anchorMax})");
+                sb.Append($"  offset({rt.offsetMin}-{rt.offsetMax})");
                 sb.Append($"  pivot({rt.pivot})");
                 sb.Append($"  size({rt.sizeDelta})");
                 sb.Append($"  pos({rt.anchoredPosition})");

@@ -7,12 +7,12 @@ namespace FiresRPGmaker.Modules.ChatSystem
 {
     /// <summary>
     /// Lightweight GIF89a decoder. Parses raw GIF bytes into Texture2D frames
-    /// and per-frame delay values. Pure C# � no external dependencies.
+    /// and per-frame delay values. Pure C# - no external dependencies.
     ///
     /// Limitations (by design for chat embeds):
     ///   - Max 500 frames
     ///   - Max 50 MB input (media is downloaded client-side via HTTP, not Steam networking)
-    ///   - Max 1024�1024 source (display size is controlled by ChatMediaEmbed)
+    ///   - Max 1024x1024 source (display size is controlled by ChatMediaEmbed)
     /// </summary>
     public static class GifDecoder
     {

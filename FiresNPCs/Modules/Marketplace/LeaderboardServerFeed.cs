@@ -30,6 +30,10 @@ namespace FiresRPGmaker.Modules.Marketplace
         Terraformed = 10,
         // Cultivator ops (cultivate farmland + plant seeds/saplings). Coalesced client-side like Terraformed.
         Cultivated = 11,
+        // What killed the LOCAL player (kg TriggerType.KilledBy parity): prefab field = attacker prefab name,
+        // or "PLAYER_<name>" for PvP deaths — kg's exact key format (GameEvents.cs). Environment deaths
+        // (fall/drown/fire, no attacker) record nothing, matching kg.
+        KilledBy = 12,
     }
 
     /// <summary>
@@ -120,6 +124,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     case LeaderboardStat.Tamed:          LeaderboardBridge.RecordTamed(ownerKey, playerName, amount); break;
                     case LeaderboardStat.Terraformed:    LeaderboardBridge.RecordTerraformed(ownerKey, playerName, amount); break;
                     case LeaderboardStat.Cultivated:     LeaderboardBridge.RecordCultivated(ownerKey, playerName, amount); break;
+                    case LeaderboardStat.KilledBy:       LeaderboardBridge.RecordKilledBy(ownerKey, playerName, prefab, amount); break;
                 }
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] RPC_RecordStat failed: {ex.Message}"); }
@@ -157,36 +162,44 @@ namespace FiresRPGmaker.Modules.Marketplace
     }
 
     /// <summary>
-    /// Client-side capture for the server leaderboard feed. Mirrors <see cref="LeaderboardTrackerPatches"/>'s
-    /// proven event hooks (and their dedicated-server caveats) but forwards structured events to the server
-    /// instead of writing a local CSV. Kills are intentionally absent (sourced from QuestProgressPatches).
+    /// The leaderboard's game-event hooks, one Harmony patch per vanilla method. Each feeds both the server
+    /// leaderboard (structured events) and the local tracker (<see cref="LeaderboardTrackerRecorder"/>). Server-side
+    /// kill credit is intentionally absent here (sourced from QuestProgressPatches).
     /// </summary>
     public static class LeaderboardFeedPatches
     {
-        [HarmonyPatch(typeof(Character), nameof(Character.OnDeath))]
-        public static class Character_OnDeath
+        /// <summary>Death events, called from <see cref="RpgVanillaHooks"/>: creature deaths arrive through
+        /// Character.OnDeath, the local player's own death through Player.OnDeath (Player overrides OnDeath without
+        /// calling base, so a Character.OnDeath hook never sees it — why deaths were never recorded before).</summary>
+        public static class DeathFeed
         {
             // m_lastHit is protected on Character; read it reflectively to find the killing blow's attacker.
             private static readonly FieldInfo LastHitField =
                 typeof(Character).GetField("m_lastHit", BindingFlags.NonPublic | BindingFlags.Instance);
 
-            [HarmonyPostfix]
-            private static void Postfix(Character __instance)
+            /// <summary>The local player died: record the death + the killer's identity (kg KilledBy parity;
+            /// nothing recorded for environment deaths). Owner-only — a remote player's OnDeath is a no-op.</summary>
+            internal static void OnLocalPlayerDeath(Player player)
             {
                 var local = Player.m_localPlayer;
-                if (__instance == null || local == null) return;
+                if (player == null || local == null || player != local) return;
+                string name = local.GetPlayerName();
+                string killerKey = ResolveKillerKey(player);
+                LeaderboardTrackerRecorder.OwnDeath(killerKey);
+                LeaderboardServerFeed.Send(LeaderboardStat.Death, name, null, 1);
+                if (!string.IsNullOrEmpty(killerKey))
+                    LeaderboardServerFeed.Send(LeaderboardStat.KilledBy, name, killerKey, 1);
+            }
 
-                // Local player's own death → record the death (no double-count: kills are sourced elsewhere).
-                if (__instance == (Character)local)
-                {
-                    LeaderboardServerFeed.Send(LeaderboardStat.Death, local.GetPlayerName(), null, 1);
-                    return;
-                }
-
-                // A non-player Character died — if the LOCAL player landed the killing blow, record the weapon it
-                // was holding. Sibling of the kill credit (QuestProgressPatches): records only the weapon, never a kill.
-                if (__instance.IsPlayer()) return;
+            /// <summary>Something died from the LOCAL player's killing blow: the local tracker counts the kill; the
+            /// server feed records only the weapon held (its kill credit comes from QuestProgressPatches).</summary>
+            internal static void OnCharacterDeath(Character __instance)
+            {
+                var local = Player.m_localPlayer;
+                if (__instance == null || local == null || __instance == (Character)local) return;
                 if (!LocalPlayerLandedKillingBlow(__instance)) return;
+                LeaderboardTrackerRecorder.Kill(__instance);
+                if (__instance.IsPlayer()) return;
                 if (TryGetCurrentWeaponId(local, out string weaponId))
                     LeaderboardServerFeed.Send(LeaderboardStat.WeaponKill, local.GetPlayerName(), weaponId, 1);
             }
@@ -199,6 +212,22 @@ namespace FiresRPGmaker.Modules.Marketplace
                     return hit != null && hit.GetAttacker() == (Character)Player.m_localPlayer;
                 }
                 catch { return false; }
+            }
+
+            /// <summary>The kg KilledBy key for whatever landed the victim's killing blow: "PLAYER_&lt;name&gt;"
+            /// for a player attacker, the attacker's prefab name otherwise, null when there is no attacker
+            /// (environment death) — kg's exact contract (GameEvents.cs), so kg achievement cfgs drop in.</summary>
+            internal static string ResolveKillerKey(Character victim)
+            {
+                try
+                {
+                    var hit = LastHitField?.GetValue(victim) as HitData;
+                    var attacker = hit?.GetAttacker();
+                    if (attacker == null) return null;
+                    if (attacker.IsPlayer() && attacker is Player p) return "PLAYER_" + p.GetPlayerName();
+                    return global::Utils.GetPrefabName(attacker.gameObject);
+                }
+                catch { return null; }
             }
         }
 
@@ -235,6 +264,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             private static void Postfix(Player player)
             {
                 if (player == null || player != Player.m_localPlayer) return;
+                LeaderboardTrackerRecorder.Crafted();
                 LeaderboardServerFeed.Send(LeaderboardStat.Crafted, player.GetPlayerName(), null, 1);
             }
         }
@@ -242,9 +272,16 @@ namespace FiresRPGmaker.Modules.Marketplace
         [HarmonyPatch(typeof(Piece), nameof(Piece.SetCreator))]
         public static class Piece_SetCreator
         {
+            /// <summary>Vanilla only records a creator when this machine owns the piece and none is set yet. Anything
+            /// else is a no-op call, like PlacePiece's on a template that already destroyed itself in Awake.</summary>
+            [HarmonyPrefix]
+            private static void Prefix(Piece __instance, ZNetView ___m_nview, out bool __state)
+                => __state = ___m_nview != null && ___m_nview.IsOwner() && __instance.GetCreator() == 0L;
+
             [HarmonyPostfix]
-            private static void Postfix(Piece __instance, long uid)
+            private static void Postfix(Piece __instance, long uid, bool __state)
             {
+                if (!__state) return;
                 var local = Player.m_localPlayer;
                 if (local == null || __instance == null) return;
                 if (uid != local.GetPlayerID()) return;
@@ -253,7 +290,9 @@ namespace FiresRPGmaker.Modules.Marketplace
                 // They are NOT structures — counting them as Built inflated the build score and firing a Built RPC
                 // per tick hammered the server. Route them to their own tool-use stats, COALESCED client-side
                 // (batched every few seconds) so the RPC fires a handful of times instead of hundreds.
-                switch (LeaderboardServerFeed.ClassifyPiece(__instance))
+                var kind = LeaderboardServerFeed.ClassifyPiece(__instance);
+                LeaderboardTrackerRecorder.Piece(__instance, kind);
+                switch (kind)
                 {
                     case LeaderboardServerFeed.PieceKind.Cultivate: ToolUseCoalescer.NoteCultivate(); return;
                     case LeaderboardServerFeed.PieceKind.Terraform: ToolUseCoalescer.NoteTerraform(); return;
@@ -301,31 +340,63 @@ namespace FiresRPGmaker.Modules.Marketplace
         //   (2) Normalize by 4/π. Valheim's playable world is a CIRCLE inscribed in the square texture, so the
         //       maximum reachable fraction of `m_explored.Length` is π/4 ≈ 0.785. The 1.27323949f multiplier (== 4/π)
         //       rescales so a fully-explored map reads 100% instead of ~78.5%. Clamped to 1.0 for safety.
+        //   (3) Biome-reached milestones ride the same per-frame hook: a throttled poll of the local player's biome,
+        //       each biome sent once per session (the server set-once's it), so a stationary player still registers
+        //       the biome they logged in or built in. The terraform/cultivate batch's tail flush runs here too.
         [HarmonyPatch(typeof(Player), nameof(Player.Update))]
-        public static class Player_Update_Explore
+        public static class Player_Update
         {
-            private const float SendIntervalSeconds = 30f;
+            private const float ExploreIntervalSeconds = 30f;
+            private const float BiomeIntervalSeconds = 3f;
             private const float CircleNormalization = 1.27323949f; // 4 / π
-            private static float _accum;
+            private static float _exploreAccum;
+            private static float _biomeAccum;
             private static int _lastSentBp = -1; // only send when exploration actually increased
+            private static readonly HashSet<Heightmap.Biome> _sentBiomes = new HashSet<Heightmap.Biome>();
 
             [HarmonyPostfix]
             private static void Postfix(Player __instance)
             {
-                if (__instance == null || __instance != Player.m_localPlayer || Minimap.instance == null) return;
-                _accum += Time.deltaTime;
-                if (_accum < SendIntervalSeconds) return;
-                _accum = 0f;
+                if (__instance == null || __instance != Player.m_localPlayer) return;
+
+                // Flush the terraform/cultivate batch once it's been idle past the coalesce window, so the tail of a
+                // terraforming session lands within ~3s of the last op.
+                ToolUseCoalescer.FlushIfDue();
+                UpdateExplored(__instance);
+                UpdateBiome(__instance);
+            }
+
+            private static void UpdateExplored(Player player)
+            {
+                if (Minimap.instance == null) return;
+                _exploreAccum += Time.deltaTime;
+                if (_exploreAccum < ExploreIntervalSeconds) return;
+                _exploreAccum = 0f;
 
                 var arr = Minimap.instance.m_explored;
                 if (arr == null || arr.Length == 0) return;
                 int explored = 0;
                 for (int i = 0; i < arr.Length; i++) if (arr[i]) explored++;
                 float fraction = Mathf.Min(1f, (float)explored / arr.Length * CircleNormalization);
+                LeaderboardTrackerRecorder.Explored(fraction);
+
                 int basisPoints = Mathf.RoundToInt(fraction * 10000f);
                 if (basisPoints <= _lastSentBp) return; // unchanged since last 30s snapshot — nothing to record
                 _lastSentBp = basisPoints;
-                LeaderboardServerFeed.Send(LeaderboardStat.MapExplored, __instance.GetPlayerName(), null, basisPoints);
+                LeaderboardServerFeed.Send(LeaderboardStat.MapExplored, player.GetPlayerName(), null, basisPoints);
+            }
+
+            private static void UpdateBiome(Player player)
+            {
+                _biomeAccum += Time.deltaTime;
+                if (_biomeAccum < BiomeIntervalSeconds) return;
+                _biomeAccum = 0f;
+
+                Heightmap.Biome biome;
+                try { biome = Heightmap.FindBiome(player.transform.position); }
+                catch { return; }
+                if (biome == Heightmap.Biome.None || !_sentBiomes.Add(biome)) return;
+                LeaderboardServerFeed.Send(LeaderboardStat.BiomeReached, player.GetPlayerName(), biome.ToString(), 1);
             }
         }
 
@@ -346,38 +417,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                 var local = Player.m_localPlayer;
                 if (local == null || character != (Humanoid)local) return;
                 string name = __instance.gameObject.name.Replace("(Clone)", "").Trim();
+                LeaderboardTrackerRecorder.Harvested(name);
                 LeaderboardServerFeed.Send(LeaderboardStat.Harvested, local.GetPlayerName(), name, 1);
-            }
-        }
-
-        // Biome-reached milestone capture. Throttled poll of the local player's current biome; sends each biome
-        // once per session (the server set-once's it). Player.Update (not a biome-change event) so a stationary
-        // player still registers the biome they logged in / built in.
-        [HarmonyPatch(typeof(Player), nameof(Player.Update))]
-        public static class Player_Update_Biome
-        {
-            private const float IntervalSeconds = 3f;
-            private static float _accum;
-            private static readonly HashSet<Heightmap.Biome> _sent = new HashSet<Heightmap.Biome>();
-
-            [HarmonyPostfix]
-            private static void Postfix(Player __instance)
-            {
-                if (__instance == null || __instance != Player.m_localPlayer) return;
-
-                // Runs every frame: flush the terraform/cultivate batch once it's been idle past the coalesce
-                // window, so the tail of a terraforming session lands within ~3s of the last op.
-                ToolUseCoalescer.FlushIfDue();
-
-                _accum += Time.deltaTime;
-                if (_accum < IntervalSeconds) return;
-                _accum = 0f;
-
-                Heightmap.Biome biome;
-                try { biome = Heightmap.FindBiome(__instance.transform.position); }
-                catch { return; }
-                if (biome == Heightmap.Biome.None || !_sent.Add(biome)) return;
-                LeaderboardServerFeed.Send(LeaderboardStat.BiomeReached, __instance.GetPlayerName(), biome.ToString(), 1);
             }
         }
 

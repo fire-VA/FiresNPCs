@@ -33,6 +33,9 @@ namespace API
         {
             try
             {
+                // Initialize() alone is a no-op behind the _initialized guard — Reset() first, like
+                // every internal reload call site (ServerConfigFileWatcher, book Apply, DialogueSyncRPC).
+                FiresRPGmaker.Managers.TraderProfileManager.Reset();
                 FiresRPGmaker.Managers.TraderProfileManager.Initialize();
             }
             catch { }

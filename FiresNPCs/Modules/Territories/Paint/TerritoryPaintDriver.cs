@@ -215,7 +215,7 @@ namespace FiresRPGmaker.Modules.Territories.Paint
     /// <summary>Shift+Alt+Right-click on the open large map: an admin loads the territory under the cursor into the
     /// paint palette to edit it (Save Changes / Cancel on the panel commit or discard), suppressing the vanilla
     /// pin-remove for that click only. A plain right-click still removes the nearest pin.</summary>
-    [HarmonyPatch(typeof(Minimap), "OnMapRightClick")]
+    [HarmonyPatch(typeof(Minimap), "RemovePinUnderPointer")]
     internal static class Minimap_OnMapRightClick_PaintEdit
     {
         private static bool Prefix()

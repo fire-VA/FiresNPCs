@@ -63,7 +63,8 @@ namespace FiresRPGmaker.Modules.Marketplace
             Send(inner);
         }
 
-        public static void RequestList(string currency, int price, string prefab, int qty)
+        public static void RequestList(string currency, int price, string prefab, int qty,
+            int quality = 1, int variant = 0, byte durabilityPct = 100, string crafterName = "", long crafterId = 0L, string customData = "{}")
         {
             var inner = new ZPackage();
             inner.Write((byte)Op.List);
@@ -71,6 +72,12 @@ namespace FiresRPGmaker.Modules.Marketplace
             inner.Write(price);
             inner.Write(prefab ?? "");
             inner.Write(qty);
+            inner.Write(quality);
+            inner.Write(variant);
+            inner.Write(durabilityPct);
+            inner.Write(crafterName ?? "");
+            inner.Write(crafterId);
+            inner.Write(customData ?? "{}");
             Send(inner);
         }
 
@@ -111,6 +118,9 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static void RPC_MarketReq(long senderId, ZPackage pkg)
         {
             if (!IsServer || pkg == null) return;
+            // Same guarantee as the banker: the shared Core vault must be configured before any listing read/write,
+            // even if an earlier server-init step threw before VaultOfKnowledge configured it (idempotent no-op).
+            global::FiresRPGmaker.Modules.Vault.VaultOfKnowledge.EnsureVaultConfigured();
             try
             {
                 long playerId    = pkg.ReadLong();
@@ -136,7 +146,14 @@ namespace FiresRPGmaker.Modules.Marketplace
                         int price = inner.ReadInt();
                         string prefab = inner.ReadString();
                         int qty = inner.ReadInt();
-                        ServerList(senderId, userId, playerName, currency, price, prefab, qty);
+                        int quality = inner.ReadInt();
+                        int variant = inner.ReadInt();
+                        byte durabilityPct = inner.ReadByte();
+                        string crafterName = inner.ReadString();
+                        long crafterId = inner.ReadLong();
+                        string customData = inner.ReadString();
+                        ServerList(senderId, userId, playerName, currency, price, prefab, qty,
+                            quality, variant, durabilityPct, crafterName, crafterId, customData);
                         break;
                     }
                     case Op.Buy:
@@ -156,10 +173,29 @@ namespace FiresRPGmaker.Modules.Marketplace
             catch (Exception ex) { Debug.LogWarning($"{LogPrefix} RPC_MarketReq error: {ex.Message}"); }
         }
 
-        private static void ServerList(long senderId, string userId, string playerName, string currency, int price, string prefab, int qty)
+        private static void ServerList(long senderId, string userId, string playerName, string currency, int price, string prefab, int qty,
+            int quality, int variant, byte durabilityPct, string crafterName, long crafterId, string customData)
         {
             if (qty <= 0 || price <= 0 || string.IsNullOrEmpty(prefab))
             { ReplyStatus(senderId, "Invalid listing."); return; }
+
+            // MarketPlace.cfg enforcement (the admin tab's knobs, kg key names). The client consumed the
+            // item before sending, so every rejection returns THE SAME item (quality/durability intact)
+            // via ReplyGrant — nothing can vanish or degrade.
+            if (MarketplaceGlobals.IsBlockedPlayer(userId, playerName))
+            { ReplyGrant(senderId, prefab, qty, "You are blocked from the marketplace — item returned.", quality, variant, durabilityPct, crafterName, crafterId, customData); return; }
+            if (MarketplaceGlobals.IsBlockedPrefab(prefab))
+            { ReplyGrant(senderId, prefab, qty, $"{prefab} cannot be sold on the marketplace — item returned.", quality, variant, durabilityPct, crafterName, crafterId, customData); return; }
+            int slotLimit = MarketplaceGlobals.ItemMarketLimit;
+            if (slotLimit > 0)
+            {
+                int mine = 0;
+                try { foreach (var l in MarketplaceRepository.GetListings()) if (string.Equals(l.SellerUserID, userId, StringComparison.Ordinal)) mine++; } catch { }
+                if (mine >= slotLimit)
+                { ReplyGrant(senderId, prefab, qty, $"Listing limit reached ({mine}/{slotLimit}) — item returned.", quality, variant, durabilityPct, crafterName, crafterId, customData); return; }
+            }
+            // kg currency rule: an off-list currency is coerced to the first allowed one, never rejected.
+            currency = MarketplaceGlobals.CoerceCurrency(currency);
 
             // Make the seller mail-addressable so their payout can reach them even if they never opened mail.
             try { MailRepository.UpsertUser(new MailUser { Name = playerName ?? "", UserID = userId, IsOnline = true }); } catch { }
@@ -169,11 +205,20 @@ namespace FiresRPGmaker.Modules.Marketplace
                 ItemPrefab = prefab,
                 Count = qty,
                 Price = price,
-                Currency = currency ?? "Coins",
+                Currency = currency,
                 SellerName = playerName ?? "",
                 SellerUserID = userId,
+                Quality = Mathf.Max(1, quality),
+                Variant = variant,
+                DurabilityPercent = durabilityPct,
+                CrafterName = crafterName ?? "",
+                CrafterID = crafterId,
+                CUSTOMdata = string.IsNullOrEmpty(customData) ? "{}" : customData,
             });
-            if (id == 0) { ReplyGrant(senderId, prefab, qty, "Listing failed — item returned."); return; }
+            if (id == 0) { ReplyGrant(senderId, prefab, qty, "Listing failed — item returned.", quality, variant, durabilityPct, crafterName, crafterId, customData); return; }
+
+            // kg fires the marketplace Discord webhook on LIST (not on sale) — DiscordSettings.cfg template.
+            DiscordWebhooks.PostMarketplaceList(playerName ?? "", qty, prefab, price, currency);
 
             ReplyStatus(senderId, $"Listed {qty}x {prefab} for {price} {currency}.");
             BroadcastListings();
@@ -181,6 +226,11 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         private static void ServerBuy(long senderId, string userId, string buyerName, int listingId, int qty, string currency, int totalPaid)
         {
+            // Blocked players are shut out of the whole market (kg semantics), buying included. The client
+            // consumed the currency before sending, so refund it.
+            if (MarketplaceGlobals.IsBlockedPlayer(userId, buyerName))
+            { ReplyGrant(senderId, currency, totalPaid, "You are blocked from the marketplace — currency refunded."); return; }
+
             var listing = MarketplaceRepository.GetListing(listingId);
             int serverTotal = listing != null ? qty * listing.Price : 0;
 
@@ -207,7 +257,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                     new List<StoredItem> { new StoredItem { ItemPrefab = listing.Currency, Count = sellerGets } });
             }
 
-            ReplyGrant(senderId, listing.ItemPrefab, qty, $"Bought {qty}x {listing.ItemPrefab}.");
+            ReplyGrant(senderId, listing.ItemPrefab, qty, $"Bought {qty}x {listing.ItemPrefab}.",
+                listing.Quality, listing.Variant, listing.DurabilityPercent, listing.CrafterName, listing.CrafterID, listing.CUSTOMdata);
             BroadcastListings();
         }
 
@@ -216,10 +267,24 @@ namespace FiresRPGmaker.Modules.Marketplace
             var listing = MarketplaceRepository.GetListing(listingId);
             if (listing == null) { ReplyStatus(senderId, "Listing no longer exists."); return; }
             if (!string.Equals(listing.SellerUserID, userId, StringComparison.Ordinal))
-            { ReplyStatus(senderId, "That isn't your listing."); return; }
+            {
+                // kg RemoveItemAdmin parity: an admin may remove ANY listing. Hard delete — the goods are
+                // NOT granted to the admin and NOT mailed back (kg's exact cleanup semantics; the point is
+                // pulling exploited/junk listings, so returning duped items would defeat it).
+                if (global::FiresCore.Sync.AdminSyncing.IsAdmin(senderId))
+                {
+                    MarketplaceRepository.RemoveListing(listingId);
+                    ReplyStatus(senderId, $"Removed {listing.SellerName}'s listing of {listing.Count}x {listing.ItemPrefab} (admin).");
+                    BroadcastListings();
+                    return;
+                }
+                ReplyStatus(senderId, "That isn't your listing.");
+                return;
+            }
 
             MarketplaceRepository.RemoveListing(listingId);
-            ReplyGrant(senderId, listing.ItemPrefab, listing.Count, $"Cancelled — returned {listing.Count}x {listing.ItemPrefab}.");
+            ReplyGrant(senderId, listing.ItemPrefab, listing.Count, $"Cancelled — returned {listing.Count}x {listing.ItemPrefab}.",
+                listing.Quality, listing.Variant, listing.DurabilityPercent, listing.CrafterName, listing.CrafterID, listing.CUSTOMdata);
             BroadcastListings();
         }
 
@@ -268,6 +333,9 @@ namespace FiresRPGmaker.Modules.Marketplace
                 pkg.Write(l.Currency ?? "Coins");
                 pkg.Write(l.SellerName ?? "");
                 pkg.Write(ParseId(l.SellerUserID));
+                pkg.Write(Mathf.Max(1, l.Quality));
+                pkg.Write(l.Variant);
+                pkg.Write(l.DurabilityPercent);
             }
             return pkg;
         }
@@ -292,13 +360,21 @@ namespace FiresRPGmaker.Modules.Marketplace
             }
         }
 
-        private static void ReplyGrant(long senderId, string prefab, int count, string status)
+        // Grant with full item fidelity. Plain refunds (currency) use the defaults = fresh quality-1 stack.
+        private static void ReplyGrant(long senderId, string prefab, int count, string status,
+            int quality = 1, int variant = 0, byte durabilityPct = 100, string crafterName = "", long crafterId = 0L, string customData = "{}")
         {
             var pkg = new ZPackage();
             pkg.Write((byte)Res.Grant);
             pkg.Write(prefab ?? "");
             pkg.Write(count);
             pkg.Write(status ?? "");
+            pkg.Write(quality);
+            pkg.Write(variant);
+            pkg.Write(durabilityPct);
+            pkg.Write(crafterName ?? "");
+            pkg.Write(crafterId);
+            pkg.Write(customData ?? "{}");
             ZRoutedRpc.instance.InvokeRoutedRPC(senderId, RpcRes, pkg);
         }
 
@@ -327,7 +403,13 @@ namespace FiresRPGmaker.Modules.Marketplace
                         string prefab = pkg.ReadString();
                         int count = pkg.ReadInt();
                         string status = pkg.ReadString();
-                        GrantToInventory(prefab, count);
+                        int quality = pkg.ReadInt();
+                        int variant = pkg.ReadInt();
+                        byte durPct = pkg.ReadByte();
+                        string crafterName = pkg.ReadString();
+                        long crafterId = pkg.ReadLong();
+                        string customData = pkg.ReadString();
+                        GrantToInventory(prefab, count, quality, variant, durPct, crafterName, crafterId, customData);
                         OnResult?.Invoke(status);
                         break;
                     }
@@ -354,17 +436,22 @@ namespace FiresRPGmaker.Modules.Marketplace
                 string currency = pkg.ReadString();
                 string seller = pkg.ReadString();
                 long sellerId = pkg.ReadLong();
+                int quality = pkg.ReadInt();
+                int variant = pkg.ReadInt();
+                byte durPct = pkg.ReadByte();
                 list.Add(new MarketplaceListing
                 {
                     Id = id, ItemPrefab = prefab, Count = c, Price = price,
                     Currency = currency, SellerName = seller, SellerId = sellerId,
+                    Quality = quality, Variant = variant, DurabilityPercent = durPct,
                 });
             }
             MarketplaceListingManager.ReplaceLive(list);
             OnListings?.Invoke();
         }
 
-        private static int GrantToInventory(string prefab, int count)
+        private static int GrantToInventory(string prefab, int count, int quality = 1, int variant = 0,
+            byte durabilityPct = 100, string crafterName = "", long crafterId = 0L, string customData = "{}")
         {
             var player = Player.m_localPlayer;
             if (player == null || string.IsNullOrEmpty(prefab) || count <= 0) return 0;
@@ -372,7 +459,28 @@ namespace FiresRPGmaker.Modules.Marketplace
             var pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab) : null;
             var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
             if (drop == null) return 0;
-            if (inv.CanAddItem(drop.m_itemData, count)) inv.AddItem(prefab, count, 1, 0, 0L, "");
+            quality = Mathf.Max(1, quality);
+            if (inv.CanAddItem(drop.m_itemData, count))
+            {
+                var added = inv.AddItem(prefab, count, quality, variant, crafterId, crafterName ?? "", false);
+                // Durability + customData only make sense on a single item (equipment never stacks);
+                // stackable materials carry neither, so a multi-count grant skips this on purpose.
+                if (added != null && count == 1)
+                {
+                    try
+                    {
+                        if (added.m_shared != null && added.m_shared.m_useDurability)
+                            added.m_durability = Mathf.Clamp01(durabilityPct / 100f) * added.GetMaxDurability(quality);
+                        if (!string.IsNullOrEmpty(customData) && customData != "{}")
+                        {
+                            var dict = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(customData);
+                            if (dict != null && dict.Count > 0)
+                                foreach (var kv in dict) added.m_customData[kv.Key] = kv.Value;
+                        }
+                    }
+                    catch { }
+                }
+            }
             else ItemDrop.DropItem(drop.m_itemData, count, player.transform.position + player.transform.forward * 1.5f + Vector3.up * 1.5f, Quaternion.identity);
             return count;
         }

@@ -9,11 +9,11 @@ namespace FiresRPGmaker.Modules.ChatSystem
     /// Harmony patches for the RPG chat channel system.
     ///
     /// Patch points:
-    /// 1. Chat.Awake (postfix)  � initialize our channel UI
-    /// 2. Chat.InputText (prefix) � intercept outgoing text and route by active channel
-    /// 3. Chat.OnNewChatMessage (postfix) � color incoming messages by type (future: filter group/clan)
-    /// 4. Chat.Update (postfix) � handle channel-switch hotkey when chat isn't focused
-    /// 5. Chat.OnDestroy (postfix) � clean up media embed overlay
+    /// 1. Chat.Awake (postfix)  - initialize our channel UI
+    /// 2. Chat.InputText (prefix) - intercept outgoing text and route by active channel
+    /// 3. Chat.OnNewChatMessage (postfix) - color incoming messages by type (future: filter group/clan)
+    /// 4. Chat.Update (postfix) - handle channel-switch hotkey when chat isn't focused
+    /// 5. Chat.OnDestroy (postfix) - clean up media embed overlay
     /// </summary>
     [HarmonyPatch]
     public static class ChatPatches
@@ -33,21 +33,39 @@ namespace FiresRPGmaker.Modules.ChatSystem
         /// 
         /// If the player typed a slash command (starts with '/'), let vanilla handle it.
         /// Otherwise, route the message based on the active channel:
-        ///   Local  ? "say {text}"     ? Talker.Type.Normal (vanilla default)
-        ///   Global ? "s {text}"       ? Talker.Type.Shout (auto /s)
-        ///   Group  ? blocked (stub)
-        ///   Clan   ? blocked (stub)
+        ///   Local  -> "say {text}"     -> Talker.Type.Normal (vanilla default)
+        ///   Global -> "s {text}"       -> Talker.Type.Shout (auto /s)
+        ///   Group  -> blocked (stub)
+        ///   Clan   -> blocked (stub)
         ///
         /// Returns false to skip vanilla InputText when we handle it ourselves.
         /// Returns true to let vanilla process slash commands normally.
         /// </summary>
+        private static bool IsLocalPlayerMuted()
+        {
+            string id = null, name = null;
+            try { id = global::FiresRPGmaker.Modules.Dialogues.EwpDataBridge.GetLocalSteamId(); } catch { }
+            try { name = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : null; } catch { }
+            return global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.IsMutedChatUser(id, name);
+        }
+
         [HarmonyPatch(typeof(Chat), "InputText")]
         [HarmonyPrefix]
         private static bool Chat_InputText_Prefix(Chat __instance)
         {
             string text = __instance.m_input.text;
             if (string.IsNullOrEmpty(text))
-                return false; // Empty � skip
+                return false; // Empty - skip
+
+            // kg BlockedChatUsers (MarketPlace.cfg, synced): a muted player's own chat input is
+            // swallowed — kg's exact enforcement point (its KG_Chat InputText prefix does the same).
+            // Slash commands stay allowed (matching kg, which only gates its chat send path).
+            if (IsLocalPlayerMuted() && text[0] != '/')
+            {
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "You are muted on this server.");
+                __instance.m_input.text = "";
+                return false;
+            }
 
             // If the player explicitly typed a slash command, let vanilla handle it
             // This preserves /s, /w, /die, /resetspawn, emotes, etc.
@@ -60,7 +78,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             switch (channel)
             {
                 case ChatChannelManager.Channel.Local:
-                    // Vanilla default behavior: "say {text}" ? Normal
+                    // Vanilla default behavior: "say {text}" -> Normal
                     return true;
 
                 case ChatChannelManager.Channel.Global:

@@ -11,8 +11,8 @@ namespace FiresRPGmaker.Modules.Dialogues
     /// Reads and writes custom player keys to the Expand World Pro ewp_data.yaml file.
     /// 
     /// ENTRY FORMAT:
-    ///   "{platformID}/{keyName}"          � presence-only key (no value)
-    ///   "{platformID}/{keyName}: {value}" � key with integer value
+    ///   "{platformID}/{keyName}"          - presence-only key (no value)
+    ///   "{platformID}/{keyName}: {value}" - key with integer value
     /// 
     /// Both forms are valid. The platformID prefix makes each entry per-player.
     /// Presence-only keys are treated as value = 1 when read.
@@ -46,9 +46,9 @@ namespace FiresRPGmaker.Modules.Dialogues
             _ewpFilePath = Path.Combine(_ewpDir, "ewp_data.yaml");
         }
 
-        // ??????????????????????????????????????????????????????????????
+        // ==============================================================
         // RPC Registration
-        // ??????????????????????????????????????????????????????????????
+        // ==============================================================
 
         /// <summary>
         /// Register server-side RPCs for EWP file operations.
@@ -77,7 +77,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
         }
 
-        // ?? Server-side RPC handlers ??
+        // -- Server-side RPC handlers --
 
         private static void RPC_OnServerAddKey(long sender, string keyName)
         {
@@ -133,7 +133,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     return host;
             }
 
-            // Sender is the server/host itself � no peer entry exists
+            // Sender is the server/host itself - no peer entry exists
             // On non-dedicated, the host player's ID is in the player list
             if (!ZNet.instance.IsDedicated())
             {
@@ -149,13 +149,13 @@ namespace FiresRPGmaker.Modules.Dialogues
             return null;
         }
 
-        // ??????????????????????????????????????????????????????????????
+        // ==============================================================
         // Platform ID Resolution
-        // ??????????????????????????????????????????????????????????????
+        // ==============================================================
 
         /// <summary>
         /// Strips platform prefix from a PlatformUserID string.
-        /// e.g. "Steam_76561199085129375" ? "76561199085129375"
+        /// e.g. "Steam_76561199085129375" -> "76561199085129375"
         /// EWP data file stores raw numeric IDs, not prefixed ones.
         /// </summary>
         public static string StripPlatformPrefix(string platformId)
@@ -174,7 +174,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         ///   each player's PlatformUserID as sent by the server.
         /// On SERVER (non-dedicated host): reads from the player list.
         /// 
-        /// NEVER falls back to Player.GetPlayerID() � that's a save file ID, not a platform ID.
+        /// NEVER falls back to Player.GetPlayerID() - that's a save file ID, not a platform ID.
         /// Returns raw numeric ID (e.g. "76561199085129375"), not prefixed.
         /// </summary>
         public static string GetLocalPlatformId()
@@ -230,9 +230,9 @@ namespace FiresRPGmaker.Modules.Dialogues
             return GetLocalPlatformId() ?? "0";
         }
 
-        // ??????????????????????????????????????????????????????????????
-        // Public API � these route to server via RPC or write directly
-        // ??????????????????????????????????????????????????????????????
+        // ==============================================================
+        // Public API - these route to server via RPC or write directly
+        // ==============================================================
 
         /// <summary>
         /// Adds a presence-only key for the local player.
@@ -346,8 +346,8 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         /// <summary>
         /// Lists all keys for a given platformId from ewp_data.yaml.
-        /// This reads the local file � only accurate on the server.
-        /// Returns key name ? value. Presence-only keys return value = 1.
+        /// This reads the local file - only accurate on the server.
+        /// Returns key name -> value. Presence-only keys return value = 1.
         /// </summary>
         public static Dictionary<string, int> ListKeys(string steamId)
         {
@@ -438,9 +438,9 @@ namespace FiresRPGmaker.Modules.Dialogues
             return ReadKey(steamId, keyName) > 0;
         }
 
-        // ??????????????????????????????????????????????????????????????
-        // File I/O � server-side only, direct file operations
-        // ??????????????????????????????????????????????????????????????
+        // ==============================================================
+        // File I/O - server-side only, direct file operations
+        // ==============================================================
 
         private static void FileAddKey(string platformId, string keyName)
         {

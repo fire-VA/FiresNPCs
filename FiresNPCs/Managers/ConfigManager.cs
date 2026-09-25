@@ -73,11 +73,15 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<bool> configServerAuthority;
 
         // ────── Hotkeys ──────
-        public ConfigEntry<KeyCode> configQuestJournalHotkey;
+        // KeyboardShortcut (not KeyCode) so multi-key chords like "J + LeftAlt" are storable —
+        // the F8 Set→record→Apply capture writes them and Chord.IsDown reads them. Old saved
+        // single-key values ("J") deserialize cleanly as a bare-main-key shortcut.
+        public ConfigEntry<KeyboardShortcut> configQuestJournalHotkey;
         public ConfigEntry<float> configQuestBookOpenSpeed;
+        public ConfigEntry<float> configBookScale;
         public ConfigEntry<string> configQuestRewardOverflow;
-        public ConfigEntry<KeyCode> configGuildHotkey;
-        public ConfigEntry<KeyCode> configLeaderboardHotkey;
+        public ConfigEntry<KeyboardShortcut> configGuildHotkey;
+        public ConfigEntry<KeyboardShortcut> configLeaderboardHotkey;
         public ConfigEntry<bool> configLeaderboardBackgroundToggle;
         public ConfigEntry<string> configLeaderboardBackground;
         public ConfigEntry<string> configAchievementProfile;
@@ -93,11 +97,17 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<bool> configTerritoryVisualizers;
         public ConfigEntry<bool> configTerritoryOverlay;
         public ConfigEntry<bool> configDeepNorthMapOverlay;
+        public ConfigEntry<bool> configCompactMapOverlayBuffers;
 
         // ────── Companions ──────
         public ConfigEntry<bool> configShowCompanionBillboard;
         public ConfigEntry<bool> configShowGroupHud;
         public ConfigEntry<bool> configUseGlobeHud;
+        public ConfigEntry<bool> configGlobeLiquidMotion;
+        public ConfigEntry<float> configGlobeSloshStrength;
+        public ConfigEntry<bool> configGlobeValuePopups;
+        public ConfigEntry<float> configGlobePopupHoldSeconds;
+        public ConfigEntry<bool> configGlobeInventoryTooltips;
         public ConfigEntry<bool> configUseBookAdminUI;
         public ConfigEntry<bool> configShowAdminHints;
         public ConfigEntry<string> configFeedbackWebhook;
@@ -188,6 +198,22 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<string> configLockBossSummonsKey;
 
         // ────── Piece Recipes (Synced) ──────
+        // Default cost for every piece we add: a single cheat-sword and nothing
+        // else. Only an admin can produce one (`genitem SwordCheat`), so our
+        // content is admin-only to build by construction rather than by a UI
+        // check that can fail open. VARecipeManager additionally forces the
+        // gate onto whatever recipe is configured, so editing this string
+        // customises the EXTRA cost — it can't remove the gate.
+        public const string DefaultPieceRecipe = "SwordCheat,1";
+
+        // The default every cfg written before the gate landed still carries.
+        // BepInEx never rewrites an existing key, so without this those pieces
+        // would keep the old build cost stacked UNDER the gate. A piece still
+        // sitting on this exact string never had a deliberate recipe, so it is
+        // safe to migrate; anything customised is left untouched.
+        private const string LegacyDefaultPieceRecipe =
+            "ElderBark,40,Blackwood,40,TrollHide,20,BronzeNails,144,Iron,10";
+
         public readonly Dictionary<string, ConfigEntry<string>> configPerPieceRecipes = new();
         public readonly Dictionary<string, ConfigEntry<bool>> configPerPieceEnabled = new();
 
@@ -200,18 +226,22 @@ namespace FiresRPGmaker.Managers
                 "When enabled, config changes are locked to server admin only (synced).");
 
             // ────── Hotkeys ──────
-            configQuestJournalHotkey = config.Bind("Hotkeys", "QuestJournalKey", KeyCode.J,
-                "Hotkey to open the Quest Journal. Set to None to disable.");
+            configQuestJournalHotkey = config.Bind("Hotkeys", "QuestJournalKey", new KeyboardShortcut(KeyCode.J),
+                "Hotkey to open the Quest Journal. Supports chords (e.g. J + LeftAlt). Set to None to disable.");
             configQuestBookOpenSpeed = config.Bind("UI", "QuestBookOpenSpeed", 1f,
                 "Speed multiplier for the quest book's opening animation (1 = normal, 2 = twice as fast). The UI reveal delay scales with it automatically.");
+            configBookScale = config.Bind("UI", "BookScale", 1f,
+                new BepInEx.Configuration.ConfigDescription(
+                    "Overall scale of the NPC config book UI. Scales the whole book evenly — text, fields, buttons, everything — so you can size it to your liking. 1 = normal, 0.5 = half, 2 = double. Applies live and on next open.",
+                    new BepInEx.Configuration.AcceptableValueRange<float>(0.5f, 2f)));
             configQuestRewardOverflow = config.Bind("Quests", "RewardOverflowDelivery", "Mail",
                 new BepInEx.Configuration.ConfigDescription(
                     "Where quest reward items go when your inventory is FULL. Mail = mailed to you with attachments (check a mailbox), Bank = queued into your bank items (visit a banker), Ground = dropped at your feet (kg Marketplace behavior). Rewards that fit in your inventory always go there first.",
                     new BepInEx.Configuration.AcceptableValueList<string>("Mail", "Bank", "Ground")));
-            configGuildHotkey = config.Bind("Hotkeys", "GuildScreenKey", KeyCode.G,
-                "Hotkey to open the Guild screen. Set to None to disable.");
-            configLeaderboardHotkey = config.Bind("Hotkeys", "LeaderboardKey", KeyCode.L,
-                "Hotkey to open the Leaderboard. Set to None to disable.");
+            configGuildHotkey = config.Bind("Hotkeys", "GuildScreenKey", new KeyboardShortcut(KeyCode.G),
+                "Hotkey to open the Guild screen. Supports chords (e.g. G + LeftAlt). Set to None to disable.");
+            configLeaderboardHotkey = config.Bind("Hotkeys", "LeaderboardKey", new KeyboardShortcut(KeyCode.L),
+                "Hotkey to open the Leaderboard. Supports chords (e.g. L + LeftAlt). Set to None to disable.");
             configLeaderboardBackgroundToggle = config.Bind("UI", "LeaderboardBackgroundToggle", false,
                 "If true, the Leaderboard panel uses a PNG/JPG you drop into BepInEx/config/FiresUIBackgrounds/ as its background instead of the built-in art.");
             configLeaderboardBackground = config.Bind("UI", "LeaderboardBackground", "",
@@ -245,6 +275,10 @@ namespace FiresRPGmaker.Managers
             configDeepNorthMapOverlay = config.Bind("Territories", "EnableDeepNorthMapOverlay", true,
                 "Draw the Deep North icy-blue tint and water line on the minimap. " +
                 "Disable if using Better Continents or another mod that provides its own map visuals for the Deep North.");
+            configCompactMapOverlayBuffers = config.Bind("Territories", "CompactMapOverlayBuffers", true,
+                "Keep the map overlay's copies of the minimap in their own pixel formats instead of full colour. " +
+                "On a 2048 map that is about 50 MB instead of about 270 MB, with identical output. " +
+                "Turn it off to compare the two; the overlay logs which one it used and how much it holds.");
 
             // ────── Companions ──────
             configShowCompanionBillboard = config.Bind("Companions", "ShowBillboardHealthBar", true,
@@ -254,6 +288,21 @@ namespace FiresRPGmaker.Managers
             configUseGlobeHud = config.Bind("UI", "UseGlobeHud", true,
                 "Enable the custom globe-style Health/Stamina/Eitr/Adrenaline HUD overlay. " +
                 "Set to false to hide the globe entirely and use the vanilla Valheim HUD bars instead.");
+            configUseGlobeHud.SettingChanged += (_, __) =>
+                global::FiresRPGmaker.UI.GlobeHudController.ApplyEnabled(configUseGlobeHud.Value);
+            configGlobeLiquidMotion = config.Bind("UI.GlobeHud", "LiquidMotion", true,
+                "Slosh the liquid in the globes when you start moving, stop, strafe, jump, land or turn the camera.");
+            configGlobeSloshStrength = config.Bind("UI.GlobeHud", "SloshStrength", 1f,
+                new ConfigDescription("How hard movement throws the globe liquid around. 1 = default, 0 = still.",
+                    new AcceptableValueRange<float>(0f, 2f)));
+            configGlobeValuePopups = config.Bind("UI.GlobeHud", "ValuePopups", true,
+                "Show current / max above a globe while its value is changing (sprinting, casting, taking a hit, healing).");
+            configGlobePopupHoldSeconds = config.Bind("UI.GlobeHud", "PopupHoldSeconds", 1.5f,
+                new ConfigDescription("How long the current / max text stays after the value stops changing, before it fades.",
+                    new AcceptableValueRange<float>(0.3f, 6f)));
+            configGlobeInventoryTooltips = config.Bind("UI.GlobeHud", "InventoryTooltips", true,
+                "With the inventory open, hovering a globe explains its maximum: base, each food, trinkets, and what " +
+                "buffs or other mods add beyond vanilla.");
             configUseBookAdminUI = config.Bind("UI", "UseBookAdminPanel", true,
                 "Use the new two-page parchment 'book' NPC admin config panel (structured per-module forms). " +
                 "When disabled, the legacy completecompanionsui admin panel is used instead.");
@@ -467,10 +516,16 @@ namespace FiresRPGmaker.Managers
             {
                 string section = $"Pieces.{pieceName}";
                 configPerPieceRecipes[pieceName] = config.Bind(section, "Recipe",
-                    "ElderBark,40,Blackwood,40,TrollHide,20,BronzeNails,144,Iron,10",
-                    $"Recipe string for {pieceName} (name,amount,perLevel,…).");
+                    DefaultPieceRecipe,
+                    $"Recipe string for {pieceName} (name,amount,perLevel,…). A " +
+                    $"{FiresCore.Items.AdminRecipeGate.GateItemName} is always required on top of " +
+                    "whatever is listed here — it cannot be removed by editing this value.");
                 configPerPieceEnabled[pieceName] = config.Bind(section, "Enabled", true,
                     $"Enable piece {pieceName}.");
+
+                // One-time migration off the pre-gate default (see above).
+                if (configPerPieceRecipes[pieceName].Value == LegacyDefaultPieceRecipe)
+                    configPerPieceRecipes[pieceName].Value = DefaultPieceRecipe;
             }
 
             ValidateConfigs();
@@ -534,10 +589,7 @@ namespace FiresRPGmaker.Managers
 
             _lastConfigUpdate = DateTime.Now;
 
-            bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
-
-            FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Config file changed, reloading..." +
-                (isServer ? " (server — will broadcast all)" : " (client — ConfigSync handles broadcast)"));
+            FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Config file changed, reloading...");
 
             var configFile = FiresRPGmaker.Instance.Config;
             bool saveOnSet = configFile.SaveOnConfigSet;
@@ -546,23 +598,6 @@ namespace FiresRPGmaker.Managers
             FiresRPGmaker.Instance.Config.Reload();
 
             ValidateConfigs();
-
-            // On the server: explicitly broadcast all synced configs to clients.
-            // On clients: Config.Reload() already set each entry's Value, which fires
-            // SettingChanged, which ConfigSync's per-entry handler picks up and broadcasts
-            // to the server automatically — no bulk loop needed.
-            if (isServer)
-            {
-                foreach (var kvp in FiresRPGmaker.Instance.Config)
-                {
-                    var entry = kvp.Value;
-                    var synced = ConfigSync.configData(entry);
-                    if (synced?.SynchronizedConfig == true)
-                    {
-                        FiresRPGmaker.Instance.configSync.Broadcast(ZRoutedRpc.Everybody, entry);
-                    }
-                }
-            }
 
             configFile.SaveOnConfigSet = saveOnSet;
 

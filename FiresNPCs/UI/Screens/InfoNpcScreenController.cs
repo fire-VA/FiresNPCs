@@ -102,7 +102,7 @@ namespace FiresRPGmaker.UI.Screens
 
        screenGo.SetActive(false);
 
-       Debug.Log($"[InfoNpcScreenController] WireFromCodegen � Instructions={instructionsText != null}, " +
+       Debug.Log($"[InfoNpcScreenController] WireFromCodegen - Instructions={instructionsText != null}, " +
                  $"HeaderInput={headerTextInput != null}, PngInput={pngPathInput != null}, " +
                  $"InfoArea={infoTextArea != null}, CharCount={characterCountText != null}, " +
                  $"ApplyBtn={_applyButton != null}");
@@ -189,7 +189,7 @@ _hasUnsavedChanges = true;
      string profileName = GetProfileNameForNpc(_currentNpc);
 
         // Check if this profile already exists and belongs to a different NPC.
-        // If the NPC's infoProfile is already set to this name, it's updating its own profile � allow it.
+        // If the NPC's infoProfile is already set to this name, it's updating its own profile - allow it.
         bool isNewProfileForThisNpc = string.IsNullOrEmpty(_currentNpc.infoProfile) || 
             !_currentNpc.infoProfile.Equals(profileName, StringComparison.OrdinalIgnoreCase);
 
@@ -198,7 +198,7 @@ _hasUnsavedChanges = true;
             var existingProfile = GetProfileForName(profileName);
             if (existingProfile != null)
             {
-                // Profile exists and this NPC hasn't claimed it yet � prompt for overwrite
+                // Profile exists and this NPC hasn't claimed it yet - prompt for overwrite
                 OverwriteConfirmDialog.Show(profileName, () =>
                 {
                     PerformSave(profileName, headerText, pngPath, infoText);
@@ -311,7 +311,7 @@ _hasUnsavedChanges = true;
             {
        Directory.CreateDirectory(ServerInfosConfigFolder);
       string filePath = Path.Combine(ServerInfosConfigFolder, "ServerInfos.cfg");
-      var profiles = LoadAllProfilesFromFile(filePath);
+      var profiles = LoadAllProfilesForEdit(filePath);
             profiles[profileName] = profile;
        WriteAllProfilesToFile(filePath, profiles);
             }
@@ -320,6 +320,23 @@ _hasUnsavedChanges = true;
            Debug.LogError($"[InfoNpcScreenController] Failed to save: {ex.Message}");
      MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Failed to save!");
             }
+        }
+
+        /// <summary>Base set an admin's Info edit merges INTO. On a pure client the real profiles
+        /// live only in the RAM sync store — the client disk file is absent/sparse — so reading disk
+        /// here would give an empty set and the follow-up push would carry ONE profile and blind-
+        /// overwrite (wipe) every other profile on the server. Read the received store on a client;
+        /// the server/host keeps reading disk (its source of truth).</summary>
+        private static Dictionary<string, InfoProfile> LoadAllProfilesForEdit(string filePath)
+        {
+            if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
+                return LoadAllProfilesFromFile(filePath);
+
+            var merged = new Dictionary<string, InfoProfile>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("ServerInfos"))
+                foreach (var p in LoadAllProfilesFromLines(kv.Value))
+                    merged[p.Key] = p.Value;
+            return merged;
         }
 
      #endregion

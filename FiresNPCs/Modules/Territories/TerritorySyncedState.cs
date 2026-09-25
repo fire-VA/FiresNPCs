@@ -9,6 +9,7 @@ using System.Text;
 using FiresRPGmaker; // for AdminSyncing
 using System.IO;
 using System.IO.Compression;
+using HarmonyLib;
 using Debug = UnityEngine.Debug;
 
 namespace FiresRPGmaker.Modules.Territories
@@ -18,7 +19,7 @@ namespace FiresRPGmaker.Modules.Territories
     /// </summary>
     public static class TerritorySyncedState
     {
-        private static bool _rpcsRegistered;
+        private static ZRoutedRpc _registeredOn;
         public static List<Territory> ClientTerritories { get; private set; } = new();
 
         /// <summary>
@@ -54,7 +55,7 @@ namespace FiresRPGmaker.Modules.Territories
 
         // Throttled outbound chunk queue. Sending 12+ routed RPCs in a single frame
         // (one per territory chunk) triggers Steam's k_EResultLimitExceeded and silently
-        // drops chunks ? clients then never get a "final chunk" and keep re-requesting.
+        // drops chunks - clients then never get a "final chunk" and keep re-requesting.
         // We stage each chunk here and let DrainSendQueue() pop one per frame so the
         // stream stays under Steam's rate limit.
         private static readonly Queue<Action> _sendQueue = new Queue<Action>();
@@ -146,17 +147,28 @@ namespace FiresRPGmaker.Modules.Territories
         /// </summary>
         public static void EnsureRpcsRegistered() => EnsureRpcs();
 
+        /// <summary>ZNet.Awake runs once per session, so a reconnect or world change re-binds the handlers
+        /// onto the fresh ZRoutedRpc instance. Without it a reconnected client never received the server
+        /// territory answer and the map overlay stayed unpainted until a full relaunch.</summary>
+        [HarmonyPatch(typeof(ZNet), "Awake")]
+        private static class TerritoryRpcReRegisterOnSessionStart
+        {
+            [HarmonyPostfix]
+            private static void Postfix() => EnsureRpcs();
+        }
+
         private static void EnsureRpcs()
         {
-            if (_rpcsRegistered) return;
-            if (ZRoutedRpc.instance == null) return;
+            var current = ZRoutedRpc.instance;
+            if (current == null) return;
+            if (ReferenceEquals(_registeredOn, current)) return;
             try
             {
                 TryRegister(RpcRequest, (Action<long, ZPackage>)RPC_Request);
                 TryRegister(RpcReceive, (Action<long, ZPackage>)RPC_Receive);
                 TryRegister(RpcReceiveCompressed, (Action<long, ZPackage>)RPC_ReceiveCompressed);
                 TryRegister(RpcFileUpdate, (Action<long, ZPackage>)RPC_FileUpdate);
-                _rpcsRegistered = true;
+                _registeredOn = current;
                 FiresLogger.LogVerbose("[FiresRPGmaker] Territory RPCs registered");
             }
             catch (System.Exception ex)
@@ -606,9 +618,6 @@ namespace FiresRPGmaker.Modules.Territories
             try
             {
                 TerritoryRuntime.ApplyAllCustomPaints(clearCache: true);
-
-                // Force refresh any already-loaded heightmaps
-                RefreshLoadedHeightmaps();
             }
             catch (Exception ex)
             {
@@ -616,53 +625,6 @@ namespace FiresRPGmaker.Modules.Territories
             }
             sw.Stop();
             FiresLogger.LogVerbose($"[FiresRPGmaker] OnTerritoriesReceived post-processing took {sw.ElapsedMilliseconds}ms");
-        }
-
-        /// <summary>
-        /// Forces a refresh on all loaded heightmaps to trigger paint application.
-        /// Called after territories are synced to apply paint to already-loaded terrain.
-        /// NOTE: We do NOT call Poke() because it internally calls GetAndCreateTerrainCompiler()
-        /// which causes "Found another terrain compiler" spam. Instead, we directly call
-        /// RebuildRenderMesh via reflection if available.
-        /// </summary>
-        private static void RefreshLoadedHeightmaps()
-        {
-            var sw = Stopwatch.StartNew();
-            try
-            {
-                var heightmaps = Heightmap.GetAllHeightmaps();
-                if (heightmaps == null || heightmaps.Count == 0) return;
-
-                int refreshed = 0;
-                foreach (var hm in heightmaps)
-                {
-                    if (hm == null) continue;
-                    try
-                    {
-                        // CRITICAL: Do NOT call Poke() - it creates TerrainComps which causes spam
-                        // Instead, directly regenerate the render mesh which is what we need for paint
-                        // to show up. The terrain data doesn't need to change, just the visual rendering.
-                        var renderer = hm.GetComponent<MeshRenderer>();
-                        if (renderer != null)
-                        {
-                            // Force material update by toggling enabled
-                            renderer.enabled = false;
-                            renderer.enabled = true;
-                        }
-                        refreshed++;
-                    }
-                    catch { }
-                }
-                sw.Stop();
-                if (refreshed > 0)
-                {
-                    FiresLogger.LogVerbose($"[FiresRPGmaker] RefreshLoadedHeightmaps refreshed {refreshed} heightmaps in {sw.ElapsedMilliseconds}ms");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FiresRPGmaker] RefreshLoadedHeightmaps failed: {ex.Message}");
-            }
         }
 
         private static void RebuildCombinedClient()
@@ -758,7 +720,7 @@ namespace FiresRPGmaker.Modules.Territories
                 if (ZNet.instance != null && ZNet.instance.IsServer())
                 {
                     // Save the file immediately but debounce the reload/broadcast.
-                    // No need to BroadcastFile � the debounced BroadcastTerritories sends
+                    // No need to BroadcastFile - the debounced BroadcastTerritories sends
                     // the full compiled territory data to all clients once the batch is complete.
                     ScheduleDebouncedReload();
                 }
@@ -811,7 +773,7 @@ namespace FiresRPGmaker.Modules.Territories
             }
             else
             {
-                // Fallback: no MonoBehaviour available (dedicated server edge case) � execute immediately
+                // Fallback: no MonoBehaviour available (dedicated server edge case) - execute immediately
                 ExecuteTerritoryReload();
             }
         }
@@ -855,7 +817,7 @@ namespace FiresRPGmaker.Modules.Territories
 
             // Diff-sync must yield (waiting on manifest replies) so drive per-peer sends
             // from a coroutine. Fall back to the legacy blind broadcast if we somehow
-            // can't reach a MonoBehaviour host ? correctness over bandwidth.
+            // can't reach a MonoBehaviour host - correctness over bandwidth.
             var host = FiresRPGmaker.Instance;
             if (host != null)
             {
@@ -936,7 +898,7 @@ namespace FiresRPGmaker.Modules.Territories
                 var payload = TryGetPackageBytes(pkg);
                 var compressed = CompressBytes(payload);
 
-                // Capture locals for the closure ? do NOT reference chunkIndex inside it
+                // Capture locals for the closure - do NOT reference chunkIndex inside it
                 // because the loop variable will have advanced by the time the action runs.
                 long capturedTarget      = target;
                 byte[] capturedCompressed = compressed;

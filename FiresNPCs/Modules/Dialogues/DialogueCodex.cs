@@ -90,7 +90,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         /// <summary>
         /// Removes all dialogues whose UIDs were defined in the given .cfg content.
-        /// Used when a file is deleted � the server sends empty content, 
+        /// Used when a file is deleted - the server sends empty content, 
         /// and the client needs to remove those UIDs.
         /// </summary>
         public static void RemoveDialoguesFromContent(string content)
@@ -429,45 +429,45 @@ namespace FiresRPGmaker.Modules.Dialogues
             {
                 Directory.CreateDirectory(LegacyDir);
                 string sample =
-@"# ???????????????????????????????????????????????????????????????
-# Sample Dialogue � Marketplace-compatible format reference
+@"# ===============================================================
+# Sample Dialogue - Marketplace-compatible format reference
 # Place .cfg files in Config/FiresRPGmaker/Dialogues/ (any subfolder)
 #
 # FORMAT GUIDE:
-#   [uid]             � Starts a new dialogue entry (lowercase, no spaces)
-#   [uid=bg_image]    � With optional background image
-#   First line        � NPC text shown to the player (\n = newline)
-#   Subsequent lines  � Options / interactions (pipe-separated attributes)
+#   [uid]             - Starts a new dialogue entry (lowercase, no spaces)
+#   [uid=bg_image]    - With optional background image
+#   First line        - NPC text shown to the player (\n = newline)
+#   Subsequent lines  - Options / interactions (pipe-separated attributes)
 #
 # OPTION ATTRIBUTES (pipe | separated):
-#   Text:...          � Button label
-#   Transition:uid    � Jump to another dialogue on click
-#   Command:...       � Execute a command (multiple allowed)
-#   Condition:...     � Require a condition (multiple = AND; || within = OR)
-#   Icon:PrefabName   � Show item icon
-#   Color:R,G,B       � Tint the option (0-255)
-#   AlwaysVisible:false � Hide instead of grey-out when condition fails
-#   OverrideError:msg � Custom error text when condition fails
-#   RandomTransition:a,b,c � Pick a random transition target
-#   RandomCommand:weight,cmd � Percentage chance to run command
+#   Text:...          - Button label
+#   Transition:uid    - Jump to another dialogue on click
+#   Command:...       - Execute a command (multiple allowed)
+#   Condition:...     - Require a condition (multiple = AND; || within = OR)
+#   Icon:PrefabName   - Show item icon
+#   Color:R,G,B       - Tint the option (0-255)
+#   AlwaysVisible:false - Hide instead of grey-out when condition fails
+#   OverrideError:msg - Custom error text when condition fails
+#   RandomTransition:a,b,c - Pick a random transition target
+#   RandomCommand:weight,cmd - Percentage chance to run command
 #
 # LINE PREFIXES (before the first pipe):
-#   @interaction      � Auto-execute commands silently (not shown as button)
-#   @inrange          � Triggered when player is near NPC (future)
-#   @outrange         � Triggered when player moves away (future)
+#   @interaction      - Auto-execute commands silently (not shown as button)
+#   @inrange          - Triggered when player is near NPC (future)
+#   @outrange         - Triggered when player moves away (future)
 #
 # SUPPORTED CONDITIONS:
-#   HasItem,Prefab,Amt[,Lvl] / NotHasItem      � Inventory check
-#   HasQuest,QuestID / NotHasQuest              � Quest active check
-#   QuestFinished,QuestID / QuestNotFinished    � Quest completion check
-#   QuestProgressDone,QuestID / ...NotDone      � Objectives met check
-#   GlobalKey,Key / NotGlobalKey                � World key check
-#   HasPlayerKey,Key / NotHasPlayerKey          � Player unique key
-#   SkillMore,Skill,Level / SkillLess           � Skill level check
-#   HasBuff,SE / NotHasBuff                     � Status effect check
-#   CustomPlayerKeyMore,Key,Val / CustomPlayerKeyLess   � Player ZDO int check (+ EWP sync)
-#   HealthMore,Amt / HealthLess                 � Current HP check
-#   !ConditionName � negate any condition
+#   HasItem,Prefab,Amt[,Lvl] / NotHasItem      - Inventory check
+#   HasQuest,QuestID / NotHasQuest              - Quest active check
+#   QuestFinished,QuestID / QuestNotFinished    - Quest completion check
+#   QuestProgressDone,QuestID / ...NotDone      - Objectives met check
+#   GlobalKey,Key / NotGlobalKey                - World key check
+#   HasPlayerKey,Key / NotHasPlayerKey          - Player unique key
+#   SkillMore,Skill,Level / SkillLess           - Skill level check
+#   HasBuff,SE / NotHasBuff                     - Status effect check
+#   CustomPlayerKeyMore,Key,Val / CustomPlayerKeyLess   - Player ZDO int check (+ EWP sync)
+#   HealthMore,Amt / HealthLess                 - Current HP check
+#   !ConditionName - negate any condition
 #
 # SUPPORTED COMMANDS:
 #   GiveItem,Prefab,Amt,Lvl / RemoveItem,Prefab,Amt
@@ -482,9 +482,9 @@ namespace FiresRPGmaker.Modules.Dialogues
 #   OpenUI[,Type,Profile]
 #
 # TEXT TOKENS:
-#   %playername%      � Replaced with the player's name
-#   $localization_key � Valheim localization lookup
-# ???????????????????????????????????????????????????????????????
+#   %playername%      - Replaced with the player's name
+#   $localization_key - Valheim localization lookup
+# ===============================================================
 
 [sample_merchant]
 Welcome to my shop, traveler!\nWhat can I do for you today?

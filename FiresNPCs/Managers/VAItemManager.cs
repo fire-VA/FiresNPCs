@@ -6,11 +6,7 @@ namespace FiresRPGmaker.Managers
 {
     public static class VAItemManager
     {
-        public static readonly List<string> ItemNameList = new List<string>
-        {
-            // Wayshrines module
-            "ScrollTownPortal",
-        };
+        public static readonly List<string> ItemNameList = new List<string>();
 
         public static void LoadItems(string mainPath, FiresRPGmaker modInstance)
         {

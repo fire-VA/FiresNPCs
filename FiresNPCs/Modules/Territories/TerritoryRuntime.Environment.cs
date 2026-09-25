@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -78,7 +78,6 @@ namespace FiresRPGmaker.Modules.Territories
  {
             _currentTerritoriesVersion++;
             _cachedSnowMaskTerritories = null;
-            ClearSnowObjectCache();
         }
 
     private static void EnsureReflectionCached()
@@ -661,14 +660,6 @@ hit.m_damage.m_fire = Current.PeriodicDamageValue > 0 ? Current.PeriodicDamageVa
     TryApplyTerritoryPaint(Current, player.transform.position);
    if (Current.Flags.HasFlag(TerritoryFlags.ForceBiome) && Current.OverridenBiome != 0)
       TryApplyBiomePaint(Current, player.transform.position);
-      
-            // Apply snow to building pieces in snow territories
-            // This uses MaterialPropertyBlock to tint exposed (no roof) pieces white
-            // Similar to how Seasons mod handles winter snow on pieces
-            if (needsSnowShader)
-            {
-                UpdateSnowForPlayer(player);
-            }
    }
 
         /// <summary>
@@ -859,8 +850,7 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
                 // This preserves the original weather and biome display name.
                 // Snow visuals are handled separately:
                 // 1. Terrain snow: Heightmap_RebuildRenderMesh_Postfix applies Mountain vertex colors
-                // 2. Piece snow: TerritorySnowManager applies MaterialPropertyBlock tinting
-                // 3. Shader globals: _GlobalSnowAmount, _AddSnow set in ApplyTerritoryEffects
+                // 2. Shader globals: _GlobalSnowAmount, _AddSnow set in ApplyTerritoryEffects
             }
             catch
             {
@@ -868,9 +858,27 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
             }
         }
 
+        // Valheim 1.0 changed EnvMan.GetBiome to return BiomeSector - a CLASS wrapping the
+        // Heightmap.Biome enum plus alt-biome data - instead of the enum itself. GetBiome hands back
+        // either a shared BiomeSector.Empty* static or WorldGenerator's cached sector for that
+        // position, so writing __result.Biome would mutate state the whole session shares. Return a
+        // separate instance instead, cached per biome because this runs every frame.
+        private static readonly System.Collections.Generic.Dictionary<Heightmap.Biome, BiomeSector> _forcedSectors
+            = new System.Collections.Generic.Dictionary<Heightmap.Biome, BiomeSector>();
+
+        private static BiomeSector ForcedSector(Heightmap.Biome biome)
+        {
+            if (!_forcedSectors.TryGetValue(biome, out var sector))
+            {
+                sector = new BiomeSector(null, biome);
+                _forcedSectors[biome] = sector;
+            }
+            return sector;
+        }
+
         [HarmonyPatch(typeof(EnvMan), "GetBiome")]
         [HarmonyPostfix]
-        private static void EnvMan_GetBiome_Postfix(EnvMan __instance, ref Heightmap.Biome __result)
+        private static void EnvMan_GetBiome_Postfix(EnvMan __instance, ref BiomeSector __result)
         {
             // CRITICAL: Guard against null instance - can happen during early initialization
             if (__instance == null) return;
@@ -899,7 +907,7 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
 
                 if (terr.Flags.HasFlag(TerritoryFlags.ForceBiome) && terr.OverridenBiome != 0)
                 {
-                    __result = (Heightmap.Biome)terr.OverridenBiome;
+                    __result = ForcedSector((Heightmap.Biome)terr.OverridenBiome);
                     if (BiomeRequiresSnowShader((Heightmap.Biome)terr.OverridenBiome))
                     {
                         Shader.SetGlobalFloat("_GlobalSnowAmount", 1f);
@@ -1162,14 +1170,6 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
         // Cached SnowMask territory data for fast lookups in RebuildRenderMesh
         private static SnowMaskTerritoryData[] _cachedSnowMaskTerritories = null;
         
-        // Track objects that have had snow applied to avoid re-processing
-        private static readonly HashSet<int> _snowAppliedObjects = new();
-        private static float _lastSnowObjectScanTime = 0f;
-        private const float SnowObjectScanInterval = 2f; // Scan every 2 seconds
-        
-        // Shader property IDs for faster lookup (used with MaterialMan)
-        private static int _snowAmountPropertyId = -1;
-        private static int _addSnowPropertyId = -1;
         
         private struct SnowMaskTerritoryData
         {
@@ -1393,74 +1393,6 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
             }
             
             _cachedSnowMaskTerritories = snowList.ToArray();
-        }
-        
-        /// <summary>
-        /// Applies snow material variants to build pieces and objects within SnowMask territories.
-        /// Uses the MaterialVariantSystem to create snow-tinted material copies, similar to
-        /// how the Seasons mod handles winter effects.
-        /// </summary>
-        private static void ApplySnowToObjectsInTerritory(Territory terr)
-        {
-            if (terr == null) return;
-            if (IsDedicatedServer()) return;
-            
-            // Get territory bounds
-            var bounds = GetTerritoryBounds(terr);
-            Vector3 center = terr.Pos3D();
-            float radius = terr.Radius > 0 ? terr.Radius : 50f;
-            
-            if (terr.Shape == TerritoryShape.Rectangle)
-            {
-                // For rectangles, use the rectangle-specific method
-                Vector3 min = new Vector3(bounds.min.x, 0f, bounds.min.y);
-                Vector3 max = new Vector3(bounds.max.x, 0f, bounds.max.y);
-                TerritorySnowManager.ApplySnowToRectangle(terr.UID, min, max, 0.5f);
-            }
-            else
-            {
-                // For circles, use radius-based method
-                TerritorySnowManager.ApplySnowToTerritory(terr.UID, center, radius, 0.5f);
-            }
-        }
-        
-        /// <summary>
-        /// Updates snow on pieces around the player. Called periodically from ApplyTerritoryEffects.
-        /// Handles newly placed pieces and dynamic territory checks.
-        /// </summary>
-        private static void UpdateSnowForPlayer(Player player)
-        {
-            if (player == null) return;
-            if (IsDedicatedServer()) return;
-            
-            // Use the TerritorySnowManager's periodic update
-            TerritorySnowManager.UpdateSnowAroundPlayer(
-                player.transform.position,
-                64f, // Scan radius around player
-                pos =>
-                {
-                    // Check if position is in a snow territory
-                    var terr = GetTerritory(pos);
-                    if (terr == null) return -1;
-                    
-                    bool needsSnow = terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.SnowMask);
-                    if (!needsSnow && terr.Flags.HasFlag(TerritoryFlags.ForceBiome) && terr.OverridenBiome != 0)
-                        needsSnow = BiomeRequiresSnowShader((Heightmap.Biome)terr.OverridenBiome);
-                    
-                    return needsSnow ? terr.UID : -1;
-                },
-                0.5f // Snow blend amount
-            );
-        }
-        
-        /// <summary>
-        /// Clears the snow applied objects cache. Call when territories change.
-        /// </summary>
-        internal static void ClearSnowObjectCache()
-        {
-            _snowAppliedObjects.Clear();
-            TerritorySnowManager.ClearAllSnow();
-            MaterialVariantSystem.ClearCache();
         }
     }
 }

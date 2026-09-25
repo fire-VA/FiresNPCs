@@ -217,7 +217,7 @@ namespace FiresRPGmaker.Modules.Vault
                         var raw = File.ReadAllText(tmpFile);
                         if (string.IsNullOrWhiteSpace(raw))
                         {
-                            Debug.LogError($"[PlayerFileStorage v{VERSION}] Temp file is empty after write � REJECTING save for {fileName}");
+                            Debug.LogError($"[PlayerFileStorage v{VERSION}] Temp file is empty after write - REJECTING save for {fileName}");
                             try { File.Delete(tmpFile); } catch { }
                             return false;
                         }
@@ -226,7 +226,7 @@ namespace FiresRPGmaker.Modules.Vault
                     }
                     catch (Exception parseEx)
                     {
-                        Debug.LogError($"[PlayerFileStorage v{VERSION}] Temp file is not valid JSON � REJECTING save for {fileName}: {parseEx.Message}");
+                        Debug.LogError($"[PlayerFileStorage v{VERSION}] Temp file is not valid JSON - REJECTING save for {fileName}: {parseEx.Message}");
                         try { File.Delete(tmpFile); } catch { }
                         return false;
                     }
@@ -250,7 +250,7 @@ namespace FiresRPGmaker.Modules.Vault
                         }
                         catch (PlatformNotSupportedException)
                         {
-                            // Non-NTFS or unusual host � fall back to manual backup + move.
+                            // Non-NTFS or unusual host - fall back to manual backup + move.
                             ManualBackupAndMove(tmpFile, filePath, bakFile);
                         }
                         catch (IOException ioEx)
@@ -263,7 +263,7 @@ namespace FiresRPGmaker.Modules.Vault
                     }
                     else
                     {
-                        // First save for this player � no live file to back up yet.
+                        // First save for this player - no live file to back up yet.
                         File.Move(tmpFile, filePath);
                     }
 
@@ -343,15 +343,15 @@ namespace FiresRPGmaker.Modules.Vault
                             JToken.Parse(content);
                             return content;
                         }
-                        Debug.LogWarning($"[PlayerFileStorage v{VERSION}] Main player file is empty: {Path.GetFileName(filePath)} � attempting .bak");
+                        Debug.LogWarning($"[PlayerFileStorage v{VERSION}] Main player file is empty: {Path.GetFileName(filePath)} - attempting .bak");
                     }
                     catch (Exception parseEx)
                     {
-                        Debug.LogWarning($"[PlayerFileStorage v{VERSION}] Main player file is corrupt ({parseEx.Message}) � attempting .bak for {Path.GetFileName(filePath)}");
+                        Debug.LogWarning($"[PlayerFileStorage v{VERSION}] Main player file is corrupt ({parseEx.Message}) - attempting .bak for {Path.GetFileName(filePath)}");
                     }
                 }
 
-                // Main missing or corrupt � try the backup.
+                // Main missing or corrupt - try the backup.
                 if (File.Exists(bakFile))
                 {
                     try
@@ -368,7 +368,7 @@ namespace FiresRPGmaker.Modules.Vault
                             {
                                 if (File.Exists(filePath)) File.Delete(filePath);
                                 File.Copy(bakFile, filePath);
-                                Debug.LogWarning($"[PlayerFileStorage v{VERSION}] Recovered {Path.GetFileName(filePath)} from .bak � companion data preserved across crash/corruption");
+                                Debug.LogWarning($"[PlayerFileStorage v{VERSION}] Recovered {Path.GetFileName(filePath)} from .bak - companion data preserved across crash/corruption");
                             }
                             catch (Exception promoteEx)
                             {

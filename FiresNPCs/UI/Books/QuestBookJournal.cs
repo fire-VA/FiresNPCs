@@ -80,6 +80,27 @@ namespace FiresRPGmaker.UI.Books
                     ? profile.QuestIds
                     : (qm.GetQuestsForProfile(effProfile) ?? new List<string>());
                 foreach (var qid in ids) { var q = qm.GetQuestDefinition(qid); if (q != null) quests.Add(q); }
+
+                // kg HideOtherQuestRequirementQuests (MarketPlace.cfg, default false): while a quest
+                // still carries an unmet finished-quest requirement, keep it out of the offered list
+                // entirely instead of showing it greyed with the missing-requirement message.
+                if (global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.HideOtherQuestRequirementQuests)
+                {
+                    long pid = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerID() : 0L;
+                    quests.RemoveAll(q =>
+                    {
+                        try
+                        {
+                            if (q.Requirements == null) return false;
+                            bool hasQuestReq = q.Requirements.Any(r =>
+                                r != null && (r.IndexOf("QuestFinished", StringComparison.OrdinalIgnoreCase) >= 0
+                                           || r.IndexOf("OtherQuest", StringComparison.OrdinalIgnoreCase) >= 0));
+                            if (!hasQuestReq) return false;
+                            return !qm.CheckRequirements(pid, q, out _);
+                        }
+                        catch { return false; }
+                    });
+                }
             }
             catch (Exception ex) { Debug.LogWarning("[QuestBookJournal] npc quests: " + ex.Message); return false; }
             if (quests.Count == 0)

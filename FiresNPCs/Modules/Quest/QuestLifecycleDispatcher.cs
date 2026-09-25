@@ -44,6 +44,18 @@ namespace FiresRPGmaker.Modules.Quest
             if (def == null) return;
             Fire(def, EventOnComplete);
             if (player != null) RpgMakerApi.FireQuestCompleted(player.GetPlayerID(), def.QuestId);
+            // kg Quest webhook ("**{0}** finished quest **{1}**") — server-side only, so the link and
+            // the post never depend on which client completed it.
+            try
+            {
+                if (ZNet.instance != null && ZNet.instance.IsServer())
+                {
+                    string who = player != null ? player.GetPlayerName() : null;
+                    if (!string.IsNullOrEmpty(who))
+                        global::FiresRPGmaker.Modules.Marketplace.DiscordWebhooks.PostQuestFinished(who, def.Name ?? def.QuestId);
+                }
+            }
+            catch { }
             // Chain-quest follow-up
             if (string.IsNullOrEmpty(def.TransferComplition)) return;
             var next = QuestManager.Instance?.GetQuestDefinition(def.TransferComplition);
@@ -74,26 +86,22 @@ namespace FiresRPGmaker.Modules.Quest
         }
     }
 
-    /// <summary>Harmony hooks that fire lifecycle events from the actual gameplay sites.</summary>
+    /// <summary>Lifecycle events fired from the actual gameplay sites.</summary>
     public static class QuestLifecyclePatches
     {
-        /// <summary>OnDeath — fire OnDeath for every active quest the player has, pulled from the vault.</summary>
-        [HarmonyPatch(typeof(Player), nameof(Player.OnDeath))]
-        public static class Player_OnDeath_Patch
+        /// <summary>OnDeath — fire OnDeath for every active quest the player has, pulled from the vault. Called
+        /// from <see cref="Modules.RpgVanillaHooks.Player_OnDeath"/> (postfix).</summary>
+        internal static void OnLocalPlayerDeath(Player __instance)
         {
-            [HarmonyPostfix]
-            private static void Postfix(Player __instance)
+            if (__instance != Player.m_localPlayer || VaultOfKnowledge.Instance == null) return;
+            try
             {
-                if (__instance != Player.m_localPlayer || VaultOfKnowledge.Instance == null) return;
-                try
-                {
-                    long pid = __instance.GetPlayerID();
-                    var data = VaultOfKnowledge.Instance.GetPlayerData(pid);
-                    if (data == null) return;
-                    QuestLifecycleDispatcher.FireOnDeathForActiveQuests(data);
-                }
-                catch (Exception ex) { Debug.LogWarning("[QuestLifecycle] OnDeath failed: " + ex.Message); }
+                long pid = __instance.GetPlayerID();
+                var data = VaultOfKnowledge.Instance.GetPlayerData(pid);
+                if (data == null) return;
+                QuestLifecycleDispatcher.FireOnDeathForActiveQuests(data);
             }
+            catch (Exception ex) { Debug.LogWarning("[QuestLifecycle] OnDeath failed: " + ex.Message); }
         }
     }
 }

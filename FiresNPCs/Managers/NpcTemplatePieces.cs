@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
+using Splatform;
 using UnityEngine;
+using FiresCore.Bridge;
 
 namespace FiresRPGmaker.Managers
 {
@@ -396,8 +398,8 @@ namespace FiresRPGmaker.Managers
         private static void AddCategoryToTable(PieceTable table, Piece.PieceCategory cat, string label)
         {
             int needed = (int)cat + 1;
-            while (table.m_availablePieces.Count < needed)
-                table.m_availablePieces.Add(new List<Piece>());
+            while (PieceTableAccess.ByCategory(table).Count < needed)
+                PieceTableAccess.ByCategory(table).Add(new List<Piece>());
             if (!table.m_categories.Contains(cat))
             {
                 table.m_categories.Add(cat);
@@ -420,19 +422,21 @@ namespace FiresRPGmaker.Managers
                 return value;
             }
 
-            // PieceTable.UpdateAvailable sizes m_availablePieces to exactly 8 — pre-grow for custom
-            // categories. Cheap no-op when FAP (which has the identical guard) is present.
+            // Vanilla UpdateAvailable creates its (int)PieceCategory.Max per-category lists only while
+            // m_availablePiecesByCategory is empty, then indexes all of them for every All-category piece —
+            // so pre-grow for custom categories but never below Max (9 since 1.0 added DeepNorth).
+            // Cheap no-op when FAP (which has the identical guard) is present.
             [HarmonyPatch(typeof(PieceTable), nameof(PieceTable.UpdateAvailable))]
             private static class PieceTable_UpdateAvailable_Grow_Patch
             {
                 private static void Prefix(PieceTable __instance)
                 {
-                    if (__instance == null || __instance.m_availablePieces == null || __instance.m_categories == null) return;
-                    int needed = 8;
+                    if (__instance == null || PieceTableAccess.ByCategory(__instance) == null || __instance.m_categories == null) return;
+                    int needed = (int)Piece.PieceCategory.Max;
                     for (int i = 0; i < __instance.m_categories.Count; i++)
                         needed = Math.Max(needed, (int)__instance.m_categories[i] + 1);
-                    while (__instance.m_availablePieces.Count < needed)
-                        __instance.m_availablePieces.Add(new List<Piece>());
+                    while (PieceTableAccess.ByCategory(__instance).Count < needed)
+                        PieceTableAccess.ByCategory(__instance).Add(new List<Piece>());
                 }
             }
         }
@@ -470,6 +474,11 @@ namespace FiresRPGmaker.Managers
                 }
 
                 var body = UnityEngine.Object.Instantiate(basePrefab, transform.position, transform.rotation);
+                // Player.PlacePiece sets the creator on the template only after this Awake, so the body takes it from the
+                // placer here: without one it had no ward or private-chest rights as a worker.
+                var placer = Player.m_localPlayer;
+                var bodyPiece = body.GetComponent<Piece>();
+                if (placer != null && bodyPiece != null) bodyPiece.SetCreator(placer.GetPlayerID(), PlatformManager.DistributionPlatform.LocalUser.PlatformUserID);
                 var bodyView = body.GetComponent<ZNetView>();
                 var zdo = bodyView != null && bodyView.IsValid() ? bodyView.GetZDO() : null;
                 if (zdo != null && record != null)

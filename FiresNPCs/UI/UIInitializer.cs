@@ -91,9 +91,8 @@ namespace FiresRPGmaker.UI
             FiresLogger.LogVerbose("[UIInitializer] Resetting initialization state (logout detected)");
             _initialized = false;
 
-            // Each step wrapped in try/catch with a tagged label so we can see which cleanup the 6×
-            // "GameObjects can not be made active when they are being destroyed" errors actually come from,
-            // and so one bad cleanup doesn't abort the rest.
+            // Runs inside Hud.OnDestroy: the whole Hud hierarchy is being destroyed, so no step may SetActive(true)
+            // anything under it. Each step is tagged and wrapped so one bad cleanup doesn't abort the rest.
             void Step(string tag, System.Action a) { try { a(); } catch (System.Exception e) { Debug.LogError($"[UIInitializer] cleanup '{tag}' threw: {e.GetType().Name} — {e.Message}"); } }
 
             Step("destroy panel", () => { if (_panelInstance != null) { Object.Destroy(_panelInstance); _panelInstance = null; } });
@@ -104,7 +103,6 @@ namespace FiresRPGmaker.UI
             Step("InfoPanel",  () => InfoNpcPlayerPanel.Cleanup());
             Step("QuestPreview", () => QuestPreviewRenderer.Cleanup());
             Step("SpriteCache",  () => CodegenUIWiring.ClearSpriteCache());
-            Step("PanelElemCache", () => PanelElementManager.ClearCache());
         }
 
         /// <summary>
@@ -114,7 +112,6 @@ namespace FiresRPGmaker.UI
         {
             DialogueManager.Reload();
             QuestProfileManager.Reload();
-            NpcMainPanelController.Instance?.RefreshProfiles();
             FiresLogger.LogVerbose("[UIInitializer] UI config reloaded");
         }
 
@@ -129,76 +126,14 @@ namespace FiresRPGmaker.UI
 
         private static void CreatePanelInstance()
         {
-            if (_panelInstance != null)
-            {
-                FiresLogger.LogVerbose("[UIInitializer] Panel instance already exists");
-                return;
-            }
-
-            // Wait for game UI to be ready
-            if (Hud.instance == null)
-            {
-                FiresLogger.LogVerbose("[UIInitializer] Hud not ready, deferring UI creation");
-                return;
-            }
-
-            FiresLogger.LogVerbose("[UIInitializer] Creating panel instance via codegen...");
-
-            // Log available fonts for debugging (remove after confirming fonts are found)
-            UIFontConfig.LogAvailableFonts();
-
-            // Build a standalone, top-level Canvas instead of nesting under the Hud canvas.
-            // Parenting under Hud's canvas causes every panel show/hide to dirty the entire
-            // inventory grid hierarchy and tank fps. Match the help panel pattern.
-            var canvasGo = new GameObject("FiresNPCs_NpcPanelCanvas", typeof(RectTransform));
-            var canvas = canvasGo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            // sortingOrder must exceed Valheim's IngameGui sibling canvases (HudMessage,
-            // EnemyHud, DamageText etc.) so center-screen messages don't render over the
-            // panel. 200 stays below the help panel (300) which is meant to cover us.
-            canvas.sortingOrder = 200;
-            var scaler = canvasGo.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
-            canvasGo.AddComponent<GraphicRaycaster>();
-
-            var canvasRect = canvasGo.GetComponent<RectTransform>();
-            canvasRect.anchorMin = Vector2.zero;
-            canvasRect.anchorMax = Vector2.one;
-            canvasRect.offsetMin = Vector2.zero;
-            canvasRect.offsetMax = Vector2.zero;
-
-            FiresLogger.LogVerbose($"[UIInitializer] Created standalone NPC panel canvas (sortingOrder={canvas.sortingOrder})");
-
-            // Build the entire UI from codegen as a child of our standalone canvas.
-            var root = CodegenUIWiring.CreateAndWireUI(canvasGo.transform);
-            if (root == null)
-            {
-                Object.Destroy(canvasGo);
-                Debug.LogError("[UIInitializer] CodegenUIWiring.CreateAndWireUI returned null!");
-                return;
-            }
-
-            // _panelInstance tracks the standalone canvas so cleanup destroys the
-            // full hierarchy on logout (it's no longer auto-destroyed with Hud).
-            _panelInstance = canvasGo;
-            _usingAssetBundle = false;
-
-            // Keep Root always active � it's just a transparent stretch-fill container.
-            // Hide the actual NpcPanel; ShowForNpc() toggles it via NpcMainPanelController.
-            var panelGo = NpcMainPanelController.Instance?.gameObject;
-            if (panelGo != null)
-                panelGo.SetActive(false);
-            else
-                _panelInstance.SetActive(false);
-
-            // Verify final state
-            var controller = NpcMainPanelController.Instance;
-            FiresLogger.LogVerbose($"[UIInitializer] NPC panel created via codegen. Instance: {(controller != null ? "SET" : "NULL")}, " +
-                      $"ContentParent: {(controller?.contentParent != null ? "SET" : "NULL")}, " +
-                      $"CloseButton: {(controller?.closeButton != null ? "SET" : "NULL")}, " +
-                      $"ApplyButton: {(controller?.applyButton != null ? "SET" : "NULL")}");
+            // RETIRED: the codegen NpcMainPanel is gone. Every admin editor it hosted moved to the
+            // animated book (NpcBookController), and player quest accept/turn-in runs on the book
+            // (QuestBookJournal) too — see QuestInteractionScreenController.ShowForNpc. Nothing shows
+            // this panel anymore, so we no longer build the whole completecompanionsui codegen tree
+            // (it was the source of the parallel-admin-UI confusion). The controller classes still
+            // exist for their STATIC logic; they are simply never instantiated. NpcMainPanelController
+            // .Instance stays null and every consumer already null-guards it.
+            return;
         }
 
 

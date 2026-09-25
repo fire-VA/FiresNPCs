@@ -69,7 +69,7 @@ namespace FiresRPGmaker.Modules.Guilds.Map
 
                 Vector2 localPt;
                 if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                        rt, ZInput.mousePosition, null, out localPt))
+                        rt, ZInput.pointerPosition, null, out localPt))
                     return false;
 
                 Vector2 norm = Rect.PointToNormalized(rt.rect, localPt);

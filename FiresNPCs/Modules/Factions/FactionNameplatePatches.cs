@@ -71,7 +71,10 @@ namespace FiresRPGmaker.Modules.Factions
             t.fontSize = Mathf.Max(8f, nameText.fontSize * 0.72f);
             var rt = (RectTransform)go.transform;
             var nrt = (RectTransform)nameText.transform;
-            rt.anchoredPosition = nrt.anchoredPosition + new Vector2(0f, -12f);
+            // kg FactionNameplateOffset (MarketPlace.cfg "x,y") shifts the faction line; the icon anchors
+            // off this label, so the pair moves together.
+            rt.anchoredPosition = nrt.anchoredPosition + new Vector2(0f, -12f)
+                + global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.FactionNameplateOffset;
             return t;
         }
 

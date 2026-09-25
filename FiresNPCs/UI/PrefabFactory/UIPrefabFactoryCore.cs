@@ -13,7 +13,6 @@ namespace FiresRPGmaker.UI
     /// </summary>
     public static partial class UIPrefabFactory
     {
-        private static GameObject _npcPanelPrefab;
         private static GameObject _dialogueEntryPrefab;
    private static GameObject _questEntryPrefab;
   
@@ -174,39 +173,6 @@ namespace FiresRPGmaker.UI
 
         #region Main Panel
 
- public static GameObject GetOrCreateNpcPanelPrefab()
-        {
-            if (_npcPanelPrefab != null)
-            return _npcPanelPrefab;
-
-      _npcPanelPrefab = VAMiscAssetManager.LoadUIPrefab("NPCMainPanel");
-
-          if (_npcPanelPrefab != null)
-            {
- Debug.Log("[UIPrefabFactory] Loaded NPCMainPanel from asset bundle via VAMiscAssetManager");
-        StripProblematicComponents(_npcPanelPrefab);
-       Object.DontDestroyOnLoad(_npcPanelPrefab);
-    return _npcPanelPrefab;
-  }
-
- _npcPanelPrefab = TryLoadFromAssetBundle("NPCMainPanel");
-
-            if (_npcPanelPrefab != null)
-   {
-        Debug.Log("[UIPrefabFactory] Loaded NPCMainPanel from asset bundle directly");
-   StripProblematicComponents(_npcPanelPrefab);
-            Object.DontDestroyOnLoad(_npcPanelPrefab);
-           return _npcPanelPrefab;
- }
-
-     Debug.Log("[UIPrefabFactory] Asset bundle prefab not found, creating NPCMainPanel programmatically");
-       _npcPanelPrefab = CreateNpcPanelPrefab();
-          Object.DontDestroyOnLoad(_npcPanelPrefab);
-            _npcPanelPrefab.SetActive(false);
-
-       return _npcPanelPrefab;
- }
-
         public static GameObject GetDialogueEntryPrefab()
         {
      if (_dialogueEntryPrefab != null)
@@ -297,39 +263,10 @@ namespace FiresRPGmaker.UI
 
         public static void ClearCache()
         {
-   _npcPanelPrefab = null;
   _dialogueEntryPrefab = null;
             _questEntryPrefab = null;
             VAMiscAssetManager.ClearPrefabCache();
      }
-
-        private static void StripProblematicComponents(GameObject prefab)
-   {
-   if (prefab == null) return;
-
-     try
-     {
-       var existingController = prefab.GetComponent<NpcMainPanelController>();
-        if (existingController != null)
-       {
-              Object.DestroyImmediate(existingController);
-           Debug.Log("[UIPrefabFactory] Stripped existing NpcMainPanelController from prefab");
-         }
-
-   var monoBehaviours = prefab.GetComponentsInChildren<MonoBehaviour>(true);
-                foreach (var mb in monoBehaviours)
-    {
-                    if (mb == null)
-   {
-             Debug.LogWarning("[UIPrefabFactory] Found null MonoBehaviour (missing script) in prefab hierarchy");
-  }
-                }
-            }
-    catch (Exception ex)
-          {
-                Debug.LogWarning($"[UIPrefabFactory] Error stripping components: {ex.Message}");
-      }
-        }
 
         #endregion
     }

@@ -158,6 +158,17 @@ namespace FiresRPGmaker.Managers
                 return;
             }
 
+            // One instance, read once: Renderer.materials hands back a new array on every access, and every
+            // write below goes to the same material. A body running a non-player shader (1.0's ShadowPerson is
+            // on Unity's Standard) has none of these properties, and Unity logs an error per missing write.
+            var bodyMaterials = body.materials;
+            var bodyMat = bodyMaterials.Length > 0 ? bodyMaterials[0] : null;
+            if (bodyMat == null)
+            {
+                Debug.LogWarning($"[NpcTemplateAppearance] body renderer on '{clone.name}' has no material — cannot dress");
+                return;
+            }
+
             // Model swap (female) — Market_NPC.cs:777-782: mesh + main/bump textures from m_models.
             if (look.ModelIndex > 0 && vis != null && vis.m_models != null && look.ModelIndex < vis.m_models.Length
                 && vis.m_models[look.ModelIndex].m_baseMaterial != null)
@@ -190,17 +201,17 @@ namespace FiresRPGmaker.Managers
                 if (compatible) body.sharedMesh = mesh;
                 Debug.Log($"[NpcTemplateAppearance] female mesh '{(mesh != null ? mesh.name : "null")}' on '{clone.name}': " +
                           $"rendererBones={bones} meshBindposes={binds} → {(compatible ? "assigned" : "SKIPPED (no skinnable candidate — native mesh kept)")}");
-                body.materials[0].SetTexture("_MainTex", model.m_baseMaterial.GetTexture("_MainTex"));
-                body.materials[0].SetTexture("_SkinBumpMap", model.m_baseMaterial.GetTexture("_SkinBumpMap"));
+                CopyTexture(bodyMat, model.m_baseMaterial, "_MainTex");
+                CopyTexture(bodyMat, model.m_baseMaterial, "_SkinBumpMap");
             }
 
             // Skin tint.
             var skinColor = new Color(look.SkinR, look.SkinG, look.SkinB);
-            body.materials[0].SetColor("_SkinColor", skinColor);
+            if (bodyMat.HasProperty("_SkinColor")) bodyMat.SetColor("_SkinColor", skinColor);
 
             // Chest/legs armor textures on the body material (Market_NPC.EquipItemsOnModel).
-            ApplyArmorTextures(body, look.Chest, "_ChestTex", "_ChestBumpMap", "_ChestMetal", ItemDrop.ItemData.ItemType.Chest);
-            ApplyArmorTextures(body, look.Legs, "_LegsTex", "_LegsBumpMap", "_LegsMetal", ItemDrop.ItemData.ItemType.Legs);
+            ApplyArmorTextures(bodyMat, look.Chest, "_ChestTex", "_ChestBumpMap", "_ChestMetal", ItemDrop.ItemData.ItemType.Chest);
+            ApplyArmorTextures(bodyMat, look.Legs, "_LegsTex", "_LegsBumpMap", "_LegsMetal", ItemDrop.ItemData.ItemType.Legs);
 
             // Skinned armor meshes (capes, armor overlays) — bone-rebound onto the body skeleton.
             AttachSkinnedArmor(body, look.Chest);
@@ -221,23 +232,30 @@ namespace FiresRPGmaker.Managers
             // then tint whatever renderers they added (diff before/after — the fashion color API is
             // preset-name-keyed and can't take our raw color).
             var hairColor = new Color(look.HairR, look.HairG, look.HairB);
-            TintNewRenderers(clone, () => NpcFashion.NpcFashionManager.ApplyHairToNpc(clone, look.Hair, null), hairColor);
-            TintNewRenderers(clone, () => NpcFashion.NpcFashionManager.ApplyBeardToNpc(clone, look.Beard, null), hairColor);
+            TintNewRenderers(clone, () => FiresCore.Bridge.NpcFashionBridge.ApplyHair(clone, look.Hair, null), hairColor);
+            TintNewRenderers(clone, () => FiresCore.Bridge.NpcFashionBridge.ApplyBeard(clone, look.Beard, null), hairColor);
 
             Debug.Log($"[NpcTemplateAppearance] dressed '{clone.name}' from look (model={look.ModelIndex} hair={look.Hair} " +
                       $"chest={look.Chest} legs={look.Legs} helmet={look.Helmet})");
         }
 
-        private static void ApplyArmorTextures(SkinnedMeshRenderer body, string itemName,
+        private static void ApplyArmorTextures(Material bodyMat, string itemName,
             string texProp, string bumpProp, string metalProp, ItemDrop.ItemData.ItemType slot)
         {
             var item = GetItemDrop(itemName);
             var armorMat = item != null && item.m_itemData.m_shared.m_itemType == slot
                 ? item.m_itemData.m_shared.m_armorMaterial : null;
             if (armorMat == null) return;
-            body.materials[0].SetTexture(texProp, armorMat.GetTexture(texProp));
-            body.materials[0].SetTexture(bumpProp, armorMat.GetTexture(bumpProp));
-            body.materials[0].SetTexture(metalProp, armorMat.GetTexture(metalProp));
+            CopyTexture(bodyMat, armorMat, texProp);
+            CopyTexture(bodyMat, armorMat, bumpProp);
+            CopyTexture(bodyMat, armorMat, metalProp);
+        }
+
+        // Only the Valheim character shader carries these slots; writing one it doesn't have logs an error per call.
+        private static void CopyTexture(Material target, Material source, string property)
+        {
+            if (!target.HasProperty(property) || !source.HasProperty(property)) return;
+            target.SetTexture(property, source.GetTexture(property));
         }
 
         private static void AttachSkinnedArmor(SkinnedMeshRenderer body, string itemName)

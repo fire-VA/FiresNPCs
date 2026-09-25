@@ -12,10 +12,10 @@ namespace FiresRPGmaker.Modules.ChatSystem
     /// survives log-out / game restart.
     ///
     /// Channels:
-    ///   Local  � Talker.Type.Normal  (default, 15m range)
-    ///   Global � Talker.Type.Shout   (server-wide, auto-prepends /s)
-    ///   Group  � stub, will wire to clan/group system later
-    ///   Clan   � stub, will wire to clan/group system later
+    ///   Local  - Talker.Type.Normal  (default, 15m range)
+    ///   Global - Talker.Type.Shout   (server-wide, auto-prepends /s)
+    ///   Group  - stub, will wire to clan/group system later
+    ///   Clan   - stub, will wire to clan/group system later
     /// </summary>
     public static class ChatChannelManager
     {
@@ -59,7 +59,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             CustomWindow = config.Bind("Chat", "CustomChatWindow", true,
                 "Replace the vanilla chat window with the Fires chat panel (tabs, styling, drag/resize). Off = untouched vanilla chat.");
 
-            // Restore without triggering the screen message � just set the
+            // Restore without triggering the screen message - just set the
             // backing field directly so we don't flash a notification on load.
             _activeChannel = _savedChannel.Value;
         }
@@ -117,7 +117,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
 
         /// <summary>
         /// Maps the current channel to a Talker.Type for sending.
-        /// Group/Clan return null � they need custom RPC routing.
+        /// Group/Clan return null - they need custom RPC routing.
         /// </summary>
         public static Talker.Type? GetTalkerType()
         {

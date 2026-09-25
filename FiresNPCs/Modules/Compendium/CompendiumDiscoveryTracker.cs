@@ -22,7 +22,7 @@ namespace FiresRPGmaker.Modules.Compendium
         public static void OnCompanionRecruited(Player player)
         {
             if (player == null || player != Player.m_localPlayer) return;
-            // Skip during respawn / loading screen â€” Discover writes to the player's
+            // Skip during respawn / loading screen - Discover writes to the player's
             // known-texts dictionary (saved into the .fch via Player.Save) and may
             // trigger UI/notification side effects. Player-state writes during the
             // teleport window have been observed to deadlock the zone stream.

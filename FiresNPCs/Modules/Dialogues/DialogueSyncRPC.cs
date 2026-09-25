@@ -10,17 +10,17 @@ using FiresRPGmaker.Managers;
 namespace FiresRPGmaker.Modules.Dialogues
 {
     /// <summary>
-    /// Server?Client sync for dialogue config files.
+    /// Server->Client sync for dialogue config files.
     /// 
     /// Flow:
     /// 1. Server's <see cref="ServerConfigFileWatcher"/> detects .cfg change in Dialogues/
     /// 2. Server broadcasts raw file content via <c>FiresRPGmaker_FileUpdate</c> RPC
     /// 3. Client receives, saves to local Dialogues/ folder, reloads <see cref="DialogueCodex"/>
     /// 
-    /// Admin push (client?server):
+    /// Admin push (client->server):
     /// 1. Admin edits dialogue in-game via editor
     /// 2. Client sends file content via <c>FiresRPGmaker_SyncFiles</c> RPC to server
-    /// 3. Server saves to disk (triggers file watcher ? re-broadcasts to all other clients)
+    /// 3. Server saves to disk (triggers file watcher -> re-broadcasts to all other clients)
     ///
     /// Large files are sent in chunks by the server. The client reassembles them
     /// before writing to disk. See <see cref="ServerConfigFileWatcher.SendFileToClient"/>.
@@ -33,7 +33,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         // Key: "folderName/fileName", Value: array of chunk strings (null = not yet received)
         private static readonly Dictionary<string, string[]> _chunkBuffers = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
 
-        // Files we've recently written from server sync � suppress file watcher re-trigger
+        // Files we've recently written from server sync - suppress file watcher re-trigger
         private static readonly HashSet<string> _recentServerWrites = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Debounce: folders that need a reload, batched to avoid reloading per-file
@@ -143,7 +143,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
             if (string.IsNullOrEmpty(folderName) || string.IsNullOrEmpty(fileName)) return false;
 
-            // Try reading chunk fields � if they exist this is a chunked transfer
+            // Try reading chunk fields - if they exist this is a chunked transfer
             int chunkIndex = -1;
             int totalChunks = 0;
             try
@@ -154,7 +154,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
             catch
             {
-                // Not chunked � single message
+                // Not chunked - single message
                 chunkIndex = -1;
                 totalChunks = 0;
             }
@@ -247,7 +247,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     return null;
             }
 
-            // All chunks received � reassemble
+            // All chunks received - reassemble
             _chunkBuffers.Remove(key);
             var sb = new System.Text.StringBuilder();
             for (int i = 0; i < totalChunks; i++)

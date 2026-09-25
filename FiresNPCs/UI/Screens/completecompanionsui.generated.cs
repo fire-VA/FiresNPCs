@@ -1,4 +1,4 @@
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 // AUTO-GENERATED UI CODE from layout: completecompanionsui
 // Display Name: CompleteCompanionsUI
 // Category: Custom
@@ -21,7 +21,7 @@
 //   FindAllByTag(tag)    — returns List<GameObject> for repeated tags (e.g. inventory slots)
 //   FindByPath(path)     — full hierarchy path (e.g. "Root/Header/TitleText")
 //   Static fields        — direct references for uniquely-tagged elements
-// ???????????????????????????????????????????????????????????????
+// ===============================================================
 
 using System;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ using UnityEngine.UI;
 // ReSharper disable InconsistentNaming
 public static partial class GeneratedUI_completecompanionsui
 {
-    // ?? Element references ??
+    // -- Element references --
     // Populated during Instantiate(). Use these to access elements directly,
     // or use FindByTag() / FindByPath() / FindAllByTag() helpers for dynamic lookup.
     private static readonly Dictionary<string, GameObject> _tagLookup = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
@@ -53,7 +53,7 @@ public static partial class GeneratedUI_completecompanionsui
         _pathLookup.Clear();
         _nodes = new GameObject[621];
 
-        // ?? Panel: "Root" ??
+        // -- Panel: "Root" --
         var go_0 = new GameObject("Root");
         go_0.transform.SetParent(parent, false);
         _nodes[0] = go_0;
@@ -66,7 +66,7 @@ public static partial class GeneratedUI_completecompanionsui
         go_0_rect.offsetMax = Vector2.zero;
         _pathLookup["Root"] = go_0;
 
-        // ?? Panel: "FiresRPGmaker_NpcPanel" ??
+        // -- Panel: "FiresRPGmaker_NpcPanel" --
         var go_1 = new GameObject("FiresRPGmaker_NpcPanel");
         go_1.transform.SetParent(go_0.transform, false);
         _nodes[1] = go_1;
@@ -88,7 +88,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_1.raycastTarget = true;
         // Sprite: "cached:NpcUiBkg" -> resolved via ResolveAssets()
 
-        // ?? Panel: "Header" ??
+        // -- Panel: "Header" --
         var go_2 = new GameObject("Header");
         go_2.transform.SetParent(go_1.transform, false);
         _nodes[2] = go_2;
@@ -106,7 +106,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_2.raycastTarget = true;
         img_2.type = (Image.Type)0;
 
-        // ?? Text: "TitleText" ??
+        // -- Text: "TitleText" --
         var go_3 = new GameObject("TitleText");
         go_3.transform.SetParent(go_2.transform, false);
         _nodes[3] = go_3;
@@ -130,7 +130,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_3.margin = new Vector4(0f, -12f, -1f, 0f);
         tmp_3.raycastTarget = true;
 
-        // ?? Button: "CloseButton" ??
+        // -- Button: "CloseButton" --
         var go_4 = new GameObject("CloseButton");
         go_4.transform.SetParent(go_2.transform, false);
         _nodes[4] = go_4;
@@ -178,7 +178,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_4.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_5 = new GameObject("Label");
         go_5.transform.SetParent(go_4.transform, false);
         _nodes[5] = go_5;
@@ -195,7 +195,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_5.raycastTarget = false;
         img_5.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_6 = new GameObject("Text");
         go_6.transform.SetParent(go_4.transform, false);
         _nodes[6] = go_6;
@@ -212,7 +212,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_6.raycastTarget = true;
         img_6.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_7 = new GameObject("_ClickOverlay");
         go_7.transform.SetParent(go_4.transform, false);
         _nodes[7] = go_7;
@@ -231,7 +231,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "PageControls" ??
+        // -- Panel: "PageControls" --
         var go_8 = new GameObject("PageControls");
         go_8.transform.SetParent(go_1.transform, false);
         _nodes[8] = go_8;
@@ -249,7 +249,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_8.raycastTarget = false;
         img_8.type = (Image.Type)0;
 
-        // ?? Button: "PrevButton" ??
+        // -- Button: "PrevButton" --
         var go_9 = new GameObject("PrevButton");
         go_9.transform.SetParent(go_8.transform, false);
         _nodes[9] = go_9;
@@ -297,7 +297,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_9.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_10 = new GameObject("Label");
         go_10.transform.SetParent(go_9.transform, false);
         _nodes[10] = go_10;
@@ -314,7 +314,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_10.raycastTarget = false;
         img_10.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_11 = new GameObject("Text");
         go_11.transform.SetParent(go_9.transform, false);
         _nodes[11] = go_11;
@@ -331,7 +331,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_11.raycastTarget = true;
         img_11.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_12 = new GameObject("_ClickOverlay");
         go_12.transform.SetParent(go_9.transform, false);
         _nodes[12] = go_12;
@@ -349,7 +349,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_12.type = (Image.Type)0;
 
 
-        // ?? Button: "NextButton" ??
+        // -- Button: "NextButton" --
         var go_13 = new GameObject("NextButton");
         go_13.transform.SetParent(go_8.transform, false);
         _nodes[13] = go_13;
@@ -397,7 +397,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_13.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_14 = new GameObject("Label");
         go_14.transform.SetParent(go_13.transform, false);
         _nodes[14] = go_14;
@@ -414,7 +414,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_14.raycastTarget = false;
         img_14.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_15 = new GameObject("Text");
         go_15.transform.SetParent(go_13.transform, false);
         _nodes[15] = go_15;
@@ -431,7 +431,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_15.raycastTarget = true;
         img_15.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_16 = new GameObject("_ClickOverlay");
         go_16.transform.SetParent(go_13.transform, false);
         _nodes[16] = go_16;
@@ -449,7 +449,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_16.type = (Image.Type)0;
 
 
-        // ?? Text: "PageText" ??
+        // -- Text: "PageText" --
         var go_17 = new GameObject("PageText");
         go_17.transform.SetParent(go_8.transform, false);
         _nodes[17] = go_17;
@@ -473,7 +473,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_17.raycastTarget = true;
 
 
-        // ?? Panel: "TabsBar" ??
+        // -- Panel: "TabsBar" --
         var go_18 = new GameObject("TabsBar");
         go_18.transform.SetParent(go_1.transform, false);
         _nodes[18] = go_18;
@@ -499,7 +499,7 @@ public static partial class GeneratedUI_completecompanionsui
         hlg_18.childForceExpandWidth = true;
         hlg_18.childForceExpandHeight = false;
 
-        // ?? Button: "QuestNpcTab" ??
+        // -- Button: "QuestNpcTab" --
         var go_19 = new GameObject("QuestNpcTab");
         go_19.transform.SetParent(go_18.transform, false);
         _nodes[19] = go_19;
@@ -546,7 +546,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_19.onClick.AddListener(() => { });
 
-        // ?? Panel: "QuestNpcTab_Highlight" ??
+        // -- Panel: "QuestNpcTab_Highlight" --
         var go_20 = new GameObject("QuestNpcTab_Highlight");
         go_20.transform.SetParent(go_19.transform, false);
         _nodes[20] = go_20;
@@ -564,7 +564,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_20.raycastTarget = false;
         img_20.type = (Image.Type)1;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_21 = new GameObject("Label");
         go_21.transform.SetParent(go_19.transform, false);
         _nodes[21] = go_21;
@@ -581,7 +581,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_21.raycastTarget = false;
         img_21.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_22 = new GameObject("Text");
         go_22.transform.SetParent(go_19.transform, false);
         _nodes[22] = go_22;
@@ -598,7 +598,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_22.raycastTarget = true;
         img_22.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_23 = new GameObject("_ClickOverlay");
         go_23.transform.SetParent(go_19.transform, false);
         _nodes[23] = go_23;
@@ -616,7 +616,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_23.type = (Image.Type)0;
 
 
-        // ?? Button: "InfoNpcTab" ??
+        // -- Button: "InfoNpcTab" --
         var go_24 = new GameObject("InfoNpcTab");
         go_24.transform.SetParent(go_18.transform, false);
         _nodes[24] = go_24;
@@ -663,7 +663,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_24.onClick.AddListener(() => { });
 
-        // ?? Panel: "InfoNpcTab_Highlight" ??
+        // -- Panel: "InfoNpcTab_Highlight" --
         var go_25 = new GameObject("InfoNpcTab_Highlight");
         go_25.transform.SetParent(go_24.transform, false);
         _nodes[25] = go_25;
@@ -681,7 +681,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_25.raycastTarget = false;
         img_25.type = (Image.Type)1;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_26 = new GameObject("Label");
         go_26.transform.SetParent(go_24.transform, false);
         _nodes[26] = go_26;
@@ -698,7 +698,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_26.raycastTarget = false;
         img_26.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_27 = new GameObject("Text");
         go_27.transform.SetParent(go_24.transform, false);
         _nodes[27] = go_27;
@@ -715,7 +715,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_27.raycastTarget = true;
         img_27.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_28 = new GameObject("_ClickOverlay");
         go_28.transform.SetParent(go_24.transform, false);
         _nodes[28] = go_28;
@@ -733,7 +733,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_28.type = (Image.Type)0;
 
 
-        // ?? Button: "DialogueNpcTab" ??
+        // -- Button: "DialogueNpcTab" --
         var go_29 = new GameObject("DialogueNpcTab");
         go_29.transform.SetParent(go_18.transform, false);
         _nodes[29] = go_29;
@@ -780,7 +780,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_29.onClick.AddListener(() => { });
 
-        // ?? Panel: "DialogueNpcTab_Highlight" ??
+        // -- Panel: "DialogueNpcTab_Highlight" --
         var go_30 = new GameObject("DialogueNpcTab_Highlight");
         go_30.transform.SetParent(go_29.transform, false);
         _nodes[30] = go_30;
@@ -798,7 +798,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_30.raycastTarget = false;
         img_30.type = (Image.Type)1;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_31 = new GameObject("Label");
         go_31.transform.SetParent(go_29.transform, false);
         _nodes[31] = go_31;
@@ -815,7 +815,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_31.raycastTarget = false;
         img_31.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_32 = new GameObject("Text");
         go_32.transform.SetParent(go_29.transform, false);
         _nodes[32] = go_32;
@@ -832,7 +832,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_32.raycastTarget = true;
         img_32.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_33 = new GameObject("_ClickOverlay");
         go_33.transform.SetParent(go_29.transform, false);
         _nodes[33] = go_33;
@@ -850,7 +850,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_33.type = (Image.Type)0;
 
 
-        // ?? Button: "TraderTab" ??
+        // -- Button: "TraderTab" --
         var go_34 = new GameObject("TraderTab");
         go_34.transform.SetParent(go_18.transform, false);
         _nodes[34] = go_34;
@@ -897,7 +897,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_34.onClick.AddListener(() => { });
 
-        // ?? Panel: "TraderTab_Highlight" ??
+        // -- Panel: "TraderTab_Highlight" --
         var go_35 = new GameObject("TraderTab_Highlight");
         go_35.transform.SetParent(go_34.transform, false);
         _nodes[35] = go_35;
@@ -915,7 +915,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_35.raycastTarget = false;
         img_35.type = (Image.Type)1;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_36 = new GameObject("Label");
         go_36.transform.SetParent(go_34.transform, false);
         _nodes[36] = go_36;
@@ -932,7 +932,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_36.raycastTarget = false;
         img_36.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_37 = new GameObject("Text");
         go_37.transform.SetParent(go_34.transform, false);
         _nodes[37] = go_37;
@@ -949,7 +949,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_37.raycastTarget = true;
         img_37.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_38 = new GameObject("_ClickOverlay");
         go_38.transform.SetParent(go_34.transform, false);
         _nodes[38] = go_38;
@@ -968,7 +968,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Button: "SizeButton" ??
+        // -- Button: "SizeButton" --
         var go_39 = new GameObject("SizeButton");
         go_39.transform.SetParent(go_1.transform, false);
         _nodes[39] = go_39;
@@ -1015,7 +1015,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_39.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_40 = new GameObject("Label");
         go_40.transform.SetParent(go_39.transform, false);
         _nodes[40] = go_40;
@@ -1032,7 +1032,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_40.raycastTarget = false;
         img_40.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_41 = new GameObject("Text");
         go_41.transform.SetParent(go_39.transform, false);
         _nodes[41] = go_41;
@@ -1049,7 +1049,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_41.raycastTarget = true;
         img_41.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_42 = new GameObject("_ClickOverlay");
         go_42.transform.SetParent(go_39.transform, false);
         _nodes[42] = go_42;
@@ -1067,7 +1067,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_42.type = (Image.Type)0;
 
 
-        // ?? Panel: "SearchBar" ??
+        // -- Panel: "SearchBar" --
         var go_43 = new GameObject("SearchBar");
         go_43.transform.SetParent(go_1.transform, false);
         _nodes[43] = go_43;
@@ -1086,7 +1086,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_43.type = (Image.Type)0;
         go_43.SetActive(false);
 
-        // ?? Panel: "SearchBackground" ??
+        // -- Panel: "SearchBackground" --
         var go_44 = new GameObject("SearchBackground");
         go_44.transform.SetParent(go_43.transform, false);
         _nodes[44] = go_44;
@@ -1104,7 +1104,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_44.raycastTarget = false;
         img_44.type = (Image.Type)0;
 
-        // ?? InputField: "SearchInput" ??
+        // -- InputField: "SearchInput" --
         var go_45 = new GameObject("SearchInput");
         go_45.transform.SetParent(go_43.transform, false);
         _nodes[45] = go_45;
@@ -1172,7 +1172,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_45.selectionColor = new Color(0.6588235f, 0.8078431f, 1f, 0.7529412f);
 
 
-        // ?? Text: "TextArea" ??
+        // -- Text: "TextArea" --
         var go_49 = new GameObject("TextArea");
         go_49.transform.SetParent(go_43.transform, false);
         _nodes[49] = go_49;
@@ -1195,7 +1195,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_49.overflowMode = (TextOverflowModes)0;
         tmp_49.raycastTarget = true;
 
-        // ?? Text: "Placeholder" ??
+        // -- Text: "Placeholder" --
         var go_50 = new GameObject("Placeholder");
         go_50.transform.SetParent(go_43.transform, false);
         _nodes[50] = go_50;
@@ -1218,7 +1218,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_50.raycastTarget = true;
 
 
-        // ?? Panel: "TabContent" ??
+        // -- Panel: "TabContent" --
         var go_51 = new GameObject("TabContent");
         go_51.transform.SetParent(go_1.transform, false);
         _nodes[51] = go_51;
@@ -1236,7 +1236,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_51.raycastTarget = false;
         img_51.type = (Image.Type)0;
 
-        // ?? ScrollView: "ViewPort" ??
+        // -- ScrollView: "ViewPort" --
         var go_52 = new GameObject("ViewPort");
         go_52.transform.SetParent(go_51.transform, false);
         _nodes[52] = go_52;
@@ -1280,7 +1280,7 @@ public static partial class GeneratedUI_completecompanionsui
         scrollRect_52.scrollSensitivity = 1f;
         scrollRect_52.elasticity = 0.1f;
 
-        // ?? Divider: "Content" ??
+        // -- Divider: "Content" --
         var go_53 = new GameObject("Content");
         go_53.transform.SetParent(svContent_52.transform, false);
         _nodes[53] = go_53;
@@ -1304,7 +1304,7 @@ public static partial class GeneratedUI_completecompanionsui
         vlg_53.childForceExpandWidth = true;
         vlg_53.childForceExpandHeight = true;
 
-        // ?? Divider: "bkg" ??
+        // -- Divider: "bkg" --
         var go_54 = new GameObject("bkg");
         go_54.transform.SetParent(go_53.transform, false);
         _nodes[54] = go_54;
@@ -1322,7 +1322,7 @@ public static partial class GeneratedUI_completecompanionsui
         divImg_54.raycastTarget = false;
 
 
-        // ?? Panel: "ListRoot" ??
+        // -- Panel: "ListRoot" --
         var go_55 = new GameObject("ListRoot");
         go_55.transform.SetParent(svContent_52.transform, false);
         _nodes[55] = go_55;
@@ -1341,7 +1341,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_55.type = (Image.Type)0;
 
 
-        // ?? Panel: "ScrollBar" ??
+        // -- Panel: "ScrollBar" --
         var go_56 = new GameObject("ScrollBar");
         go_56.transform.SetParent(go_51.transform, false);
         _nodes[56] = go_56;
@@ -1358,7 +1358,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_56.raycastTarget = false;
         img_56.type = (Image.Type)0;
 
-        // ?? Panel: "Sliding Area" ??
+        // -- Panel: "Sliding Area" --
         var go_57 = new GameObject("Sliding Area");
         go_57.transform.SetParent(go_56.transform, false);
         _nodes[57] = go_57;
@@ -1376,7 +1376,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_57.raycastTarget = false;
         img_57.type = (Image.Type)0;
 
-        // ?? Panel: "Handle" ??
+        // -- Panel: "Handle" --
         var go_58 = new GameObject("Handle");
         go_58.transform.SetParent(go_57.transform, false);
         _nodes[58] = go_58;
@@ -1396,7 +1396,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "DetailPanel" ??
+        // -- Panel: "DetailPanel" --
         var go_59 = new GameObject("DetailPanel");
         go_59.transform.SetParent(go_1.transform, false);
         _nodes[59] = go_59;
@@ -1422,7 +1422,7 @@ public static partial class GeneratedUI_completecompanionsui
         vlg_59.childForceExpandWidth = true;
         vlg_59.childForceExpandHeight = true;
 
-        // ?? Divider: "DetailPanelBackground" ??
+        // -- Divider: "DetailPanelBackground" --
         var go_60 = new GameObject("DetailPanelBackground");
         go_60.transform.SetParent(go_59.transform, false);
         _nodes[60] = go_60;
@@ -1439,7 +1439,7 @@ public static partial class GeneratedUI_completecompanionsui
         divImg_60.color = new Color(0.4f, 0.3f, 0.15f, 0.8f);
         divImg_60.raycastTarget = false;
 
-        // ?? Panel: "Container_NameOverrideInput" ??
+        // -- Panel: "Container_NameOverrideInput" --
         var go_61 = new GameObject("Container_NameOverrideInput");
         go_61.transform.SetParent(go_59.transform, false);
         _nodes[61] = go_61;
@@ -1458,7 +1458,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_61.type = (Image.Type)0;
         var le_61 = go_61.AddComponent<LayoutElement>();
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_62 = new GameObject("Label");
         go_62.transform.SetParent(go_61.transform, false);
         _nodes[62] = go_62;
@@ -1481,7 +1481,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_62.margin = new Vector4(-143f, 0f, -124f, 0f);
         tmp_62.raycastTarget = true;
 
-        // ?? InputField: "Transparent_NameOverrideInput" ??
+        // -- InputField: "Transparent_NameOverrideInput" --
         var go_63 = new GameObject("Transparent_NameOverrideInput");
         go_63.transform.SetParent(go_61.transform, false);
         _nodes[63] = go_63;
@@ -1548,7 +1548,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_63.customCaretColor = true;
         inputField_63.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
-        // ?? Panel: "_Corner_BottomRight" ??
+        // -- Panel: "_Corner_BottomRight" --
         var go_68 = new GameObject("_Corner_BottomRight");
         go_68.transform.SetParent(go_63.transform, false);
         _nodes[68] = go_68;
@@ -1565,7 +1565,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_68.raycastTarget = false;
         img_68.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_BottomLeft" ??
+        // -- Panel: "_Corner_BottomLeft" --
         var go_69 = new GameObject("_Corner_BottomLeft");
         go_69.transform.SetParent(go_63.transform, false);
         _nodes[69] = go_69;
@@ -1582,7 +1582,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_69.raycastTarget = false;
         img_69.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_TopRight" ??
+        // -- Panel: "_Corner_TopRight" --
         var go_70 = new GameObject("_Corner_TopRight");
         go_70.transform.SetParent(go_63.transform, false);
         _nodes[70] = go_70;
@@ -1599,7 +1599,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_70.raycastTarget = false;
         img_70.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_TopLeft" ??
+        // -- Panel: "_Corner_TopLeft" --
         var go_71 = new GameObject("_Corner_TopLeft");
         go_71.transform.SetParent(go_63.transform, false);
         _nodes[71] = go_71;
@@ -1616,7 +1616,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_71.raycastTarget = false;
         img_71.type = (Image.Type)0;
 
-        // ?? Panel: "_RoundedOutline" ??
+        // -- Panel: "_RoundedOutline" --
         var go_72 = new GameObject("_RoundedOutline");
         go_72.transform.SetParent(go_63.transform, false);
         _nodes[72] = go_72;
@@ -1635,7 +1635,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Container_ProfileInput" ??
+        // -- Panel: "Container_ProfileInput" --
         var go_73 = new GameObject("Container_ProfileInput");
         go_73.transform.SetParent(go_59.transform, false);
         _nodes[73] = go_73;
@@ -1656,7 +1656,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_73.minHeight = 35f;
         le_73.preferredHeight = 40f;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_74 = new GameObject("Label");
         go_74.transform.SetParent(go_73.transform, false);
         _nodes[74] = go_74;
@@ -1679,7 +1679,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_74.margin = new Vector4(-155f, 0f, -108f, 0f);
         tmp_74.raycastTarget = true;
 
-        // ?? InputField: "Transparent_ProfileInput" ??
+        // -- InputField: "Transparent_ProfileInput" --
         var go_75 = new GameObject("Transparent_ProfileInput");
         go_75.transform.SetParent(go_73.transform, false);
         _nodes[75] = go_75;
@@ -1746,7 +1746,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_75.customCaretColor = true;
         inputField_75.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
-        // ?? Panel: "_Corner_BottomRight" ??
+        // -- Panel: "_Corner_BottomRight" --
         var go_80 = new GameObject("_Corner_BottomRight");
         go_80.transform.SetParent(go_75.transform, false);
         _nodes[80] = go_80;
@@ -1763,7 +1763,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_80.raycastTarget = false;
         img_80.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_BottomLeft" ??
+        // -- Panel: "_Corner_BottomLeft" --
         var go_81 = new GameObject("_Corner_BottomLeft");
         go_81.transform.SetParent(go_75.transform, false);
         _nodes[81] = go_81;
@@ -1780,7 +1780,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_81.raycastTarget = false;
         img_81.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_TopRight" ??
+        // -- Panel: "_Corner_TopRight" --
         var go_82 = new GameObject("_Corner_TopRight");
         go_82.transform.SetParent(go_75.transform, false);
         _nodes[82] = go_82;
@@ -1797,7 +1797,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_82.raycastTarget = false;
         img_82.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_TopLeft" ??
+        // -- Panel: "_Corner_TopLeft" --
         var go_83 = new GameObject("_Corner_TopLeft");
         go_83.transform.SetParent(go_75.transform, false);
         _nodes[83] = go_83;
@@ -1814,7 +1814,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_83.raycastTarget = false;
         img_83.type = (Image.Type)0;
 
-        // ?? Panel: "_RoundedOutline" ??
+        // -- Panel: "_RoundedOutline" --
         var go_84 = new GameObject("_RoundedOutline");
         go_84.transform.SetParent(go_75.transform, false);
         _nodes[84] = go_84;
@@ -1833,7 +1833,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Container_ModelOverrideInput" ??
+        // -- Panel: "Container_ModelOverrideInput" --
         var go_85 = new GameObject("Container_ModelOverrideInput");
         go_85.transform.SetParent(go_59.transform, false);
         _nodes[85] = go_85;
@@ -1854,7 +1854,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_85.minHeight = 35f;
         le_85.preferredHeight = 40f;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_86 = new GameObject("Label");
         go_86.transform.SetParent(go_85.transform, false);
         _nodes[86] = go_86;
@@ -1877,7 +1877,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_86.margin = new Vector4(-127f, 0f, -140f, 0f);
         tmp_86.raycastTarget = true;
 
-        // ?? InputField: "Transparent_ModelOverrideInput" ??
+        // -- InputField: "Transparent_ModelOverrideInput" --
         var go_87 = new GameObject("Transparent_ModelOverrideInput");
         go_87.transform.SetParent(go_85.transform, false);
         _nodes[87] = go_87;
@@ -1944,7 +1944,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_87.customCaretColor = true;
         inputField_87.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
-        // ?? Panel: "_Corner_BottomRight" ??
+        // -- Panel: "_Corner_BottomRight" --
         var go_92 = new GameObject("_Corner_BottomRight");
         go_92.transform.SetParent(go_87.transform, false);
         _nodes[92] = go_92;
@@ -1961,7 +1961,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_92.raycastTarget = false;
         img_92.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_BottomLeft" ??
+        // -- Panel: "_Corner_BottomLeft" --
         var go_93 = new GameObject("_Corner_BottomLeft");
         go_93.transform.SetParent(go_87.transform, false);
         _nodes[93] = go_93;
@@ -1978,7 +1978,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_93.raycastTarget = false;
         img_93.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_TopRight" ??
+        // -- Panel: "_Corner_TopRight" --
         var go_94 = new GameObject("_Corner_TopRight");
         go_94.transform.SetParent(go_87.transform, false);
         _nodes[94] = go_94;
@@ -1995,7 +1995,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_94.raycastTarget = false;
         img_94.type = (Image.Type)0;
 
-        // ?? Panel: "_Corner_TopLeft" ??
+        // -- Panel: "_Corner_TopLeft" --
         var go_95 = new GameObject("_Corner_TopLeft");
         go_95.transform.SetParent(go_87.transform, false);
         _nodes[95] = go_95;
@@ -2012,7 +2012,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_95.raycastTarget = false;
         img_95.type = (Image.Type)0;
 
-        // ?? Panel: "_RoundedOutline" ??
+        // -- Panel: "_RoundedOutline" --
         var go_96 = new GameObject("_RoundedOutline");
         go_96.transform.SetParent(go_87.transform, false);
         _nodes[96] = go_96;
@@ -2031,7 +2031,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Button: "DressingRoom" ??
+        // -- Button: "DressingRoom" --
         var go_97 = new GameObject("DressingRoom");
         go_97.transform.SetParent(go_59.transform, false);
         _nodes[97] = go_97;
@@ -2082,7 +2082,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_97.minHeight = 40f;
         le_97.preferredHeight = 40f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_98 = new GameObject("Label");
         go_98.transform.SetParent(go_97.transform, false);
         _nodes[98] = go_98;
@@ -2099,7 +2099,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_98.raycastTarget = false;
         img_98.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_99 = new GameObject("Text");
         go_99.transform.SetParent(go_97.transform, false);
         _nodes[99] = go_99;
@@ -2117,7 +2117,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_99.type = (Image.Type)0;
 
 
-        // ?? Button: "ApplyButton" ??
+        // -- Button: "ApplyButton" --
         var go_100 = new GameObject("ApplyButton");
         go_100.transform.SetParent(go_59.transform, false);
         _nodes[100] = go_100;
@@ -2168,7 +2168,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_100.minHeight = 40f;
         le_100.preferredHeight = 40f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_101 = new GameObject("Label");
         go_101.transform.SetParent(go_100.transform, false);
         _nodes[101] = go_101;
@@ -2185,7 +2185,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_101.raycastTarget = false;
         img_101.type = (Image.Type)0;
 
-        // ?? Panel: "_TransparentBorder" ??
+        // -- Panel: "_TransparentBorder" --
         var go_102 = new GameObject("_TransparentBorder");
         go_102.transform.SetParent(go_100.transform, false);
         _nodes[102] = go_102;
@@ -2202,7 +2202,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_102.raycastTarget = false;
         img_102.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_103 = new GameObject("Text");
         go_103.transform.SetParent(go_100.transform, false);
         _nodes[103] = go_103;
@@ -2219,7 +2219,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_103.raycastTarget = true;
         img_103.type = (Image.Type)0;
 
-        // ?? Panel: "_ClickOverlay" ??
+        // -- Panel: "_ClickOverlay" --
         var go_104 = new GameObject("_ClickOverlay");
         go_104.transform.SetParent(go_100.transform, false);
         _nodes[104] = go_104;
@@ -2238,7 +2238,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "QuestInteract" ??
+        // -- Panel: "QuestInteract" --
         var go_105 = new GameObject("QuestInteract");
         go_105.transform.SetParent(go_1.transform, false);
         _nodes[105] = go_105;
@@ -2260,7 +2260,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_105.preferredHeight = 40f;
         go_105.SetActive(false);
 
-        // ?? Text: "QuestDescriptionPlaceholder" ??
+        // -- Text: "QuestDescriptionPlaceholder" --
         var go_106 = new GameObject("QuestDescriptionPlaceholder");
         go_106.transform.SetParent(go_105.transform, false);
         _nodes[106] = go_106;
@@ -2284,7 +2284,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_106.margin = new Vector4(41f, 100f, 43f, 99f);
         tmp_106.raycastTarget = true;
 
-        // ?? Panel: "PNG" ??
+        // -- Panel: "PNG" --
         var go_107 = new GameObject("PNG");
         go_107.transform.SetParent(go_105.transform, false);
         _nodes[107] = go_107;
@@ -2301,7 +2301,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_107.raycastTarget = false;
         img_107.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_108 = new GameObject("Label");
         go_108.transform.SetParent(go_105.transform, false);
         _nodes[108] = go_108;
@@ -2325,7 +2325,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_108.raycastTarget = true;
 
 
-        // ?? Panel: "InfoNpcScreen" ??
+        // -- Panel: "InfoNpcScreen" --
         var go_109 = new GameObject("InfoNpcScreen");
         go_109.transform.SetParent(go_1.transform, false);
         _nodes[109] = go_109;
@@ -2352,7 +2352,7 @@ public static partial class GeneratedUI_completecompanionsui
         vlg_109.childForceExpandHeight = false;
         go_109.SetActive(false);
 
-        // ?? Text: "Instructions" ??
+        // -- Text: "Instructions" --
         var go_110 = new GameObject("Instructions");
         go_110.transform.SetParent(go_109.transform, false);
         _nodes[110] = go_110;
@@ -2377,7 +2377,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_110.preferredHeight = 25f;
         le_110.flexibleHeight = 0f;
 
-        // ?? Panel: "Row_HeaderText" ??
+        // -- Panel: "Row_HeaderText" --
         var go_111 = new GameObject("Row_HeaderText");
         go_111.transform.SetParent(go_109.transform, false);
         _nodes[111] = go_111;
@@ -2406,7 +2406,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_111.preferredHeight = 35f;
         le_111.flexibleHeight = 0f;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_112 = new GameObject("Label");
         go_112.transform.SetParent(go_111.transform, false);
         _nodes[112] = go_112;
@@ -2432,7 +2432,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_112.preferredWidth = 95f;
         le_112.flexibleWidth = 0f;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_113 = new GameObject("Input");
         go_113.transform.SetParent(go_111.transform, false);
         _nodes[113] = go_113;
@@ -2506,7 +2506,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Row_Image(PNG)" ??
+        // -- Panel: "Row_Image(PNG)" --
         var go_118 = new GameObject("Row_Image(PNG)");
         go_118.transform.SetParent(go_109.transform, false);
         _nodes[118] = go_118;
@@ -2535,7 +2535,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_118.preferredHeight = 35f;
         le_118.flexibleHeight = 0f;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_119 = new GameObject("Label");
         go_119.transform.SetParent(go_118.transform, false);
         _nodes[119] = go_119;
@@ -2561,7 +2561,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_119.preferredWidth = 95f;
         le_119.flexibleWidth = 0f;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_120 = new GameObject("Input");
         go_120.transform.SetParent(go_118.transform, false);
         _nodes[120] = go_120;
@@ -2635,7 +2635,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Spacer: "Spacer" ??
+        // -- Spacer: "Spacer" --
         var go_125 = new GameObject("Spacer");
         go_125.transform.SetParent(go_109.transform, false);
         _nodes[125] = go_125;
@@ -2651,7 +2651,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_125.preferredHeight = 5f;
         le_125.flexibleHeight = 0f;
 
-        // ?? Text: "InfoTextLabel" ??
+        // -- Text: "InfoTextLabel" --
         var go_126 = new GameObject("InfoTextLabel");
         go_126.transform.SetParent(go_109.transform, false);
         _nodes[126] = go_126;
@@ -2677,7 +2677,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_126.preferredHeight = 20f;
         le_126.flexibleHeight = 0f;
 
-        // ?? Panel: "TextAreaContainer" ??
+        // -- Panel: "TextAreaContainer" --
         var go_127 = new GameObject("TextAreaContainer");
         go_127.transform.SetParent(go_109.transform, false);
         _nodes[127] = go_127;
@@ -2699,7 +2699,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_127.preferredHeight = 280f;
         le_127.flexibleHeight = 1f;
 
-        // ?? InputField: "InfoTextArea" ??
+        // -- InputField: "InfoTextArea" --
         var go_128 = new GameObject("InfoTextArea");
         go_128.transform.SetParent(go_127.transform, false);
         _nodes[128] = go_128;
@@ -2769,7 +2769,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Spacer: "Spacer" ??
+        // -- Spacer: "Spacer" --
         var go_133 = new GameObject("Spacer");
         go_133.transform.SetParent(go_109.transform, false);
         _nodes[133] = go_133;
@@ -2785,7 +2785,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_133.preferredHeight = 5f;
         le_133.flexibleHeight = 0f;
 
-        // ?? Text: "CharacterCount" ??
+        // -- Text: "CharacterCount" --
         var go_134 = new GameObject("CharacterCount");
         go_134.transform.SetParent(go_109.transform, false);
         _nodes[134] = go_134;
@@ -2812,7 +2812,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_134.flexibleHeight = 0f;
 
 
-        // ?? Button: "InfoApplyButton" ??
+        // -- Button: "InfoApplyButton" --
         var go_135 = new GameObject("InfoApplyButton");
         go_135.transform.SetParent(go_1.transform, false);
         _nodes[135] = go_135;
@@ -2860,7 +2860,7 @@ public static partial class GeneratedUI_completecompanionsui
         // btn_135.onClick.AddListener(() => { });
         go_135.SetActive(false);
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_136 = new GameObject("Label");
         go_136.transform.SetParent(go_135.transform, false);
         _nodes[136] = go_136;
@@ -2878,7 +2878,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_136.type = (Image.Type)0;
         go_136.SetActive(false);
 
-        // ?? Panel: "_TransparentBorder" ??
+        // -- Panel: "_TransparentBorder" --
         var go_137 = new GameObject("_TransparentBorder");
         go_137.transform.SetParent(go_135.transform, false);
         _nodes[137] = go_137;
@@ -2895,7 +2895,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_137.raycastTarget = false;
         img_137.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_138 = new GameObject("Text");
         go_138.transform.SetParent(go_135.transform, false);
         _nodes[138] = go_138;
@@ -2913,7 +2913,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_138.type = (Image.Type)0;
 
 
-        // ?? Button: "QuestApplyButton" ??
+        // -- Button: "QuestApplyButton" --
         var go_139 = new GameObject("QuestApplyButton");
         go_139.transform.SetParent(go_1.transform, false);
         _nodes[139] = go_139;
@@ -2961,7 +2961,7 @@ public static partial class GeneratedUI_completecompanionsui
         // btn_139.onClick.AddListener(() => { });
         go_139.SetActive(false);
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_140 = new GameObject("Label");
         go_140.transform.SetParent(go_139.transform, false);
         _nodes[140] = go_140;
@@ -2979,7 +2979,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_140.type = (Image.Type)0;
         go_140.SetActive(false);
 
-        // ?? Panel: "_TransparentBorder" ??
+        // -- Panel: "_TransparentBorder" --
         var go_141 = new GameObject("_TransparentBorder");
         go_141.transform.SetParent(go_139.transform, false);
         _nodes[141] = go_141;
@@ -2996,7 +2996,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_141.raycastTarget = false;
         img_141.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_142 = new GameObject("Text");
         go_142.transform.SetParent(go_139.transform, false);
         _nodes[142] = go_142;
@@ -3014,7 +3014,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_142.type = (Image.Type)0;
 
 
-        // ?? Panel: "DressingRoomScreen" ??
+        // -- Panel: "DressingRoomScreen" --
         var go_143 = new GameObject("DressingRoomScreen");
         go_143.transform.SetParent(go_1.transform, false);
         _nodes[143] = go_143;
@@ -3034,7 +3034,7 @@ public static partial class GeneratedUI_completecompanionsui
         go_143.AddComponent<RectMask2D>();
         go_143.SetActive(false);
 
-        // ?? Text: "Instructions" ??
+        // -- Text: "Instructions" --
         var go_144 = new GameObject("Instructions");
         go_144.transform.SetParent(go_143.transform, false);
         _nodes[144] = go_144;
@@ -3057,7 +3057,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_144.margin = new Vector4(6f, 2f, 6f, 2f);
         tmp_144.raycastTarget = true;
 
-        // ?? Button: "ClearAllButton" ??
+        // -- Button: "ClearAllButton" --
         var go_145 = new GameObject("ClearAllButton");
         go_145.transform.SetParent(go_143.transform, false);
         _nodes[145] = go_145;
@@ -3104,7 +3104,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_145.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_146 = new GameObject("Label");
         go_146.transform.SetParent(go_145.transform, false);
         _nodes[146] = go_146;
@@ -3121,7 +3121,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_146.raycastTarget = false;
         img_146.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_147 = new GameObject("Text");
         go_147.transform.SetParent(go_145.transform, false);
         _nodes[147] = go_147;
@@ -3139,7 +3139,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_147.type = (Image.Type)0;
 
 
-        // ?? Button: "ApplyEquipmentButton" ??
+        // -- Button: "ApplyEquipmentButton" --
         var go_148 = new GameObject("ApplyEquipmentButton");
         go_148.transform.SetParent(go_143.transform, false);
         _nodes[148] = go_148;
@@ -3186,7 +3186,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_148.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_149 = new GameObject("Label");
         go_149.transform.SetParent(go_148.transform, false);
         _nodes[149] = go_149;
@@ -3203,7 +3203,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_149.raycastTarget = false;
         img_149.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_150 = new GameObject("Text");
         go_150.transform.SetParent(go_148.transform, false);
         _nodes[150] = go_150;
@@ -3221,7 +3221,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_150.type = (Image.Type)0;
 
 
-        // ?? Panel: "FashionPanel_Right" ??
+        // -- Panel: "FashionPanel_Right" --
         var go_151 = new GameObject("FashionPanel_Right");
         go_151.transform.SetParent(go_143.transform, false);
         _nodes[151] = go_151;
@@ -3239,7 +3239,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_151.raycastTarget = true;
         img_151.type = (Image.Type)0;
 
-        // ?? Panel: "Periodic Anim_Container" ??
+        // -- Panel: "Periodic Anim_Container" --
         var go_152 = new GameObject("Periodic Anim_Container");
         go_152.transform.SetParent(go_151.transform, false);
         _nodes[152] = go_152;
@@ -3257,7 +3257,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_152.raycastTarget = false;
         img_152.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_153 = new GameObject("Label");
         go_153.transform.SetParent(go_152.transform, false);
         _nodes[153] = go_153;
@@ -3279,7 +3279,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_153.overflowMode = (TextOverflowModes)0;
         tmp_153.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_154 = new GameObject("Dropdown");
         go_154.transform.SetParent(go_152.transform, false);
         _nodes[154] = go_154;
@@ -3398,7 +3398,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Interval(seconds)_Container" ??
+        // -- Panel: "Interval(seconds)_Container" --
         var go_160 = new GameObject("Interval(seconds)_Container");
         go_160.transform.SetParent(go_151.transform, false);
         _nodes[160] = go_160;
@@ -3415,7 +3415,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_160.raycastTarget = false;
         img_160.type = (Image.Type)0;
 
-        // ?? Text: "HintLabel" ??
+        // -- Text: "HintLabel" --
         var go_161 = new GameObject("HintLabel");
         go_161.transform.SetParent(go_160.transform, false);
         _nodes[161] = go_161;
@@ -3437,7 +3437,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_161.overflowMode = (TextOverflowModes)0;
         tmp_161.raycastTarget = true;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_162 = new GameObject("Input");
         go_162.transform.SetParent(go_160.transform, false);
         _nodes[162] = go_162;
@@ -3505,7 +3505,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Interact Anim_Container" ??
+        // -- Panel: "Interact Anim_Container" --
         var go_166 = new GameObject("Interact Anim_Container");
         go_166.transform.SetParent(go_151.transform, false);
         _nodes[166] = go_166;
@@ -3523,7 +3523,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_166.raycastTarget = false;
         img_166.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_167 = new GameObject("Label");
         go_167.transform.SetParent(go_166.transform, false);
         _nodes[167] = go_167;
@@ -3545,7 +3545,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_167.overflowMode = (TextOverflowModes)0;
         tmp_167.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_168 = new GameObject("Dropdown");
         go_168.transform.SetParent(go_166.transform, false);
         _nodes[168] = go_168;
@@ -3664,7 +3664,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Greet Anim_Container" ??
+        // -- Panel: "Greet Anim_Container" --
         var go_174 = new GameObject("Greet Anim_Container");
         go_174.transform.SetParent(go_151.transform, false);
         _nodes[174] = go_174;
@@ -3682,7 +3682,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_174.raycastTarget = false;
         img_174.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_175 = new GameObject("Label");
         go_175.transform.SetParent(go_174.transform, false);
         _nodes[175] = go_175;
@@ -3704,7 +3704,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_175.overflowMode = (TextOverflowModes)0;
         tmp_175.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_176 = new GameObject("Dropdown");
         go_176.transform.SetParent(go_174.transform, false);
         _nodes[176] = go_176;
@@ -3823,7 +3823,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Bye Anim_Container" ??
+        // -- Panel: "Bye Anim_Container" --
         var go_182 = new GameObject("Bye Anim_Container");
         go_182.transform.SetParent(go_151.transform, false);
         _nodes[182] = go_182;
@@ -3841,7 +3841,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_182.raycastTarget = false;
         img_182.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_183 = new GameObject("Label");
         go_183.transform.SetParent(go_182.transform, false);
         _nodes[183] = go_183;
@@ -3863,7 +3863,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_183.overflowMode = (TextOverflowModes)0;
         tmp_183.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_184 = new GameObject("Dropdown");
         go_184.transform.SetParent(go_182.transform, false);
         _nodes[184] = go_184;
@@ -3982,7 +3982,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Periodic Sound_Container" ??
+        // -- Panel: "Periodic Sound_Container" --
         var go_190 = new GameObject("Periodic Sound_Container");
         go_190.transform.SetParent(go_151.transform, false);
         _nodes[190] = go_190;
@@ -4000,7 +4000,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_190.raycastTarget = false;
         img_190.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_191 = new GameObject("Label");
         go_191.transform.SetParent(go_190.transform, false);
         _nodes[191] = go_191;
@@ -4022,7 +4022,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_191.overflowMode = (TextOverflowModes)0;
         tmp_191.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_192 = new GameObject("Dropdown");
         go_192.transform.SetParent(go_190.transform, false);
         _nodes[192] = go_192;
@@ -4141,7 +4141,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Interval(seconds)_Container" ??
+        // -- Panel: "Interval(seconds)_Container" --
         var go_198 = new GameObject("Interval(seconds)_Container");
         go_198.transform.SetParent(go_151.transform, false);
         _nodes[198] = go_198;
@@ -4158,7 +4158,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_198.raycastTarget = false;
         img_198.type = (Image.Type)0;
 
-        // ?? Text: "HintLabel" ??
+        // -- Text: "HintLabel" --
         var go_199 = new GameObject("HintLabel");
         go_199.transform.SetParent(go_198.transform, false);
         _nodes[199] = go_199;
@@ -4180,7 +4180,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_199.overflowMode = (TextOverflowModes)0;
         tmp_199.raycastTarget = true;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_200 = new GameObject("Input");
         go_200.transform.SetParent(go_198.transform, false);
         _nodes[200] = go_200;
@@ -4249,7 +4249,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "FashionPanel_Left" ??
+        // -- Panel: "FashionPanel_Left" --
         var go_204 = new GameObject("FashionPanel_Left");
         go_204.transform.SetParent(go_143.transform, false);
         _nodes[204] = go_204;
@@ -4267,7 +4267,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_204.raycastTarget = true;
         img_204.type = (Image.Type)0;
 
-        // ?? Panel: "Hair_Container" ??
+        // -- Panel: "Hair_Container" --
         var go_205 = new GameObject("Hair_Container");
         go_205.transform.SetParent(go_204.transform, false);
         _nodes[205] = go_205;
@@ -4285,7 +4285,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_205.raycastTarget = false;
         img_205.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_206 = new GameObject("Label");
         go_206.transform.SetParent(go_205.transform, false);
         _nodes[206] = go_206;
@@ -4307,7 +4307,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_206.overflowMode = (TextOverflowModes)0;
         tmp_206.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_207 = new GameObject("Dropdown");
         go_207.transform.SetParent(go_205.transform, false);
         _nodes[207] = go_207;
@@ -4426,7 +4426,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Hair Color_Container" ??
+        // -- Panel: "Hair Color_Container" --
         var go_213 = new GameObject("Hair Color_Container");
         go_213.transform.SetParent(go_204.transform, false);
         _nodes[213] = go_213;
@@ -4444,7 +4444,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_213.raycastTarget = false;
         img_213.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_214 = new GameObject("Label");
         go_214.transform.SetParent(go_213.transform, false);
         _nodes[214] = go_214;
@@ -4466,7 +4466,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_214.overflowMode = (TextOverflowModes)0;
         tmp_214.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_215 = new GameObject("Dropdown");
         go_215.transform.SetParent(go_213.transform, false);
         _nodes[215] = go_215;
@@ -4603,7 +4603,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Beard_Container" ??
+        // -- Panel: "Beard_Container" --
         var go_221 = new GameObject("Beard_Container");
         go_221.transform.SetParent(go_204.transform, false);
         _nodes[221] = go_221;
@@ -4621,7 +4621,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_221.raycastTarget = false;
         img_221.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_222 = new GameObject("Label");
         go_222.transform.SetParent(go_221.transform, false);
         _nodes[222] = go_222;
@@ -4643,7 +4643,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_222.overflowMode = (TextOverflowModes)0;
         tmp_222.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_223 = new GameObject("Dropdown");
         go_223.transform.SetParent(go_221.transform, false);
         _nodes[223] = go_223;
@@ -4762,7 +4762,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Beard Color_Container" ??
+        // -- Panel: "Beard Color_Container" --
         var go_229 = new GameObject("Beard Color_Container");
         go_229.transform.SetParent(go_204.transform, false);
         _nodes[229] = go_229;
@@ -4780,7 +4780,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_229.raycastTarget = false;
         img_229.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_230 = new GameObject("Label");
         go_230.transform.SetParent(go_229.transform, false);
         _nodes[230] = go_230;
@@ -4802,7 +4802,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_230.overflowMode = (TextOverflowModes)0;
         tmp_230.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_231 = new GameObject("Dropdown");
         go_231.transform.SetParent(go_229.transform, false);
         _nodes[231] = go_231;
@@ -4939,7 +4939,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Skin Tone_Container" ??
+        // -- Panel: "Skin Tone_Container" --
         var go_237 = new GameObject("Skin Tone_Container");
         go_237.transform.SetParent(go_204.transform, false);
         _nodes[237] = go_237;
@@ -4957,7 +4957,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_237.raycastTarget = false;
         img_237.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_238 = new GameObject("Label");
         go_238.transform.SetParent(go_237.transform, false);
         _nodes[238] = go_238;
@@ -4979,7 +4979,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_238.overflowMode = (TextOverflowModes)0;
         tmp_238.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_239 = new GameObject("Dropdown");
         go_239.transform.SetParent(go_237.transform, false);
         _nodes[239] = go_239;
@@ -5118,7 +5118,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Eye Color_Container" ??
+        // -- Panel: "Eye Color_Container" --
         var go_245 = new GameObject("Eye Color_Container");
         go_245.transform.SetParent(go_204.transform, false);
         _nodes[245] = go_245;
@@ -5136,7 +5136,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_245.raycastTarget = false;
         img_245.type = (Image.Type)0;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_246 = new GameObject("Label");
         go_246.transform.SetParent(go_245.transform, false);
         _nodes[246] = go_246;
@@ -5158,7 +5158,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_246.overflowMode = (TextOverflowModes)0;
         tmp_246.raycastTarget = true;
 
-        // ?? Dropdown: "Dropdown" ??
+        // -- Dropdown: "Dropdown" --
         var go_247 = new GameObject("Dropdown");
         go_247.transform.SetParent(go_245.transform, false);
         _nodes[247] = go_247;
@@ -5297,7 +5297,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "ModelScale_Container" ??
+        // -- Panel: "ModelScale_Container" --
         var go_253 = new GameObject("ModelScale_Container");
         go_253.transform.SetParent(go_204.transform, false);
         _nodes[253] = go_253;
@@ -5315,7 +5315,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_253.raycastTarget = false;
         img_253.type = (Image.Type)0;
 
-        // ?? Text: "HintLabel" ??
+        // -- Text: "HintLabel" --
         var go_254 = new GameObject("HintLabel");
         go_254.transform.SetParent(go_253.transform, false);
         _nodes[254] = go_254;
@@ -5337,7 +5337,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_254.overflowMode = (TextOverflowModes)0;
         tmp_254.raycastTarget = true;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_255 = new GameObject("Input");
         go_255.transform.SetParent(go_253.transform, false);
         _nodes[255] = go_255;
@@ -5406,7 +5406,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "EquipmentGrid" ??
+        // -- Panel: "EquipmentGrid" --
         var go_259 = new GameObject("EquipmentGrid");
         go_259.transform.SetParent(go_143.transform, false);
         _nodes[259] = go_259;
@@ -5424,7 +5424,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_259.raycastTarget = false;
         img_259.type = (Image.Type)0;
 
-        // ?? Panel: "Slot_Helmet" ??
+        // -- Panel: "Slot_Helmet" --
         var go_260 = new GameObject("Slot_Helmet");
         go_260.transform.SetParent(go_259.transform, false);
         _nodes[260] = go_260;
@@ -5442,7 +5442,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_260.raycastTarget = true;
         img_260.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_261 = new GameObject("Border");
         go_261.transform.SetParent(go_260.transform, false);
         _nodes[261] = go_261;
@@ -5460,7 +5460,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_261.type = (Image.Type)1;
         go_261.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_262 = new GameObject("Icon");
         go_262.transform.SetParent(go_260.transform, false);
         _nodes[262] = go_262;
@@ -5478,7 +5478,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_262.type = (Image.Type)0;
         go_262.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_263 = new GameObject("Label");
         go_263.transform.SetParent(go_260.transform, false);
         _nodes[263] = go_263;
@@ -5500,7 +5500,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_263.overflowMode = (TextOverflowModes)0;
         tmp_263.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_264 = new GameObject("ItemName");
         go_264.transform.SetParent(go_260.transform, false);
         _nodes[264] = go_264;
@@ -5523,7 +5523,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_264.raycastTarget = true;
         go_264.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_265 = new GameObject("InventoryElement(Clone)");
         go_265.transform.SetParent(go_260.transform, false);
         _nodes[265] = go_265;
@@ -5571,7 +5571,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_265.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_266 = new GameObject("Label");
         go_266.transform.SetParent(go_265.transform, false);
         _nodes[266] = go_266;
@@ -5589,7 +5589,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_266.type = (Image.Type)0;
         go_266.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_267 = new GameObject("equiped");
         go_267.transform.SetParent(go_265.transform, false);
         _nodes[267] = go_267;
@@ -5612,7 +5612,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_267.raycastTarget = false;
         go_267.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_268 = new GameObject("queued");
         go_268.transform.SetParent(go_265.transform, false);
         _nodes[268] = go_268;
@@ -5635,7 +5635,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_268.raycastTarget = false;
         go_268.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_269 = new GameObject("FillOverlay");
         go_269.transform.SetParent(go_265.transform, false);
         _nodes[269] = go_269;
@@ -5658,7 +5658,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_269.raycastTarget = false;
         go_269.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_270 = new GameObject("icon");
         go_270.transform.SetParent(go_265.transform, false);
         _nodes[270] = go_270;
@@ -5676,7 +5676,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_270.type = (Image.Type)0;
         go_270.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_271 = new GameObject("amount");
         go_271.transform.SetParent(go_265.transform, false);
         _nodes[271] = go_271;
@@ -5694,7 +5694,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_271.type = (Image.Type)0;
         go_271.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_272 = new GameObject("durability");
         go_272.transform.SetParent(go_265.transform, false);
         _nodes[272] = go_272;
@@ -5712,7 +5712,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_272.type = (Image.Type)0;
         go_272.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_273 = new GameObject("bar");
         go_273.transform.SetParent(go_272.transform, false);
         _nodes[273] = go_273;
@@ -5730,7 +5730,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_273.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_274 = new GameObject("binding");
         go_274.transform.SetParent(go_265.transform, false);
         _nodes[274] = go_274;
@@ -5748,7 +5748,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_274.type = (Image.Type)0;
         go_274.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_275 = new GameObject("quality");
         go_275.transform.SetParent(go_265.transform, false);
         _nodes[275] = go_275;
@@ -5766,7 +5766,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_275.type = (Image.Type)0;
         go_275.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_276 = new GameObject("selected");
         go_276.transform.SetParent(go_265.transform, false);
         _nodes[276] = go_276;
@@ -5789,7 +5789,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_276.raycastTarget = false;
         go_276.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_277 = new GameObject("noteleport");
         go_277.transform.SetParent(go_265.transform, false);
         _nodes[277] = go_277;
@@ -5812,7 +5812,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_277.raycastTarget = false;
         go_277.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_278 = new GameObject("foodicon");
         go_278.transform.SetParent(go_265.transform, false);
         _nodes[278] = go_278;
@@ -5832,7 +5832,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_LeftHand" ??
+        // -- Panel: "Slot_LeftHand" --
         var go_279 = new GameObject("Slot_LeftHand");
         go_279.transform.SetParent(go_259.transform, false);
         _nodes[279] = go_279;
@@ -5850,7 +5850,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_279.raycastTarget = true;
         img_279.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_280 = new GameObject("Border");
         go_280.transform.SetParent(go_279.transform, false);
         _nodes[280] = go_280;
@@ -5868,7 +5868,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_280.type = (Image.Type)1;
         go_280.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_281 = new GameObject("Icon");
         go_281.transform.SetParent(go_279.transform, false);
         _nodes[281] = go_281;
@@ -5886,7 +5886,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_281.type = (Image.Type)0;
         go_281.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_282 = new GameObject("Label");
         go_282.transform.SetParent(go_279.transform, false);
         _nodes[282] = go_282;
@@ -5908,7 +5908,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_282.overflowMode = (TextOverflowModes)0;
         tmp_282.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_283 = new GameObject("ItemName");
         go_283.transform.SetParent(go_279.transform, false);
         _nodes[283] = go_283;
@@ -5931,7 +5931,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_283.raycastTarget = true;
         go_283.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_284 = new GameObject("InventoryElement(Clone)");
         go_284.transform.SetParent(go_279.transform, false);
         _nodes[284] = go_284;
@@ -5979,7 +5979,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_284.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_285 = new GameObject("Label");
         go_285.transform.SetParent(go_284.transform, false);
         _nodes[285] = go_285;
@@ -5997,7 +5997,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_285.type = (Image.Type)0;
         go_285.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_286 = new GameObject("equiped");
         go_286.transform.SetParent(go_284.transform, false);
         _nodes[286] = go_286;
@@ -6020,7 +6020,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_286.raycastTarget = false;
         go_286.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_287 = new GameObject("queued");
         go_287.transform.SetParent(go_284.transform, false);
         _nodes[287] = go_287;
@@ -6043,7 +6043,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_287.raycastTarget = false;
         go_287.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_288 = new GameObject("FillOverlay");
         go_288.transform.SetParent(go_284.transform, false);
         _nodes[288] = go_288;
@@ -6066,7 +6066,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_288.raycastTarget = false;
         go_288.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_289 = new GameObject("icon");
         go_289.transform.SetParent(go_284.transform, false);
         _nodes[289] = go_289;
@@ -6084,7 +6084,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_289.type = (Image.Type)0;
         go_289.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_290 = new GameObject("amount");
         go_290.transform.SetParent(go_284.transform, false);
         _nodes[290] = go_290;
@@ -6102,7 +6102,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_290.type = (Image.Type)0;
         go_290.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_291 = new GameObject("durability");
         go_291.transform.SetParent(go_284.transform, false);
         _nodes[291] = go_291;
@@ -6120,7 +6120,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_291.type = (Image.Type)0;
         go_291.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_292 = new GameObject("bar");
         go_292.transform.SetParent(go_291.transform, false);
         _nodes[292] = go_292;
@@ -6138,7 +6138,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_292.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_293 = new GameObject("binding");
         go_293.transform.SetParent(go_284.transform, false);
         _nodes[293] = go_293;
@@ -6156,7 +6156,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_293.type = (Image.Type)0;
         go_293.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_294 = new GameObject("quality");
         go_294.transform.SetParent(go_284.transform, false);
         _nodes[294] = go_294;
@@ -6174,7 +6174,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_294.type = (Image.Type)0;
         go_294.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_295 = new GameObject("selected");
         go_295.transform.SetParent(go_284.transform, false);
         _nodes[295] = go_295;
@@ -6197,7 +6197,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_295.raycastTarget = false;
         go_295.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_296 = new GameObject("noteleport");
         go_296.transform.SetParent(go_284.transform, false);
         _nodes[296] = go_296;
@@ -6220,7 +6220,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_296.raycastTarget = false;
         go_296.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_297 = new GameObject("foodicon");
         go_297.transform.SetParent(go_284.transform, false);
         _nodes[297] = go_297;
@@ -6240,7 +6240,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_LeftBack" ??
+        // -- Panel: "Slot_LeftBack" --
         var go_298 = new GameObject("Slot_LeftBack");
         go_298.transform.SetParent(go_259.transform, false);
         _nodes[298] = go_298;
@@ -6258,7 +6258,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_298.raycastTarget = true;
         img_298.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_299 = new GameObject("Border");
         go_299.transform.SetParent(go_298.transform, false);
         _nodes[299] = go_299;
@@ -6276,7 +6276,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_299.type = (Image.Type)1;
         go_299.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_300 = new GameObject("Icon");
         go_300.transform.SetParent(go_298.transform, false);
         _nodes[300] = go_300;
@@ -6294,7 +6294,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_300.type = (Image.Type)0;
         go_300.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_301 = new GameObject("Label");
         go_301.transform.SetParent(go_298.transform, false);
         _nodes[301] = go_301;
@@ -6316,7 +6316,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_301.overflowMode = (TextOverflowModes)0;
         tmp_301.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_302 = new GameObject("ItemName");
         go_302.transform.SetParent(go_298.transform, false);
         _nodes[302] = go_302;
@@ -6339,7 +6339,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_302.raycastTarget = true;
         go_302.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_303 = new GameObject("InventoryElement(Clone)");
         go_303.transform.SetParent(go_298.transform, false);
         _nodes[303] = go_303;
@@ -6387,7 +6387,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_303.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_304 = new GameObject("Label");
         go_304.transform.SetParent(go_303.transform, false);
         _nodes[304] = go_304;
@@ -6405,7 +6405,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_304.type = (Image.Type)0;
         go_304.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_305 = new GameObject("equiped");
         go_305.transform.SetParent(go_303.transform, false);
         _nodes[305] = go_305;
@@ -6428,7 +6428,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_305.raycastTarget = false;
         go_305.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_306 = new GameObject("queued");
         go_306.transform.SetParent(go_303.transform, false);
         _nodes[306] = go_306;
@@ -6451,7 +6451,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_306.raycastTarget = false;
         go_306.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_307 = new GameObject("FillOverlay");
         go_307.transform.SetParent(go_303.transform, false);
         _nodes[307] = go_307;
@@ -6474,7 +6474,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_307.raycastTarget = false;
         go_307.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_308 = new GameObject("icon");
         go_308.transform.SetParent(go_303.transform, false);
         _nodes[308] = go_308;
@@ -6492,7 +6492,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_308.type = (Image.Type)0;
         go_308.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_309 = new GameObject("amount");
         go_309.transform.SetParent(go_303.transform, false);
         _nodes[309] = go_309;
@@ -6510,7 +6510,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_309.type = (Image.Type)0;
         go_309.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_310 = new GameObject("durability");
         go_310.transform.SetParent(go_303.transform, false);
         _nodes[310] = go_310;
@@ -6528,7 +6528,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_310.type = (Image.Type)0;
         go_310.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_311 = new GameObject("bar");
         go_311.transform.SetParent(go_310.transform, false);
         _nodes[311] = go_311;
@@ -6546,7 +6546,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_311.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_312 = new GameObject("binding");
         go_312.transform.SetParent(go_303.transform, false);
         _nodes[312] = go_312;
@@ -6564,7 +6564,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_312.type = (Image.Type)0;
         go_312.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_313 = new GameObject("quality");
         go_313.transform.SetParent(go_303.transform, false);
         _nodes[313] = go_313;
@@ -6582,7 +6582,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_313.type = (Image.Type)0;
         go_313.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_314 = new GameObject("selected");
         go_314.transform.SetParent(go_303.transform, false);
         _nodes[314] = go_314;
@@ -6605,7 +6605,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_314.raycastTarget = false;
         go_314.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_315 = new GameObject("noteleport");
         go_315.transform.SetParent(go_303.transform, false);
         _nodes[315] = go_315;
@@ -6628,7 +6628,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_315.raycastTarget = false;
         go_315.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_316 = new GameObject("foodicon");
         go_316.transform.SetParent(go_303.transform, false);
         _nodes[316] = go_316;
@@ -6648,7 +6648,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_Shoulder" ??
+        // -- Panel: "Slot_Shoulder" --
         var go_317 = new GameObject("Slot_Shoulder");
         go_317.transform.SetParent(go_259.transform, false);
         _nodes[317] = go_317;
@@ -6666,7 +6666,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_317.raycastTarget = true;
         img_317.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_318 = new GameObject("Border");
         go_318.transform.SetParent(go_317.transform, false);
         _nodes[318] = go_318;
@@ -6684,7 +6684,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_318.type = (Image.Type)1;
         go_318.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_319 = new GameObject("Icon");
         go_319.transform.SetParent(go_317.transform, false);
         _nodes[319] = go_319;
@@ -6702,7 +6702,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_319.type = (Image.Type)0;
         go_319.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_320 = new GameObject("Label");
         go_320.transform.SetParent(go_317.transform, false);
         _nodes[320] = go_320;
@@ -6724,7 +6724,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_320.overflowMode = (TextOverflowModes)0;
         tmp_320.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_321 = new GameObject("ItemName");
         go_321.transform.SetParent(go_317.transform, false);
         _nodes[321] = go_321;
@@ -6747,7 +6747,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_321.raycastTarget = true;
         go_321.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_322 = new GameObject("InventoryElement(Clone)");
         go_322.transform.SetParent(go_317.transform, false);
         _nodes[322] = go_322;
@@ -6795,7 +6795,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_322.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_323 = new GameObject("Label");
         go_323.transform.SetParent(go_322.transform, false);
         _nodes[323] = go_323;
@@ -6813,7 +6813,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_323.type = (Image.Type)0;
         go_323.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_324 = new GameObject("equiped");
         go_324.transform.SetParent(go_322.transform, false);
         _nodes[324] = go_324;
@@ -6836,7 +6836,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_324.raycastTarget = false;
         go_324.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_325 = new GameObject("queued");
         go_325.transform.SetParent(go_322.transform, false);
         _nodes[325] = go_325;
@@ -6859,7 +6859,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_325.raycastTarget = false;
         go_325.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_326 = new GameObject("FillOverlay");
         go_326.transform.SetParent(go_322.transform, false);
         _nodes[326] = go_326;
@@ -6882,7 +6882,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_326.raycastTarget = false;
         go_326.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_327 = new GameObject("icon");
         go_327.transform.SetParent(go_322.transform, false);
         _nodes[327] = go_327;
@@ -6900,7 +6900,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_327.type = (Image.Type)0;
         go_327.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_328 = new GameObject("amount");
         go_328.transform.SetParent(go_322.transform, false);
         _nodes[328] = go_328;
@@ -6918,7 +6918,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_328.type = (Image.Type)0;
         go_328.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_329 = new GameObject("durability");
         go_329.transform.SetParent(go_322.transform, false);
         _nodes[329] = go_329;
@@ -6936,7 +6936,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_329.type = (Image.Type)0;
         go_329.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_330 = new GameObject("bar");
         go_330.transform.SetParent(go_329.transform, false);
         _nodes[330] = go_330;
@@ -6954,7 +6954,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_330.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_331 = new GameObject("binding");
         go_331.transform.SetParent(go_322.transform, false);
         _nodes[331] = go_331;
@@ -6972,7 +6972,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_331.type = (Image.Type)0;
         go_331.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_332 = new GameObject("quality");
         go_332.transform.SetParent(go_322.transform, false);
         _nodes[332] = go_332;
@@ -6990,7 +6990,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_332.type = (Image.Type)0;
         go_332.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_333 = new GameObject("selected");
         go_333.transform.SetParent(go_322.transform, false);
         _nodes[333] = go_333;
@@ -7013,7 +7013,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_333.raycastTarget = false;
         go_333.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_334 = new GameObject("noteleport");
         go_334.transform.SetParent(go_322.transform, false);
         _nodes[334] = go_334;
@@ -7036,7 +7036,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_334.raycastTarget = false;
         go_334.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_335 = new GameObject("foodicon");
         go_335.transform.SetParent(go_322.transform, false);
         _nodes[335] = go_335;
@@ -7056,7 +7056,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_RightBack" ??
+        // -- Panel: "Slot_RightBack" --
         var go_336 = new GameObject("Slot_RightBack");
         go_336.transform.SetParent(go_259.transform, false);
         _nodes[336] = go_336;
@@ -7074,7 +7074,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_336.raycastTarget = true;
         img_336.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_337 = new GameObject("Border");
         go_337.transform.SetParent(go_336.transform, false);
         _nodes[337] = go_337;
@@ -7092,7 +7092,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_337.type = (Image.Type)1;
         go_337.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_338 = new GameObject("Icon");
         go_338.transform.SetParent(go_336.transform, false);
         _nodes[338] = go_338;
@@ -7110,7 +7110,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_338.type = (Image.Type)0;
         go_338.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_339 = new GameObject("Label");
         go_339.transform.SetParent(go_336.transform, false);
         _nodes[339] = go_339;
@@ -7132,7 +7132,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_339.overflowMode = (TextOverflowModes)0;
         tmp_339.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_340 = new GameObject("ItemName");
         go_340.transform.SetParent(go_336.transform, false);
         _nodes[340] = go_340;
@@ -7155,7 +7155,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_340.raycastTarget = true;
         go_340.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_341 = new GameObject("InventoryElement(Clone)");
         go_341.transform.SetParent(go_336.transform, false);
         _nodes[341] = go_341;
@@ -7203,7 +7203,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_341.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_342 = new GameObject("Label");
         go_342.transform.SetParent(go_341.transform, false);
         _nodes[342] = go_342;
@@ -7221,7 +7221,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_342.type = (Image.Type)0;
         go_342.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_343 = new GameObject("equiped");
         go_343.transform.SetParent(go_341.transform, false);
         _nodes[343] = go_343;
@@ -7244,7 +7244,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_343.raycastTarget = false;
         go_343.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_344 = new GameObject("queued");
         go_344.transform.SetParent(go_341.transform, false);
         _nodes[344] = go_344;
@@ -7267,7 +7267,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_344.raycastTarget = false;
         go_344.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_345 = new GameObject("FillOverlay");
         go_345.transform.SetParent(go_341.transform, false);
         _nodes[345] = go_345;
@@ -7290,7 +7290,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_345.raycastTarget = false;
         go_345.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_346 = new GameObject("icon");
         go_346.transform.SetParent(go_341.transform, false);
         _nodes[346] = go_346;
@@ -7308,7 +7308,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_346.type = (Image.Type)0;
         go_346.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_347 = new GameObject("amount");
         go_347.transform.SetParent(go_341.transform, false);
         _nodes[347] = go_347;
@@ -7326,7 +7326,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_347.type = (Image.Type)0;
         go_347.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_348 = new GameObject("durability");
         go_348.transform.SetParent(go_341.transform, false);
         _nodes[348] = go_348;
@@ -7344,7 +7344,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_348.type = (Image.Type)0;
         go_348.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_349 = new GameObject("bar");
         go_349.transform.SetParent(go_348.transform, false);
         _nodes[349] = go_349;
@@ -7362,7 +7362,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_349.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_350 = new GameObject("binding");
         go_350.transform.SetParent(go_341.transform, false);
         _nodes[350] = go_350;
@@ -7380,7 +7380,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_350.type = (Image.Type)0;
         go_350.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_351 = new GameObject("quality");
         go_351.transform.SetParent(go_341.transform, false);
         _nodes[351] = go_351;
@@ -7398,7 +7398,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_351.type = (Image.Type)0;
         go_351.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_352 = new GameObject("selected");
         go_352.transform.SetParent(go_341.transform, false);
         _nodes[352] = go_352;
@@ -7421,7 +7421,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_352.raycastTarget = false;
         go_352.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_353 = new GameObject("noteleport");
         go_353.transform.SetParent(go_341.transform, false);
         _nodes[353] = go_353;
@@ -7444,7 +7444,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_353.raycastTarget = false;
         go_353.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_354 = new GameObject("foodicon");
         go_354.transform.SetParent(go_341.transform, false);
         _nodes[354] = go_354;
@@ -7464,7 +7464,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_RightHand" ??
+        // -- Panel: "Slot_RightHand" --
         var go_355 = new GameObject("Slot_RightHand");
         go_355.transform.SetParent(go_259.transform, false);
         _nodes[355] = go_355;
@@ -7482,7 +7482,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_355.raycastTarget = true;
         img_355.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_356 = new GameObject("Border");
         go_356.transform.SetParent(go_355.transform, false);
         _nodes[356] = go_356;
@@ -7500,7 +7500,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_356.type = (Image.Type)1;
         go_356.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_357 = new GameObject("Icon");
         go_357.transform.SetParent(go_355.transform, false);
         _nodes[357] = go_357;
@@ -7518,7 +7518,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_357.type = (Image.Type)0;
         go_357.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_358 = new GameObject("Label");
         go_358.transform.SetParent(go_355.transform, false);
         _nodes[358] = go_358;
@@ -7540,7 +7540,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_358.overflowMode = (TextOverflowModes)0;
         tmp_358.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_359 = new GameObject("ItemName");
         go_359.transform.SetParent(go_355.transform, false);
         _nodes[359] = go_359;
@@ -7563,7 +7563,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_359.raycastTarget = true;
         go_359.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_360 = new GameObject("InventoryElement(Clone)");
         go_360.transform.SetParent(go_355.transform, false);
         _nodes[360] = go_360;
@@ -7611,7 +7611,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_360.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_361 = new GameObject("Label");
         go_361.transform.SetParent(go_360.transform, false);
         _nodes[361] = go_361;
@@ -7629,7 +7629,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_361.type = (Image.Type)0;
         go_361.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_362 = new GameObject("equiped");
         go_362.transform.SetParent(go_360.transform, false);
         _nodes[362] = go_362;
@@ -7652,7 +7652,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_362.raycastTarget = false;
         go_362.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_363 = new GameObject("queued");
         go_363.transform.SetParent(go_360.transform, false);
         _nodes[363] = go_363;
@@ -7675,7 +7675,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_363.raycastTarget = false;
         go_363.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_364 = new GameObject("FillOverlay");
         go_364.transform.SetParent(go_360.transform, false);
         _nodes[364] = go_364;
@@ -7698,7 +7698,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_364.raycastTarget = false;
         go_364.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_365 = new GameObject("icon");
         go_365.transform.SetParent(go_360.transform, false);
         _nodes[365] = go_365;
@@ -7716,7 +7716,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_365.type = (Image.Type)0;
         go_365.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_366 = new GameObject("amount");
         go_366.transform.SetParent(go_360.transform, false);
         _nodes[366] = go_366;
@@ -7734,7 +7734,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_366.type = (Image.Type)0;
         go_366.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_367 = new GameObject("durability");
         go_367.transform.SetParent(go_360.transform, false);
         _nodes[367] = go_367;
@@ -7752,7 +7752,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_367.type = (Image.Type)0;
         go_367.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_368 = new GameObject("bar");
         go_368.transform.SetParent(go_367.transform, false);
         _nodes[368] = go_368;
@@ -7770,7 +7770,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_368.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_369 = new GameObject("binding");
         go_369.transform.SetParent(go_360.transform, false);
         _nodes[369] = go_369;
@@ -7788,7 +7788,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_369.type = (Image.Type)0;
         go_369.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_370 = new GameObject("quality");
         go_370.transform.SetParent(go_360.transform, false);
         _nodes[370] = go_370;
@@ -7806,7 +7806,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_370.type = (Image.Type)0;
         go_370.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_371 = new GameObject("selected");
         go_371.transform.SetParent(go_360.transform, false);
         _nodes[371] = go_371;
@@ -7829,7 +7829,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_371.raycastTarget = false;
         go_371.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_372 = new GameObject("noteleport");
         go_372.transform.SetParent(go_360.transform, false);
         _nodes[372] = go_372;
@@ -7852,7 +7852,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_372.raycastTarget = false;
         go_372.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_373 = new GameObject("foodicon");
         go_373.transform.SetParent(go_360.transform, false);
         _nodes[373] = go_373;
@@ -7872,7 +7872,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_Chest" ??
+        // -- Panel: "Slot_Chest" --
         var go_374 = new GameObject("Slot_Chest");
         go_374.transform.SetParent(go_259.transform, false);
         _nodes[374] = go_374;
@@ -7890,7 +7890,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_374.raycastTarget = true;
         img_374.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_375 = new GameObject("Border");
         go_375.transform.SetParent(go_374.transform, false);
         _nodes[375] = go_375;
@@ -7908,7 +7908,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_375.type = (Image.Type)1;
         go_375.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_376 = new GameObject("Icon");
         go_376.transform.SetParent(go_374.transform, false);
         _nodes[376] = go_376;
@@ -7926,7 +7926,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_376.type = (Image.Type)0;
         go_376.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_377 = new GameObject("Label");
         go_377.transform.SetParent(go_374.transform, false);
         _nodes[377] = go_377;
@@ -7948,7 +7948,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_377.overflowMode = (TextOverflowModes)0;
         tmp_377.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_378 = new GameObject("ItemName");
         go_378.transform.SetParent(go_374.transform, false);
         _nodes[378] = go_378;
@@ -7971,7 +7971,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_378.raycastTarget = true;
         go_378.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_379 = new GameObject("InventoryElement(Clone)");
         go_379.transform.SetParent(go_374.transform, false);
         _nodes[379] = go_379;
@@ -8019,7 +8019,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_379.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_380 = new GameObject("Label");
         go_380.transform.SetParent(go_379.transform, false);
         _nodes[380] = go_380;
@@ -8037,7 +8037,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_380.type = (Image.Type)0;
         go_380.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_381 = new GameObject("equiped");
         go_381.transform.SetParent(go_379.transform, false);
         _nodes[381] = go_381;
@@ -8060,7 +8060,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_381.raycastTarget = false;
         go_381.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_382 = new GameObject("queued");
         go_382.transform.SetParent(go_379.transform, false);
         _nodes[382] = go_382;
@@ -8083,7 +8083,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_382.raycastTarget = false;
         go_382.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_383 = new GameObject("FillOverlay");
         go_383.transform.SetParent(go_379.transform, false);
         _nodes[383] = go_383;
@@ -8106,7 +8106,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_383.raycastTarget = false;
         go_383.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_384 = new GameObject("icon");
         go_384.transform.SetParent(go_379.transform, false);
         _nodes[384] = go_384;
@@ -8124,7 +8124,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_384.type = (Image.Type)0;
         go_384.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_385 = new GameObject("amount");
         go_385.transform.SetParent(go_379.transform, false);
         _nodes[385] = go_385;
@@ -8142,7 +8142,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_385.type = (Image.Type)0;
         go_385.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_386 = new GameObject("durability");
         go_386.transform.SetParent(go_379.transform, false);
         _nodes[386] = go_386;
@@ -8160,7 +8160,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_386.type = (Image.Type)0;
         go_386.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_387 = new GameObject("bar");
         go_387.transform.SetParent(go_386.transform, false);
         _nodes[387] = go_387;
@@ -8178,7 +8178,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_387.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_388 = new GameObject("binding");
         go_388.transform.SetParent(go_379.transform, false);
         _nodes[388] = go_388;
@@ -8196,7 +8196,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_388.type = (Image.Type)0;
         go_388.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_389 = new GameObject("quality");
         go_389.transform.SetParent(go_379.transform, false);
         _nodes[389] = go_389;
@@ -8214,7 +8214,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_389.type = (Image.Type)0;
         go_389.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_390 = new GameObject("selected");
         go_390.transform.SetParent(go_379.transform, false);
         _nodes[390] = go_390;
@@ -8237,7 +8237,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_390.raycastTarget = false;
         go_390.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_391 = new GameObject("noteleport");
         go_391.transform.SetParent(go_379.transform, false);
         _nodes[391] = go_391;
@@ -8260,7 +8260,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_391.raycastTarget = false;
         go_391.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_392 = new GameObject("foodicon");
         go_392.transform.SetParent(go_379.transform, false);
         _nodes[392] = go_392;
@@ -8280,7 +8280,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_Utility" ??
+        // -- Panel: "Slot_Utility" --
         var go_393 = new GameObject("Slot_Utility");
         go_393.transform.SetParent(go_259.transform, false);
         _nodes[393] = go_393;
@@ -8298,7 +8298,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_393.raycastTarget = true;
         img_393.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_394 = new GameObject("Border");
         go_394.transform.SetParent(go_393.transform, false);
         _nodes[394] = go_394;
@@ -8316,7 +8316,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_394.type = (Image.Type)1;
         go_394.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_395 = new GameObject("Icon");
         go_395.transform.SetParent(go_393.transform, false);
         _nodes[395] = go_395;
@@ -8334,7 +8334,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_395.type = (Image.Type)0;
         go_395.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_396 = new GameObject("Label");
         go_396.transform.SetParent(go_393.transform, false);
         _nodes[396] = go_396;
@@ -8356,7 +8356,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_396.overflowMode = (TextOverflowModes)0;
         tmp_396.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_397 = new GameObject("ItemName");
         go_397.transform.SetParent(go_393.transform, false);
         _nodes[397] = go_397;
@@ -8379,7 +8379,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_397.raycastTarget = true;
         go_397.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_398 = new GameObject("InventoryElement(Clone)");
         go_398.transform.SetParent(go_393.transform, false);
         _nodes[398] = go_398;
@@ -8427,7 +8427,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_398.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_399 = new GameObject("Label");
         go_399.transform.SetParent(go_398.transform, false);
         _nodes[399] = go_399;
@@ -8445,7 +8445,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_399.type = (Image.Type)0;
         go_399.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_400 = new GameObject("equiped");
         go_400.transform.SetParent(go_398.transform, false);
         _nodes[400] = go_400;
@@ -8468,7 +8468,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_400.raycastTarget = false;
         go_400.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_401 = new GameObject("queued");
         go_401.transform.SetParent(go_398.transform, false);
         _nodes[401] = go_401;
@@ -8491,7 +8491,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_401.raycastTarget = false;
         go_401.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_402 = new GameObject("FillOverlay");
         go_402.transform.SetParent(go_398.transform, false);
         _nodes[402] = go_402;
@@ -8514,7 +8514,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_402.raycastTarget = false;
         go_402.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_403 = new GameObject("icon");
         go_403.transform.SetParent(go_398.transform, false);
         _nodes[403] = go_403;
@@ -8532,7 +8532,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_403.type = (Image.Type)0;
         go_403.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_404 = new GameObject("amount");
         go_404.transform.SetParent(go_398.transform, false);
         _nodes[404] = go_404;
@@ -8550,7 +8550,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_404.type = (Image.Type)0;
         go_404.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_405 = new GameObject("durability");
         go_405.transform.SetParent(go_398.transform, false);
         _nodes[405] = go_405;
@@ -8568,7 +8568,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_405.type = (Image.Type)0;
         go_405.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_406 = new GameObject("bar");
         go_406.transform.SetParent(go_405.transform, false);
         _nodes[406] = go_406;
@@ -8586,7 +8586,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_406.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_407 = new GameObject("binding");
         go_407.transform.SetParent(go_398.transform, false);
         _nodes[407] = go_407;
@@ -8604,7 +8604,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_407.type = (Image.Type)0;
         go_407.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_408 = new GameObject("quality");
         go_408.transform.SetParent(go_398.transform, false);
         _nodes[408] = go_408;
@@ -8622,7 +8622,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_408.type = (Image.Type)0;
         go_408.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_409 = new GameObject("selected");
         go_409.transform.SetParent(go_398.transform, false);
         _nodes[409] = go_409;
@@ -8645,7 +8645,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_409.raycastTarget = false;
         go_409.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_410 = new GameObject("noteleport");
         go_410.transform.SetParent(go_398.transform, false);
         _nodes[410] = go_410;
@@ -8668,7 +8668,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_410.raycastTarget = false;
         go_410.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_411 = new GameObject("foodicon");
         go_411.transform.SetParent(go_398.transform, false);
         _nodes[411] = go_411;
@@ -8688,7 +8688,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Slot_Legs" ??
+        // -- Panel: "Slot_Legs" --
         var go_412 = new GameObject("Slot_Legs");
         go_412.transform.SetParent(go_259.transform, false);
         _nodes[412] = go_412;
@@ -8706,7 +8706,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_412.raycastTarget = true;
         img_412.type = (Image.Type)0;
 
-        // ?? Panel: "Border" ??
+        // -- Panel: "Border" --
         var go_413 = new GameObject("Border");
         go_413.transform.SetParent(go_412.transform, false);
         _nodes[413] = go_413;
@@ -8724,7 +8724,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_413.type = (Image.Type)1;
         go_413.SetActive(false);
 
-        // ?? Panel: "Icon" ??
+        // -- Panel: "Icon" --
         var go_414 = new GameObject("Icon");
         go_414.transform.SetParent(go_412.transform, false);
         _nodes[414] = go_414;
@@ -8742,7 +8742,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_414.type = (Image.Type)0;
         go_414.SetActive(false);
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_415 = new GameObject("Label");
         go_415.transform.SetParent(go_412.transform, false);
         _nodes[415] = go_415;
@@ -8764,7 +8764,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_415.overflowMode = (TextOverflowModes)0;
         tmp_415.raycastTarget = true;
 
-        // ?? Text: "ItemName" ??
+        // -- Text: "ItemName" --
         var go_416 = new GameObject("ItemName");
         go_416.transform.SetParent(go_412.transform, false);
         _nodes[416] = go_416;
@@ -8787,7 +8787,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_416.raycastTarget = true;
         go_416.SetActive(false);
 
-        // ?? Button: "InventoryElement(Clone)" ??
+        // -- Button: "InventoryElement(Clone)" --
         var go_417 = new GameObject("InventoryElement(Clone)");
         go_417.transform.SetParent(go_412.transform, false);
         _nodes[417] = go_417;
@@ -8835,7 +8835,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_417.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_418 = new GameObject("Label");
         go_418.transform.SetParent(go_417.transform, false);
         _nodes[418] = go_418;
@@ -8853,7 +8853,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_418.type = (Image.Type)0;
         go_418.SetActive(false);
 
-        // ?? Image: "equiped" ??
+        // -- Image: "equiped" --
         var go_419 = new GameObject("equiped");
         go_419.transform.SetParent(go_417.transform, false);
         _nodes[419] = go_419;
@@ -8876,7 +8876,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_419.raycastTarget = false;
         go_419.SetActive(false);
 
-        // ?? Image: "queued" ??
+        // -- Image: "queued" --
         var go_420 = new GameObject("queued");
         go_420.transform.SetParent(go_417.transform, false);
         _nodes[420] = go_420;
@@ -8899,7 +8899,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_420.raycastTarget = false;
         go_420.SetActive(false);
 
-        // ?? Image: "FillOverlay" ??
+        // -- Image: "FillOverlay" --
         var go_421 = new GameObject("FillOverlay");
         go_421.transform.SetParent(go_417.transform, false);
         _nodes[421] = go_421;
@@ -8922,7 +8922,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_421.raycastTarget = false;
         go_421.SetActive(false);
 
-        // ?? Panel: "icon" ??
+        // -- Panel: "icon" --
         var go_422 = new GameObject("icon");
         go_422.transform.SetParent(go_417.transform, false);
         _nodes[422] = go_422;
@@ -8940,7 +8940,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_422.type = (Image.Type)0;
         go_422.SetActive(false);
 
-        // ?? Panel: "amount" ??
+        // -- Panel: "amount" --
         var go_423 = new GameObject("amount");
         go_423.transform.SetParent(go_417.transform, false);
         _nodes[423] = go_423;
@@ -8958,7 +8958,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_423.type = (Image.Type)0;
         go_423.SetActive(false);
 
-        // ?? Panel: "durability" ??
+        // -- Panel: "durability" --
         var go_424 = new GameObject("durability");
         go_424.transform.SetParent(go_417.transform, false);
         _nodes[424] = go_424;
@@ -8976,7 +8976,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_424.type = (Image.Type)0;
         go_424.SetActive(false);
 
-        // ?? Panel: "bar" ??
+        // -- Panel: "bar" --
         var go_425 = new GameObject("bar");
         go_425.transform.SetParent(go_424.transform, false);
         _nodes[425] = go_425;
@@ -8994,7 +8994,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_425.type = (Image.Type)0;
 
 
-        // ?? Panel: "binding" ??
+        // -- Panel: "binding" --
         var go_426 = new GameObject("binding");
         go_426.transform.SetParent(go_417.transform, false);
         _nodes[426] = go_426;
@@ -9012,7 +9012,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_426.type = (Image.Type)0;
         go_426.SetActive(false);
 
-        // ?? Panel: "quality" ??
+        // -- Panel: "quality" --
         var go_427 = new GameObject("quality");
         go_427.transform.SetParent(go_417.transform, false);
         _nodes[427] = go_427;
@@ -9030,7 +9030,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_427.type = (Image.Type)0;
         go_427.SetActive(false);
 
-        // ?? Image: "selected" ??
+        // -- Image: "selected" --
         var go_428 = new GameObject("selected");
         go_428.transform.SetParent(go_417.transform, false);
         _nodes[428] = go_428;
@@ -9053,7 +9053,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_428.raycastTarget = false;
         go_428.SetActive(false);
 
-        // ?? Image: "noteleport" ??
+        // -- Image: "noteleport" --
         var go_429 = new GameObject("noteleport");
         go_429.transform.SetParent(go_417.transform, false);
         _nodes[429] = go_429;
@@ -9076,7 +9076,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_429.raycastTarget = false;
         go_429.SetActive(false);
 
-        // ?? Panel: "foodicon" ??
+        // -- Panel: "foodicon" --
         var go_430 = new GameObject("foodicon");
         go_430.transform.SetParent(go_417.transform, false);
         _nodes[430] = go_430;
@@ -9098,7 +9098,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "DialogueEditorScreen" ??
+        // -- Panel: "DialogueEditorScreen" --
         var go_431 = new GameObject("DialogueEditorScreen");
         go_431.transform.SetParent(go_1.transform, false);
         _nodes[431] = go_431;
@@ -9117,7 +9117,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_431.type = (Image.Type)0;
         go_431.SetActive(false);
 
-        // ?? Button: "BackBtn" ??
+        // -- Button: "BackBtn" --
         var go_432 = new GameObject("BackBtn");
         go_432.transform.SetParent(go_431.transform, false);
         _nodes[432] = go_432;
@@ -9166,7 +9166,7 @@ public static partial class GeneratedUI_completecompanionsui
         // btn_432.onClick.AddListener(() => { });
         go_432.SetActive(false);
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_433 = new GameObject("Label");
         go_433.transform.SetParent(go_432.transform, false);
         _nodes[433] = go_433;
@@ -9183,7 +9183,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_433.raycastTarget = false;
         img_433.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_434 = new GameObject("Text");
         go_434.transform.SetParent(go_432.transform, false);
         _nodes[434] = go_434;
@@ -9201,7 +9201,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_434.type = (Image.Type)0;
 
 
-        // ?? ScrollView: "Sidebar" ??
+        // -- ScrollView: "Sidebar" --
         var go_435 = new GameObject("Sidebar");
         go_435.transform.SetParent(go_431.transform, false);
         _nodes[435] = go_435;
@@ -9254,7 +9254,7 @@ public static partial class GeneratedUI_completecompanionsui
         vlg_435.childForceExpandWidth = true;
         vlg_435.childForceExpandHeight = false;
 
-        // ?? Button: "Item_ask_about_goods" ??
+        // -- Button: "Item_ask_about_goods" --
         var go_436 = new GameObject("Item_ask_about_goods");
         go_436.transform.SetParent(svContent_435.transform, false);
         _nodes[436] = go_436;
@@ -9301,7 +9301,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_436.onClick.AddListener(() => { });
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_437 = new GameObject("Text");
         go_437.transform.SetParent(go_436.transform, false);
         _nodes[437] = go_437;
@@ -9319,7 +9319,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_437.type = (Image.Type)0;
 
 
-        // ?? Button: "Item_ask_about_rumors" ??
+        // -- Button: "Item_ask_about_rumors" --
         var go_438 = new GameObject("Item_ask_about_rumors");
         go_438.transform.SetParent(svContent_435.transform, false);
         _nodes[438] = go_438;
@@ -9370,7 +9370,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_438.preferredHeight = 28f;
         le_438.flexibleWidth = 1f;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_439 = new GameObject("Text");
         go_439.transform.SetParent(go_438.transform, false);
         _nodes[439] = go_439;
@@ -9388,7 +9388,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_439.type = (Image.Type)0;
 
 
-        // ?? Button: "Item_farewell" ??
+        // -- Button: "Item_farewell" --
         var go_440 = new GameObject("Item_farewell");
         go_440.transform.SetParent(svContent_435.transform, false);
         _nodes[440] = go_440;
@@ -9439,7 +9439,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_440.preferredHeight = 28f;
         le_440.flexibleWidth = 1f;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_441 = new GameObject("Text");
         go_441.transform.SetParent(go_440.transform, false);
         _nodes[441] = go_441;
@@ -9457,7 +9457,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_441.type = (Image.Type)0;
 
 
-        // ?? Button: "Item_greeting_main" ??
+        // -- Button: "Item_greeting_main" --
         var go_442 = new GameObject("Item_greeting_main");
         go_442.transform.SetParent(svContent_435.transform, false);
         _nodes[442] = go_442;
@@ -9508,7 +9508,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_442.preferredHeight = 28f;
         le_442.flexibleWidth = 1f;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_443 = new GameObject("Text");
         go_443.transform.SetParent(go_442.transform, false);
         _nodes[443] = go_443;
@@ -9526,7 +9526,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_443.type = (Image.Type)0;
 
 
-        // ?? Button: "Item_quest_complete_thanks" ??
+        // -- Button: "Item_quest_complete_thanks" --
         var go_444 = new GameObject("Item_quest_complete_thanks");
         go_444.transform.SetParent(svContent_435.transform, false);
         _nodes[444] = go_444;
@@ -9577,7 +9577,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_444.preferredHeight = 28f;
         le_444.flexibleWidth = 1f;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_445 = new GameObject("Text");
         go_445.transform.SetParent(go_444.transform, false);
         _nodes[445] = go_445;
@@ -9595,7 +9595,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_445.type = (Image.Type)0;
 
 
-        // ?? Button: "Item_sample_dialogue" ??
+        // -- Button: "Item_sample_dialogue" --
         var go_446 = new GameObject("Item_sample_dialogue");
         go_446.transform.SetParent(svContent_435.transform, false);
         _nodes[446] = go_446;
@@ -9646,7 +9646,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_446.preferredHeight = 28f;
         le_446.flexibleWidth = 1f;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_447 = new GameObject("Text");
         go_447.transform.SetParent(go_446.transform, false);
         _nodes[447] = go_447;
@@ -9665,7 +9665,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Button: "NewBtn" ??
+        // -- Button: "NewBtn" --
         var go_448 = new GameObject("NewBtn");
         go_448.transform.SetParent(go_431.transform, false);
         _nodes[448] = go_448;
@@ -9712,7 +9712,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_448.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_449 = new GameObject("Label");
         go_449.transform.SetParent(go_448.transform, false);
         _nodes[449] = go_449;
@@ -9729,7 +9729,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_449.raycastTarget = false;
         img_449.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_450 = new GameObject("Text");
         go_450.transform.SetParent(go_448.transform, false);
         _nodes[450] = go_450;
@@ -9747,7 +9747,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_450.type = (Image.Type)0;
 
 
-        // ?? ScrollView: "FormScroll" ??
+        // -- ScrollView: "FormScroll" --
         var go_451 = new GameObject("FormScroll");
         go_451.transform.SetParent(go_431.transform, false);
         _nodes[451] = go_451;
@@ -9792,7 +9792,7 @@ public static partial class GeneratedUI_completecompanionsui
         scrollRect_451.scrollSensitivity = 30f;
         scrollRect_451.elasticity = 0.1f;
 
-        // ?? Panel: "Row_UID:" ??
+        // -- Panel: "Row_UID:" --
         var go_452 = new GameObject("Row_UID:");
         go_452.transform.SetParent(svContent_451.transform, false);
         _nodes[452] = go_452;
@@ -9812,7 +9812,7 @@ public static partial class GeneratedUI_completecompanionsui
         var le_452 = go_452.AddComponent<LayoutElement>();
         le_452.preferredHeight = 26f;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_453 = new GameObject("Label");
         go_453.transform.SetParent(go_452.transform, false);
         _nodes[453] = go_453;
@@ -9834,7 +9834,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_453.overflowMode = (TextOverflowModes)0;
         tmp_453.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_454 = new GameObject("Input");
         go_454.transform.SetParent(go_452.transform, false);
         _nodes[454] = go_454;
@@ -9903,7 +9903,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "Row_BG Image:" ??
+        // -- Panel: "Row_BG Image:" --
         var go_459 = new GameObject("Row_BG Image:");
         go_459.transform.SetParent(svContent_451.transform, false);
         _nodes[459] = go_459;
@@ -9923,7 +9923,7 @@ public static partial class GeneratedUI_completecompanionsui
         var le_459 = go_459.AddComponent<LayoutElement>();
         le_459.preferredHeight = 26f;
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_460 = new GameObject("Label");
         go_460.transform.SetParent(go_459.transform, false);
         _nodes[460] = go_460;
@@ -9945,7 +9945,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_460.overflowMode = (TextOverflowModes)0;
         tmp_460.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_461 = new GameObject("Input");
         go_461.transform.SetParent(go_459.transform, false);
         _nodes[461] = go_461;
@@ -10014,7 +10014,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Text: "Lbl_NPC Text:" ??
+        // -- Text: "Lbl_NPC Text:" --
         var go_466 = new GameObject("Lbl_NPC Text:");
         go_466.transform.SetParent(svContent_451.transform, false);
         _nodes[466] = go_466;
@@ -10039,7 +10039,7 @@ public static partial class GeneratedUI_completecompanionsui
         var le_466 = go_466.AddComponent<LayoutElement>();
         le_466.preferredHeight = 20f;
 
-        // ?? InputField: "MultiInput" ??
+        // -- InputField: "MultiInput" --
         var go_467 = new GameObject("MultiInput");
         go_467.transform.SetParent(svContent_451.transform, false);
         _nodes[467] = go_467;
@@ -10109,7 +10109,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_467.preferredHeight = 80f;
 
 
-        // ?? Text: "CL_?? Options / Interactions ??" ??
+        // -- Text: "CL_?? Options / Interactions ??" --
         var go_472 = new GameObject("CL_?? Options / Interactions ??");
         go_472.transform.SetParent(svContent_451.transform, false);
         _nodes[472] = go_472;
@@ -10123,7 +10123,7 @@ public static partial class GeneratedUI_completecompanionsui
         _pathLookup["Root/FiresRPGmaker_NpcPanel/DialogueEditorScreen/FormScroll/CL_?? Options / Interactions ??"] = go_472;
         _tagLookup["CL_?? Options / Interactions ??"] = go_472;
         var tmp_472 = go_472.AddComponent<TextMeshProUGUI>();
-        tmp_472.text = "?? Options / Interactions ??";
+        tmp_472.text = "-- Options / Interactions --";
         tmp_472.fontSize = 12f;
         tmp_472.fontStyle = (FontStyles)0;
         tmp_472.color = new Color(0.9f, 0.75f, 0.45f, 1f);
@@ -10135,7 +10135,7 @@ public static partial class GeneratedUI_completecompanionsui
         var le_472 = go_472.AddComponent<LayoutElement>();
         le_472.preferredHeight = 20f;
 
-        // ?? Button: "AddOptionBtn" ??
+        // -- Button: "AddOptionBtn" --
         var go_473 = new GameObject("AddOptionBtn");
         go_473.transform.SetParent(svContent_451.transform, false);
         _nodes[473] = go_473;
@@ -10185,7 +10185,7 @@ public static partial class GeneratedUI_completecompanionsui
         var le_473 = go_473.AddComponent<LayoutElement>();
         le_473.preferredHeight = 24f;
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_474 = new GameObject("Label");
         go_474.transform.SetParent(go_473.transform, false);
         _nodes[474] = go_474;
@@ -10202,7 +10202,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_474.raycastTarget = false;
         img_474.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_475 = new GameObject("Text");
         go_475.transform.SetParent(go_473.transform, false);
         _nodes[475] = go_475;
@@ -10220,7 +10220,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_475.type = (Image.Type)0;
 
 
-        // ?? Spacer: "OptionsContainer" ??
+        // -- Spacer: "OptionsContainer" --
         var go_476 = new GameObject("OptionsContainer");
         go_476.transform.SetParent(svContent_451.transform, false);
         _nodes[476] = go_476;
@@ -10249,7 +10249,7 @@ public static partial class GeneratedUI_completecompanionsui
         csf_476.verticalFit = (ContentSizeFitter.FitMode)2;
 
 
-        // ?? Panel: "BottomBar" ??
+        // -- Panel: "BottomBar" --
         var go_477 = new GameObject("BottomBar");
         go_477.transform.SetParent(go_431.transform, false);
         _nodes[477] = go_477;
@@ -10267,7 +10267,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_477.raycastTarget = false;
         img_477.type = (Image.Type)0;
 
-        // ?? Button: "SaveBtn" ??
+        // -- Button: "SaveBtn" --
         var go_478 = new GameObject("SaveBtn");
         go_478.transform.SetParent(go_477.transform, false);
         _nodes[478] = go_478;
@@ -10314,7 +10314,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_478.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_479 = new GameObject("Label");
         go_479.transform.SetParent(go_478.transform, false);
         _nodes[479] = go_479;
@@ -10331,7 +10331,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_479.raycastTarget = false;
         img_479.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_480 = new GameObject("Text");
         go_480.transform.SetParent(go_478.transform, false);
         _nodes[480] = go_480;
@@ -10349,7 +10349,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_480.type = (Image.Type)0;
 
 
-        // ?? Button: "DeleteBtn" ??
+        // -- Button: "DeleteBtn" --
         var go_481 = new GameObject("DeleteBtn");
         go_481.transform.SetParent(go_477.transform, false);
         _nodes[481] = go_481;
@@ -10396,7 +10396,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_481.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_482 = new GameObject("Label");
         go_482.transform.SetParent(go_481.transform, false);
         _nodes[482] = go_482;
@@ -10413,7 +10413,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_482.raycastTarget = false;
         img_482.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_483 = new GameObject("Text");
         go_483.transform.SetParent(go_481.transform, false);
         _nodes[483] = go_483;
@@ -10431,7 +10431,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_483.type = (Image.Type)0;
 
 
-        // ?? Button: "PreviewBtn" ??
+        // -- Button: "PreviewBtn" --
         var go_484 = new GameObject("PreviewBtn");
         go_484.transform.SetParent(go_477.transform, false);
         _nodes[484] = go_484;
@@ -10478,7 +10478,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_484.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_485 = new GameObject("Label");
         go_485.transform.SetParent(go_484.transform, false);
         _nodes[485] = go_485;
@@ -10495,7 +10495,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_485.raycastTarget = false;
         img_485.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_486 = new GameObject("Text");
         go_486.transform.SetParent(go_484.transform, false);
         _nodes[486] = go_486;
@@ -10513,7 +10513,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_486.type = (Image.Type)0;
 
 
-        // ?? Text: "Status" ??
+        // -- Text: "Status" --
         var go_487 = new GameObject("Status");
         go_487.transform.SetParent(go_477.transform, false);
         _nodes[487] = go_487;
@@ -10538,7 +10538,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "QuestScreenContainer" ??
+        // -- Panel: "QuestScreenContainer" --
         var go_488 = new GameObject("QuestScreenContainer");
         go_488.transform.SetParent(go_1.transform, false);
         _nodes[488] = go_488;
@@ -10557,7 +10557,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_488.type = (Image.Type)0;
         go_488.SetActive(false);
 
-        // ?? Panel: "QuestListPanel" ??
+        // -- Panel: "QuestListPanel" --
         var go_489 = new GameObject("QuestListPanel");
         go_489.transform.SetParent(go_488.transform, false);
         _nodes[489] = go_489;
@@ -10576,7 +10576,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_489.type = (Image.Type)0;
         go_489.SetActive(false);
 
-        // ?? Text: "Title" ??
+        // -- Text: "Title" --
         var go_490 = new GameObject("Title");
         go_490.transform.SetParent(go_489.transform, false);
         _nodes[490] = go_490;
@@ -10599,7 +10599,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_490.overflowMode = (TextOverflowModes)0;
         tmp_490.raycastTarget = true;
 
-        // ?? ScrollView: "QuestListScroll" ??
+        // -- ScrollView: "QuestListScroll" --
         var go_491 = new GameObject("QuestListScroll");
         go_491.transform.SetParent(go_489.transform, false);
         _nodes[491] = go_491;
@@ -10644,7 +10644,7 @@ public static partial class GeneratedUI_completecompanionsui
         scrollRect_491.scrollSensitivity = 120f;
         scrollRect_491.elasticity = 0.1f;
 
-        // ?? Panel: "Scrollbar" ??
+        // -- Panel: "Scrollbar" --
         var go_492 = new GameObject("Scrollbar");
         go_492.transform.SetParent(svContent_491.transform, false);
         _nodes[492] = go_492;
@@ -10661,7 +10661,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_492.raycastTarget = true;
         img_492.type = (Image.Type)0;
 
-        // ?? Panel: "SlidingArea" ??
+        // -- Panel: "SlidingArea" --
         var go_493 = new GameObject("SlidingArea");
         go_493.transform.SetParent(go_492.transform, false);
         _nodes[493] = go_493;
@@ -10678,7 +10678,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_493.raycastTarget = false;
         img_493.type = (Image.Type)0;
 
-        // ?? Panel: "Handle" ??
+        // -- Panel: "Handle" --
         var go_494 = new GameObject("Handle");
         go_494.transform.SetParent(go_493.transform, false);
         _nodes[494] = go_494;
@@ -10699,7 +10699,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "QuestDetailsPanel" ??
+        // -- Panel: "QuestDetailsPanel" --
         var go_495 = new GameObject("QuestDetailsPanel");
         go_495.transform.SetParent(go_488.transform, false);
         _nodes[495] = go_495;
@@ -10717,7 +10717,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_495.raycastTarget = true;
         img_495.type = (Image.Type)0;
 
-        // ?? Panel: "PNG" ??
+        // -- Panel: "PNG" --
         var go_496 = new GameObject("PNG");
         go_496.transform.SetParent(go_495.transform, false);
         _nodes[496] = go_496;
@@ -10734,7 +10734,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_496.raycastTarget = true;
         img_496.type = (Image.Type)0;
 
-        // ?? Image: "PreviewImage" ??
+        // -- Image: "PreviewImage" --
         var go_497 = new GameObject("PreviewImage");
         go_497.transform.SetParent(go_496.transform, false);
         _nodes[497] = go_497;
@@ -10756,7 +10756,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_497.enabled = false;
         img_497.raycastTarget = true;
 
-        // ?? Text: "Placeholder" ??
+        // -- Text: "Placeholder" --
         var go_498 = new GameObject("Placeholder");
         go_498.transform.SetParent(go_496.transform, false);
         _nodes[498] = go_498;
@@ -10779,7 +10779,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_498.raycastTarget = true;
 
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_499 = new GameObject("Label");
         go_499.transform.SetParent(go_495.transform, false);
         _nodes[499] = go_499;
@@ -10801,7 +10801,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_499.overflowMode = (TextOverflowModes)0;
         tmp_499.raycastTarget = true;
 
-        // ?? ScrollView: "DescriptionScrollArea" ??
+        // -- ScrollView: "DescriptionScrollArea" --
         var go_500 = new GameObject("DescriptionScrollArea");
         go_500.transform.SetParent(go_495.transform, false);
         _nodes[500] = go_500;
@@ -10846,7 +10846,7 @@ public static partial class GeneratedUI_completecompanionsui
         scrollRect_500.scrollSensitivity = 120f;
         scrollRect_500.elasticity = 0.1f;
 
-        // ?? Text: "DescriptionText" ??
+        // -- Text: "DescriptionText" --
         var go_501 = new GameObject("DescriptionText");
         go_501.transform.SetParent(svContent_500.transform, false);
         _nodes[501] = go_501;
@@ -10875,7 +10875,7 @@ public static partial class GeneratedUI_completecompanionsui
         csf_501.horizontalFit = (ContentSizeFitter.FitMode)0;
         csf_501.verticalFit = (ContentSizeFitter.FitMode)2;
 
-        // ?? Panel: "Scrollbar" ??
+        // -- Panel: "Scrollbar" --
         var go_502 = new GameObject("Scrollbar");
         go_502.transform.SetParent(svContent_500.transform, false);
         _nodes[502] = go_502;
@@ -10892,7 +10892,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_502.raycastTarget = true;
         img_502.type = (Image.Type)0;
 
-        // ?? Panel: "SlidingArea" ??
+        // -- Panel: "SlidingArea" --
         var go_503 = new GameObject("SlidingArea");
         go_503.transform.SetParent(go_502.transform, false);
         _nodes[503] = go_503;
@@ -10909,7 +10909,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_503.raycastTarget = false;
         img_503.type = (Image.Type)0;
 
-        // ?? Panel: "Handle" ??
+        // -- Panel: "Handle" --
         var go_504 = new GameObject("Handle");
         go_504.transform.SetParent(go_503.transform, false);
         _nodes[504] = go_504;
@@ -10930,7 +10930,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "QuestButtonsPanel" ??
+        // -- Panel: "QuestButtonsPanel" --
         var go_505 = new GameObject("QuestButtonsPanel");
         go_505.transform.SetParent(go_488.transform, false);
         _nodes[505] = go_505;
@@ -10949,7 +10949,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_505.type = (Image.Type)0;
         go_505.SetActive(false);
 
-        // ?? Button: "Btn_Accept" ??
+        // -- Button: "Btn_Accept" --
         var go_506 = new GameObject("Btn_Accept");
         go_506.transform.SetParent(go_505.transform, false);
         _nodes[506] = go_506;
@@ -10997,7 +10997,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_506.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_507 = new GameObject("Label");
         go_507.transform.SetParent(go_506.transform, false);
         _nodes[507] = go_507;
@@ -11014,7 +11014,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_507.raycastTarget = false;
         img_507.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_508 = new GameObject("Text");
         go_508.transform.SetParent(go_506.transform, false);
         _nodes[508] = go_508;
@@ -11032,7 +11032,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_508.type = (Image.Type)0;
 
 
-        // ?? Button: "Btn_Cancel" ??
+        // -- Button: "Btn_Cancel" --
         var go_509 = new GameObject("Btn_Cancel");
         go_509.transform.SetParent(go_505.transform, false);
         _nodes[509] = go_509;
@@ -11080,7 +11080,7 @@ public static partial class GeneratedUI_completecompanionsui
         // SETUP_REQUIRED: Wire up button click handler
         // btn_509.onClick.AddListener(() => { });
 
-        // ?? Panel: "Label" ??
+        // -- Panel: "Label" --
         var go_510 = new GameObject("Label");
         go_510.transform.SetParent(go_509.transform, false);
         _nodes[510] = go_510;
@@ -11097,7 +11097,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_510.raycastTarget = false;
         img_510.type = (Image.Type)0;
 
-        // ?? Panel: "Text" ??
+        // -- Panel: "Text" --
         var go_511 = new GameObject("Text");
         go_511.transform.SetParent(go_509.transform, false);
         _nodes[511] = go_511;
@@ -11117,7 +11117,7 @@ public static partial class GeneratedUI_completecompanionsui
 
 
 
-        // ?? Panel: "QuestConfigScreen" ??
+        // -- Panel: "QuestConfigScreen" --
         var go_512 = new GameObject("QuestConfigScreen");
         go_512.transform.SetParent(go_1.transform, false);
         _nodes[512] = go_512;
@@ -11136,7 +11136,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_512.type = (Image.Type)0;
         go_512.SetActive(false);
 
-        // ?? Text: "Lbl_Quest ID:" ??
+        // -- Text: "Lbl_Quest ID:" --
         var go_513 = new GameObject("Lbl_Quest ID:");
         go_513.transform.SetParent(go_512.transform, false);
         _nodes[513] = go_513;
@@ -11159,7 +11159,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_513.overflowMode = (TextOverflowModes)0;
         tmp_513.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_514 = new GameObject("Input");
         go_514.transform.SetParent(go_512.transform, false);
         _nodes[514] = go_514;
@@ -11227,7 +11227,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_514.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Quest Name:" ??
+        // -- Text: "Lbl_Quest Name:" --
         var go_519 = new GameObject("Lbl_Quest Name:");
         go_519.transform.SetParent(go_512.transform, false);
         _nodes[519] = go_519;
@@ -11250,7 +11250,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_519.overflowMode = (TextOverflowModes)0;
         tmp_519.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_520 = new GameObject("Input");
         go_520.transform.SetParent(go_512.transform, false);
         _nodes[520] = go_520;
@@ -11318,7 +11318,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_520.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Type:" ??
+        // -- Text: "Lbl_Type:" --
         var go_525 = new GameObject("Lbl_Type:");
         go_525.transform.SetParent(go_512.transform, false);
         _nodes[525] = go_525;
@@ -11341,7 +11341,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_525.overflowMode = (TextOverflowModes)0;
         tmp_525.raycastTarget = false;
 
-        // ?? Dropdown: "QuestTypeDropdown" ??
+        // -- Dropdown: "QuestTypeDropdown" --
         var go_526 = new GameObject("QuestTypeDropdown");
         go_526.transform.SetParent(go_512.transform, false);
         _nodes[526] = go_526;
@@ -11466,7 +11466,7 @@ public static partial class GeneratedUI_completecompanionsui
         dropdown_526.value = 0;
 
 
-        // ?? Panel: "Checkbox_Auto-Complete" ??
+        // -- Panel: "Checkbox_Auto-Complete" --
         var go_533 = new GameObject("Checkbox_Auto-Complete");
         go_533.transform.SetParent(go_512.transform, false);
         _nodes[533] = go_533;
@@ -11484,7 +11484,7 @@ public static partial class GeneratedUI_completecompanionsui
         img_533.raycastTarget = false;
         img_533.type = (Image.Type)0;
 
-        // ?? Toggle: "Toggle" ??
+        // -- Toggle: "Toggle" --
         var go_534 = new GameObject("Toggle");
         go_534.transform.SetParent(go_533.transform, false);
         _nodes[534] = go_534;
@@ -11519,7 +11519,7 @@ public static partial class GeneratedUI_completecompanionsui
         toggle_534.graphic = tglCheckTxt_534;
         toggle_534.isOn = false;
 
-        // ?? Text: "Checkmark" ??
+        // -- Text: "Checkmark" --
         var go_535 = new GameObject("Checkmark");
         go_535.transform.SetParent(go_534.transform, false);
         _nodes[535] = go_535;
@@ -11541,7 +11541,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_535.overflowMode = (TextOverflowModes)0;
         tmp_535.raycastTarget = false;
 
-        // ?? Panel: "New Game Object" ??
+        // -- Panel: "New Game Object" --
         var go_536 = new GameObject("New Game Object");
         go_536.transform.SetParent(go_535.transform, false);
         _nodes[536] = go_536;
@@ -11561,7 +11561,7 @@ public static partial class GeneratedUI_completecompanionsui
         le_536.ignoreLayout = true;
 
 
-        // ?? Panel: "Checkmark" ??
+        // -- Panel: "Checkmark" --
         var go_537 = new GameObject("Checkmark");
         go_537.transform.SetParent(go_534.transform, false);
         _nodes[537] = go_537;
@@ -11580,7 +11580,7 @@ public static partial class GeneratedUI_completecompanionsui
         go_537.SetActive(false);
 
 
-        // ?? Text: "Label" ??
+        // -- Text: "Label" --
         var go_538 = new GameObject("Label");
         go_538.transform.SetParent(go_533.transform, false);
         _nodes[538] = go_538;
@@ -11603,7 +11603,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_538.raycastTarget = false;
 
 
-        // ?? Text: "CenterLbl_Quest Description:" ??
+        // -- Text: "CenterLbl_Quest Description:" --
         var go_539 = new GameObject("CenterLbl_Quest Description:");
         go_539.transform.SetParent(go_512.transform, false);
         _nodes[539] = go_539;
@@ -11626,7 +11626,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_539.overflowMode = (TextOverflowModes)0;
         tmp_539.raycastTarget = false;
 
-        // ?? InputField: "MultiInput" ??
+        // -- InputField: "MultiInput" --
         var go_540 = new GameObject("MultiInput");
         go_540.transform.SetParent(go_512.transform, false);
         _nodes[540] = go_540;
@@ -11694,7 +11694,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_540.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Target:" ??
+        // -- Text: "Lbl_Target:" --
         var go_545 = new GameObject("Lbl_Target:");
         go_545.transform.SetParent(go_512.transform, false);
         _nodes[545] = go_545;
@@ -11717,7 +11717,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_545.overflowMode = (TextOverflowModes)0;
         tmp_545.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_546 = new GameObject("Input");
         go_546.transform.SetParent(go_512.transform, false);
         _nodes[546] = go_546;
@@ -11785,7 +11785,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_546.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Amount:" ??
+        // -- Text: "Lbl_Amount:" --
         var go_551 = new GameObject("Lbl_Amount:");
         go_551.transform.SetParent(go_512.transform, false);
         _nodes[551] = go_551;
@@ -11808,7 +11808,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_551.overflowMode = (TextOverflowModes)0;
         tmp_551.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_552 = new GameObject("Input");
         go_552.transform.SetParent(go_512.transform, false);
         _nodes[552] = go_552;
@@ -11876,7 +11876,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_552.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Min Lvl" ??
+        // -- Text: "Lbl_Min Lvl" --
         var go_557 = new GameObject("Lbl_Min Lvl");
         go_557.transform.SetParent(go_512.transform, false);
         _nodes[557] = go_557;
@@ -11899,7 +11899,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_557.overflowMode = (TextOverflowModes)0;
         tmp_557.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_558 = new GameObject("Input");
         go_558.transform.SetParent(go_512.transform, false);
         _nodes[558] = go_558;
@@ -11967,7 +11967,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_558.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Cooldown Days" ??
+        // -- Text: "Lbl_Cooldown Days" --
         var go_563 = new GameObject("Lbl_Cooldown Days");
         go_563.transform.SetParent(go_512.transform, false);
         _nodes[563] = go_563;
@@ -11990,7 +11990,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_563.overflowMode = (TextOverflowModes)0;
         tmp_563.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_564 = new GameObject("Input");
         go_564.transform.SetParent(go_512.transform, false);
         _nodes[564] = go_564;
@@ -12058,7 +12058,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_564.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Limit Mins" ??
+        // -- Text: "Lbl_Limit Mins" --
         var go_569 = new GameObject("Lbl_Limit Mins");
         go_569.transform.SetParent(go_512.transform, false);
         _nodes[569] = go_569;
@@ -12081,7 +12081,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_569.overflowMode = (TextOverflowModes)0;
         tmp_569.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_570 = new GameObject("Input");
         go_570.transform.SetParent(go_512.transform, false);
         _nodes[570] = go_570;
@@ -12149,7 +12149,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_570.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Rewards:" ??
+        // -- Text: "Lbl_Rewards:" --
         var go_575 = new GameObject("Lbl_Rewards:");
         go_575.transform.SetParent(go_512.transform, false);
         _nodes[575] = go_575;
@@ -12172,7 +12172,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_575.overflowMode = (TextOverflowModes)0;
         tmp_575.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_576 = new GameObject("Input");
         go_576.transform.SetParent(go_512.transform, false);
         _nodes[576] = go_576;
@@ -12240,7 +12240,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_576.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Required:" ??
+        // -- Text: "Lbl_Required:" --
         var go_581 = new GameObject("Lbl_Required:");
         go_581.transform.SetParent(go_512.transform, false);
         _nodes[581] = go_581;
@@ -12263,7 +12263,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_581.overflowMode = (TextOverflowModes)0;
         tmp_581.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_582 = new GameObject("Input");
         go_582.transform.SetParent(go_512.transform, false);
         _nodes[582] = go_582;
@@ -12331,7 +12331,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_582.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "CenterLbl_On Quest Start Event:" ??
+        // -- Text: "CenterLbl_On Quest Start Event:" --
         var go_587 = new GameObject("CenterLbl_On Quest Start Event:");
         go_587.transform.SetParent(go_512.transform, false);
         _nodes[587] = go_587;
@@ -12354,7 +12354,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_587.overflowMode = (TextOverflowModes)0;
         tmp_587.raycastTarget = false;
 
-        // ?? InputField: "MultiInput" ??
+        // -- InputField: "MultiInput" --
         var go_588 = new GameObject("MultiInput");
         go_588.transform.SetParent(go_512.transform, false);
         _nodes[588] = go_588;
@@ -12422,7 +12422,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_588.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "CenterLbl_On Quest Complete Event:" ??
+        // -- Text: "CenterLbl_On Quest Complete Event:" --
         var go_593 = new GameObject("CenterLbl_On Quest Complete Event:");
         go_593.transform.SetParent(go_512.transform, false);
         _nodes[593] = go_593;
@@ -12445,7 +12445,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_593.overflowMode = (TextOverflowModes)0;
         tmp_593.raycastTarget = false;
 
-        // ?? InputField: "MultiInput" ??
+        // -- InputField: "MultiInput" --
         var go_594 = new GameObject("MultiInput");
         go_594.transform.SetParent(go_512.transform, false);
         _nodes[594] = go_594;
@@ -12513,7 +12513,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_594.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "CenterLbl_--- Save To Quest Profile ---" ??
+        // -- Text: "CenterLbl_--- Save To Quest Profile ---" --
         var go_599 = new GameObject("CenterLbl_--- Save To Quest Profile ---");
         go_599.transform.SetParent(go_512.transform, false);
         _nodes[599] = go_599;
@@ -12536,7 +12536,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_599.overflowMode = (TextOverflowModes)0;
         tmp_599.raycastTarget = false;
 
-        // ?? Text: "Lbl_Existing:" ??
+        // -- Text: "Lbl_Existing:" --
         var go_600 = new GameObject("Lbl_Existing:");
         go_600.transform.SetParent(go_512.transform, false);
         _nodes[600] = go_600;
@@ -12559,7 +12559,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_600.overflowMode = (TextOverflowModes)0;
         tmp_600.raycastTarget = false;
 
-        // ?? Dropdown: "ProfileDropdown" ??
+        // -- Dropdown: "ProfileDropdown" --
         var go_601 = new GameObject("ProfileDropdown");
         go_601.transform.SetParent(go_512.transform, false);
         _nodes[601] = go_601;
@@ -12678,7 +12678,7 @@ public static partial class GeneratedUI_completecompanionsui
         dropdown_601.value = 0;
 
 
-        // ?? Text: "Lbl_Or New:" ??
+        // -- Text: "Lbl_Or New:" --
         var go_608 = new GameObject("Lbl_Or New:");
         go_608.transform.SetParent(go_512.transform, false);
         _nodes[608] = go_608;
@@ -12701,7 +12701,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_608.overflowMode = (TextOverflowModes)0;
         tmp_608.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_609 = new GameObject("Input");
         go_609.transform.SetParent(go_512.transform, false);
         _nodes[609] = go_609;
@@ -12769,7 +12769,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_609.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "Lbl_Preview PNG:" ??
+        // -- Text: "Lbl_Preview PNG:" --
         var go_614 = new GameObject("Lbl_Preview PNG:");
         go_614.transform.SetParent(go_512.transform, false);
         _nodes[614] = go_614;
@@ -12792,7 +12792,7 @@ public static partial class GeneratedUI_completecompanionsui
         tmp_614.overflowMode = (TextOverflowModes)0;
         tmp_614.raycastTarget = false;
 
-        // ?? InputField: "Input" ??
+        // -- InputField: "Input" --
         var go_615 = new GameObject("Input");
         go_615.transform.SetParent(go_512.transform, false);
         _nodes[615] = go_615;
@@ -12860,7 +12860,7 @@ public static partial class GeneratedUI_completecompanionsui
         inputField_615.selectionColor = new Color(0.6f, 0.4f, 0.2f, 0.4f);
 
 
-        // ?? Text: "CenterLbl_" ??
+        // -- Text: "CenterLbl_" --
         var go_620 = new GameObject("CenterLbl_");
         go_620.transform.SetParent(go_512.transform, false);
         _nodes[620] = go_620;

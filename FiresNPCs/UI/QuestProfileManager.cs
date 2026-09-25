@@ -88,7 +88,7 @@ private static bool _initialized;
  _initialized = true;
 
             // On clients, profile data comes from the server via ApplyProfileDataFromServer.
-            // Do NOT re-read every cfg from disk on a client reload � that causes double-parse
+            // Do NOT re-read every cfg from disk on a client reload - that causes double-parse
             // spam and races with in-memory RPC data.
             if (!IsServer)
             {

@@ -224,7 +224,7 @@ namespace FiresRPGmaker.UI
             foreach (var lod in _stagedClone.GetComponentsInChildren<LODGroup>(true))
                 lod.ForceLOD(0);
 
-            // Recalculate bounds � skinned meshes may report better bounds now
+            // Recalculate bounds - skinned meshes may report better bounds now
             var newBounds = CalculateBounds(_stagedClone);
             if (newBounds.size.sqrMagnitude > _stagedBounds.size.sqrMagnitude)
             {
@@ -345,7 +345,7 @@ namespace FiresRPGmaker.UI
             _camera.farClipPlane = 500f;
             _camera.depth = -15;
             _camera.enabled = false;
-            _camera.cullingMask = ~0; // All layers � clone is 2000m above player
+            _camera.cullingMask = ~0; // All layers - clone is 2000m above player
 
             EnsureRenderTexture();
             _camera.targetTexture = _renderTexture;

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -12,25 +12,10 @@
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <LangVersion>latest</LangVersion>
     <FileAlignment>512</FileAlignment>
+    <CodePage>65001</CodePage>
     <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!--
-      Public-test build toggle. Default flipped to `true` on 2026-05-11 when
-      the local libs\assembly_valheim_publicized.dll was refreshed against the
-      upcoming public-test build (Vector2s migration). With the publicized DLL
-      now exposing Vector2s-style ZoneSystem.GetZone, the live-build (#else)
-      code path no longer compiles ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Vector2i ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Vector2s mismatches are the
-      expected failure mode if you flip this back to `false`.
-
-      To return to live-build compilation: regenerate
-      libs\assembly_valheim_publicized.dll from a live assembly_valheim.dll
-      AND flip this default back to `false`. Don't do one without the other.
-
-      Override at the command line with: msbuild /p:PublicTest=false
-      The conditional <DefineConstants> append lives BELOW the Debug/Release
-      groups so it post-extends whatever DefineConstants those set.
-    -->
-    <PublicTest Condition=" '$(PublicTest)' == '' ">false</PublicTest>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -48,16 +33,6 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <!--
-    Append PUBLIC_TEST to DefineConstants when the toggle is on. Placed AFTER
-    the Debug/Release groups so $(DefineConstants) already holds DEBUG;TRACE
-    (or TRACE) ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â the append produces DEBUG;TRACE;PUBLIC_TEST without losing
-    the configuration-specific symbols. Toggle by setting <PublicTest>true</PublicTest>
-    in the top property group, or pass /p:PublicTest=true at the msbuild CLI.
-  -->
-  <PropertyGroup Condition=" '$(PublicTest)' == 'true' ">
-    <DefineConstants>$(DefineConstants);PUBLIC_TEST</DefineConstants>
   </PropertyGroup>
   <Choose>
     <When Condition="($(OS) == 'Unix' OR $(OS) == 'OSX') AND $(GamePath) == ''">
@@ -81,21 +56,14 @@
       <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim dedicated server\BepInEx\core\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="assembly_guiutils">
-      <HintPath>..\libs\assembly_guiutils_publicized.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\publicized_assemblies\assembly_guiutils_publicized.dll</HintPath>
     </Reference>
     <Reference Include="assembly_utils">
-      <!-- Pinned to the stashed legacy DLL on purpose. Steam may be on either the
-           live or public-test branch; resolving via $(GamePath) would silently emit
-           IL bound to whichever GetStableHashCode overload is in the currently
-           installed assembly_utils. The legacy stash gives us deterministic
-           call (string) IL, which works natively on the live build and via the
-           FiresHashFixer (string) shim on the public-test build. Flip back to
-           $(GamePath) once the upcoming build is the only build. -->
-      <HintPath>..\..\assembly_valheim\lib\assembly_utils.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
+      <HintPath>$(GamePath)\valheim_Data\Managed\assembly_utils.dll</HintPath>
+      <Private>False</Private>
+      </Reference>
     <Reference Include="assembly_valheim">
-      <HintPath>..\libs\assembly_valheim_publicized.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
       <HintPath>..\..\..\customspawnsmod\lib\BepInEx.dll</HintPath>
@@ -122,14 +90,14 @@
       <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
-      <HintPath>..\libs\UnityEngine.AssetBundleModule_publicized.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\publicized_assemblies\UnityEngine.AssetBundleModule_publicized.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
       <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <!-- FiresUnifiedCore ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â VanillaAssetResolver consumed via BepInDependency. -->
+    <!-- FiresUnifiedCore - VanillaAssetResolver consumed via BepInDependency. -->
     <Reference Include="FiresUnifiedCore">
       <HintPath>..\..\FiresUnifiedCore\FiresUnifiedCore\bin\Release\FiresUnifiedCore.dll</HintPath>
       <Private>False</Private>
@@ -173,6 +141,9 @@
     <Reference Include="UnityEngine.UIModule">
       <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UIModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.UnityWebRequestModule">
       <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
     </Reference>
@@ -181,13 +152,12 @@
     <Compile Include="GlobalUsings.cs" />
     <Compile Include="Ascend.cs" />
     <Compile Include="RpgMakerApi.cs" />
+    <Compile Include="Modules\Party\Bridge\PartyGroupProvider.cs" />
     <Compile Include="Modules\Party\PartyData.cs" />
     <Compile Include="Modules\Party\PartyManager.cs" />
     <Compile Include="Debug\DebugPrefabDumper.cs" />
     <Compile Include="Debug\DebugRecipeDumper.cs" />
-    <Compile Include="Debug\CharacterDeathCascadeDiagnostic.cs" />
     <Compile Include="Debug\DebugTools.cs" />
-    <Compile Include="Debug\ZNetSceneStaleInstanceDiagnostic.cs" />
     <Compile Include="Debug\StaticNpcZdoDiagnostics.cs" />
     <Compile Include="Debug\StaticNpcGhostDiagnostics.cs" />
     <Compile Include="Managers\ChroniclesOfTime.cs" />
@@ -229,6 +199,7 @@
     <Compile Include="Modules\Compat\VikingCoreCompat.cs" />
     <Compile Include="Modules\Dialogues\EwpDataBridge.cs" />
     <Compile Include="Modules\Territories\TerritoryOwnership.cs" />
+    <Compile Include="Modules\Territories\TerritoryPurchase.cs" />
     <Compile Include="Modules\Progression\PrivateKeyManager.cs" />
     <Compile Include="Modules\Progression\ProgressionConfig.cs" />
     <Compile Include="Modules\Progression\ProgressionConsoleCommands.cs" />
@@ -259,6 +230,7 @@
     <Compile Include="Modules\Quest\QuestProgressPatches.NewTypes.cs" />
     <Compile Include="Modules\Quest\QuestRewardDispatcher.cs" />
     <Compile Include="Modules\Quest\QuestLifecycleDispatcher.cs" />
+    <Compile Include="Modules\RpgVanillaHooks.cs" />
     <Compile Include="Modules\Marketplace\API_ClientSide.cs" />
     <Compile Include="Debug\ParityTestCommands.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.MissingFlagPatches.cs" />
@@ -301,6 +273,13 @@
     <Compile Include="UI\Books\QuestBookJournal.cs" />
     <Compile Include="UI\DialogueManager.cs" />
     <Compile Include="UI\GlobeHudController.cs" />
+    <Compile Include="UI\GlobeHud\GlobeHoverTooltip.cs" />
+    <Compile Include="UI\GlobeHud\GlobeLiquidSlosh.cs" />
+    <Compile Include="UI\GlobeHud\GlobeMotionSampler.cs" />
+    <Compile Include="UI\GlobeHud\GlobeSceneLight.cs" />
+    <Compile Include="UI\GlobeHud\GlobeStatBreakdown.cs" />
+    <Compile Include="UI\GlobeHud\GlobeValuePopup.cs" />
+    <Compile Include="UI\GlobeHud\GlobeView.cs" />
     <Compile Include="UI\NpcHoverNameplate.cs" />
     <Compile Include="UI\GUIManager.cs" />
     <Compile Include="UI\NpcBookController.cs" />
@@ -318,10 +297,9 @@
     <Compile Include="UI\ContextMenu\PatrolNodeGrabController.cs" />
     <Compile Include="Bridges\WayshrinesBridge.cs" />
     <Compile Include="UI\NpcController.cs" />
+    <Compile Include="UI\NpcMapPins.cs" />
     <Compile Include="UI\NpcHoverHudSuppressor.cs" />
-    <Compile Include="UI\NpcMainPanelController.cs" />
     <Compile Include="UI\OverwriteConfirmDialog.cs" />
-    <Compile Include="UI\PanelElementManager.cs" />
     <Compile Include="UI\Patches\InventoryGuiPatches.cs" />
     <Compile Include="UI\Patches\NpcNameplatePatches.cs" />
     <Compile Include="UI\Patches\PatrolInputBlockPatch.cs" />
@@ -342,11 +320,8 @@
     <Compile Include="UI\QuestTimerHUD.cs" />
     <Compile Include="UI\Screens\FixedTraderUICodegen.cs" />
     <Compile Include="UI\Screens\completecompanionsui.generated.cs" />
-    <Compile Include="UI\Screens\DialogueEditorScreenController.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.Fashion.cs" />
-    <Compile Include="UI\Screens\BankerConfigScreenController.cs" />
-    <Compile Include="UI\Screens\GenericModuleConfigScreenController.cs" />
     <Compile Include="UI\Screens\StubPlayerUIController.cs" />
     <Compile Include="UI\Screens\Player\BasePlayerModulePanel.cs" />
     <Compile Include="UI\Screens\Player\GamblerPlayerPanel.cs" />
@@ -388,9 +363,13 @@
     <Compile Include="UI\Screens\Player\MailPlayerPanel.cs" />
     <Compile Include="UI\Screens\Player\TransmogPlayerPanel.cs" />
     <Compile Include="Modules\Marketplace\GamblerProfileManager.cs" />
+    <Compile Include="Debug\SprintVerifyCommands.cs" />
+    <Compile Include="Modules\Marketplace\DiscordWebhooks.cs" />
+    <Compile Include="Modules\Marketplace\MarketplaceGlobals.cs" />
     <Compile Include="Modules\Marketplace\MarketplaceListingManager.cs" />
     <Compile Include="Modules\Marketplace\MarketplaceNetwork.cs" />
     <Compile Include="Modules\Marketplace\AchievementProfileManager.cs" />
+    <Compile Include="Modules\Marketplace\AchievementCatalogue.cs" />
     <Compile Include="Modules\Marketplace\AchievementCompletion.cs" />
     <Compile Include="Modules\Marketplace\AchievementAnnouncer.cs" />
     <Compile Include="Modules\Marketplace\AchievementGenerator.cs" />
@@ -401,6 +380,7 @@
     <Compile Include="Modules\Marketplace\BankerNetwork.cs" />
     <Compile Include="Modules\Marketplace\MailNetwork.cs" />
     <Compile Include="Modules\Marketplace\VipManager.cs" />
+    <Compile Include="Modules\Factions\FactionChat.cs" />
     <Compile Include="Modules\Factions\FactionData.cs" />
     <Compile Include="Modules\Factions\FactionManager.cs" />
     <Compile Include="Modules\Factions\FactionMembership.cs" />
@@ -430,11 +410,9 @@
     <Compile Include="Modules\Marketplace\LeaderboardSkillCapturePatches.cs" />
     <Compile Include="Modules\Marketplace\TransmogState.cs" />
     <Compile Include="Modules\Marketplace\TransmogInventoryMarker.cs" />
-    <Compile Include="UI\Screens\TraderConfigScreenController.cs" />
     <Compile Include="UI\Screens\SavedProfilesDropdown.cs" />
     <Compile Include="UI\Screens\InfoNpcPlayerPanel.cs" />
     <Compile Include="UI\Screens\InfoNpcScreenController.cs" />
-    <Compile Include="UI\Screens\QuestConfigScreenController.cs" />
     <Compile Include="UI\Screens\QuestInteractionScreenController.cs" />
     <Compile Include="UI\Screens\QuestScreenLayout.cs" />
     <Compile Include="UI\Screens\TraderUIController.cs" />
@@ -454,8 +432,6 @@
     <Compile Include="UI\FiresNpcsUIBuilderHost.cs" />
     <Compile Include="Utilities\FiresLogger.cs" />
     <Compile Include="Utilities\FiresRPGmakerBanner.cs" />
-    <Compile Include="Modules\Territories\MaterialVariantSystem.cs" />
-    <Compile Include="Modules\Territories\TerritorySnowManager.cs" />
     <!-- Guild System -->
     <Compile Include="Modules\Guilds\Core\GuildRank.cs" />
     <Compile Include="Modules\Guilds\Core\GuildMember.cs" />

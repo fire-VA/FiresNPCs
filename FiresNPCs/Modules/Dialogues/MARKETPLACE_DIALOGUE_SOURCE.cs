@@ -1,5 +1,5 @@
 // =============================================================================
-// REFERENCE ONLY — Decompiled Marketplace Dialogue Source Code
+// REFERENCE ONLY - Decompiled Marketplace Dialogue Source Code
 // =============================================================================
 // This file is NOT compiled. It exists solely as a reference for understanding
 // how the Marketplace mod (kg.Marketplace v9.7.6) implements its dialogue system.
@@ -14,7 +14,7 @@
 //   - Dialogues_UI          (runtime UI, hotbar keys, fade, option rendering)
 // =============================================================================
 
-#if false // Never compiled — reference only
+#if false // Never compiled - reference only
 
 using API;
 using BepInEx.Bootstrap;
@@ -46,7 +46,7 @@ namespace Marketplace.Modules.Dialogues
 {
 
 // =============================================================================
-// Dialogues_DataTypes — Data model, conditions, commands, serialization
+// Dialogues_DataTypes - Data model, conditions, commands, serialization
 // =============================================================================
 public static class Dialogues_DataTypes
 {
@@ -76,7 +76,7 @@ public static class Dialogues_DataTypes
         out OptionCondition typeCondition);
 
     // =========================================================================
-    // CustomSpawnZDO — ZDO data sets loaded from .yml files
+    // CustomSpawnZDO - ZDO data sets loaded from .yml files
     // =========================================================================
     [Serializable]
     public class CustomSpawnZDO : ISerializableParameter
@@ -157,7 +157,7 @@ public static class Dialogues_DataTypes
     }
 
     // =========================================================================
-    // OptionCommand — All command types supported by Marketplace dialogues
+    // OptionCommand - All command types supported by Marketplace dialogues
     // =========================================================================
     private enum OptionCommand
     {
@@ -204,7 +204,7 @@ public static class Dialogues_DataTypes
     }
 
     // =========================================================================
-    // OptionCondition — All condition types (byte enum with 0x80 reverse flag)
+    // OptionCondition - All condition types (byte enum with 0x80 reverse flag)
     // =========================================================================
     public enum OptionCondition : byte
     {
@@ -241,9 +241,9 @@ public static class Dialogues_DataTypes
         PlayerHasOneOfCustomDataKeys = 31,
         NPCNameEquals = 32,
         // Legacy aliases
-        OtherQuest = 100,    // ? QuestFinished
-        NotFinished = 101,   // ? QuestNotFinished
-        Skill = 102,         // ? SkillMore
+        OtherQuest = 100,    // -> QuestFinished
+        NotFinished = 101,   // -> QuestNotFinished
+        Skill = 102,         // -> SkillMore
         // Reversed (0x80 flag)
         NotHasItem = 129,
         NotHasBuff = 130,
@@ -277,7 +277,7 @@ public static class Dialogues_DataTypes
     }
 
     // =========================================================================
-    // RawDialogue — Wire format (serialized between server and client)
+    // RawDialogue - Wire format (serialized between server and client)
     // =========================================================================
     public class RawDialogue : ISerializableParameter
     {
@@ -379,7 +379,7 @@ public static class Dialogues_DataTypes
     }
 
     // =========================================================================
-    // Dialogue — Client-ready runtime form (parsed from RawDialogue)
+    // Dialogue - Client-ready runtime form (parsed from RawDialogue)
     // =========================================================================
     public class Dialogue
     {
@@ -446,7 +446,7 @@ public static class Dialogues_DataTypes
     }
 
     // =========================================================================
-    // DialoguePassword — TextReceiver for EnterPassword command
+    // DialoguePassword - TextReceiver for EnterPassword command
     // =========================================================================
     public class DialoguePassword : TextReceiver
     {
@@ -479,7 +479,7 @@ public static class Dialogues_DataTypes
 
 
 // =============================================================================
-// Dialogues_Main_Client — Client-side init and ESC handler
+// Dialogues_Main_Client - Client-side init and ESC handler
 // =============================================================================
 public static class Dialogues_Main_Client
 {
@@ -512,10 +512,10 @@ public static class Dialogues_Main_Client
 
 
 // =============================================================================
-// Dialogues_Main_Server — Server-side .cfg parser (THE CANONICAL PARSER)
+// Dialogues_Main_Server - Server-side .cfg parser (THE CANONICAL PARSER)
 // =============================================================================
 // KEY INSIGHT: This is the authoritative parser. Note:
-//   - Headers: line.StartsWith("[") — strips [ and ] and spaces, splits on =
+//   - Headers: line.StartsWith("[") - strips [ and ] and spaces, splits on =
 //   - UID is lowercased: strArray[0].ToLower()
 //   - Transitions are lowercased: strArray1[1].Replace(" ", "").ToLower()
 //   - Pipe | splits the option line into segments
@@ -702,12 +702,12 @@ public static class Dialogues_Main_Server
 
 
 // =============================================================================
-// Dialogues_UI — Runtime dialogue panel
+// Dialogues_UI - Runtime dialogue panel
 // =============================================================================
 // KEY INSIGHTS:
 //   - Uses prefab "NPCDialogueUI" from AssetStorage.asset (asset bundle)
 //   - Option prefab is "Dialogue_Option"
-//   - Hierarchy: UI ? GO ? NPC_Name, Dialogue_Text, BACKGROUND, and options
+//   - Hierarchy: UI -> GO -> NPC_Name, Dialogue_Text, BACKGROUND, and options
 //   - Dialogue text wrapped in quotes: $"\"{Localization.instance.Localize(dialogue.Text)}\""
 //   - Options show: Indexer/Text (number), Text (label), Text/Icon (icon), line (color bar)
 //   - Failed conditions: destroy Button, set line + indexer bg to red, append reason
@@ -882,8 +882,8 @@ public static class Dialogues_UI
     }
 
     // Patches:
-    // - TextInput.IsVisible ? returns true when dialogue is visible (blocks game input)
-    // - Player.OnDeath ? hides dialogue
+    // - TextInput.IsVisible -> returns true when dialogue is visible (blocks game input)
+    // - Player.OnDeath -> hides dialogue
 }
 
 } // namespace

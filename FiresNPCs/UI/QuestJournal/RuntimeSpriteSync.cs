@@ -26,22 +26,22 @@ namespace FiresRPGmaker.UI.QuestJournal
         private static DateTime _lastSyncRequestTime;
      private static readonly TimeSpan SyncCooldown = TimeSpan.FromSeconds(30);
 
-        // RPC names � server-to-client sync (pull)
+        // RPC names - server-to-client sync (pull)
         private const string RpcRequestSprites = "FiresRPGmaker_Sprites_Request";
         private const string RpcReceiveSprite = "FiresRPGmaker_Sprites_Receive";
         private const string RpcReceiveSpriteChunk = "FiresRPGmaker_Sprites_Chunk";
 
-        // RPC names � server tells client which files server is missing (bidirectional sync)
+        // RPC names - server tells client which files server is missing (bidirectional sync)
         private const string RpcServerNeedsList = "FiresRPGmaker_Sprites_ServerNeeds";
 
-        // RPC names � client-to-server push (admin pushcfgs)
+        // RPC names - client-to-server push (admin pushcfgs)
         private const string RpcPushSprite = "FiresRPGmaker_Sprites_Push";
         private const string RpcPushSpriteChunk = "FiresRPGmaker_Sprites_PushChunk";
 
     // Supported image extensions
   private static readonly string[] SupportedExtensions = { ".png", ".jpg", ".jpeg" };
 
-   // Max file size to sync (50MB � chunking handles any size under this limit)
+   // Max file size to sync (50MB - chunking handles any size under this limit)
         private const int MaxFileSizeBytes = 50 * 1024 * 1024;
 
         // Chunk size for sending (400KB to stay under Steam's 512KB limit with overhead)
@@ -123,7 +123,7 @@ namespace FiresRPGmaker.UI.QuestJournal
         /// </summary>
         private static bool IsRequiredForSync(string prefixedName)
         {
-            // RuntimeSprites/ � always sync everything (quest preview images)
+            // RuntimeSprites/ - always sync everything (quest preview images)
             if (!prefixedName.StartsWith("UIAssets_")) return true;
 
             // Extract base name without prefix and extension
@@ -156,7 +156,7 @@ namespace FiresRPGmaker.UI.QuestJournal
 
         /// <summary>
         /// Initialize the sprite sync system and register RPCs.
-        /// Safe to call multiple times � only registers once per ZRoutedRpc instance.
+        /// Safe to call multiple times - only registers once per ZRoutedRpc instance.
         /// </summary>
         public static void Init()
         {
@@ -421,7 +421,7 @@ namespace FiresRPGmaker.UI.QuestJournal
                 // Bail out if the peer disconnected mid-transfer
                 if (ZRoutedRpc.instance == null || ZNet.instance == null)
                 {
-                    Debug.LogWarning("[RuntimeSpriteSync] Aborting throttled send � ZNet gone");
+                    Debug.LogWarning("[RuntimeSpriteSync] Aborting throttled send - ZNet gone");
                     yield break;
                 }
 
@@ -467,15 +467,15 @@ namespace FiresRPGmaker.UI.QuestJournal
                 bool isAdmin = FiresRPGmaker.Instance?.configSync?.IsAdmin ?? false;
                 if (!isAdmin)
                 {
-                    Debug.Log($"[RuntimeSpriteSync] Server needs {count} file(s) but we're not admin � skipping push");
+                    Debug.Log($"[RuntimeSpriteSync] Server needs {count} file(s) but we're not admin - skipping push");
                     return;
                 }
 
-                Debug.Log($"[RuntimeSpriteSync] Server needs {count} file(s) � auto-pushing as admin (staggered)");
+                Debug.Log($"[RuntimeSpriteSync] Server needs {count} file(s) - auto-pushing as admin (staggered)");
                 if (FiresRPGmaker.Instance != null)
                     FiresRPGmaker.Instance.StartCoroutine(StaggeredAutoPush(neededFiles));
                 else
-                    Debug.LogWarning("[RuntimeSpriteSync] Cannot stagger push � no MonoBehaviour instance");
+                    Debug.LogWarning("[RuntimeSpriteSync] Cannot stagger push - no MonoBehaviour instance");
             }
             catch (Exception ex)
             {
@@ -977,7 +977,7 @@ catch
                             var info = new FileInfo(f);
                             if (info.Length > MaxFileSizeBytes)
                             {
-                                log?.Invoke($"[RuntimeSpriteSync] Skipping {Path.GetFileName(f)} � too large ({info.Length} bytes)");
+                                log?.Invoke($"[RuntimeSpriteSync] Skipping {Path.GetFileName(f)} - too large ({info.Length} bytes)");
                                 continue;
                             }
 
