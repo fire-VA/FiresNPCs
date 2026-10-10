@@ -722,7 +722,15 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 character != null && character.m_aiSkipTarget,
                 companionAI != null && companionAI.enabled,
                 mai != null && mai.enabled));
+
+            // 0.0.567 ([generator] 10-10, Fire's ai-guard warnings on Sigyn/Fulla): tell Core's ai-guard the stage is applied,
+            // so it judges the AI from here on rather than the prefab's still-on AI at load. By reflection until Core 0.2.390
+            // is the minimum; an older Core keeps its 15 s window.
+            if (npcModule != null) s_markStaticStageApplied?.Invoke(npcModule, null);
         }
+
+        private static readonly System.Reflection.MethodInfo s_markStaticStageApplied =
+            typeof(CompanionNpcModule).GetMethod("MarkStaticStageApplied", System.Type.EmptyTypes);
 
         /// <summary>
         /// Re-resolves and re-applies the body stage after an admin config change (idle-wander toggle or

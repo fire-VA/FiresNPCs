@@ -30,7 +30,7 @@ namespace FiresRPGmaker
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.566";
+        public const string PluginVersion = "0.0.567";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;

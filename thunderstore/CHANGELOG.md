@@ -1,3 +1,5 @@
+* v0.0.567 - Static NPCs no longer trigger an AI-guard warning after load.
+
 * v0.0.566 - Non-combat pets (follow, emotes, item stands) and fixes.
 
 * v0.0.463 - liquid globe HUD, NPC animations
