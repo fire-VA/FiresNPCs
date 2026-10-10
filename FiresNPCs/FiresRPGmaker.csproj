@@ -1,0 +1,642 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{8D4FA47B-B3B3-4105-A605-C1F76B5EC803}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>FiresRPGmaker</RootNamespace>
+    <AssemblyName>FiresRPGmaker</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <LangVersion>latest</LangVersion>
+    <FileAlignment>512</FileAlignment>
+    <CodePage>65001</CodePage>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <Choose>
+    <When Condition="($(OS) == 'Unix' OR $(OS) == 'OSX') AND $(GamePath) == ''">
+      <PropertyGroup>
+        <GamePath Condition="!Exists('$(GamePath)')">$(HOME)/.steam/steam/steamapps/common/Valheim</GamePath>
+        <GamePath Condition="!Exists('$(GamePath)')">$(HOME)/Library/Application Support/Steam/steamapps/common/Valheim/Contents/MacOS</GamePath>
+      </PropertyGroup>
+    </When>
+    <When Condition="($(OS) == 'Windows_NT') AND $(GamePath) == ''">
+      <PropertyGroup>
+        <GamePath Condition="!Exists('$(GamePath)')">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 892970', 'InstallLocation', null, RegistryView.Registry64, RegistryView.Registry32))</GamePath>
+        <_SteamLibraryPath>$([MSBuild]::GetRegistryValueFromView('HKEY_CURRENT_USER\SOFTWARE\Valve\Steam', 'SteamPath', null, RegistryView.Registry32))</_SteamLibraryPath>
+        <GamePath Condition="!Exists('$(GamePath)') AND '$(_SteamLibraryPath)' != ''">$(_SteamLibraryPath)\steamapps\common\Valheim</GamePath>
+        <GamePath Condition="!Exists('$(GamePath)')">C:\Program Files\Steam\steamapps\common\Valheim</GamePath>
+        <GamePath Condition="!Exists('$(GamePath)')">C:\Program Files (x86)\Steam\steamapps\common\Valheim</GamePath>
+      </PropertyGroup>
+    </When>
+  </Choose>
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim dedicated server\BepInEx\core\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="assembly_guiutils">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\publicized_assemblies\assembly_guiutils_publicized.dll</HintPath>
+    </Reference>
+    <Reference Include="assembly_utils">
+      <HintPath>$(GamePath)\valheim_Data\Managed\assembly_utils.dll</HintPath>
+      <Private>False</Private>
+      </Reference>
+    <Reference Include="assembly_valheim">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll</HintPath>
+    </Reference>
+    <Reference Include="BepInEx">
+      <HintPath>..\..\..\customspawnsmod\lib\BepInEx.dll</HintPath>
+    </Reference>
+    <Reference Include="gui_framework">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\gui_framework.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Splatform, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\Splatform.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\publicized_assemblies\UnityEngine.AssetBundleModule_publicized.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <!-- FiresUnifiedCore - VanillaAssetResolver consumed via BepInDependency. -->
+    <Reference Include="FiresUnifiedCore">
+      <HintPath>..\..\FiresUnifiedCore\FiresUnifiedCore\bin\Release\FiresUnifiedCore.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="UnityEngine.ClothModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.ClothModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.InputModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="Ascend.cs" />
+    <Compile Include="RpgMakerApi.cs" />
+    <Compile Include="Modules\Party\Bridge\PartyGroupProvider.cs" />
+    <Compile Include="Modules\Party\PartyData.cs" />
+    <Compile Include="Modules\Party\PartyManager.cs" />
+    <Compile Include="Debug\DebugPrefabDumper.cs" />
+    <Compile Include="Debug\DebugRecipeDumper.cs" />
+    <Compile Include="Debug\DebugTools.cs" />
+    <Compile Include="Debug\StaticNpcZdoDiagnostics.cs" />
+    <Compile Include="Debug\StaticNpcGhostDiagnostics.cs" />
+    <Compile Include="Managers\ChroniclesOfTime.cs" />
+    <Compile Include="Managers\ConfigManager.cs" />
+    <Compile Include="Managers\PlayerFileStorage.cs" />
+    <Compile Include="Managers\QuestManager.cs" />
+    <Compile Include="Managers\FiresConfigSync.cs" />
+    <Compile Include="Managers\FiresConfigMigration.cs" />
+    <Compile Include="Managers\QuestTimerManager.cs" />
+    <Compile Include="Managers\SavedNpcManager.cs" />
+    <Compile Include="Managers\NpcTemplatePieces.cs" />
+    <Compile Include="Managers\NpcTemplateAppearance.cs" />
+    <Compile Include="UI\ContextMenu\NpcBodyContextProvider.cs" />
+    <Compile Include="Managers\ServerConfigFileWatcher.cs" />
+    <Compile Include="Managers\SyncedConfigStore.cs" />
+    <Compile Include="Managers\TameablePatches.cs" />
+    <Compile Include="Managers\TraderProfileManager.cs" />
+    <Compile Include="Managers\VAItemManager.cs" />
+    <Compile Include="Managers\VAPieceManager.cs" />
+    <Compile Include="Managers\VARecipeManagerr.cs" />
+    <Compile Include="Managers\VaultPatches.cs" />
+    <Compile Include="Marketplace\Integration.cs" />
+    <Compile Include="Modules\Chat\ChatMediaDetector.cs" />
+    <Compile Include="Modules\Chat\ChatMediaEmbed.cs" />
+    <Compile Include="Modules\Chat\ChatMediaEmbedManager.cs" />
+    <Compile Include="Modules\Chat\GifDecoder.cs" />
+    <Compile Include="Modules\Buffer\FiresBuffData.cs" />
+    <Compile Include="Modules\Buffer\BufferConfigParser.cs" />
+    <Compile Include="Modules\Buffer\FiresStatBuff.cs" />
+    <Compile Include="Modules\Buffer\StatusEffectCatalog.cs" />
+    <Compile Include="Modules\Buffer\BufferApplyEngine.cs" />
+    <Compile Include="Modules\Buffer\BufferManager.cs" />
+    <Compile Include="Modules\Buffer\BufferNetwork.cs" />
+    <Compile Include="Modules\Buffer\BufferConfigWriter.cs" />
+    <Compile Include="Modules\Buffer\BufferConsoleCommands.cs" />
+    <Compile Include="UI\Screens\Player\BufferPlayerPanel.cs" />
+    <Compile Include="UI\Screens\Player\BufferAdminPanel.cs" />
+    <Compile Include="UI\Screens\Player\TransmogAdminPanel.cs" />
+    <Compile Include="UI\Screens\Player\PanelHoverTip.cs" />
+    <Compile Include="Modules\Compat\BalrondAmazingNatureCompat.cs" />
+    <Compile Include="Modules\Compat\VikingCoreCompat.cs" />
+    <Compile Include="Modules\Dialogues\EwpDataBridge.cs" />
+    <Compile Include="Modules\Territories\TerritoryOwnership.cs" />
+    <Compile Include="Modules\Territories\TerritoryPurchase.cs" />
+    <Compile Include="Modules\Progression\PrivateKeyManager.cs" />
+    <Compile Include="Modules\Progression\ProgressionConfig.cs" />
+    <Compile Include="Modules\Progression\ProgressionConsoleCommands.cs" />
+    <Compile Include="Modules\Progression\ProgressionPatches.cs" />
+    <Compile Include="Modules\Territories\TerritoryClientHelpers.cs" />
+    <Compile Include="NpcFashion\NpcFashionManager.cs" />
+    <Compile Include="Modules\Chat\ChatChannelManager.cs" />
+    <Compile Include="Modules\Chat\ChatChannelUI.cs" />
+    <Compile Include="Modules\Chat\ChatPatches.cs" />
+    <Compile Include="Modules\Companions\NpcMode\StaticNpcInitializer.cs" />
+    <Compile Include="Modules\Companions\NpcMode\StaticNpcRespawnManager.cs" />
+    <Compile Include="Integration\NpcBridgeProviders.cs" />
+    <Compile Include="Integration\NpcAnchorDataBridge.cs" />
+    <Compile Include="Modules\Compendium\CompendiumDiscoveryTracker.cs" />
+    <Compile Include="Modules\Compendium\CompendiumEntries.cs" />
+    <Compile Include="Modules\Compendium\CompendiumManager.cs" />
+    <Compile Include="Modules\Dialogues\DialogueCodex.cs" />
+    <Compile Include="Modules\Dialogues\DialogueCooldownManager.cs" />
+    <Compile Include="Modules\Dialogues\DialogueKeyUtil.cs" />
+    <Compile Include="Modules\Dialogues\DialogueCommandEngine.cs" />
+    <Compile Include="Modules\Dialogues\DialogueConditionEngine.cs" />
+    <Compile Include="Modules\Dialogues\CustomSpawnDataStore.cs" />
+    <Compile Include="Modules\Dialogues\DialogueVideoPlayer.cs" />
+    <Compile Include="Modules\Dialogues\DialogueSyncRPC.cs" />
+    <Compile Include="Modules\Dialogues\DialogueUI.cs" />
+    <Compile Include="Modules\Quest\QuestProgressPatches.cs" />
+    <Compile Include="Modules\Quest\QuestProgressPatches.NewTypes.cs" />
+    <Compile Include="Modules\Quest\QuestRewardDispatcher.cs" />
+    <Compile Include="Modules\Quest\QuestLifecycleDispatcher.cs" />
+    <Compile Include="Modules\RpgVanillaHooks.cs" />
+    <Compile Include="Modules\Marketplace\API_ClientSide.cs" />
+    <Compile Include="Debug\ParityTestCommands.cs" />
+    <Compile Include="Modules\Territories\TerritoryRuntime.MissingFlagPatches.cs" />
+    <Compile Include="Modules\Territories\DeepNorthEnvironment.cs" />
+    <Compile Include="Modules\Territories\OutlineSurveyor.cs" />
+    <Compile Include="Modules\Territories\Paint\TerritoryPaintModels.cs" />
+    <Compile Include="Modules\Territories\Paint\TerritoryPaintCommit.cs" />
+    <Compile Include="Modules\Territories\Paint\TerritoryPaintDriver.cs" />
+    <Compile Include="Modules\Territories\Paint\TerritoryPaintPalette.cs" />
+    <Compile Include="Modules\Territories\Paint\TerritoryAdminEdit.cs" />
+    <Compile Include="Modules\Territories\Surveyor.cs" />
+    <Compile Include="Modules\Territories\TerritoryDrawer.cs" />
+    <Compile Include="Modules\Territories\TerritoryEntryReporter.cs" />
+    <Compile Include="Modules\Territories\TerritoryEntryBanner.cs" />
+    <Compile Include="Modules\Territories\TerritoryHudOverlay.cs" />
+    <Compile Include="UI\QuestTrackerHud.cs" />
+    <Compile Include="UI\DraggableHud.cs" />
+    <Compile Include="Modules\Territories\TerritoryLedger.cs" />
+    <Compile Include="Modules\Territories\TerritoryMapOverlay.cs" />
+    <Compile Include="Modules\Territories\TerritoryModels.cs" />
+    <Compile Include="Modules\Territories\TerritoryPvpDamagePatches.cs" />
+    <Compile Include="Modules\Territories\TerritoryRuntime.cs" />
+    <Compile Include="Modules\Territories\TerritoryRuntime.Environment.cs" />
+    <Compile Include="Modules\Territories\TerritoryRuntime.Spawners.cs" />
+    <Compile Include="Modules\Territories\TerritoryRuntime.Physics.cs" />
+    <Compile Include="Modules\Territories\TerritoryFileSync.cs" />
+    <Compile Include="Modules\Territories\TerritorySpawnWatcher.cs" />
+    <Compile Include="Modules\Territories\TerritorySyncedState.cs" />
+    <Compile Include="Modules\Vault\PlayerChronicle.cs" />
+    <Compile Include="Modules\Vault\ActiveQuestStore.cs" />
+    <Compile Include="Modules\Vault\PrefabDataFactory.cs" />
+    <Compile Include="Modules\Vault\RealmLedger.cs" />
+    <Compile Include="Modules\Vault\Treasury.cs" />
+    <Compile Include="Modules\Vault\VaultApi.cs" />
+    <Compile Include="Modules\Vault\VaultOfKnowledge.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Services\PlayerInventoryService.cs" />
+    <Compile Include="Services\QuestStatusService.cs" />
+    <Compile Include="UI\CodegenUIWiring.cs" />
+    <Compile Include="UI\BakedUILoader.cs" />
+    <Compile Include="UI\Books\FiresBookView.cs" />
+    <Compile Include="UI\Books\BookViewWindow.cs" />
+    <Compile Include="UI\Books\QuestBookJournal.cs" />
+    <Compile Include="UI\DialogueManager.cs" />
+    <Compile Include="UI\GlobeHudController.cs" />
+    <Compile Include="UI\GlobeHud\GlobeHoverTooltip.cs" />
+    <Compile Include="UI\GlobeHud\GlobeLiquidSlosh.cs" />
+    <Compile Include="UI\GlobeHud\GlobeMotionSampler.cs" />
+    <Compile Include="UI\GlobeHud\GlobeSceneLight.cs" />
+    <Compile Include="UI\GlobeHud\GlobeStatBreakdown.cs" />
+    <Compile Include="UI\GlobeHud\GlobeValuePopup.cs" />
+    <Compile Include="UI\GlobeHud\GlobeView.cs" />
+    <Compile Include="UI\NpcHoverNameplate.cs" />
+    <Compile Include="UI\GUIManager.cs" />
+    <Compile Include="UI\NpcBookController.cs" />
+    <Compile Include="UI\BookOptionPopup.cs" />
+    <Compile Include="UI\PatrolRecorder.cs" />
+    <Compile Include="UI\PatrolRoutePopup.cs" />
+    <Compile Include="UI\PatrolPresetPopup.cs" />
+    <Compile Include="UI\Screens\Patrol\PatrolEditorPanel.cs" />
+    <Compile Include="UI\Screens\Patrol\PatrolEditorDriver.cs" />
+    <Compile Include="UI\PatrolRouteSync.cs" />
+    <Compile Include="UI\ContextMenu\PatrolNodeContextProvider.cs" />
+    <Compile Include="UI\ContextMenu\NpcAnchorContextProvider.cs" />
+    <Compile Include="UI\ContextMenu\NpcAnchorGrabController.cs" />
+    <Compile Include="UI\NpcAnchorOrbViz.cs" />
+    <Compile Include="UI\ContextMenu\PatrolNodeGrabController.cs" />
+    <Compile Include="Bridges\WayshrinesBridge.cs" />
+    <Compile Include="UI\NpcController.cs" />
+    <Compile Include="UI\NpcMapPins.cs" />
+    <Compile Include="UI\NpcHoverHudSuppressor.cs" />
+    <Compile Include="UI\OverwriteConfirmDialog.cs" />
+    <Compile Include="UI\Patches\InventoryGuiPatches.cs" />
+    <Compile Include="UI\Patches\NpcNameplatePatches.cs" />
+    <Compile Include="UI\Patches\PatrolInputBlockPatch.cs" />
+    <Compile Include="UI\Patches\StaticNpcProtectionPatches.cs" />
+    <Compile Include="UI\Patches\UITooltipStyleOverride.cs" />
+    <Compile Include="UI\PrefabFactory\UIPrefabFactoryCore.cs" />
+    <Compile Include="UI\PrefabFactory\UIPrefabFactoryHelpers.cs" />
+    <Compile Include="UI\PrefabFactory\UIPrefabFactoryInputFields.cs" />
+    <Compile Include="UI\PrefabFactory\UIPrefabFactoryProgrammatic.cs" />
+    <Compile Include="UI\PrefabFactory\UIPrefabFactoryWiring.cs" />
+    <Compile Include="UI\QuestJournal\QuestJournalController.cs" />
+    <Compile Include="UI\QuestJournal\QuestJournalHotkeyHandler.cs" />
+    <Compile Include="UI\QuestJournal\QuestProgressTracker.cs" />
+    <Compile Include="UI\QuestJournal\RuntimeSpriteSync.cs" />
+    <Compile Include="UI\QuestPreviewOrbitController.cs" />
+    <Compile Include="UI\QuestPreviewRenderer.cs" />
+    <Compile Include="UI\QuestProfileManager.cs" />
+    <Compile Include="UI\QuestTimerHUD.cs" />
+    <Compile Include="UI\Screens\FixedTraderUICodegen.cs" />
+    <Compile Include="UI\Screens\completecompanionsui.generated.cs" />
+    <Compile Include="UI\Screens\DressingRoomScreenController.cs" />
+    <Compile Include="UI\Screens\DressingRoomScreenController.Fashion.cs" />
+    <Compile Include="UI\Screens\DressingRoomScreenController.Pet.cs" />
+    <Compile Include="UI\Screens\StubPlayerUIController.cs" />
+    <Compile Include="UI\Screens\Player\BasePlayerModulePanel.cs" />
+    <Compile Include="UI\Screens\Player\GamblerPlayerPanel.cs" />
+    <Compile Include="UI\Screens\Player\Minigames\DicePouchGame.cs" />
+    <Compile Include="UI\Screens\Player\Minigames\WheelGame.cs" />
+    <Compile Include="UI\Screens\Player\Minigames\DuelGame.cs" />
+    <Compile Include="UI\Screens\Player\Minigames\RunesGame.cs" />
+    <Compile Include="Modules\Poker\PokerCards.cs" />
+    <Compile Include="Modules\Poker\PokerHandEval.cs" />
+    <Compile Include="Modules\Poker\PokerGame.cs" />
+    <Compile Include="Modules\Poker\PokerAI.cs" />
+    <Compile Include="Modules\Poker\PokerTest.cs" />
+    <Compile Include="Modules\Poker\PokerLobby.cs" />
+    <Compile Include="Modules\Poker\PokerNetHost.cs" />
+    <Compile Include="Modules\Poker\PokerNetClient.cs" />
+    <Compile Include="Modules\Poker\PokerCashTables.cs" />
+    <Compile Include="Modules\Chess\ChessBoard.cs" />
+    <Compile Include="Modules\Chess\ChessMoveGen.cs" />
+    <Compile Include="Modules\Chess\ChessPerft.cs" />
+    <Compile Include="Modules\Chess\ChessAI.cs" />
+    <Compile Include="Modules\Chess\ChessTablePiece.cs" />
+    <Compile Include="Modules\Chess\ChessBoardVisual.cs" />
+    <Compile Include="Modules\Chess\Chess3DSession.cs" />
+    <Compile Include="Modules\Chess\ChessSeats.cs" />
+    <Compile Include="Modules\Props\MailboxPiece.cs" />
+    <Compile Include="Modules\Props\FiresPropsModule.cs" />
+    <Compile Include="Modules\TableGames\LongRangeInteract.cs" />
+    <Compile Include="Modules\TableGames\GameModePopup.cs" />
+    <Compile Include="Modules\TableGames\QueueDockChip.cs" />
+    <Compile Include="Modules\Fanorona\FanoronaEngine.cs" />
+    <Compile Include="Modules\Fanorona\FanoronaAI.cs" />
+    <Compile Include="Modules\Fanorona\FanoronaTest.cs" />
+    <Compile Include="UI\Screens\Player\Minigames\ChessTableGame.cs" />
+    <Compile Include="UI\Screens\Player\Minigames\FanoronaTableGame.cs" />
+    <Compile Include="UI\Screens\Player\Minigames\PokerTableGame.cs" />
+    <Compile Include="UI\Screens\Player\MarketplacePlayerPanel.cs" />
+    <Compile Include="UI\Screens\Player\AchievementPlayerPanel.cs" />
+    <Compile Include="UI\Screens\Player\LeaderboardPlayerPanel.cs" />
+    <Compile Include="UI\Screens\Leaderboard\LeaderboardInventoryTab.cs" />
+    <Compile Include="UI\Screens\Player\MailPlayerPanel.cs" />
+    <Compile Include="UI\Screens\Player\TransmogPlayerPanel.cs" />
+    <Compile Include="Modules\Marketplace\GamblerProfileManager.cs" />
+    <Compile Include="Debug\SprintVerifyCommands.cs" />
+    <Compile Include="Modules\Marketplace\DiscordWebhooks.cs" />
+    <Compile Include="Modules\Marketplace\MarketplaceGlobals.cs" />
+    <Compile Include="Modules\Marketplace\MarketplaceListingManager.cs" />
+    <Compile Include="Modules\Marketplace\MarketplaceNetwork.cs" />
+    <Compile Include="Modules\Marketplace\AchievementProfileManager.cs" />
+    <Compile Include="Modules\Marketplace\AchievementCatalogue.cs" />
+    <Compile Include="Modules\Marketplace\AchievementCompletion.cs" />
+    <Compile Include="Modules\Marketplace\AchievementAnnouncer.cs" />
+    <Compile Include="Modules\Marketplace\AchievementGenerator.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardProfileManager.cs" />
+    <Compile Include="Modules\Marketplace\MailProfileManager.cs" />
+    <Compile Include="Modules\Marketplace\TransmogProfileManager.cs" />
+    <Compile Include="Modules\Marketplace\BankerProfileManager.cs" />
+    <Compile Include="Modules\Marketplace\BankerNetwork.cs" />
+    <Compile Include="Modules\Marketplace\MailNetwork.cs" />
+    <Compile Include="Modules\Marketplace\VipManager.cs" />
+    <Compile Include="Modules\Factions\FactionChat.cs" />
+    <Compile Include="Modules\Factions\FactionData.cs" />
+    <Compile Include="Modules\Factions\FactionManager.cs" />
+    <Compile Include="Modules\Factions\FactionMembership.cs" />
+    <Compile Include="Modules\Factions\FactionEnforcementPatches.cs" />
+    <Compile Include="Modules\Factions\FactionRestrictionPatches.cs" />
+    <Compile Include="Modules\Factions\FactionNameplatePatches.cs" />
+    <Compile Include="Modules\Factions\FactionIcons.cs" />
+    <Compile Include="Modules\Factions\FactionEditorPanel.cs" />
+    <Compile Include="Modules\Factions\FactionModule.cs" />
+    <Compile Include="Modules\PlayersTag\PlayerTagManager.cs" />
+    <Compile Include="Modules\PlayersTag\PlayerTagPatches.cs" />
+    <Compile Include="Modules\PlayersTag\PlayerTagModule.cs" />
+    <Compile Include="Modules\Fringe\FringeModules.cs" />
+    <Compile Include="Modules\Marketplace\MarketplaceConsoleCommands.cs" />
+    <Compile Include="Modules\Marketplace\MarketplacePaths.cs" />
+    <Compile Include="Modules\Migration\KgNpcMigrator.cs" />
+    <Compile Include="Modules\Migration\RpgMakerMigrateTest.cs" />
+    <Compile Include="Modules\Migration\RpgMakerMigrateProof.cs" />
+    <Compile Include="UI\Screens\Player\BankerPlayerPanel.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardTracker.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardServerFeed.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardBoard.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardMilestones.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardAppearanceFeed.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardAppearanceBoard.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardAchievementBoard.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardAppearanceCapturePatches.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardSkillFeed.cs" />
+    <Compile Include="Modules\Marketplace\LeaderboardSkillCapturePatches.cs" />
+    <Compile Include="Modules\Marketplace\TransmogState.cs" />
+    <Compile Include="Modules\Marketplace\TransmogInventoryMarker.cs" />
+    <Compile Include="UI\Screens\SavedProfilesDropdown.cs" />
+    <Compile Include="UI\Screens\InfoNpcPlayerPanel.cs" />
+    <Compile Include="UI\Screens\InfoNpcScreenController.cs" />
+    <Compile Include="UI\Screens\QuestInteractionScreenController.cs" />
+    <Compile Include="UI\Screens\QuestScreenLayout.cs" />
+    <Compile Include="UI\Screens\TraderUIController.cs" />
+    <Compile Include="UI\Generated\dialogueoptiontest.generated.cs" />
+    <Compile Include="UI\Generated\npcdialogueuitest1.generated.cs" />
+    <Compile Include="UI\UIInitializer.cs" />
+    <Compile Include="UI\LeaderboardHotkeyHandler.cs" />
+    <Compile Include="UI\Screens\Leaderboard\FiresLeaderboardAdapter.cs" />
+    <Compile Include="UI\Screens\Leaderboard\FiresLeaderboardGui.cs" />
+    <Compile Include="UI\Screens\Leaderboard\FiresLeaderboardGui.Canvas.cs" />
+    <Compile Include="UI\Screens\Leaderboard\FiresLeaderboardGui.Canvas.Details.cs" />
+    <Compile Include="UI\Screens\Leaderboard\FiresLeaderboardInputPatches.cs" />
+    <Compile Include="UI\Screens\Leaderboard\LeaderboardMannequinBinder.cs" />
+    <Compile Include="UI\Screens\Leaderboard\LeaderboardAchievementsBinder.cs" />
+    <Compile Include="UI\Screens\Leaderboard\ObituaryComposer.cs" />
+    <Compile Include="UI\FiresNpcsHelpContent.cs" />
+    <Compile Include="UI\FiresNpcsUIBuilderHost.cs" />
+    <Compile Include="Utilities\FiresLogger.cs" />
+    <Compile Include="Utilities\FiresRPGmakerBanner.cs" />
+    <Compile Include="Modules\Pets\PetApi.cs" />
+    <Compile Include="Modules\Pets\NpcPetSlot.cs" />
+    <Compile Include="Modules\Quest\LoreBooksBridge.cs" />
+    <Compile Include="Modules\Pets\Progress\PetBuffTable.cs" />
+    <Compile Include="Modules\Pets\Progress\PetProgress.cs" />
+    <Compile Include="Modules\Pets\Progress\SE_FiresPet.cs" />
+    <Compile Include="Modules\Pets\Progress\PetBuffApplier.cs" />
+    <Compile Include="Modules\Pets\Progress\PetText.cs" />
+    <Compile Include="Modules\Pets\Progress\PetProgressRpc.cs" />
+    <Compile Include="Modules\Pets\Progress\PetSkills.cs" />
+    <Compile Include="Modules\Pets\Progress\PetPanel.cs" />
+    <Compile Include="Modules\Pets\Progress\PetStandGuard.cs" />
+    <Compile Include="Modules\Pets\PetCatalog.cs" />
+    <Compile Include="Modules\Pets\PetManager.cs" />
+    <Compile Include="Modules\Pets\PetVisual.cs" />
+    <Compile Include="Modules\Sounds\NpcSoundSync.cs" />
+    <Compile Include="Modules\Vehicles\NpcShipDriver.cs" />
+    <Compile Include="Managers\MarketCfgSync.cs" />
+    <Compile Include="Modules\Pets\PetPetting.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="firesnpcs" />
+    <EmbeddedResource Include="firesnpcsui" />
+    <EmbeddedResource Include="firesbooks" />
+    <EmbeddedResource Include="vaitems_chessboard" />
+    <EmbeddedResource Include="firesnpcs_props" />
+    <EmbeddedResource Include="firesleaderboardtab" />
+    <EmbeddedResource Include="Resources\va_background5.png">
+      <LogicalName>FiresRPGmaker.Resources.va_background5.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Envelope.png">
+      <LogicalName>FiresRPGmaker.Resources.Envelope.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDie1.png"><LogicalName>FiresRPGmaker.Art.FiresDie1.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDie2.png"><LogicalName>FiresRPGmaker.Art.FiresDie2.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDie3.png"><LogicalName>FiresRPGmaker.Art.FiresDie3.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDie4.png"><LogicalName>FiresRPGmaker.Art.FiresDie4.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDie5.png"><LogicalName>FiresRPGmaker.Art.FiresDie5.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDie6.png"><LogicalName>FiresRPGmaker.Art.FiresDie6.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDicePouch.png"><LogicalName>FiresRPGmaker.Art.FiresDicePouch.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune1.png"><LogicalName>FiresRPGmaker.Art.FiresRune1.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune2.png"><LogicalName>FiresRPGmaker.Art.FiresRune2.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune3.png"><LogicalName>FiresRPGmaker.Art.FiresRune3.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune4.png"><LogicalName>FiresRPGmaker.Art.FiresRune4.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune5.png"><LogicalName>FiresRPGmaker.Art.FiresRune5.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune6.png"><LogicalName>FiresRPGmaker.Art.FiresRune6.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune7.png"><LogicalName>FiresRPGmaker.Art.FiresRune7.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresRune8.png"><LogicalName>FiresRPGmaker.Art.FiresRune8.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\Poker\*.png" />
+    <EmbeddedResource Include="Art\Poker\*.wav" />
+    <EmbeddedResource Include="Art\Chess\*.png" />
+    <EmbeddedResource Include="Art\Fanorona\*.png" />
+    <EmbeddedResource Include="Art\FiresDiceRattle.wav"><LogicalName>FiresRPGmaker.Art.FiresDiceRattle.wav</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDiceClatter1.wav"><LogicalName>FiresRPGmaker.Art.FiresDiceClatter1.wav</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Art\FiresDiceClatter2.wav"><LogicalName>FiresRPGmaker.Art.FiresDiceClatter2.wav</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="npcdialogueuitest1.uitables.json">
+      <LogicalName>FiresRPGmaker.BundledLayouts.npcdialogueuitest1.uitables.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="completecompanionsui.uitables.json">
+      <LogicalName>FiresRPGmaker.BundledLayouts.completecompanionsui.uitables.json</LogicalName>
+    </EmbeddedResource>
+    <None Include="Config\FiresRPGmaker\Dialogues\legacy\SampleGuard.cfg" />
+    <None Include="Config\FiresRPGmaker\Dialogues\legacy\SampleMerchant.cfg" />
+    <None Include="Config\FiresRPGmaker\Dialogues\legacy\SampleQuestGiver.cfg" />
+    <None Include="Debug\BugTrackers\COMPANION_BEHAVIOR_FIXES_2025_03_03.md" />
+    <None Include="Debug\BugTrackers\COMPANION_BEHAVIOR_FIXES_PLAN_2025_03.md" />
+    <None Include="Debug\BugTrackers\COMPANION_IDLE_WORK_BUGS.md" />
+    <None Include="Debug\BugTrackers\MOVEMENT_AUTHORITY_BUG_TRACKER.md" />
+    <None Include="Debug\BugTrackers\TERRAIN_PERSISTENCE_SYNC_TRACKER.md" />
+    <None Include="Debug\DebugRefs\CharacterDropRef.md" />
+    <None Include="Debug\DebugRefs\CharacterRefs.md" />
+    <None Include="Debug\DebugRefs\CLUTTER_SYSTEM_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\file1.md" />
+    <None Include="Debug\DebugRefs\file2.md" />
+    <None Include="Debug\DebugRefs\Harvestingcoderef.md" />
+    <None Include="Debug\DebugRefs\HumaniodRef.md" />
+    <None Include="Debug\DebugRefs\MonsterAIRef.md" />
+    <None Include="Debug\DebugRefs\SpawnSystemRef.md" />
+    <None Include="Debug\DebugRefs\UILAYOUTTEST.md" />
+    <None Include="Debug\DebugRefs\FIRES_RPG_MAKER_MASTER_TOOLS.yaml" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_ARCHITECTURE.md" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_FOREST_EMISSIVE_TOOLS.yaml" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_FULL_TOOLS_REFERENCE.yaml" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_ICE_TOOLS.yaml" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_INTEGRATION_FIXES.md" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_SNOW_TOOLS.yaml" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_TOOLS_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\SMART_CONTAINERS_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\VALHEIM_COMPONENT_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\VALHEIM_NETWORKING_IDENTITY_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\VALHEIM_SHADERS_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\VALHEIM_UI_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\WATER_VOLUME_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\WORLD_EDIT_COMMANDS_REFERENCE.md" />
+    <None Include="Debug\DebugRefs\ZDORef.md" />
+    <None Include="Debug\DebugRefs\ZnetSceneRef.md" />
+    <None Include="Debug\DebugRefs\ZoneSystemRef.md" />
+    <None Include="Debug\VersionMds\BIOME_VERTEX_COLOR_FINDINGS.md" />
+    <None Include="Debug\VersionMds\CHEST_INTERACTION_INTEGRATION.md" />
+    <None Include="Debug\VersionMds\CHEST_SERVICES_IMPROVEMENT_PLAN.md" />
+    <None Include="Debug\VersionMds\COMBINER_ARCHITECTURE_REFACTOR.md" />
+    <None Include="Debug\VersionMds\COMBINER_REFACTOR_V2.md" />
+    <None Include="Debug\VersionMds\COMPANION_BEHAVIOR_REFACTOR_PLAN.md" />
+    <None Include="Debug\VersionMds\COMPANION_INTERACTION_FIXES_2025_03.md" />
+    <None Include="Debug\VersionMds\COMPANION_RADIAL_MENU.md" />
+    <None Include="Debug\VersionMds\COMPANION_RADIAL_MENU_PLAN.md" />
+    <None Include="Debug\VersionMds\CUSTOM_TERRAIN_FUNDAMENTAL_ISSUES.md" />
+    <None Include="Debug\VersionMds\CUSTOM_TERRAIN_REFACTOR_PLAN.md" />
+    <None Include="Debug\VersionMds\FARMING_BEHAVIOR_IMPLEMENTATION.md" />
+    <None Include="Debug\VersionMds\MULTIPLAYER_TERRAIN_FIX_2025.md" />
+    <None Include="Debug\VersionMds\TERRAIN_PAINT_COMBINE_DEBUG.md" />
+    <None Include="Debug\VersionMds\TERRAIN_PAINT_FIX_CHANGELOG_2025_03_03.md" />
+    <None Include="Debug\VersionMds\TERRAIN_PAINT_OVERLAP_FIX.md" />
+    <None Include="Debug\VersionMds\TERRAIN_PAINT_VISUAL_DEBUG.md" />
+    <None Include="Debug\VersionMds\TERRAIN_PERSISTENCE_OPTIMIZATION.md" />
+    <None Include="Debug\VersionMds\TERRAIN_STORAGE_FIX_PLAN.md" />
+    <None Include="Debug\VersionMds\UNIFIED_MOVEMENT_AUTHORITY_PLAN.md" />
+    <None Include="Debug\VersionMds\UNIFIED_TERRAIN_PAINT_FIX.md" />
+    <None Include="Debug\VersionMds\UNIFIED_TERRAIN_SYSTEM.md" />
+    <None Include="Debug\VersionMds\VANILLA_TERRAIN_ANALYSIS.md" />
+    <None Include="Debug\VersionMds\ZONE_BASED_TERRAIN_REFACTOR.md" />
+    <None Include="Debug\VersionMds\ZONE_TERRAIN_CAVE_SUPPORT.md" />
+    <None Include="Docs\CLIENT_LOG_RELAY_EXTRACTION_PLAN.md" />
+    <None Include="Docs\CODEGEN_UI_MIGRATION_PLAN.md" />
+    <None Include="Docs\COMPANION_AI_BEHAVIOR_BUGFIX_TRACKER.md" />
+    <None Include="Docs\COMPANION_SAVE_REFACTOR_TRACKER.md" />
+    <None Include="Docs\CUSTOM_PLAYER_KEYS_EWP_BRIDGE.md" />
+    <None Include="Docs\DIALOGUE_BG_BUGFIX_TRACKER.md" />
+    <None Include="Docs\DISCORD_STATUS_HEARTBEAT_FEATURE.md" />
+    <None Include="Docs\ItemStandsdata.md" />
+    <None Include="Docs\HELP_PANEL_CONTENT_PLAN.md" />
+    <None Include="Docs\HELP_PANEL_REFERENCE.md" />
+    <None Include="Docs\LOGIN_DATA_TRANSMISSION_ANALYSIS.md" />
+    <None Include="Docs\LOGIN_HANG_FIX_PLAN.md" />
+    <None Include="Docs\NPC_UI_PERFORMANCE_INVESTIGATION.md" />
+    <None Include="Docs\PARTY_SYSTEM.md" />
+    <None Include="Docs\PRIVATE_KEY_PROGRESSION.md" />
+    <None Include="Docs\QUEST_SCREEN_BUGFIX_TRACKER.md" />
+    <None Include="Docs\SYNC_TERRITORY_LOGGING_INVESTIGATION.md" />
+    <None Include="Docs\TERRAIN_WATER_PERSISTENCE_BUGFIX_TRACKER.md" />
+    <None Include="Docs\TERRITORY_SYNC_FIX.md" />
+    <None Include="Docs\VANGARDE_CHUNK_REASSEMBLY_RACE_CONDITION_FIX.md" />
+    <None Include="Docs\VANGARDE_CHUNK_SIZE_REDUCTION_FIX.md" />
+    <None Include="Docs\VANGARDE_LOG_CHUNKING_FIX.md" />
+    <None Include="Docs\WILD_COMPANION_SPAWN_PLAN.md" />
+    <None Include="Modules\Async\ASYNC_CORE_REFACTOR_PLAN.md" />
+    <None Include="Modules\Async\MOD_OPERATIONS_OPTIMIZATION_PLAN.md" />
+    <None Include="Modules\ASYNC_OPTIMIZATION_PLAN.md" />
+    <None Include="Modules\Chat\Refs\CHAT_MEDIA_EMBED_PLAN.md" />
+    <None Include="Modules\Compendium\COMPENDIUM_IMPLEMENTATION.md" />
+    <None Include="Debug\VersionMds\DIRTFLOOR_TERRAINCOMP_MIGRATION.md" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_DIRTFLOOR_TOOLS.yaml" />
+    <None Include="Debug\VersionMds\TERRAIN_PAINT_FIX_ATTEMPTS.md" />
+    <None Include="Debug\VersionMds\TERRAIN_SYSTEM_REFACTOR_PLAN.md" />
+    <None Include="Debug\VersionMds\BIOME_PAINT_CHANGELOG.md" />
+    <None Include="Debug\VersionMds\CLUTTER_PAINT_IMPLEMENTATION.md" />
+    <None Include="Debug\VersionMds\CUSTOM_ENV_BOX_IMPLEMENTATION.md" />
+    <None Include="Debug\VersionMds\ZONE_RELOAD_COLLISION_FIX.md" />
+    <None Include="Debug\VersionMds\ENVBOX_BIOME_FIX.md" />
+    <None Include="Debug\VersionMds\ENVBOX_CLUTTER_SUCCESS.md" />
+    <None Include="Debug\DebugRefs\INFINITY_HAMMER_BIOME_TOOLS.yaml" />
+    <None Include="Debug\VersionMds\VALHEIM_TERRAIN_BIOME_REFERENCE.md" />
+    <None Include="Debug\VersionMds\PAINT_MASK_FIX_PLAN.md" />
+    <None Include="Debug\VersionMds\PAINT_MASK_REFACTOR_PLAN.md" />
+    <None Include="packages.config" />
+    <None Include="Debug\VersionMds\DIRT_FLOOR_OPTIMIZATION.md" />
+    <None Include="Debug\VersionMds\DIRT_FLOOR_PROGRESS.md" />
+    <None Include="Debug\VersionMds\INFINITY_HAMMER_COMPAT.md" />
+    <None Include="Debug\DebugRefs\PERFORMANCE_REVIEW.md" />
+    <None Include="UI\UIBuilderSDK\README.md" />
+    <None Include="UI\UIBuilder\Templates\CompanionsUI.md" />
+    <None Include="UI\UIBuilder\Templates\CodeGen.md" />
+    <None Include="UI\UIBuilder\Templates\Dialogue_OptionTest.md" />
+    <None Include="UI\UIBuilder\Templates\TraderLayoutRef.md" />
+    <None Include="UI\UIBuilder\Templates\NPCDialogueUITest1.md" />
+    <None Include="UI\UIBuilder\Templates\FixedOptions.md" />
+    <None Include="UI\UIBuilder\Templates\TraderUiFixedRef.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="UI\UIBuilder\Data\" />
+    <Folder Include="UI\UIBuilder\Editor\" />
+    <Folder Include="UI\UIBuilder\Integration\" />
+    <Folder Include="UI\UIBuilder\Runtime\" />
+    <Folder Include="UI\UIBuilder\Tests\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Debug\DebugRefs\BC_IMAGEMAPFLOAT_REFERENCE.txt" />
+    <Content Include="Debug\DebugRefs\BC_RIVER_COMPATIBILITY_REFERENCE.txt" />
+    <Content Include="Debug\DebugRefs\ClutterReference.txt" />
+    <Content Include="Debug\DebugRefs\EnvironmentReference.txt" />
+    <Content Include="Debug\DebugRefs\EWR_WATER_VOLUME_REFERENCE.txt" />
+    <Content Include="Debug\DebugRefs\EWR_WORLD_GENERATION_REFERENCE.txt" />
+    <Content Include="Debug\DebugRefs\MINEROCK_PREFABS_REFERENCE.txt" />
+    <Content Include="Debug\DebugRefs\PICKABLE_PREFABS_REFERENCE.txt" />
+    <Content Include="Debug\DebugRefs\SkyboxShaderReference.txt" />
+    <Content Include="Debug\DebugRefs\TREE_PREFABS_REFERENCE.txt" />
+    <Content Include="Debug\DebugRefs\VALHEIM_SPRITES_REFERENCE.txt" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
