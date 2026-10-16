@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FiresRPGmaker.Modules.Marketplace;
 using TMPro;
@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
     /// <summary>
-    /// Player-facing Transmog — port of KG's MarketplaceTransmogUI flow:
+    /// Player-facing Transmog - port of KG's MarketplaceTransmogUI flow:
     ///   • LEFT pane: the player's inventory filtered to transmoggable item types (KG's AvailableTypes).
     ///     Items already transmogged render in red. Click an item to select it; click again to deselect.
     ///   • RIGHT pane: available transmogs from the loaded profile, filtered to the SELECTED ITEM'S TYPE.
@@ -34,6 +34,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private TMP_Text _statusText;
         private Button _reverseButton;
         private ItemDrop.ItemData _selectedItem;
+        // 10-09 parchment layout (Tools\Mockups\rpg_transmog_player_mockup.png): bag line, per-slot counts, the pane's count, tooltips.
+        private TMP_Text _footerRight, _otherSlots, _availCount;
+        private RectTransform _tipBox, _previewSlot;
+        private static readonly Color Ink = new Color(0.24f, 0.16f, 0.08f, 1f);
+        private static readonly Color Good = new Color(0.23f, 0.36f, 0.07f, 1f);
+        private static readonly Color Bad = new Color(0.60f, 0.16f, 0.09f, 1f);
+        private static readonly Color SelectedRow = new Color(1f, 0.97f, 0.88f, 0.85f);
 
         // Live 3D preview (floated to the LEFT of the panel so it never overlaps the baked layout).
         private GameObject _previewBox;
@@ -74,6 +81,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             EnsureReflowMeta(_availableContent, rowSpacing: 2f, padding: 6f);
 
             _statusText = FindTmp(t, "StatusText");
+            _footerRight = FindTmp(t, "FooterRightText");
+            _otherSlots = FindTmp(t, "OtherSlotsText");
+            _availCount = FindTmp(t, "AvailCountText");
+            _tipBox = FindRect(t, "TooltipBox");
+            _previewSlot = FindRect(t, "PreviewSlot");
+            BufferPlayerPanel.MakeDraggable(t);
             BuildPreviewWidget(t);
         }
 
@@ -82,7 +95,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private void BuildPreviewWidget(Transform root)
         {
             _previewBox = new GameObject("TransmogPreview3D", typeof(RectTransform), typeof(Image));
-            _previewBox.transform.SetParent(root, false);
+            _previewBox.transform.SetParent(_previewSlot != null ? _previewSlot : root, false);
             var rt = (RectTransform)_previewBox.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0f, 0.5f);   // panel's left-center
             rt.pivot = new Vector2(1f, 0.5f);                       // preview's right edge meets the panel's left edge
@@ -92,12 +105,20 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var ol = _previewBox.AddComponent<Outline>();
             ol.effectColor = new Color(0.62f, 0.42f, 0.16f, 0.9f);
             ol.effectDistance = new Vector2(2f, -2f);
+            if (_previewSlot != null)
+            {
+                // 10-09 layout: the preview fills the right pane's PreviewSlot instead of floating left of the panel.
+                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+                _previewBox.GetComponent<Image>().color = new Color(0.97f, 0.93f, 0.83f, 1f);
+                ol.effectColor = new Color(0.55f, 0.42f, 0.25f, 0.55f); ol.effectDistance = new Vector2(1f, -1f);
+            }
 
             var imgGo = new GameObject("Render", typeof(RectTransform), typeof(RawImage));
             imgGo.transform.SetParent(_previewBox.transform, false);
             var irt = (RectTransform)imgGo.transform;
             irt.anchorMin = Vector2.zero; irt.anchorMax = Vector2.one;
-            irt.offsetMin = new Vector2(8f, 32f); irt.offsetMax = new Vector2(-8f, -8f);
+            irt.offsetMin = new Vector2(8f, _previewSlot != null ? 20f : 32f); irt.offsetMax = new Vector2(-8f, -6f);
             _previewImage = imgGo.GetComponent<RawImage>();
 
             var lblGo = new GameObject("Hint", typeof(RectTransform));
@@ -107,7 +128,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             lrt.sizeDelta = new Vector2(-16f, 26f); lrt.anchoredPosition = new Vector2(0f, 5f);
             var tmp = lblGo.AddComponent<TextMeshProUGUI>();
             tmp.text = "drag to rotate · scroll to zoom";
-            tmp.fontSize = 12f; tmp.color = new Color(0.8f, 0.72f, 0.56f); tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontSize = 12f; tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = _previewSlot != null ? new Color(0.45f, 0.34f, 0.21f) : new Color(0.8f, 0.72f, 0.56f);
+            if (_previewSlot != null) { lrt.sizeDelta = new Vector2(-16f, 18f); lrt.anchoredPosition = new Vector2(0f, 2f); tmp.fontSize = 11f; }
 
             _previewBox.SetActive(false);
         }
@@ -169,6 +192,40 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         {
             RefreshInventory();
             RefreshAvailable();
+            RefreshBagLine();
+        }
+
+        // Footer: what the bag holds of every currency this profile charges.
+        private void RefreshBagLine()
+        {
+            if (_footerRight == null) return;
+            var player = Player.m_localPlayer;
+            var pool = TransmogProfileManager.GetAllForProfile(_profileName);
+            if (player == null || pool == null || pool.Count == 0) { _footerRight.text = ""; return; }
+            var inv = player.GetInventory();
+            var parts = pool.Where(o => !string.IsNullOrEmpty(o.PricePrefab) && o.PriceAmount > 0).Select(o => o.PricePrefab).Distinct()
+                            .Select(p => CountInInventory(inv, p) + " " + ItemName(p)).ToList();
+            _footerRight.text = parts.Count > 0 ? "In bag: " + string.Join(" · ", parts) : "";
+        }
+
+        private static string ItemName(string prefab)
+        {
+            var drop = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefab)?.GetComponent<ItemDrop>() : null;
+            if (drop == null) return prefab;
+            string n = drop.m_itemData.m_shared.m_name;
+            return Localization.instance != null ? Localization.instance.Localize(n) : n;
+        }
+
+        private static string SlotName(string type)
+        {
+            switch (type)
+            {
+                case "OneHandedWeapon": return "One-handed";
+                case "TwoHandedWeapon": return "Two-handed";
+                case "TwoHandedWeaponLeft": return "Two-handed";
+                case "Shoulder": return "Cape";
+                default: return type;
+            }
         }
 
         // ─── LEFT pane ───
@@ -228,18 +285,22 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowGo.SetActive(true);
             SetRowHeight(rowGo, 28f);
             var img = rowGo.GetComponent<Image>();
-            if (img != null) img.color = isSelected ? new Color(0.10f, 0.45f, 0.10f, 0.95f) : new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            if (img != null) img.color = isSelected ? SelectedRow : new Color(1f, 1f, 1f, 0f);
+            var icon = rowGo.transform.Find("Icon")?.GetComponent<Image>();
+            if (icon != null) { var s = item.GetIcon(); icon.sprite = s; icon.enabled = s != null; }
+            var slot = FindTmp(rowGo.transform, "SlotLabel");
+            if (slot != null) slot.text = SlotName(item.m_shared.m_itemType.ToString());
             var btn = rowGo.GetComponent<Button>();
             if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _selectedItem = _selectedItem == item ? null : item; StagePreviewFor(item.m_dropPrefab.name); Refresh(); }); }
 
             // KG colors transmogged items in red, untransmogged in white. m_shared.m_name is a $localization
-            // key — resolve through Valheim's Localization service for a readable name.
-            var nameColor = hasTransmog ? new Color(1f, 0.31f, 0.31f) : new Color(0.96f, 0.91f, 0.76f);
+            // key - resolve through Valheim's Localization service for a readable name.
+            var nameColor = hasTransmog ? Bad : Ink;   // parchment: transmogged in red-brown, the rest in ink
             string displayName = Localization.instance != null ? Localization.instance.Localize(item.m_shared.m_name) : item.m_shared.m_name;
             var nameLabel = FindTmp(rowGo.transform, "NameLabel");
             if (nameLabel != null) { nameLabel.text = displayName; nameLabel.color = nameColor; }
             var qtyLabel = FindTmp(rowGo.transform, "QtyLabel");
-            if (qtyLabel != null) qtyLabel.text = "x" + item.m_stack;
+            if (qtyLabel != null) qtyLabel.text = item.m_stack > 1 ? "x" + item.m_stack : "";
         }
 
         // ─── RIGHT pane ───
@@ -249,8 +310,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_availableContent == null || _typeHeaderTemplate == null || _availRowTemplate == null) return;
             ClearClones(_availableContent, _typeHeaderTemplate, _availRowTemplate);
 
-            // No selection → show all transmogs (header per type) without Apply buttons.
-            // Selection → show only matching-type transmogs with Apply buttons.
+            // No selection » show all transmogs (header per type) without Apply buttons.
+            // Selection » show only matching-type transmogs with Apply buttons.
             string targetType = _selectedItem != null ? _selectedItem.m_shared.m_itemType.ToString() : null;
 
             var pool = TransmogProfileManager.GetAllForProfile(_profileName);
@@ -279,9 +340,21 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 }
             }
             ReflowScroll(_availableContent);
-            if (_statusText != null) _statusText.text = (_selectedItem == null)
-                ? "Click an inventory item to filter + apply transmogs."
-                : "Type: " + targetType + " — " + shownCount + " option(s)";
+            if (_availCount != null) _availCount.text = targetType == null ? pool.Count + " in all" : "for " + SlotName(targetType) + " · " + shownCount + " of " + pool.Count;
+            if (_otherSlots != null)
+            {
+                var others = pool.GroupBy(o => o.Slot ?? "Helmet")
+                                 .Where(g => targetType == null || !string.Equals(g.Key, targetType, System.StringComparison.OrdinalIgnoreCase))
+                                 .Select(g => SlotName(g.Key) + " " + g.Count()).ToList();
+                _otherSlots.text = others.Count > 0 ? string.Join(" · ", others) : "-";
+            }
+            if (_statusText != null)
+            {
+                _statusText.color = Ink;
+                _statusText.text = (_selectedItem == null)
+                    ? "Click an item in your gear to see its appearances."
+                    : SlotName(targetType) + ": " + shownCount + " appearance(s)";
+            }
         }
 
         private void BuildTypeHeaderRow(string typeName)
@@ -292,9 +365,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             SetRowHeight(rowGo, 22f);
             var color = TransmogState.TypeColors.TryGetValue(typeName, out var c) ? c : Color.gray;
             var img = rowGo.GetComponent<Image>();
-            if (img != null) img.color = new Color(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, 0.95f);
+            // Parchment: the slot colour as a light wash under the header.
+            if (img != null) img.color = new Color(Mathf.Lerp(0.93f, color.r, 0.25f), Mathf.Lerp(0.87f, color.g, 0.25f), Mathf.Lerp(0.74f, color.b, 0.25f), 0.9f);
             var label = FindTmp(rowGo.transform, "TypeLabel");
-            if (label != null) label.text = typeName;
+            if (label != null) { label.text = SlotName(typeName); label.color = Ink; }
         }
 
         private void BuildAvailableRow(TransmogOption t, bool actionable)
@@ -313,16 +387,26 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             rowBtn.onClick.AddListener(() => StagePreviewFor(t.Prefab));
 
             var nameLabel = FindTmp(rowGo.transform, "NameLabel");
-            if (nameLabel != null) nameLabel.text = t.Prefab;
+            if (nameLabel != null) nameLabel.text = ItemName(t.Prefab);
             var priceLabel = FindTmp(rowGo.transform, "PriceLabel");
-            if (priceLabel != null) priceLabel.text = t.PricePrefab + " x" + t.PriceAmount;
+            if (priceLabel != null) priceLabel.text = t.PriceAmount > 0 ? t.PriceAmount + " " + ItemName(t.PricePrefab) : "Free";
 
             // The Apply button only acts when the row's type matches the selected item; otherwise hide it.
             var applyBtn = FindBtn(rowGo.transform, "ApplyButton");
             if (applyBtn != null)
             {
                 applyBtn.gameObject.SetActive(actionable);
-                if (actionable) { applyBtn.onClick.RemoveAllListeners(); applyBtn.onClick.AddListener(() => OnApplyClicked(t)); }
+                if (actionable)
+                {
+                    applyBtn.onClick.RemoveAllListeners(); applyBtn.onClick.AddListener(() => OnApplyClicked(t));
+                    // Greyed with the reason on hover when the bag can't pay (the class doc promised it; 10-09 mockup).
+                    var player = Player.m_localPlayer;
+                    int have = player != null ? CountInInventory(player.GetInventory(), t.PricePrefab) : 0;
+                    bool canPay = t.PriceAmount <= 0 || have >= t.PriceAmount;
+                    applyBtn.interactable = canPay;
+                    if (priceLabel != null) priceLabel.color = canPay ? new Color(0.45f, 0.34f, 0.21f) : Bad;
+                    PanelHoverTip.Set(applyBtn.gameObject, _tipBox, canPay ? null : "Need " + t.PriceAmount + " " + ItemName(t.PricePrefab) + " (have " + have + ")");
+                }
             }
         }
 
@@ -339,7 +423,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
             TransmogState.Set(player.GetPlayerName(), _selectedItem.m_dropPrefab.name, t.Prefab);
             string itemDisp = Localization.instance != null ? Localization.instance.Localize(_selectedItem.m_shared.m_name) : _selectedItem.m_shared.m_name;
-            _statusText.text = "Applied " + t.Prefab + " to " + itemDisp + ".";
+            _statusText.text = "" + itemDisp + " now looks like " + ItemName(t.Prefab) + "."; _statusText.color = Good;
             // TransmogState.Set already calls RefreshLocalEquipment (which routes through SetupEquipment).
             Refresh();
         }
@@ -349,7 +433,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var player = Player.m_localPlayer; if (player == null || _selectedItem == null) return;
             TransmogState.Set(player.GetPlayerName(), _selectedItem.m_dropPrefab.name, null);
             string itemDisp = Localization.instance != null ? Localization.instance.Localize(_selectedItem.m_shared.m_name) : _selectedItem.m_shared.m_name;
-            _statusText.text = "Reverted " + itemDisp + " to default.";
+            _statusText.text = "" + itemDisp + " looks like itself again."; _statusText.color = Good;
             try { player.GetComponent<VisEquipment>()?.UpdateEquipmentVisuals(); } catch { }
             Refresh();
         }

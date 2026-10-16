@@ -326,9 +326,9 @@ case Heightmap.Biome.Mountain:
        {
          case TerritoryShape.Rectangle:
       float x0 = terr.X != null && terr.X.Length > 0 ? terr.X[0] : 0f;
-         float x1 = terr.X != null && terr.X.Length > 1 ? terr.X[1] : x0;
+         float x1 = terr.X != null && terr.X.Length > 1 ? x0 + terr.X[1] : x0; // X[1] is the width
     float z0 = terr.Y != null && terr.Y.Length > 0 ? terr.Y[0] : 0f;
-  float z1 = terr.Y != null && terr.Y.Length > 1 ? terr.Y[1] : z0;
+  float z1 = terr.Y != null && terr.Y.Length > 1 ? z0 + terr.Y[1] : z0; // Y[1] is the depth
          minX = x0 < x1 ? x0 : x1;
         maxX = x0 > x1 ? x0 : x1;
         minZ = z0 < z1 ? z0 : z1;
@@ -367,9 +367,9 @@ return;
       if (terr.Shape == TerritoryShape.Rectangle)
           {
       float x0 = terr.X != null && terr.X.Length > 0 ? terr.X[0] : 0f;
-        float x1 = terr.X != null && terr.X.Length > 1 ? terr.X[1] : x0;
+        float x1 = terr.X != null && terr.X.Length > 1 ? x0 + terr.X[1] : x0; // X[1] is the width
     float z0 = terr.Y != null && terr.Y.Length > 0 ? terr.Y[0] : 0f;
-         float z1 = terr.Y != null && terr.Y.Length > 1 ? terr.Y[1] : z0;
+         float z1 = terr.Y != null && terr.Y.Length > 1 ? z0 + terr.Y[1] : z0; // Y[1] is the depth
    float minX = x0 < x1 ? x0 : x1;
          float maxX = x0 > x1 ? x0 : x1;
         float minZ = z0 < z1 ? z0 : z1;
@@ -400,15 +400,20 @@ return;
       default: paint = TerrainModifier.PaintType.Reset; break;
        }
 
+                // Ground that isn't loaded yet is retried every 2 s while the player is inside; "attempted" is only
+                // recorded once every heightmap under the area has been painted.
+                if (specificHeightmap == null && Time.time < _nextPaintRetry) return;
+                _nextPaintRetry = Time.time + 2f;
+
                 var hmaps = new List<Heightmap>();
             if (specificHeightmap != null)
   hmaps.Add(specificHeightmap);
          else
         {
          Heightmap.FindHeightmap(center, radius + 5f, hmaps);
-     _paintedTerritoryHeightmaps.Add($"{terr.UID}:attempted");
       }
 
+       bool allPainted = true;
        foreach (var hm in hmaps)
         {
        if (hm == null) continue;
@@ -417,16 +422,18 @@ return;
     if (_paintedTerritoryHeightmaps.Contains(key))
          continue;
 
-                    // CRITICAL: Only get EXISTING TerrainComp - NEVER create new ones!
-                    // Creating TerrainComps triggers vanilla duplicate detection which causes
-                    // "Found another terrain compiler in this area, removing it" spam.
-                    TerrainComp tc = TerrainComp.FindTerrainCompiler(center);
-                    if (tc == null)
+                    // Fire 10-08: paint untouched ground too, through vanilla's own GetAndCreateTerrainCompiler (what the
+                    // hoe and the cultivator use), but only once the zone is fully loaded. ZNetScene.IsAreaReady is the
+                    // check vanilla's teleport waits on: the zone is loaded and every object in it has spawned, so the
+                    // area's existing terrain compiler is already found and never duplicated. Before, only ground that
+                    // had been edited already got painted (an existing TerrainComp at the territory centre).
+                    if (ZNetScene.instance == null || !ZNetScene.instance.IsAreaReady(hm.transform.position))
                     {
-                        // Try to get from heightmap directly if it already has one
-                        tc = hm.GetComponent<TerrainComp>();
+                        allPainted = false;
+                        continue;
                     }
-                    if (tc == null) continue;
+                    TerrainComp tc = hm.GetAndCreateTerrainCompiler();
+                    if (tc == null) { allPainted = false; continue; }
 
     try
         {
@@ -459,14 +466,19 @@ return;
 
          tc.ApplyOperation(top);
    _paintedTerritoryHeightmaps.Add(key);
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] '{terr.Name}' CustomPaint {paint} r={radius:0} painted the heightmap at ({hm.transform.position.x:0},{hm.transform.position.z:0})");
 
      NetworkObjectHelper.SafeDestroy(go);
        }
      catch { }
         }
+                if (specificHeightmap == null && allPainted)
+                    _paintedTerritoryHeightmaps.Add($"{terr.UID}:attempted");
             }
             catch { }
         }
+
+        private static float _nextPaintRetry;
 
         private static void TryApplyBiomePaint(Territory terr, Vector3 refPos)
         {
@@ -493,6 +505,25 @@ return;
             }
         }
 
+        // The player's own PvP choice from before a PvpOnly/PveOnly territory forced it. It used to stay forced after
+        // leaving; it is given back on exit, or when the player walks into an area without either flag.
+        private static Player _pvpForcedFor;
+        private static bool _pvpBeforeForce;
+
+        private static void RestoreForcedPvp(Player player)
+        {
+            if (_pvpForcedFor == null) return;
+            bool sameBody = ReferenceEquals(_pvpForcedFor, player);
+            _pvpForcedFor = null;
+            if (!sameBody || player == null) return; // a respawn or a new world: nothing of ours to give back
+            if (player.IsPVPEnabled() != _pvpBeforeForce)
+            {
+                player.SetPVP(_pvpBeforeForce);
+                TerritoryClientHelpers.SetInventoryPvpToggle(_pvpBeforeForce);
+            }
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] PvP given back to {player.GetPlayerName()}: {(_pvpBeforeForce ? "on" : "off")}");
+        }
+
    private static void ApplyTerritoryEffects(Player player)
         {
          if (Current == null || player == null)
@@ -505,6 +536,7 @@ return;
            player.m_runSpeed = _baseRunSpeed;
   player.m_swimSpeed = _baseSwimSpeed;
             }
+            RestoreForcedPvp(player);
     if (_snowForced)
         {
  Shader.SetGlobalFloat("_GlobalSnowAmount", _origSnowAmount ?? 0f);
@@ -532,17 +564,33 @@ return;
        bool? desiredPvp = null;
     if (Current.Flags.HasFlag(TerritoryFlags.PveOnly)) desiredPvp = false;
             if (Current.Flags.HasFlag(TerritoryFlags.PvpOnly)) desiredPvp = true;
-       if (desiredPvp.HasValue && player.IsPVPEnabled() != desiredPvp.Value)
-          {
-                     player.SetPVP(desiredPvp.Value);
-           TerritoryClientHelpers.SetInventoryPvpToggle(desiredPvp.Value);
-             }
+            if (desiredPvp.HasValue)
+            {
+                if (!ReferenceEquals(_pvpForcedFor, player))
+                {
+                    _pvpForcedFor = player;
+                    _pvpBeforeForce = player.IsPVPEnabled();
+                }
+                if (player.IsPVPEnabled() != desiredPvp.Value)
+                {
+                    player.SetPVP(desiredPvp.Value);
+                    TerritoryClientHelpers.SetInventoryPvpToggle(desiredPvp.Value);
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] '{Current.Name}' forced PvP {(desiredPvp.Value ? "on" : "off")} for {player.GetPlayerName()}");
+                }
+            }
+            else
+            {
+                RestoreForcedPvp(player);
+            }
 
-  // Push-away
+  // Push-away: straight out from the middle of the area, along the ground. Pos3D's y is the HeightBounds midpoint
+  // (0 when unset) and a Rectangle's X/Y are its corner, so the old direction mostly lifted players or pushed from a corner.
             if (!AdminBypass(player) && Current.Flags.HasFlag(TerritoryFlags.PushAway) && !IsPermitted(Current, player))
             {
                 var rb = player.GetComponent<Rigidbody>();
-          var dir = (player.transform.position - Current.Pos3D()).normalized;
+                var mid = Current.Center2D();
+                var dir = new Vector3(player.transform.position.x - mid.x, 0f, player.transform.position.z - mid.y);
+                dir = dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector3.forward;
         var push = dir * (Time.fixedDeltaTime * 7f);
              if (rb != null) rb.MovePosition(player.transform.position + push);
       else player.transform.position += push;
@@ -633,7 +681,7 @@ needsSnowShader = BiomeRequiresSnowShader((Heightmap.Biome)Current.OverridenBiom
     if (Current.Flags.HasFlag(TerritoryFlags.PeriodicDamage) && !IsPermitted(Current, player))
    {
                  var hit = new HitData();
-hit.m_damage.m_fire = Current.PeriodicDamageValue > 0 ? Current.PeriodicDamageValue : 5f;
+hit.m_damage.m_damage = Current.PeriodicDamageValue > 0 ? Current.PeriodicDamageValue : 5f; // 0.0.533: plain damage; as fire it became a slow burn (round 13: 0.2 hp in 4 s)
                     player.Damage(hit);
         }
        if (Current.Flags.HasFlag(TerritoryFlags.PeriodicHealALL))
@@ -792,17 +840,41 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
 
         // ==================== HARMONY PATCHES ====================
 
+        private const TerritoryFlags GroundHeightFlags =
+            TerritoryFlags.ForceGroundHeight | TerritoryFlags.AddGroundHeight | TerritoryFlags.LimitZoneHeight;
+
+        private static int _groundHeightCacheVersion = -1;
+        private static bool _anyGroundHeightTerritory;
+
+        private static bool AnyGroundHeightTerritory()
+        {
+            if (_groundHeightCacheVersion == _currentTerritoriesVersion) return _anyGroundHeightTerritory;
+            _groundHeightCacheVersion = _currentTerritoriesVersion;
+            _anyGroundHeightTerritory = false;
+            var territories = GetCurrentTerritories();
+            if (territories == null) return false;
+            foreach (var territory in territories)
+            {
+                if ((territory.Flags & GroundHeightFlags) == 0) continue;
+                _anyGroundHeightTerritory = true;
+                break;
+            }
+            return _anyGroundHeightTerritory;
+        }
+
+        // GetWorldHeight runs thousands of times per terrain streamer tick; the territory scan only matters when some
+        // territory reshapes the ground, so every other call leaves after one cached bool.
         [HarmonyPatch(typeof(Heightmap), "GetWorldHeight")]
         [HarmonyPostfix]
-     private static void Heightmap_GetWorldHeight_Postfix(Vector3 worldPos, ref float height, ref bool __result)
+        private static void Heightmap_GetWorldHeight_Postfix(Vector3 worldPos, ref float height, ref bool __result)
         {
-         if (!__result) return;
-          var terr = GetTerritory(worldPos);
-     if (terr == null) return;
-            if (terr.Flags.HasFlag(TerritoryFlags.ForceGroundHeight)) { height = terr.OverridenHeight; return; }
-       if (terr.Flags.HasFlag(TerritoryFlags.AddGroundHeight)) height += terr.OverridenHeight;
-            if (terr.Flags.HasFlag(TerritoryFlags.LimitZoneHeight)) height = Mathf.Min(height, terr.OverridenHeight);
-      }
+            if (!__result || !AnyGroundHeightTerritory()) return;
+            var terr = GetTerritory(worldPos);
+            if (terr == null) return;
+            if ((terr.Flags & TerritoryFlags.ForceGroundHeight) != 0) { height = terr.OverridenHeight; return; }
+            if ((terr.Flags & TerritoryFlags.AddGroundHeight) != 0) height += terr.OverridenHeight;
+            if ((terr.Flags & TerritoryFlags.LimitZoneHeight) != 0) height = Mathf.Min(height, terr.OverridenHeight);
+        }
 
     [HarmonyPatch(typeof(Heightmap), nameof(Heightmap.GetBiome))]
         [HarmonyPostfix]
@@ -876,6 +948,13 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
             return sector;
         }
 
+        // 0.0.579: the camera-territory cache for EnvMan_GetBiome_Postfix (see there).
+        private static bool s_biomeCacheValid;
+        private static Vector3 s_biomeCachePos;
+        private static float s_biomeCacheTime, s_biomeNextReport;
+        private static Territory s_biomeCacheTerr;
+        private static int s_biomeHits, s_biomeMisses;
+
         [HarmonyPatch(typeof(EnvMan), "GetBiome")]
         [HarmonyPostfix]
         private static void EnvMan_GetBiome_Postfix(EnvMan __instance, ref BiomeSector __result)
@@ -890,8 +969,29 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
             {
                 var cam = Utils.GetMainCamera();
                 if (cam == null) return;
-                
-                var terr = GetTerritory(cam.transform.position);
+
+                // 0.0.579 (ITTO R4: 49 lookups/s, 26 us each): the camera's territory is reused while the camera moved < 1 m
+                // and < 0.25 s passed. A forced biome can switch up to 0.25 s later at a border; nothing else changes.
+                Vector3 camPos = cam.transform.position;
+                float t = Time.time;
+                Territory terr;
+                if (s_biomeCacheValid && (camPos - s_biomeCachePos).sqrMagnitude < 1f && t - s_biomeCacheTime < 0.25f)
+                {
+                    terr = s_biomeCacheTerr; s_biomeHits++;
+                }
+                else
+                {
+                    terr = GetTerritory(camPos);
+                    s_biomeCacheTerr = terr; s_biomeCachePos = camPos; s_biomeCacheTime = t; s_biomeCacheValid = true; s_biomeMisses++;
+                }
+                if (t >= s_biomeNextReport)
+                {
+                    if (s_biomeNextReport > 0f && s_biomeHits + s_biomeMisses > 0)
+                        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] biome cache: {s_biomeHits} hit(s), {s_biomeMisses} lookup(s) in the last minute ({100f * s_biomeHits / (s_biomeHits + s_biomeMisses):0}% hits)");
+                    else if (s_biomeNextReport == 0f)
+                        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[Territory] biome cache attached (1 m / 0.25 s; ForceBiome territories present)");
+                    s_biomeHits = 0; s_biomeMisses = 0; s_biomeNextReport = t + 60f;
+                }
                 if (terr == null) terr = Current;
                 if (terr == null) return;
 

@@ -160,6 +160,11 @@ Quests = KillBoarSample
                     }
                 }
                 string nameFilter = (i < nameParts.Count) ? (string.IsNullOrWhiteSpace(nameParts[i]) ? null : nameParts[i]) : null;
+                if (TryParseMoveCoordinates(part, objType, out var moveAt, out var moveAmount))
+                {
+                    targets.Add(new QuestTarget { Prefab = moveAt, Amount = moveAmount, Type = "move", NameFilter = nameFilter });
+                    continue;
+                }
                 targets.Add(new QuestTarget
                 {
                     Prefab = prefab,
@@ -172,9 +177,36 @@ Quests = KillBoarSample
             return targets;
         }
 
+        /// <summary>0.0.532: a Move objective's target is a POSITION, "x y z [amount]" (separators: space, ',', ':' or
+        /// ';'; decimals and negatives allowed), with or without a "Move:" prefix. It becomes the "x,y,z" Prefab the Move
+        /// check reads. Both target parsers used to split it like "Prefab, amount", so no Move target could ever be
+        /// written. A target only counts as a position when its first three tokens are numbers, or it has "Move:".</summary>
+        internal static bool TryParseMoveCoordinates(string part, string objType, out string prefab, out int amount)
+        {
+            prefab = null; amount = 1;
+            if (string.IsNullOrWhiteSpace(part)) return false;
+            var tokens = part.Split(new[] { ' ', ',', ':', ';' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            bool isMove = string.Equals(objType, "move", StringComparison.OrdinalIgnoreCase);
+            // 0.0.544 ([visual]'s bug_move): a "Move: x y z" line reached here with its prefix still on, the "Move" token broke
+            // the number scan at once, and the line fell through to the prefab parser (coordinates read as a prefab name).
+            if (tokens.Count > 0 && string.Equals(tokens[0].Trim(), "move", StringComparison.OrdinalIgnoreCase)) { tokens.RemoveAt(0); isMove = true; }
+            var nums = new List<float>();
+            foreach (var tok in tokens)
+            {
+                if (!float.TryParse(tok.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f)) break;
+                nums.Add(f);
+            }
+            if (nums.Count < 3 || (!isMove && nums.Count != tokens.Count)) return false;
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            prefab = nums[0].ToString("0.##", ci) + "," + nums[1].ToString("0.##", ci) + "," + nums[2].ToString("0.##", ci);
+            if (nums.Count >= 4 && nums[3] >= 1f) amount = (int)nums[3];
+            return true;
+        }
+
         public void LoadQuestDatabase()
         {
             questDatabase.Clear();
+            ForgetSerialisedQuestDb();
             // Pure clients parse the server-synced in-memory store (no config files on client disk);
             // server/host reads its folder as before.
             foreach (var kv in global::FiresRPGmaker.Managers.FiresConfigFiles.EnumerateLines("Quests"))
@@ -476,6 +508,7 @@ Quests = KillBoarSample
                 }
             }
             MergeQuestEventFiles();
+            ForgetSerialisedQuestDb();
             FiresLogger.LogVerbose($"Loaded {questDatabase.Count} quests");
         }
 
@@ -590,6 +623,7 @@ Quests = KillBoarSample
                 EmitQuestValidationSummary(issues, questDatabase.Count);
             else
                 FiresLogger.LogVerbose($"[QuestManager] Quest validation complete: all {questDatabase.Count} quests OK");
+            ForgetSerialisedQuestDb();
         }
 
         // Summarizes unresolved-quest issues into ONE neat box (📖, quest-colored via FiresLogColorPatch) instead of
@@ -740,11 +774,28 @@ Quests = KillBoarSample
         /// iteration yields; that's fine because server + client both round-trip the same
         /// serialised string, so the hashes still match even if order drifts.
         /// </summary>
+        // Serialising the quest DB cost ~38 ms on the rig dedi, inside the join frame (2026-09-28 R20), and again for every
+        // manifest fingerprint. The JSON and its hash are kept until the DB changes; every change (LoadQuestDatabase, a received
+        // DB, an applied quest file, ValidateQuestDatabase, the parity test's sentinels) drops them.
+        private string _serialisedQuestDb;
+        private string _serialisedQuestDbHash;
+
+        internal void ForgetSerialisedQuestDb()
+        {
+            _serialisedQuestDb = null;
+            _serialisedQuestDbHash = null;
+        }
+
         private string SerialiseQuestDb()
         {
+            if (_serialisedQuestDb != null) return _serialisedQuestDb;
             var dict = questDatabase.ToDictionary(kv => kv.Key, kv => kv.Value);
-            return JsonConvert.SerializeObject(dict, Formatting.None) ?? string.Empty;
+            _serialisedQuestDb = JsonConvert.SerializeObject(dict, Formatting.None) ?? string.Empty;
+            return _serialisedQuestDb;
         }
+
+        private string SerialisedQuestDbHash() =>
+            _serialisedQuestDbHash ?? (_serialisedQuestDbHash = ManifestDiffSync.ComputeSha256(SerialiseQuestDb()));
 
         /// <summary>
         /// Live fingerprint of the in-memory quest DB. Replaces the old persisted
@@ -755,7 +806,7 @@ Quests = KillBoarSample
         /// </summary>
         public static string GetLiveQuestDbFingerprint()
         {
-            try { return ManifestDiffSync.ComputeSha256(Instance != null ? Instance.SerialiseQuestDb() : string.Empty); }
+            try { return Instance != null ? Instance.SerialisedQuestDbHash() : ManifestDiffSync.ComputeSha256(string.Empty); }
             catch { return string.Empty; }
         }
 
@@ -794,12 +845,17 @@ Quests = KillBoarSample
 
         private System.Collections.IEnumerator BroadcastQuestDbCoroutine(long peerUid)
         {
+            // Ask for the peer's manifest first and serialise a frame later, so a cold serialisation never lands in the
+            // joining peer's RPC_PeerInfo frame.
+            ManifestDiffSync.RequestFromPeer(peerUid, QuestDbManifestNamespace);
+            yield return null;
+
             string json;
             string localHash;
             try
             {
                 json = SerialiseQuestDb();
-                localHash = ManifestDiffSync.ComputeSha256(json);
+                localHash = SerialisedQuestDbHash();
             }
             catch (Exception ex)
             {
@@ -807,7 +863,6 @@ Quests = KillBoarSample
                 yield break;
             }
 
-            ManifestDiffSync.RequestFromPeer(peerUid, QuestDbManifestNamespace);
             yield return ManifestDiffSync.WaitForManifest(peerUid, QuestDbManifestNamespace, 1.5f);
 
             if (ManifestDiffSync.PeerHasBlob(peerUid, QuestDbManifestNamespace, localHash))
@@ -851,6 +906,7 @@ Quests = KillBoarSample
                     if (dict != null)
                     {
                         Instance.questDatabase = dict.ToDictionary(kv => kv.Key, kv => kv.Value);
+                        Instance.ForgetSerialisedQuestDb();
                         FiresLogger.LogVerbose($"Received QuestDB from {sender}; loaded {Instance.questDatabase.Count} quests");
 
                         // No hash persisted: the manifest fingerprint is computed live from
@@ -968,46 +1024,72 @@ Quests = KillBoarSample
         // regardless of whether anything had changed - a double-whammy with
         // SendAllConfigsToClientCoroutine's own traversal of the same folders.
         //
-        // If the client hasn't replied to a manifest request yet (first call of the
-        // session before the main config coroutine ran), the cache look-up simply
-        // returns false and we fall through to the legacy "send everything" path for
-        // correctness. Once the manifest arrives the next caller benefits.
+        // If the client doesn't reply with a manifest in time, we fall through to the
+        // legacy "send everything" path for correctness.
+        //
+        // The wait YIELDS (a coroutine on the plugin). It used to poll with Thread.Sleep(50) x5 per folder on the
+        // caller's thread, which is the MAIN thread (RPC_PeerInfo postfix, spawn handler). A manifest reply is a
+        // routed RPC that only the main thread dispatches, so it could never arrive during that wait: every join
+        // blocked the dedi ~500 ms for nothing and then shipped every file anyway (R2 2026-09-28: 512-581 ms inside
+        // RPC_PeerInfo on 3 of 3 joins). A manifest reply also proves the client's handlers are registered, which the
+        // T+0 send used to race.
+        // A joining client answers only once it has loaded, often 5-10 s after RPC_PeerInfo with fresh caches (rig R22b/R23);
+        // the config watcher pre-waits 10 s on the same manifests for the same reason.
+        private const float QuestManifestWaitSeconds = 10f;
+
         public void SendAllQuestFilesToPeer(long peerUid)
         {
             try
             {
-                // Fire parallel manifest requests up front - safe to call even if the
-                // main config coroutine has already cached them; the request clears
-                // and re-fetches, which is still fast.
+                // Fire both manifest requests up front so the replies travel in parallel; safe to call even if the
+                // main config coroutine has already cached them (the request clears and re-fetches).
                 ManifestDiffSync.RequestFromPeer(peerUid, "Cfg:Quests");
                 ManifestDiffSync.RequestFromPeer(peerUid, "Cfg:QuestProfiles");
 
-                SendFolderDiffed(peerUid, QuestsDir, "Quests", "Cfg:Quests");
-                SendFolderDiffed(peerUid, ProfilesDir, "QuestProfiles", "Cfg:QuestProfiles");
+                if (FiresRPGmaker.Instance != null)
+                {
+                    FiresRPGmaker.Instance.StartCoroutine(SendAllQuestFilesCoroutine(peerUid));
+                    return;
+                }
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[FiresRPGmaker] SendAllQuestFilesToPeer failed: {ex.Message}");
+                Debug.LogWarning($"[FiresRPGmaker] Could not start the quest-file sync coroutine for peer {peerUid}, sending every file now: {ex.Message}");
             }
+
+            // No coroutine host: send now without waiting (no manifest yet = everything is sent).
+            SendQuestFoldersNow(peerUid);
+        }
+
+        private System.Collections.IEnumerator SendAllQuestFilesCoroutine(long peerUid)
+        {
+            yield return ManifestDiffSync.WaitForManifest(peerUid, "Cfg:Quests", QuestManifestWaitSeconds);
+            TrySendFolderDiffed(peerUid, QuestsDir, "Quests", "Cfg:Quests");
+
+            // Usually already here: both requests went out together.
+            yield return ManifestDiffSync.WaitForManifest(peerUid, "Cfg:QuestProfiles", QuestManifestWaitSeconds);
+            TrySendFolderDiffed(peerUid, ProfilesDir, "QuestProfiles", "Cfg:QuestProfiles");
+        }
+
+        private void SendQuestFoldersNow(long peerUid)
+        {
+            TrySendFolderDiffed(peerUid, QuestsDir, "Quests", "Cfg:Quests");
+            TrySendFolderDiffed(peerUid, ProfilesDir, "QuestProfiles", "Cfg:QuestProfiles");
+        }
+
+        // An exception must not escape into the coroutine (Unity would stop it silently, skipping the next folder).
+        private void TrySendFolderDiffed(long peerUid, string folderPath, string folderName, string manifestNamespace)
+        {
+            try { SendFolderDiffed(peerUid, folderPath, folderName, manifestNamespace); }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Quest folder '{folderName}' sync to peer {peerUid} failed: {ex.Message}"); }
         }
 
         private void SendFolderDiffed(long peerUid, string folderPath, string folderName, string manifestNamespace)
         {
             if (!Directory.Exists(folderPath)) return;
 
-            // Best-effort short wait so a manifest request fired moments ago has a
-            // chance to arrive. We can't yield here (non-coroutine caller), so the
-            // poll runs on the calling thread - keep it tight (250 ms max).
-            bool haveManifest = false;
-            for (int i = 0; i < 5; i++)
-            {
-                if (ManifestDiffSync.TryGetManifest(peerUid, manifestNamespace, out _))
-                {
-                    haveManifest = true;
-                    break;
-                }
-                System.Threading.Thread.Sleep(50);
-            }
+            // Callers wait for the manifest first (yielding); here it is only looked up, never waited for.
+            bool haveManifest = ManifestDiffSync.TryGetManifest(peerUid, manifestNamespace, out _);
 
             int sent = 0, skipped = 0;
             foreach (var f in Directory.GetFiles(folderPath, "*.cfg"))
@@ -1038,6 +1120,8 @@ Quests = KillBoarSample
 
             if (haveManifest && (sent > 0 || skipped > 0))
                 Debug.Log($"[FiresRPGmaker] Quest folder '{folderName}' diff-sync to peer {peerUid}: sent {sent}, skipped {skipped} unchanged.");
+            else if (!haveManifest && sent > 0)
+                Debug.Log($"[FiresRPGmaker] Quest folder '{folderName}': no manifest from peer {peerUid} within {QuestManifestWaitSeconds:0} s, sent all {sent} file(s).");
         }
 
         private void SendFileToPeer(long peerUid, string folderName, string fileName, string content)
@@ -1242,6 +1326,12 @@ Quests = KillBoarSample
                 {
                     var kind = QuestTarget.NormalizeObjectiveType(p.Substring(0, kindColon));
                     if (kind != null) { objType = kind; p = p.Substring(kindColon + 1).Trim(); }
+                }
+
+                if (TryParseMoveCoordinates(p, objType, out var moveAt, out var moveAmount))
+                {
+                    targets.Add(new QuestTarget { Prefab = moveAt, Amount = moveAmount, Type = "move" });
+                    continue;
                 }
 
                 // Accept separators ',' or ':' or spaces
@@ -1451,63 +1541,27 @@ Quests = KillBoarSample
                         float minDur = -1f; if (tokens.Length >4) float.TryParse(tokens[4], out minDur);
 
                         int found =0;
+                        // 0.0.532: count the live inventory through vanilla's own API. The reflection here called
+                        // Inventory.CountItems with 1 argument (it takes 3), and the fallback read m_items / m_inventory as
+                        // properties (they are fields), so every HasItem requirement failed from the inventory.
                         try
                         {
-                            // Try to check live player's inventory first
                             var player = Player.GetPlayer(playerId);
-                            if (player != null)
+                            var inv = player != null ? player.GetInventory() : null;
+                            if (inv != null)
                             {
-                                try
+                                foreach (var it in inv.GetAllItems())
                                 {
-                                    var mi = typeof(Player).GetMethod("GetInventory", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                    object inv = null;
-                                    if (mi != null) inv = mi.Invoke(player, null);
-                                    if (inv != null)
-                                    {
-                                        // Try common method names to count items
-                                        var countMethod = inv.GetType().GetMethod("CountItems") ?? inv.GetType().GetMethod("GetItemCount") ?? inv.GetType().GetMethod("CountItem");
-                                        if (countMethod != null)
-                                        {
-                                            try { found = (int)countMethod.Invoke(inv, new object[] { prefab }); } catch { found =0; }
-                                        }
-                                        else
-                                        {
-                                            // Fallback: try to inspect items list property
-                                            var itemsProp = inv.GetType().GetProperty("m_items") ?? inv.GetType().GetProperty("m_inventory");
-                                            if (itemsProp != null)
-                                            {
-                                                try
-                                                {
-                                                    var list = itemsProp.GetValue(inv) as System.Collections.IEnumerable;
-                                                    if (list != null)
-                                                    {
-                                                        foreach (var it in list)
-                                                        {
-                                                            try
-                                                            {
-                                                                var drop = it.GetType().GetProperty("m_dropPrefab")?.GetValue(it) ?? it.GetType().GetProperty("m_prefabName")?.GetValue(it);
-                                                                string name = drop?.ToString() ?? string.Empty;
-                                                                if (string.Equals(name, prefab, StringComparison.OrdinalIgnoreCase))
-                                                                {
-                                                                    var amountProp = it.GetType().GetProperty("m_stack") ?? it.GetType().GetProperty("m_amount");
-                                                                    int stack =1;
-                                                                    if (amountProp != null) int.TryParse(amountProp.GetValue(it)?.ToString(), out stack);
-                                                                    found += stack;
-                                                                }
-                                                            }
-                                                            catch { }
-                                                        }
-                                                    }
-                                                }
-                                                catch { }
-                                            }
-                                        }
-                                    }
+                                    if (it == null) continue;
+                                    string name = it.m_dropPrefab != null ? it.m_dropPrefab.name : it.m_shared?.m_name;
+                                    if (!string.Equals(name, prefab, StringComparison.OrdinalIgnoreCase)) continue;
+                                    if (quality > 0 && it.m_quality != quality) continue;
+                                    if (minDur >= 0f && it.m_durability < minDur) continue;
+                                    found += it.m_stack;
                                 }
-                                catch { }
                             }
                         }
-                        catch { }
+                        catch (Exception ex) { FiresLogger.LogVerbose($"[FiresRPGmaker] HasItem inventory count failed: {ex.Message}"); }
 
                         // If inventory check failed or insufficient, check provided snapshot first, then player's bank items as fallback
                         if (found < amount && inventorySnapshot != null)
@@ -1950,6 +2004,7 @@ Quests = KillBoarSample
                             // commands (the def is fresh, so the append can't duplicate).
                             questDatabase[def.QuestId] = def;
                             try { MergeQuestEventFiles(def); } catch { }
+                            ForgetSerialisedQuestDb();
                         }
                     }
 

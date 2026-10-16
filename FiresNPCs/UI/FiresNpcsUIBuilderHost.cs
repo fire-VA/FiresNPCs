@@ -22,6 +22,10 @@ namespace FiresRPGmaker.UI
             UIBuilderHost.BackgroundSpriteProvider = UIPrefabFactory.GetBackgroundSprite;
             UIBuilderHost.MarkFileAdminSynced = ServerConfigFileWatcher.MarkFileAsAdminSynced;
             UIBuilderHost.ConfiguredFontProvider = ResolveConfiguredFont;
+            // Core 0.2.330+: the fields above are one global that FiresCompanions overwrites when it loads after us (that hid
+            // the globe HUD's prefab from 09-28 to 10-08). Register() keeps our bundle, layouts, name and admin-sync marker
+            // in Core's lists so its lookups still find them.
+            UIBuilderHost.Register();
         }
 
         // Maps the mod's font-config choice (UIFontOption, owned by ConfigManager) to the SDK's FontStyle.

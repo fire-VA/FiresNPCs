@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -158,10 +158,12 @@
     <Compile Include="Debug\DebugPrefabDumper.cs" />
     <Compile Include="Debug\DebugRecipeDumper.cs" />
     <Compile Include="Debug\DebugTools.cs" />
+    <Compile Include="Debug\FiresNpcsTest.cs" />
     <Compile Include="Debug\StaticNpcZdoDiagnostics.cs" />
     <Compile Include="Debug\StaticNpcGhostDiagnostics.cs" />
     <Compile Include="Managers\ChroniclesOfTime.cs" />
     <Compile Include="Managers\ConfigManager.cs" />
+    <Compile Include="Managers\ConfigMoves.cs" />
     <Compile Include="Managers\PlayerFileStorage.cs" />
     <Compile Include="Managers\QuestManager.cs" />
     <Compile Include="Managers\FiresConfigSync.cs" />
@@ -195,6 +197,8 @@
     <Compile Include="Modules\Buffer\BufferConsoleCommands.cs" />
     <Compile Include="UI\Screens\Player\BufferPlayerPanel.cs" />
     <Compile Include="UI\Screens\Player\BufferAdminPanel.cs" />
+    <Compile Include="UI\Screens\Player\TransmogAdminPanel.cs" />
+    <Compile Include="UI\Screens\Player\PanelHoverTip.cs" />
     <Compile Include="Modules\Compat\BalrondAmazingNatureCompat.cs" />
     <Compile Include="Modules\Compat\VikingCoreCompat.cs" />
     <Compile Include="Modules\Dialogues\EwpDataBridge.cs" />
@@ -206,10 +210,12 @@
     <Compile Include="Modules\Progression\ProgressionPatches.cs" />
     <Compile Include="Modules\Territories\TerritoryClientHelpers.cs" />
     <Compile Include="NpcFashion\NpcFashionManager.cs" />
+    <Compile Include="NpcFashion\NpcBodyProbe.cs" />
     <Compile Include="Modules\Chat\ChatChannelManager.cs" />
     <Compile Include="Modules\Chat\ChatChannelUI.cs" />
     <Compile Include="Modules\Chat\ChatPatches.cs" />
     <Compile Include="Modules\Companions\NpcMode\StaticNpcInitializer.cs" />
+    <Compile Include="Modules\Companions\NpcMode\StaticNpcAnchorRpc.cs" />
     <Compile Include="Modules\Companions\NpcMode\StaticNpcRespawnManager.cs" />
     <Compile Include="Integration\NpcBridgeProviders.cs" />
     <Compile Include="Integration\NpcAnchorDataBridge.cs" />
@@ -225,7 +231,6 @@
     <Compile Include="Modules\Dialogues\DialogueVideoPlayer.cs" />
     <Compile Include="Modules\Dialogues\DialogueSyncRPC.cs" />
     <Compile Include="Modules\Dialogues\DialogueUI.cs" />
-    <Compile Include="Modules\Dialogues\MARKETPLACE_DIALOGUE_SOURCE.cs" />
     <Compile Include="Modules\Quest\QuestProgressPatches.cs" />
     <Compile Include="Modules\Quest\QuestProgressPatches.NewTypes.cs" />
     <Compile Include="Modules\Quest\QuestRewardDispatcher.cs" />
@@ -236,10 +241,13 @@
     <Compile Include="Modules\Territories\TerritoryRuntime.MissingFlagPatches.cs" />
     <Compile Include="Modules\Territories\DeepNorthEnvironment.cs" />
     <Compile Include="Modules\Territories\OutlineSurveyor.cs" />
+    <Compile Include="Modules\Territories\MinimapColumn.cs" />
+    <Compile Include="Modules\Territories\TerritoryQuickEdit.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintModels.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintCommit.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintDriver.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintPalette.cs" />
+    <Compile Include="Modules\Territories\Paint\TerritoryAdminEdit.cs" />
     <Compile Include="Modules\Territories\Surveyor.cs" />
     <Compile Include="Modules\Territories\TerritoryDrawer.cs" />
     <Compile Include="Modules\Territories\TerritoryEntryReporter.cs" />
@@ -247,13 +255,18 @@
     <Compile Include="Modules\Territories\TerritoryHudOverlay.cs" />
     <Compile Include="UI\QuestTrackerHud.cs" />
     <Compile Include="UI\DraggableHud.cs" />
+    <Compile Include="UI\FiresKitBookSkin.cs" />
+    <Compile Include="UI\FiresStatsSections.cs" />
     <Compile Include="Modules\Territories\TerritoryLedger.cs" />
+    <Compile Include="Modules\Territories\TerritoryApi.cs" />
     <Compile Include="Modules\Territories\TerritoryMapOverlay.cs" />
     <Compile Include="Modules\Territories\TerritoryModels.cs" />
     <Compile Include="Modules\Territories\TerritoryPvpDamagePatches.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.Environment.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.Spawners.cs" />
+    <Compile Include="Modules\Territories\TerritoryRuntime.Physics.cs" />
+    <Compile Include="Modules\Territories\TerritoryFileSync.cs" />
     <Compile Include="Modules\Territories\TerritorySpawnWatcher.cs" />
     <Compile Include="Modules\Territories\TerritorySyncedState.cs" />
     <Compile Include="Modules\Vault\PlayerChronicle.cs" />
@@ -273,6 +286,7 @@
     <Compile Include="UI\Books\QuestBookJournal.cs" />
     <Compile Include="UI\DialogueManager.cs" />
     <Compile Include="UI\GlobeHudController.cs" />
+    <Compile Include="UI\CoreUiBridge.cs" />
     <Compile Include="UI\GlobeHud\GlobeHoverTooltip.cs" />
     <Compile Include="UI\GlobeHud\GlobeLiquidSlosh.cs" />
     <Compile Include="UI\GlobeHud\GlobeMotionSampler.cs" />
@@ -280,14 +294,22 @@
     <Compile Include="UI\GlobeHud\GlobeStatBreakdown.cs" />
     <Compile Include="UI\GlobeHud\GlobeValuePopup.cs" />
     <Compile Include="UI\GlobeHud\GlobeView.cs" />
+    <Compile Include="UI\GlobeHud\GlobeStateMachine.cs" />
+    <Compile Include="UI\GlobeHud\GlobeFoodRow.cs" />
     <Compile Include="UI\NpcHoverNameplate.cs" />
     <Compile Include="UI\GUIManager.cs" />
     <Compile Include="UI\NpcBookController.cs" />
+    <Compile Include="UI\NpcBookShell.cs" />
     <Compile Include="UI\BookOptionPopup.cs" />
     <Compile Include="UI\PatrolRecorder.cs" />
     <Compile Include="UI\PatrolRoutePopup.cs" />
+    <Compile Include="UI\PatrolPointPopup.cs" />
     <Compile Include="UI\PatrolPresetPopup.cs" />
     <Compile Include="UI\Screens\Patrol\PatrolEditorPanel.cs" />
+    <Compile Include="UI\Screens\Patrol\PatrolMapView.cs" />
+    <Compile Include="UI\Map\LiveMap.cs" />
+    <Compile Include="UI\Map\CutawayService.cs" />
+    <Compile Include="UI\CutawayCornerWidget.cs" />
     <Compile Include="UI\Screens\Patrol\PatrolEditorDriver.cs" />
     <Compile Include="UI\PatrolRouteSync.cs" />
     <Compile Include="UI\ContextMenu\PatrolNodeContextProvider.cs" />
@@ -322,6 +344,10 @@
     <Compile Include="UI\Screens\completecompanionsui.generated.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.Fashion.cs" />
+    <Compile Include="UI\Screens\DressingRoomScreenController.Pet.cs" />
+    <Compile Include="UI\Screens\DressingThreePanel.cs" />
+    <Compile Include="UI\FiresDressingSidePanel.cs" />
+    <Compile Include="UI\FiresDressingInventoryGrid.cs" />
     <Compile Include="UI\Screens\StubPlayerUIController.cs" />
     <Compile Include="UI\Screens\Player\BasePlayerModulePanel.cs" />
     <Compile Include="UI\Screens\Player\GamblerPlayerPanel.cs" />
@@ -360,6 +386,7 @@
     <Compile Include="UI\Screens\Player\MarketplacePlayerPanel.cs" />
     <Compile Include="UI\Screens\Player\AchievementPlayerPanel.cs" />
     <Compile Include="UI\Screens\Player\LeaderboardPlayerPanel.cs" />
+    <Compile Include="UI\Screens\Leaderboard\LeaderboardInventoryTab.cs" />
     <Compile Include="UI\Screens\Player\MailPlayerPanel.cs" />
     <Compile Include="UI\Screens\Player\TransmogPlayerPanel.cs" />
     <Compile Include="Modules\Marketplace\GamblerProfileManager.cs" />
@@ -397,6 +424,8 @@
     <Compile Include="Modules\Marketplace\MarketplaceConsoleCommands.cs" />
     <Compile Include="Modules\Marketplace\MarketplacePaths.cs" />
     <Compile Include="Modules\Migration\KgNpcMigrator.cs" />
+    <Compile Include="Modules\Migration\RpgMakerMigrateTest.cs" />
+    <Compile Include="Modules\Migration\RpgMakerMigrateProof.cs" />
     <Compile Include="UI\Screens\Player\BankerPlayerPanel.cs" />
     <Compile Include="Modules\Marketplace\LeaderboardTracker.cs" />
     <Compile Include="Modules\Marketplace\LeaderboardServerFeed.cs" />
@@ -426,30 +455,34 @@
     <Compile Include="UI\Screens\Leaderboard\FiresLeaderboardGui.Canvas.Details.cs" />
     <Compile Include="UI\Screens\Leaderboard\FiresLeaderboardInputPatches.cs" />
     <Compile Include="UI\Screens\Leaderboard\LeaderboardMannequinBinder.cs" />
+    <Compile Include="UI\Screens\Leaderboard\LeaderboardMannequinGuard.cs" />
     <Compile Include="UI\Screens\Leaderboard\LeaderboardAchievementsBinder.cs" />
     <Compile Include="UI\Screens\Leaderboard\ObituaryComposer.cs" />
     <Compile Include="UI\FiresNpcsHelpContent.cs" />
     <Compile Include="UI\FiresNpcsUIBuilderHost.cs" />
     <Compile Include="Utilities\FiresLogger.cs" />
     <Compile Include="Utilities\FiresRPGmakerBanner.cs" />
-    <!-- Guild System -->
-    <Compile Include="Modules\Guilds\Core\GuildRank.cs" />
-    <Compile Include="Modules\Guilds\Core\GuildMember.cs" />
-    <Compile Include="Modules\Guilds\Core\GuildApplication.cs" />
-    <Compile Include="Modules\Guilds\Core\GuildData.cs" />
-    <Compile Include="Modules\Guilds\Storage\GuildStorage.cs" />
-    <Compile Include="Modules\Guilds\Network\GuildSyncManager.cs" />
-    <Compile Include="Modules\Guilds\GuildAPI.cs" />
-    <Compile Include="Modules\Guilds\GuildModule.cs" />
-    <Compile Include="Modules\Guilds\Chat\GuildChatChannel.cs" />
-    <Compile Include="Modules\Guilds\Map\GuildMapFeatures.cs" />
-    <Compile Include="Modules\Guilds\Achievements\GuildAchievement.cs" />
-    <Compile Include="Modules\Guilds\Achievements\GuildAchievements.cs" />
-    <Compile Include="Modules\Guilds\Patches\GuildPatches.cs" />
-    <Compile Include="Modules\Guilds\UI\GuildScreenManager.cs" />
-    <Compile Include="Modules\Guilds\UI\GuildMainScreen.cs" />
-    <Compile Include="Modules\Guilds\UI\GuildCreateScreen.cs" />
-    <Compile Include="Modules\Guilds\UI\GuildSearchScreen.cs" />
+    <Compile Include="Utilities\QuietTypes.cs" />
+    <Compile Include="Modules\Pets\PetApi.cs" />
+    <Compile Include="Modules\Pets\NpcPetSlot.cs" />
+    <Compile Include="Modules\Quest\LoreBooksBridge.cs" />
+    <Compile Include="Modules\Pets\Progress\PetBuffTable.cs" />
+    <Compile Include="Modules\Pets\Progress\PetProgress.cs" />
+    <Compile Include="Modules\Pets\Progress\SE_FiresPet.cs" />
+    <Compile Include="Modules\Pets\Progress\PetBuffApplier.cs" />
+    <Compile Include="Modules\Pets\Progress\PetText.cs" />
+    <Compile Include="Modules\Pets\Progress\PetProgressRpc.cs" />
+    <Compile Include="Modules\Pets\Progress\PetSkills.cs" />
+    <Compile Include="Modules\Pets\Progress\PetPanel.cs" />
+    <Compile Include="Modules\Pets\Progress\PetSlotRightClick.cs" />
+    <Compile Include="Modules\Pets\Progress\PetStandGuard.cs" />
+    <Compile Include="Modules\Pets\PetCatalog.cs" />
+    <Compile Include="Modules\Pets\PetManager.cs" />
+    <Compile Include="Modules\Pets\PetVisual.cs" />
+    <Compile Include="Modules\Sounds\NpcSoundSync.cs" />
+    <Compile Include="Modules\Vehicles\NpcShipDriver.cs" />
+    <Compile Include="Managers\MarketCfgSync.cs" />
+    <Compile Include="Modules\Pets\PetPetting.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="firesnpcs" />
@@ -457,6 +490,7 @@
     <EmbeddedResource Include="firesbooks" />
     <EmbeddedResource Include="vaitems_chessboard" />
     <EmbeddedResource Include="firesnpcs_props" />
+    <EmbeddedResource Include="firesleaderboardtab" />
     <EmbeddedResource Include="Resources\va_background5.png">
       <LogicalName>FiresRPGmaker.Resources.va_background5.png</LogicalName>
     </EmbeddedResource>

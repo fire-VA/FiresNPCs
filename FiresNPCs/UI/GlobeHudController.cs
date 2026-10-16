@@ -69,6 +69,8 @@ namespace FiresRPGmaker.UI
         private readonly List<GlobeValuePopup> _popups = new List<GlobeValuePopup>();
         private readonly GlobeMotionSampler _motion = new GlobeMotionSampler();
         private readonly GlobeHoverTooltip _tooltip = new GlobeHoverTooltip();
+        private GlobeFoodRow _foodRow;   // 0.0.582
+        private readonly System.Collections.Generic.Dictionary<GlobeResource, int> _lastPulsePct = new System.Collections.Generic.Dictionary<GlobeResource, int>();
 
         private Player _localPlayer;
         private bool _hudReady;
@@ -218,7 +220,7 @@ namespace FiresRPGmaker.UI
 
             // Enable raycast on the root image only during reposition mode
             if (_rootImage != null && !_isDragging)
-                _rootImage.raycastTarget = _isRepositionMode;
+                _rootImage.raycastTarget = false;   // 0.0.655: the dock's layout mode grabs it, not the globes
 
             // Show/hide wireframe with resize mode
             if (_wireframeRoot != null && _wireframeRoot.activeSelf != _isResizeMode)
@@ -237,6 +239,7 @@ namespace FiresRPGmaker.UI
 
             HideVanillaHud();
             AnimateLiquid();
+            _foodRow?.Tick(_localPlayer, ConfigManager.Instance.configGlobeFoodRow.Value);
         }
 
         #endregion
@@ -264,11 +267,55 @@ namespace FiresRPGmaker.UI
             {
                 var view = _views[index];
                 view.Read(_localPlayer);
+                // 0.0.584 globe states (OFF = today's look); FULL's strength scales with the overfill (the lead)
+                view.StatesOn = config.configGlobeStates.Value;
+                if (view.StatesOn)
+                    view.States.Update(now, dt, view.Current, view.Max, view.Resource == GlobeResource.Adrenaline ? 0f : OverfillStrength(view),
+                        new GlobeStateMachine.Settings
+                        {
+                            LowThreshold = config.configGlobeLowThreshold.Value,
+                            DamageDrop = config.configGlobeDamageDrop.Value,
+                            FillingRate = config.configGlobeFillingRate.Value,
+                            FullFloor = config.configGlobeFullFloor.Value,
+                        });
                 view.Advance(dt, motion);
                 view.Apply(shaderTime);
+                view.SetOverfill(config.configGlobeOverfillPulse.Value ? OverfillStrength(view) : 0f);
                 _popups[index].Tick(view, now, holdSeconds, popups);
             }
             _tooltip.Tick(_views, _localPlayer, config.configGlobeInventoryTooltips.Value, now);
+        }
+
+        // 0.0.582 ([generator] + Fire's overfill pulse): base = max minus what food adds right now (vanilla's own m_foods values), so
+        // class, gear and other mods' bonuses count as base. strength = smoothstep(clamp01(log2(max/base) / log2(6))): 2x ~0.39, 5x ~0.90.
+        // Eitr only with a base of 1+; Adrenaline never. One Debug line when a globe's strength moves by 5 %+.
+        private float OverfillStrength(GlobeView view)
+        {
+            var p = _localPlayer;
+            if (p == null || view.Resource == GlobeResource.Adrenaline) return 0f;
+            float max, food = 0f;
+            var foods = p.GetFoods();
+            switch (view.Resource)
+            {
+                case GlobeResource.Health: max = p.GetMaxHealth(); if (foods != null) foreach (var f in foods) food += f.m_health; break;
+                case GlobeResource.Stamina: max = p.GetMaxStamina(); if (foods != null) foreach (var f in foods) food += f.m_stamina; break;
+                case GlobeResource.Eitr: max = p.GetMaxEitr(); if (foods != null) foreach (var f in foods) food += f.m_eitr; break;
+                default: return 0f;
+            }
+            float baseValue = max - food;
+            float strength = 0f;
+            if (!(baseValue <= 0f || max <= baseValue || (view.Resource == GlobeResource.Eitr && baseValue < 1f)))
+            {
+                float t = Mathf.Clamp01(Mathf.Log(max / baseValue, 2f) / Mathf.Log(6f, 2f));
+                strength = t * t * (3f - 2f * t);
+            }
+            int pct = Mathf.RoundToInt(strength * 20f) * 5;
+            if (!_lastPulsePct.TryGetValue(view.Resource, out int last) || last != pct)
+            {
+                _lastPulsePct[view.Resource] = pct;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[GlobeHud] overfill {view.Resource}: max {max:0.#}, food {food:0.#}, base {baseValue:0.#}, ratio {(baseValue > 0f ? max / baseValue : 0f):0.00}, pulse {strength:0.00}");
+            }
+            return strength;
         }
 
         private void HideOverlays()
@@ -284,6 +331,7 @@ namespace FiresRPGmaker.UI
         /// <summary>Called by GlobeHudInteractionHandler on drag start.</summary>
         public void OnDragStart(Vector2 mousePosition)
         {
+            return;   // 0.0.655 (UI audit): Core's HUD dock ("rpgmaker.globes") is the only mover; the own drag is retired
             if (!_isRepositionMode || _isResizeMode) return;
             _isDragging = true;
             if (_rootRect != null)
@@ -293,6 +341,7 @@ namespace FiresRPGmaker.UI
         /// <summary>Called by GlobeHudInteractionHandler during drag.</summary>
         public void OnDragMove(Vector2 mousePosition)
         {
+            return;   // 0.0.655: retired (Core dock)
             if (!_isDragging || !_isRepositionMode) return;
             if (_rootRect == null) return;
             _rootRect.position = mousePosition + _dragOffset;
@@ -310,6 +359,7 @@ namespace FiresRPGmaker.UI
         /// <summary>Called by GlobeHudInteractionHandler on double-click.</summary>
         public void OnDoubleClick()
         {
+            return;   // 0.0.655: the own resize wireframe is retired (Core dock grip)
             if (!_isRepositionMode) return;
             SetResizeMode(!_isResizeMode);
         }
@@ -331,6 +381,7 @@ namespace FiresRPGmaker.UI
         /// </summary>
         public void OnResizeDragStart(Vector2 mousePosition)
         {
+            if (_dockOwned) return;
             if (_rootRect == null) return;
             _resizeDragStartScale = _rootRect.localScale;
             _resizeDragStartDist = Vector2.Distance((Vector2)_rootRect.position, mousePosition);
@@ -343,6 +394,7 @@ namespace FiresRPGmaker.UI
         /// </summary>
         public void OnCornerDrag(Vector2 currentMouseWorld)
         {
+            if (_dockOwned) return;
             if (_rootRect == null) return;
 
             float dist = Vector2.Distance((Vector2)_rootRect.position, currentMouseWorld);
@@ -358,6 +410,7 @@ namespace FiresRPGmaker.UI
         /// </summary>
         public void OnSideDrag(ResizeAxis axis, Vector2 currentMouseWorld)
         {
+            if (_dockOwned) return;
             if (_rootRect == null) return;
 
             Vector2 center = (Vector2)_rootRect.position;
@@ -486,10 +539,7 @@ namespace FiresRPGmaker.UI
 
         public void ResetPositionAndScale()
         {
-            PlayerPrefs.DeleteKey(PREF_POS_X);
-            PlayerPrefs.DeleteKey(PREF_POS_Y);
-            PlayerPrefs.DeleteKey(PREF_SCALE_X);
-            PlayerPrefs.DeleteKey(PREF_SCALE_Y);
+            // 0.0.655: no PlayerPrefs any more (Core dock)
             PlayerPrefs.Save();
 
             if (_rootRect != null)
@@ -501,6 +551,7 @@ namespace FiresRPGmaker.UI
 
         private void SavePositionAndScale()
         {
+            return;   // 0.0.655 (UI audit): the dock saves the layout; no PlayerPrefs
             if (_rootRect == null) return;
 
             var pos = _rootRect.anchoredPosition;
@@ -515,13 +566,40 @@ namespace FiresRPGmaker.UI
             PlayerPrefs.Save();
         }
 
+        // 0.0.604 (Fire 10-15 via the lead, Core 0.2.522 HUD layout): the globe HUD becomes the dockable HUD element
+        // "rpgmaker.globes" via FiresShell.RegisterHudElement (reflected: older Cores keep the globes' own drag/resize). Core sets only
+        // position + localScale; while it owns them, the globes' own drag / resize / save step aside. Registered once, after the
+        // saved position is loaded, so the first default is where the globes are today.
+        private bool _dockOwned;
+        private void RegisterWithDock()
+        {
+            if (_dockOwned || _rootRect == null) return;
+            try
+            {
+                var shell = System.Type.GetType("FiresCore.UI.Shell.FiresShell, FiresUnifiedCore", false);
+                // 0.0.608 ([lead] 10-15): the options type is FiresCore.UI.Shell.HudElementOptions, not ...Dock...; take it from the method itself.
+                var reg = shell == null ? null : System.Linq.Enumerable.FirstOrDefault(shell.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static), m => m.Name == "RegisterHudElement" && m.GetParameters().Length == 3 && m.GetParameters()[0].ParameterType == typeof(string) && m.GetParameters()[1].ParameterType == typeof(RectTransform));
+                var optType = reg?.GetParameters()[2].ParameterType;
+                if (reg == null) { Debug.Log("[GlobeHud] Core has no HUD dock (RegisterHudElement, 0.2.522+): the globes keep their own drag/resize"); return; }
+                var opt = System.Activator.CreateInstance(optType);
+                optType.GetField("Owner")?.SetValue(opt, "FiresRPGmaker");
+                optType.GetField("Label")?.SetValue(opt, "Globes");
+                optType.GetField("Resizable")?.SetValue(opt, true);
+                reg.Invoke(null, new object[] { "rpgmaker.globes", _rootRect, opt });
+                _dockOwned = true;
+                if (_isRepositionMode) SetResizeMode(false);
+                Debug.Log("[GlobeHud] registered with Core's HUD dock as 'rpgmaker.globes' (layout mode moves/scales it; own drag/resize off)");
+            }
+            catch (System.Exception ex) { _dockOwned = false; Debug.LogWarning("[GlobeHud] HUD dock registration failed, keeping own drag/resize: " + (ex.InnerException ?? ex).Message); }
+        }
+
         private void LoadPositionAndScale()
         {
             if (_rootRect == null) return;
 
-            var pos = new Vector2(PlayerPrefs.GetFloat(PREF_POS_X, DefaultPosition.x), PlayerPrefs.GetFloat(PREF_POS_Y, DefaultPosition.y));
-            float scaleX = PlayerPrefs.GetFloat(PREF_SCALE_X, MIN_SCALE);
-            float scaleY = PlayerPrefs.GetFloat(PREF_SCALE_Y, MIN_SCALE);
+            // 0.0.655 (UI audit): the default spot only; Core's dock applies the saved layout when it registers
+            var pos = DefaultPosition;
+            float scaleX = MIN_SCALE, scaleY = MIN_SCALE;
 
             if (!IsFinite(pos.x) || !IsFinite(pos.y)) pos = DefaultPosition;
             scaleX = IsFinite(scaleX) ? Mathf.Clamp(scaleX, MIN_SCALE, MAX_SCALE) : MIN_SCALE;
@@ -616,7 +694,10 @@ namespace FiresRPGmaker.UI
 
         private void BuildUI()
         {
-            var prefab = VAMiscAssetManager.LoadUIPrefab(PREFAB_NAME);
+            // From FiresRPGmaker's OWN bundle first. Core's VAMiscAssetManager reads the one shared UIBuilderHost.AssetBundle,
+            // which FiresCompanions overwrites with its bundle when it loads after us, so since 09-28 the globe looked in the
+            // wrong bundle and never built ("Prefab ... not found"; Fire, hand test 4, 10-08). The shared path stays as a fallback.
+            var prefab = LoadOwnPrefab() ?? VAMiscAssetManager.LoadUIPrefab(PREFAB_NAME);
             if (prefab == null)
             {
                 Debug.LogWarning($"[GlobeHud] Prefab '{PREFAB_NAME}' not found in asset bundle.");
@@ -666,15 +747,34 @@ namespace FiresRPGmaker.UI
             foreach (var view in _views)
                 _popups.Add(new GlobeValuePopup(Hud.instance.transform, view));
 
+            _foodRow = new GlobeFoodRow(_root.transform);
+
             // Build the wireframe overlay (hidden by default)
-            BuildWireframe();
+            // 0.0.655 (UI audit): no own resize wireframe (Core dock grip)
 
             LoadPositionAndScale();
+            RegisterWithDock();   // 0.0.604: hand the globes to Core's HUD dock (layout mode) when the Core has it
 
             _root.SetActive(false);
             _hudReady = true;
 
             Debug.Log($"[GlobeHud] UI built - {_views.Count} liquid globes, shaders {_views[0].Fill.material.shader.name}");
+        }
+
+        private static GameObject LoadOwnPrefab()
+        {
+            var bundle = global::FiresRPGmaker.FiresRPGmaker.assetBundle;
+            if (bundle == null) return null;
+            foreach (string path in new[] { "Assets/Custom/VAitems/UI/" + PREFAB_NAME + ".prefab", PREFAB_NAME })
+            {
+                var prefab = bundle.LoadAsset<GameObject>(path);
+                if (prefab != null)
+                {
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[GlobeHud] Prefab '{PREFAB_NAME}' loaded from FiresRPGmaker's own bundle ({path}).");
+                    return prefab;
+                }
+            }
+            return null;
         }
 
         private bool WireGlobe(GlobeResource resource, float sloshFrequency)

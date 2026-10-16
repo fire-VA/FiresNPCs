@@ -20,8 +20,18 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         private static readonly Color OverlayColor = new Color(0f, 0f, 0f, 0.35f);
 
+        // House style (Fire 10-08, leaderboard overhaul): the Classes window / VAInventory palette.
+        private static readonly Color LbPanel = new Color32(0x24, 0x1a, 0x11, 0xff);
+        private static readonly Color LbCell = new Color32(0x2e, 0x21, 0x13, 0xff);
+        private static readonly Color LbCellDone = new Color32(0x3a, 0x2a, 0x12, 0xff);
+        private static readonly Color LbWell = new Color32(0x1b, 0x14, 0x0d, 0xff);
+        private static readonly Color LbEdge = new Color32(0x4a, 0x38, 0x24, 0xff);
+        private static readonly Color LbGold = new Color32(0xf0, 0xb4, 0x4c, 0xff);
+        private static readonly Color LbText = new Color32(0xef, 0xe2, 0xc4, 0xff);
+        private static readonly Color LbMuted = new Color32(0xb3, 0xa1, 0x81, 0xff);
+
         // Every other row gets a slightly darker tan so the table reads as rows, not one flat parchment slab.
-        private static readonly Color RowAltFill = new Color(0.75f, 0.66f, 0.49f, 0.98f);
+        private static readonly Color RowAltFill = new Color32(0x2e, 0x21, 0x13, 0xff);   // house style: the dark cell
 
         // The achievement profile the tab + details score against. Resolved from config (default "server"),
         // falling back to the first non-empty loaded profile, else "example". Re-evaluated on each use so a
@@ -29,6 +39,8 @@ namespace FiresRPGmaker.UI.Leaderboard
         private static string AchievementProfile => AchievementProfileManager.ResolveActiveProfile();
 
         private GameObject _canvasRoot;
+        /// <summary>The leaderboard's canvas root (null before the first open); read by the UI test.</summary>
+        public static GameObject CanvasRoot => _instance != null ? _instance._canvasRoot : null;
         private RectTransform _canvasRootRect;
         private GameObject _canvasContentRoot;
         private GameObject _canvasButtonTemplate;
@@ -73,6 +85,15 @@ namespace FiresRPGmaker.UI.Leaderboard
             _canvasRootRect = _canvasRoot.GetComponent<RectTransform>();
             _canvasRootRect.localScale = Vector3.one;
             _canvasRootRect.localRotation = Quaternion.identity;
+            // Size the window in the parent's own units (the HUD canvas), not screen pixels: CenterRect clamped to Screen.width
+            // / height, which shrank it too far on small screens (1024x768) and mixed units everywhere but 1080p. The header's
+            // buttons sit right-aligned inside it, so a window that fits the canvas keeps all of them on screen (round 16).
+            if (parent is RectTransform parentRect && parentRect.rect.width > 0f && parentRect.rect.height > 0f)
+            {
+                float w = Mathf.Min(BaseWindowWidth * WindowScale, parentRect.rect.width - 40f);
+                float h = Mathf.Min(BaseWindowHeight * WindowScale, parentRect.rect.height - 40f);
+                _windowRect = new Rect(_windowRect.x, _windowRect.y, w, h);
+            }
             SetCenteredRect(_canvasRootRect, _windowRect.width, _windowRect.height);
 
             GameObject blocker = new GameObject("Overlay", typeof(RectTransform));
@@ -125,7 +146,14 @@ namespace FiresRPGmaker.UI.Leaderboard
             ClearCanvasContent();
             BuildCanvasWindow();
             _canvasSignature = signature;
+            // 0.0.602 ([wishbone]'s FCT step): one Info line whenever the shown tab changes (tab clicks and OpenOnTab alike)
+            if (!string.Equals(_lastLoggedView, _localViewMode, StringComparison.OrdinalIgnoreCase))
+            {
+                _lastLoggedView = _localViewMode;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Leaderboard] tab {_localViewMode} shown");
+            }
         }
+        private string _lastLoggedView;
 
         private string GetCanvasSignature()
         {
@@ -158,28 +186,30 @@ namespace FiresRPGmaker.UI.Leaderboard
             float width = _windowRect.width - (margin * 2f);
             float footerY = _windowRect.height - 54f;
 
-            GameObject headerPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Header", new Rect(margin, 16f, width, 68f), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(headerPanel.transform, "Leaderboard", new Rect(18f, 8f, 520f, 28f), 28f, Pal.ParchmentHeader, TextAnchor.MiddleLeft, false);
-            CreateTextAt(headerPanel.transform, BuildSubtitle(), new Rect(18f, 36f, 760f, 18f), 16f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-
+            GameObject headerPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Header", new Rect(margin, 16f, width, 68f), LbWell, LbEdge);
+            // The three view buttons are laid out from the header's RIGHT edge (16 px margin, 16 px gaps), and the title and
+            // subtitle take only the room left of them, so nothing overlaps or runs off at any window width.
             float topButtonY = 13f;
-            float rankingX = width - 238f;
-            float progressionX = rankingX - 146f;
-            float achievementsX = progressionX - 166f;
+            float rankingX = width - 16f - 120f;
+            float progressionX = rankingX - 16f - 130f;
+            float achievementsX = progressionX - 16f - 150f;
+            float textWidth = Mathf.Max(120f, achievementsX - 18f - 16f);
+            CreateTextAt(headerPanel.transform, "Leaderboard", new Rect(18f, 8f, Mathf.Min(520f, textWidth), 28f), 28f, LbGold, TextAnchor.MiddleLeft, false);
+            CreateTextAt(headerPanel.transform, BuildSubtitle(), new Rect(18f, 36f, Mathf.Min(760f, textWidth), 18f), 16f, LbMuted, TextAnchor.MiddleLeft, false);
             bool rankingActive = IsRankingMode();
-            bool achievementsActive = string.Equals(_localViewMode, ViewAchievements, StringComparison.OrdinalIgnoreCase);
+            // 0.0.601 (Fire 10-15, the approved mock): tabs Seasons / Progression / Ranking. Achievements moved to Core's hub tab
+            // (RPGmaker still feeds it through AchievementBridge); a stale "achievements" view mode falls back to Progression.
+            if (string.Equals(_localViewMode, ViewAchievements, StringComparison.OrdinalIgnoreCase)) _localViewMode = ViewProgression;
+            bool seasonsActive = string.Equals(_localViewMode, ViewSeasons, StringComparison.OrdinalIgnoreCase);
             bool progressionActive = string.Equals(_localViewMode, ViewProgression, StringComparison.OrdinalIgnoreCase);
 
-            CreateActionButtonAt(headerPanel.transform, "Achievements", new Rect(achievementsX, topButtonY, 150f, 28f), delegate
+            CreateActionButtonAt(headerPanel.transform, "Seasons", new Rect(achievementsX + 30f, topButtonY, 120f, 28f), delegate
             {
                 _selectedPlayer = null;
-                _localViewMode = ViewAchievements;
-                _detailAchievementsPage = 1;
-                _progressAchievementsPage = 1;
-                _achievementsScrollOffset = 0;
+                _localViewMode = ViewSeasons;
                 _adapter.RequestBoard();
                 RebuildCanvasView(true);
-            }, true, false, 16f, achievementsActive);
+            }, true, false, 16f, seasonsActive);
 
             CreateActionButtonAt(headerPanel.transform, "Progression", new Rect(progressionX, topButtonY, 130f, 28f), delegate
             {
@@ -201,14 +231,14 @@ namespace FiresRPGmaker.UI.Leaderboard
 
             // Season selector: ◀ Overall | Season 1 | … | Season N (current) ▶. Overall is the all-time aggregate
             // and always present, so the selector always shows. Picking a season re-requests the whole board.
-            // Hidden in memorial mode — a tombstone always shows the player's whole-life (overall) record.
+            // Hidden in memorial mode - a tombstone always shows the player's whole-life (overall) record.
             var seasons = LeaderboardBoard.AvailableSeasons;
             if (!_memorialMode && seasons != null && seasons.Count > 1)
             {
                 int viewed = LeaderboardBoard.ViewedSeason;
                 float selW = 256f;
                 float selX = achievementsX - selW - 24f;
-                CreateActionButtonAt(headerPanel.transform, "◀", new Rect(selX, topButtonY, 28f, 28f), delegate
+                CreateActionButtonAt(headerPanel.transform, "<", new Rect(selX, topButtonY, 28f, 28f), delegate
                 {
                     var av = LeaderboardBoard.AvailableSeasons;
                     int i = av.IndexOf(LeaderboardBoard.ViewedSeason);
@@ -217,8 +247,8 @@ namespace FiresRPGmaker.UI.Leaderboard
                 string seasonLabel = viewed == LeaderboardBoard.OverallSeason
                     ? "Overall"
                     : "Season " + viewed + (viewed == LeaderboardBoard.CurrentSeason ? " (current)" : "");
-                CreateTextAt(headerPanel.transform, seasonLabel, new Rect(selX + 32f, topButtonY, selW - 64f, 28f), 14f, Pal.ParchmentHeader, TextAnchor.MiddleCenter, false);
-                CreateActionButtonAt(headerPanel.transform, "▶", new Rect(selX + selW - 28f, topButtonY, 28f, 28f), delegate
+                CreateTextAt(headerPanel.transform, seasonLabel, new Rect(selX + 32f, topButtonY, selW - 64f, 28f), 14f, LbGold, TextAnchor.MiddleCenter, false);
+                CreateActionButtonAt(headerPanel.transform, ">", new Rect(selX + selW - 28f, topButtonY, 28f, 28f), delegate
                 {
                     var av = LeaderboardBoard.AvailableSeasons;
                     int i = av.IndexOf(LeaderboardBoard.ViewedSeason);
@@ -228,14 +258,14 @@ namespace FiresRPGmaker.UI.Leaderboard
 
             float blockY = 98f;
             float blockHeight = footerY - blockY - 8f;
-            GameObject bodyPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Body", new Rect(margin, blockY, width, blockHeight), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(bodyPanel.transform, BuildDynamicBlockTitle(), new Rect(16f, 8f, 360f, 22f), 18f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
+            GameObject bodyPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Body", new Rect(margin, blockY, width, blockHeight), LbWell, LbEdge);
+            CreateTextAt(bodyPanel.transform, BuildDynamicBlockTitle(), new Rect(16f, 8f, 360f, 22f), 18f, LbMuted, TextAnchor.MiddleLeft, false);
 
             Rect innerRect = new Rect(10f, 42f, width - 20f, blockHeight - 56f);
             BuildCanvasDynamicBlock(bodyPanel.transform, innerRect);
 
-            GameObject footerPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Footer", new Rect(margin, footerY, width, 36f), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(footerPanel.transform, BuildFooter(), new Rect(16f, 8f, width - 420f, 20f), 15f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
+            GameObject footerPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Footer", new Rect(margin, footerY, width, 36f), LbWell, LbEdge);
+            CreateTextAt(footerPanel.transform, BuildFooter(), new Rect(16f, 8f, width - 420f, 20f), 15f, LbMuted, TextAnchor.MiddleLeft, false);
             CreateActionButtonAt(footerPanel.transform, "Close", new Rect(width - 96f, 4f, 80f, 24f), delegate { Close(); }, true, false, 16f, false);
         }
 
@@ -255,7 +285,7 @@ namespace FiresRPGmaker.UI.Leaderboard
         {
             if (string.Equals(_localViewMode, DetailViewMode, StringComparison.OrdinalIgnoreCase)) return "Player details";
             if (string.Equals(_localViewMode, ViewProgression, StringComparison.OrdinalIgnoreCase)) return "Progression";
-            if (string.Equals(_localViewMode, ViewAchievements, StringComparison.OrdinalIgnoreCase)) return "Achievements";
+            if (string.Equals(_localViewMode, ViewSeasons, StringComparison.OrdinalIgnoreCase)) return "Seasons";
             return "Ranking";
         }
 
@@ -276,12 +306,47 @@ namespace FiresRPGmaker.UI.Leaderboard
                 BuildCanvasProgressionView(parent, rect);
                 return;
             }
-            if (string.Equals(_localViewMode, ViewAchievements, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(_localViewMode, ViewSeasons, StringComparison.OrdinalIgnoreCase))
             {
-                BuildCanvasAchievementsView(parent, rect);
+                BuildCanvasSeasonsView(parent, rect);
                 return;
             }
             BuildCanvasRankingView(parent, rect);
+        }
+
+        // 0.0.601: the Seasons tab - every season the server has (newest first, then "Overall"), the one being viewed highlighted;
+        // "View ranking" switches the board to that season and opens Ranking. The leader of the VIEWED season is shown (the board
+        // only holds the viewed season's rows, so other seasons show their name + the button).
+        private void BuildCanvasSeasonsView(Transform parent, Rect rect)
+        {
+            var seasons = LeaderboardBoard.AvailableSeasons ?? new List<int>();
+            var ordered = new List<int>(seasons);
+            ordered.Sort((a, b) => a == LeaderboardBoard.OverallSeason ? 1 : b == LeaderboardBoard.OverallSeason ? -1 : b.CompareTo(a));
+            float rowH = 44f, gap = 6f, y = rect.y;
+            int viewed = LeaderboardBoard.ViewedSeason;
+            foreach (int s in ordered)
+            {
+                bool isViewed = s == viewed;
+                string label = s == LeaderboardBoard.OverallSeason ? "Overall (all seasons)" : "Season " + s + (s == LeaderboardBoard.CurrentSeason ? " (current)" : "");
+                GameObject row = CreatePanelBox(parent, "Leaderboard.Seasons.Row." + s, new Rect(rect.x, y, rect.width, rowH), isViewed ? LbCell : LbWell, isViewed ? LbGold : LbEdge);
+                CreateTextAt(row.transform, label, new Rect(8f, 4f, rect.width * 0.4f, 22f), 18f, isViewed ? LbGold : LbText, TextAnchor.MiddleLeft, false);
+                if (isViewed && LeaderboardBoard.Rows != null && LeaderboardBoard.Rows.Count > 0)
+                {
+                    var top = LeaderboardBoard.Rows[0];
+                    CreateTextAt(row.transform, "Leader: " + (top.PlayerName ?? "?") + "  ·  " + top.Score.ToString("N0") + "  ·  " + LeaderboardBoard.Rows.Count + " vikings",
+                        new Rect(rect.width * 0.4f, 4f, rect.width * 0.4f, 22f), 15f, LbMuted, TextAnchor.MiddleLeft, false);
+                }
+                int season = s;
+                CreateActionButtonAt(row.transform, "View ranking", new Rect(rect.width - 160f, 2f, 140f, 24f), delegate
+                {
+                    _localViewMode = ViewRanking;
+                    if (LeaderboardBoard.ViewedSeason != season) _adapter.RequestBoard(season); else _adapter.RequestBoard();
+                    RebuildCanvasView(true);
+                }, true, false, 15f, false);
+                y += rowH + gap;
+                if (y + rowH > rect.y + rect.height) break;
+            }
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Leaderboard] Seasons tab: {ordered.Count} season(s), viewing {viewed}");
         }
 
         // ---- Ranking view (Fires 8-column set + Score) --------------------------------------------------
@@ -291,11 +356,11 @@ namespace FiresRPGmaker.UI.Leaderboard
             List<FiresLeaderboardRanking> players = _adapter.GetRankings();
             if (players.Count == 0)
             {
-                CreateTextAt(parent, "No leaderboard data yet.", rect, 18f, Pal.ParchmentInk, TextAnchor.UpperLeft, false);
+                CreateTextAt(parent, "No leaderboard data yet.", rect, 18f, LbText, TextAnchor.UpperLeft, false);
                 return;
             }
 
-            GameObject listPanel = CreatePanelBox(parent, "Leaderboard.Ranking.List", new Rect(rect.x, rect.y, rect.width, rect.height), Pal.ParchmentPanel, Pal.ParchmentEdge);
+            GameObject listPanel = CreatePanelBox(parent, "Leaderboard.Ranking.List", new Rect(rect.x, rect.y, rect.width, rect.height), LbWell, LbEdge);
             float contentWidth = rect.width - 16f;
             float[] cols = GetCanvasRankingColumnWidths(contentWidth - 16f);
             string[] headers = { "#", "Player", "Achv", "Monsters", "Quests", "Structures", "Deaths", "PvP", "Map%", "Score" };
@@ -320,13 +385,13 @@ namespace FiresRPGmaker.UI.Leaderboard
             {
                 Rect headerRect = new Rect(headerX, headerY, cols[i], headerHeight);
                 bool active = _adapter.SortField == fields[i];
-                GameObject headerCell = CreatePanelBox(listPanel.transform, "Leaderboard.Ranking.Header." + i, headerRect, active ? Pal.ParchmentButtonHover : Pal.ParchmentPanel, Pal.ParchmentEdge);
-                string label = active ? headers[i] + (_adapter.SortAscending ? " ▲" : " ▼") : headers[i];
-                // Numeric columns are CENTER-aligned (header word + value share the column centerline) — right-aligned
+                GameObject headerCell = CreatePanelBox(listPanel.transform, "Leaderboard.Ranking.Header." + i, headerRect, active ? LbCellDone : LbWell, LbEdge);
+                string label = active ? headers[i] + (_adapter.SortAscending ? " ^" : " v") : headers[i];
+                // Numeric columns are CENTER-aligned (header word + value share the column centerline) - right-aligned
                 // here read as misaligned because the wide header word sits left while the narrow number hugs the right.
                 // # and Player stay left-aligned. The row cells below use the identical anchor per column.
                 TextAnchor anchor = i <= 1 ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
-                CreateTextAt(headerCell.transform, label, new Rect(i <= 1 ? 8f : 4f, 4f, cols[i] - 12f, headerHeight - 8f), 15f, active ? Pal.ParchmentHeader : Pal.ParchmentLabel, anchor, false);
+                CreateTextAt(headerCell.transform, label, new Rect(i <= 1 ? 8f : 4f, 4f, cols[i] - 12f, headerHeight - 8f), 15f, active ? LbGold : LbMuted, anchor, false);
                 FiresRankingSortField capturedField = fields[i];
                 CreateTransparentButtonOverlay(listPanel.transform, headerRect, delegate
                 {
@@ -345,22 +410,22 @@ namespace FiresRPGmaker.UI.Leaderboard
             {
                 FiresLeaderboardRanking player = players[i];
                 bool selected = _selectedPlayer != null && string.Equals(_selectedPlayer.PlayerName, player.PlayerName, StringComparison.OrdinalIgnoreCase);
-                Color fill = selected ? Pal.ParchmentItemSelected : Pal.ParchmentPanel;
+                Color fill = selected ? LbCellDone : LbWell;
                 float rankingRowWidth = contentWidth - 44f;
-                GameObject rowPanel = CreatePanelBox(listPanel.transform, "Leaderboard.Ranking.Row." + i, new Rect(8f, rowY, rankingRowWidth, rowHeight), fill, Pal.ParchmentEdge);
+                GameObject rowPanel = CreatePanelBox(listPanel.transform, "Leaderboard.Ranking.Row." + i, new Rect(8f, rowY, rankingRowWidth, rowHeight), fill, LbEdge);
                 float x = 0f;
                 float cellY = 13f;
                 float cellHeight = 22f;
-                CreateTextAt(rowPanel.transform, "#" + player.Rank, new Rect(x + 8f, cellY, cols[0] - 16f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false); x += cols[0];
-                CreateTextAt(rowPanel.transform, player.PlayerName ?? "-", new Rect(x + 8f, cellY, cols[1] - 16f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false); x += cols[1];
-                CreateTextAt(rowPanel.transform, player.AchievementCount.ToString(), new Rect(x + 4f, cellY, cols[2] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false); x += cols[2];
-                CreateTextAt(rowPanel.transform, player.Monsters.ToString(), new Rect(x + 4f, cellY, cols[3] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false); x += cols[3];
-                CreateTextAt(rowPanel.transform, "0", new Rect(x + 4f, cellY, cols[4] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false); x += cols[4];
-                CreateTextAt(rowPanel.transform, player.Structures.ToString(), new Rect(x + 4f, cellY, cols[5] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false); x += cols[5];
-                CreateTextAt(rowPanel.transform, player.Deaths.ToString(), new Rect(x + 4f, cellY, cols[6] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false); x += cols[6];
-                CreateTextAt(rowPanel.transform, player.PlayersKilled.ToString(), new Rect(x + 4f, cellY, cols[7] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false); x += cols[7];
-                CreateTextAt(rowPanel.transform, (player.MapExplored * 100f).ToString("0.##") + "%", new Rect(x + 4f, cellY, cols[8] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false); x += cols[8];
-                CreateTextAt(rowPanel.transform, player.Score.ToString(), new Rect(x + 4f, cellY, cols[9] - 12f, cellHeight), 14f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false);
+                CreateTextAt(rowPanel.transform, "#" + player.Rank, new Rect(x + 8f, cellY, cols[0] - 16f, cellHeight), 14f, LbText, TextAnchor.MiddleLeft, false); x += cols[0];
+                CreateTextAt(rowPanel.transform, player.PlayerName ?? "-", new Rect(x + 8f, cellY, cols[1] - 16f, cellHeight), 14f, LbText, TextAnchor.MiddleLeft, false); x += cols[1];
+                CreateTextAt(rowPanel.transform, player.AchievementCount.ToString(), new Rect(x + 4f, cellY, cols[2] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false); x += cols[2];
+                CreateTextAt(rowPanel.transform, player.Monsters.ToString(), new Rect(x + 4f, cellY, cols[3] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false); x += cols[3];
+                CreateTextAt(rowPanel.transform, "0", new Rect(x + 4f, cellY, cols[4] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false); x += cols[4];
+                CreateTextAt(rowPanel.transform, player.Structures.ToString(), new Rect(x + 4f, cellY, cols[5] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false); x += cols[5];
+                CreateTextAt(rowPanel.transform, player.Deaths.ToString(), new Rect(x + 4f, cellY, cols[6] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false); x += cols[6];
+                CreateTextAt(rowPanel.transform, player.PlayersKilled.ToString(), new Rect(x + 4f, cellY, cols[7] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false); x += cols[7];
+                CreateTextAt(rowPanel.transform, (player.MapExplored * 100f).ToString("0.##") + "%", new Rect(x + 4f, cellY, cols[8] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false); x += cols[8];
+                CreateTextAt(rowPanel.transform, player.Score.ToString(), new Rect(x + 4f, cellY, cols[9] - 12f, cellHeight), 14f, LbText, TextAnchor.MiddleCenter, false);
 
                 FiresLeaderboardRanking clicked = player;
                 CreateTransparentButtonOverlay(listPanel.transform, new Rect(8f, rowY, rankingRowWidth, rowHeight), delegate
@@ -381,11 +446,11 @@ namespace FiresRPGmaker.UI.Leaderboard
             var defs = AchievementProfileManager.GetAchievements(AchievementProfile);
             if (defs == null || defs.Count == 0)
             {
-                CreateTextAt(parent, "No achievements defined for profile '" + AchievementProfile + "'. Drop a .cfg into config\\firesnpcs\\achievement\\.", rect, 16f, Pal.ParchmentInk, TextAnchor.UpperLeft, true);
+                CreateTextAt(parent, "No achievements defined for profile '" + AchievementProfile + "'. Drop a .cfg into config\\firesnpcs\\achievement\\.", rect, 16f, LbText, TextAnchor.UpperLeft, true);
                 return;
             }
 
-            GameObject listPanel = CreatePanelBox(parent, "Leaderboard.Achievements.List", new Rect(rect.x, rect.y, rect.width, rect.height), Pal.ParchmentPanel, Pal.ParchmentEdge);
+            GameObject listPanel = CreatePanelBox(parent, "Leaderboard.Achievements.List", new Rect(rect.x, rect.y, rect.width, rect.height), LbWell, LbEdge);
             float contentWidth = rect.width - 16f;
             float[] cols = GetCanvasAchievementColumnWidths(contentWidth - 16f);
             float span = SumColumns(cols);
@@ -399,8 +464,8 @@ namespace FiresRPGmaker.UI.Leaderboard
             {
                 bool rightAlign = i == 1;
                 float pad = rightAlign ? 4f : 8f;
-                GameObject headerCell = CreateRowStrip(listPanel.transform, "Leaderboard.Achievements.Header." + i, headerX, headerY, cols[i], headerHeight, Pal.ParchmentButton, Pal.ParchmentEdge);
-                CreateTextAt(headerCell.transform, headers[i], new Rect(pad, 4f, cols[i] - pad - 4f, headerHeight - 8f), 15f, Pal.ParchmentButtonInk, rightAlign ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft, false);
+                GameObject headerCell = CreateRowStrip(listPanel.transform, "Leaderboard.Achievements.Header." + i, headerX, headerY, cols[i], headerHeight, LbCell, LbEdge);
+                CreateTextAt(headerCell.transform, headers[i], new Rect(pad, 4f, cols[i] - pad - 4f, headerHeight - 8f), 15f, LbMuted, rightAlign ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft, false);
                 headerX += cols[i];
             }
 
@@ -417,11 +482,11 @@ namespace FiresRPGmaker.UI.Leaderboard
             int start = _achievementsScrollOffset;
             int end = Mathf.Min(defs.Count, start + rowsThatFit);
 
-            // Position indicator on the rightmost header cell: "start–end / total" + a scroll hint when there's more.
+            // Position indicator on the rightmost header cell: "start-end / total" + a scroll hint when there's more.
             if (defs.Count > rowsThatFit)
             {
-                string range = (start + 1) + "–" + end + " / " + defs.Count + "   (scroll)";
-                CreateTextAt(listPanel.transform, range, new Rect(headerX - cols[headers.Length - 1] - 4f, headerY + 4f, cols[headers.Length - 1] - 4f, headerHeight - 8f), 13f, Pal.ParchmentButtonInk, TextAnchor.MiddleRight, false);
+                string range = (start + 1) + "-" + end + " / " + defs.Count + "   (scroll)";
+                CreateTextAt(listPanel.transform, range, new Rect(headerX - cols[headers.Length - 1] - 4f, headerY + 4f, cols[headers.Length - 1] - 4f, headerHeight - 8f), 13f, LbMuted, TextAnchor.MiddleRight, false);
             }
 
             float colName = 0f;
@@ -433,12 +498,12 @@ namespace FiresRPGmaker.UI.Leaderboard
                 AchievementDef def = defs[i];
                 int progress = LeaderboardTracker.GetProgress(playerName, def.TriggerType, def.Prefab);
                 bool done = progress >= def.MinAmount;
-                Color fill = done ? Pal.ParchmentItemSelected : (i % 2 == 0 ? Pal.ParchmentPanel : RowAltFill);
-                GameObject rowStrip = CreateRowStrip(listPanel.transform, "Leaderboard.Achievements.Row." + i, startX, rowY, span, rowHeight, fill, Pal.ParchmentEdge);
+                Color fill = done ? LbCellDone : (i % 2 == 0 ? LbWell : RowAltFill);
+                GameObject rowStrip = CreateRowStrip(listPanel.transform, "Leaderboard.Achievements.Row." + i, startX, rowY, span, rowHeight, fill, LbEdge);
 
-                CreateTextAt(rowStrip.transform, (done ? "✔ " : string.Empty) + (def.Name ?? "-"), new Rect(colName + 8f, 10f, cols[0] - 14f, 22f), 15f, done ? new Color(0.50f, 0.85f, 0.40f) : Pal.ParchmentHeader, TextAnchor.MiddleLeft, false);
-                CreateTextAt(rowStrip.transform, def.Score.ToString(), new Rect(colScore + 4f, 10f, cols[1] - 8f, 22f), 15f, Pal.ParchmentInk, TextAnchor.MiddleRight, false);
-                CreateTextAt(rowStrip.transform, def.Description ?? string.Empty, new Rect(colDesc + 8f, 8f, cols[2] - 14f, rowHeight - 16f), 13f, Pal.ParchmentLabel, TextAnchor.UpperLeft, true);
+                CreateTextAt(rowStrip.transform, (done ? "* " : string.Empty) + (def.Name ?? "-"), new Rect(colName + 8f, 10f, cols[0] - 14f, 22f), 15f, done ? new Color(0.50f, 0.85f, 0.40f) : LbGold, TextAnchor.MiddleLeft, false);
+                CreateTextAt(rowStrip.transform, def.Score.ToString(), new Rect(colScore + 4f, 10f, cols[1] - 8f, 22f), 15f, LbText, TextAnchor.MiddleRight, false);
+                CreateTextAt(rowStrip.transform, def.Description ?? string.Empty, new Rect(colDesc + 8f, 8f, cols[2] - 14f, rowHeight - 16f), 13f, LbMuted, TextAnchor.UpperLeft, true);
                 BuildCanvasAchievementProgress(rowStrip.transform, new Rect(colProgress + 8f, 8f, cols[3] - 16f, rowHeight - 12f), progress, def.MinAmount, done);
                 rowY += rowHeight + rowGap;
             }
@@ -453,7 +518,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 : string.Format(CultureInfo.InvariantCulture, "{0}/{1}", displayValue, threshold);
             string percentLabel = completed ? "Done" : string.Format(CultureInfo.InvariantCulture, "{0:0}%", ratio * 100f);
 
-            CreateTextAt(parent, progressLabel, new Rect(rect.x, rect.y, rect.width, 14f), 12f, completed ? Pal.ParchmentHeader : Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
+            CreateTextAt(parent, progressLabel, new Rect(rect.x, rect.y, rect.width, 14f), 12f, completed ? LbGold : LbText, TextAnchor.MiddleLeft, false);
 
             float barY = rect.y + 18f;
             float percentWidth = 48f;
@@ -461,15 +526,15 @@ namespace FiresRPGmaker.UI.Leaderboard
             float barWidth = Mathf.Min(rect.width - percentWidth - percentGap, 180f);
             barWidth = Mathf.Max(110f, barWidth);
             Rect trackRect = new Rect(rect.x, barY, barWidth, 12f);
-            CreateCanvasSolidRect(parent, "Leaderboard.Achievements.Progress.Track", trackRect, Pal.ParchmentField);
-            CreateCanvasOutlineRect(parent, "Leaderboard.Achievements.Progress.Border", trackRect, Pal.ParchmentEdge);
+            CreateCanvasSolidRect(parent, "Leaderboard.Achievements.Progress.Track", trackRect, LbCell);
+            CreateCanvasOutlineRect(parent, "Leaderboard.Achievements.Progress.Border", trackRect, LbEdge);
             if (ratio > 0f)
             {
                 Rect fillRect = new Rect(trackRect.x + 1f, trackRect.y + 1f, Mathf.Max(0f, (trackRect.width - 2f) * ratio), trackRect.height - 2f);
-                CreateCanvasSolidRect(parent, "Leaderboard.Achievements.Progress.Fill", fillRect, completed ? new Color(0.30f, 0.62f, 0.25f, 0.95f) : Pal.ParchmentButton);
+                CreateCanvasSolidRect(parent, "Leaderboard.Achievements.Progress.Fill", fillRect, completed ? new Color(0.30f, 0.62f, 0.25f, 0.95f) : LbCell);
             }
 
-            CreateTextAt(parent, percentLabel, new Rect(trackRect.xMax + percentGap, barY - 1f, percentWidth, 14f), 12f, completed ? Pal.ParchmentHeader : Pal.ParchmentLabel, TextAnchor.MiddleRight, false);
+            CreateTextAt(parent, percentLabel, new Rect(trackRect.xMax + percentGap, barY - 1f, percentWidth, 14f), 12f, completed ? LbGold : LbMuted, TextAnchor.MiddleRight, false);
         }
 
         // ---- Column widths (verbatim from TDV) ----------------------------------------------------------
@@ -529,13 +594,13 @@ namespace FiresRPGmaker.UI.Leaderboard
             }
             else
             {
-                SetProperty(img, "color", fillColor);
+                // 0.0.601 (Fire 10-15, the approved leaderboard mock: "rounded, the edges not sharp, always with all our ui's"): the
+                // solid fill is a rounded 9-slice (radius 10, the kit's / Core minimap plate's) with the edge colour as its 1 px rim.
+                SetProperty(img, "sprite", FiresCore.UI.FiresRoundedSkin.RoundedSprite(10, fillColor, borderColor.a > 0f ? (Color?)borderColor : null, 1));
+                SetTypeSliced(img);
+                SetProperty(img, "color", Color.white);
             }
             SetBoolProperty(img, "raycastTarget", false);
-
-            // Draw a parchment-edge frame when painting a solid fill (a configured PNG brings its own border art).
-            if (bg == null && borderColor.a > 0f)
-                CreateCanvasOutlineRect(outer.transform, name + ".Border", new Rect(0f, 0f, rect.width, rect.height), borderColor);
 
             var content = new GameObject(name + ".Content", typeof(RectTransform));
             content.transform.SetParent(outer.transform, false);
@@ -546,7 +611,7 @@ namespace FiresRPGmaker.UI.Leaderboard
         private static bool _backgroundResolved;
         private static Sprite _backgroundSprite;
 
-        // Optional user-supplied parchment PNG (config/FiresUIBackgrounds/), gated on the leaderboard config toggle —
+        // Optional user-supplied parchment PNG (config/FiresUIBackgrounds/), gated on the leaderboard config toggle -
         // mirrors LeaderboardPlayerPanel.ApplyConfigurableBackground. When off/missing, panels paint opaque ParchmentPanel.
         private static Sprite ResolveConfiguredBackground()
         {
@@ -577,20 +642,20 @@ namespace FiresRPGmaker.UI.Leaderboard
         {
             // Built directly (not from a cloned vanilla template): one full-size parchment fill + a centered label +
             // a transparent click overlay, all sharing the exact same rect, so the background and the label can never
-            // drift apart (the template-clone approach let them diverge — the cause of the misaligned tab labels).
+            // drift apart (the template-clone approach let them diverge - the cause of the misaligned tab labels).
             GameObject root = new GameObject("LeaderboardButton_" + label.Replace("\n", " "), typeof(RectTransform));
             root.transform.SetParent(parent, false);
             SetRect(root.GetComponent<RectTransform>(), rect.x, rect.y, rect.width, rect.height);
 
             Component bg = root.GetComponent(CanvasImageType) ?? root.AddComponent(CanvasImageType);
             SetProperty(bg, "sprite", null);
-            SetProperty(bg, "color", active ? Pal.ParchmentButtonHover : Pal.ParchmentButton);
+            SetProperty(bg, "color", active ? LbCellDone : LbCell);
             SetBoolProperty(bg, "raycastTarget", false);
-            CreateCanvasOutlineRect(root.transform, "LeaderboardButton.Border", new Rect(0f, 0f, rect.width, rect.height), Pal.ParchmentEdge);
+            CreateCanvasOutlineRect(root.transform, "LeaderboardButton.Border", new Rect(0f, 0f, rect.width, rect.height), LbEdge);
 
             float padL = leftAlign ? 10f : 6f;
             CreateTextAt(root.transform, label, new Rect(padL, 0f, Mathf.Max(0f, rect.width - padL - 6f), rect.height), fontSize,
-                enabled ? Pal.ParchmentButtonInk : Pal.ParchmentLabel, leftAlign ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter, false);
+                enabled ? LbMuted : LbMuted, leftAlign ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter, false);
 
             if (enabled && action != null) CreateTransparentButtonOverlay(root.transform, new Rect(0f, 0f, rect.width, rect.height), action);
             return root;
@@ -609,7 +674,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 if (image != null)
                 {
                     SetProperty(image, "sprite", null);
-                    SetProperty(image, "color", active ? Pal.ParchmentButtonHover : Pal.ParchmentButton);
+                    SetProperty(image, "color", active ? LbCellDone : LbCell);
                 }
             }
         }
@@ -654,7 +719,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             SetTextRaycast(overlayText, false);
             SetFontSize(overlayText, fontSize);
             SetTextAlignment(overlayText, leftAlign ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter);
-            ApplyTextColor(overlayText, Pal.ParchmentButtonInk);
+            ApplyTextColor(overlayText, LbMuted);
             SetTextWrapping(overlayText, false);
 
             if (leftAlign)
@@ -672,7 +737,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             if (template == null) return;
 
             // The shared text material carries a baked dark outline. On a dark fill that outline reads as a blurry
-            // halo (the body-text problem); on a light cream fill it reads crisp — exactly why the buttons look good.
+            // halo (the body-text problem); on a light cream fill it reads crisp - exactly why the buttons look good.
             // Promote the standard dark parchment tones to the cream button-ink so every label gets that crisp
             // "light fill + dark outline" treatment. Meaningful accent colors (e.g. the done-green) pass through.
             color = ReadableInk(color);
@@ -695,7 +760,8 @@ namespace FiresRPGmaker.UI.Leaderboard
             if (parent == null || _canvasButtonTemplate == null) return;
 
             GameObject buttonObject = UnityEngine.Object.Instantiate(_canvasButtonTemplate, parent, false);
-            buttonObject.name = "Leaderboard.TransparentOverlay";
+            // The clickable Button carries its button's name (e.g. "LeaderboardButton_Close"), so lookups by name find it.
+            buttonObject.name = parent.name.StartsWith("LeaderboardButton_") ? parent.name : "Leaderboard.TransparentOverlay";
             buttonObject.SetActive(true);
             RectTransform rectTransform = buttonObject.GetComponent<RectTransform>();
             if (rectTransform != null) SetRect(rectTransform, rect.x, rect.y, rect.width, rect.height);
@@ -1005,7 +1071,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 {
                     // TMP's `alignment` is TextAlignmentOptions (a horizontal flag | a vertical flag), NOT TextAnchor.
                     // Casting the raw TextAnchor int (e.g. MiddleLeft=3) yields a garbage value, so TMP renders
-                    // top-aligned — which made every label sit high. Map to the correct TextAlignmentOptions int.
+                    // top-aligned - which made every label sit high. Map to the correct TextAlignmentOptions int.
                     object enumValue = Enum.ToObject(alignmentProperty.PropertyType, ToTmpAlignment(anchor));
                     alignmentProperty.SetValue(component, enumValue, null);
                 }
@@ -1076,12 +1142,8 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         // Promote the three standard dark parchment text tones to the cream button-ink so the baked outline reads
         // crisp instead of muddy. Accent colors (the done-green, custom tints) are left untouched.
-        private static Color ReadableInk(Color c)
-        {
-            if (ApproximatelyColor(c, Pal.ParchmentInk) || ApproximatelyColor(c, Pal.ParchmentLabel) || ApproximatelyColor(c, Pal.ParchmentHeader))
-                return Pal.ParchmentButtonInk;
-            return c;
-        }
+        // House style (10-08): the text is light on dark plates now, which reads crisp with the baked dark outline as is.
+        private static Color ReadableInk(Color c) => c;
 
         private static bool ApproximatelyColor(Color a, Color b)
             => Mathf.Abs(a.r - b.r) < 0.02f && Mathf.Abs(a.g - b.g) < 0.02f && Mathf.Abs(a.b - b.b) < 0.02f;

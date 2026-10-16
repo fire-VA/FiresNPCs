@@ -106,14 +106,13 @@ namespace FiresRPGmaker.UI
             w.Bullet("1. Tame a creature using the vanilla Valheim taming system.");
             w.Bullet("2. Hold R while looking at the companion to open its command radial.");
             w.Bullet("3. Hold H while looking at the companion to toggle idle work behaviors.");
-            w.Bullet("4. Press G to open the Guild screen, or use /gcreate <name> to start one.");
+            w.Bullet("4. Guilds come from the FiresGuilds mod: press G there to open its guild screen.");
             w.Bullet("5. Press J to open the Quest Journal once you've accepted a quest.");
             w.Divider();
 
             w.SubHeader("Common Hotkeys");
             w.Bullet("E — Interact with an NPC, chest, workbench, etc.");
             w.Bullet("J — Open the Quest Journal (configurable in Hotkeys.QuestJournalKey)");
-            w.Bullet("G — Open the Guild screen (configurable in Hotkeys.GuildScreenKey)");
             w.Bullet("L — Open the Leaderboard & Achievements panel (Hotkeys.LeaderboardKey)");
             w.Bullet("Tab (while typing in chat) — cycle chat channels");
             w.Bullet("Escape — close any open Verdant's Ascent panel");
@@ -123,7 +122,6 @@ namespace FiresRPGmaker.UI
 
             w.SubHeader("Player Slash Commands");
             w.Bullet("/g <message> — guild-only chat (routes through the active guild system)");
-            w.Bullet("/gping — drop a guild-only map ping at the cursor");
             w.Bullet("/invite <player> — invite to your party (separate from guilds)");
             w.Bullet("/leave  /disband — leave or disband your party");
             w.Bullet("/feedback <message> — send feedback straight to the server's Discord");
@@ -448,7 +446,7 @@ namespace FiresRPGmaker.UI
                 w.AdminDivider();
                 w.AdminHeader("Admin: Vault Recovery");
                 w.Paragraph("The vault-side companion commands (companioninfo, recovercompanion, " +
-                    "restorecompanions, purgeallcompanions...) are documented under Commands (Admin) → " +
+                    "restorecompanions, purgeallcompanions...) are documented under Commands (Admin) » " +
                     "Companion Admin Commands.");
             }
         }
@@ -457,91 +455,21 @@ namespace FiresRPGmaker.UI
         {
             w.Header("Guilds");
 
-            // Build callbacks run at render time, so this adapts to the actual installation:
-            // with FiresGuilds (or TDV) present, RPGmaker's built-in guild module is dormant
-            // and documenting its slash commands would be wrong.
+            // 0.0.527 (Fire 10-08): RPG Maker's own guild module is removed. Guilds come from FiresGuilds (or VikingLands.Core).
             if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
             {
-                w.Paragraph("On this installation the guild system is provided by a dedicated guild " +
-                    "mod (FiresGuilds or VikingLands) — Verdant's Ascent's built-in guild module is " +
-                    "standing down so the two never fight over your guild data.");
-                w.Bullet("Press G to open the guild screen (provided by the guild mod).");
-                w.Bullet("See the FiresGuilds group in this help panel's sidebar for the full guide — " +
-                    "ranks, applications, tags, emblems, and settings.");
-                w.Bullet("The Guild chat channel and the /g message prefix still work here — chat " +
-                    "routes through the shared guild bridge. See Chat Channels.");
-                return;
+                w.Paragraph("Guilds on this installation come from " + global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildOwner + ".");
+                w.Bullet("Press G to open the guild screen, and see the FiresGuilds group in this help panel's sidebar " +
+                    "for the full guide (ranks, applications, tags, emblems, friendly fire, map pings, settings).");
             }
-
-            w.Paragraph("Guilds are persistent, server-wide groups of players. They have ranks, a " +
-                "shared chat channel, map pings, member rosters, applications, and shared storage. " +
-                "Press G or type /guild to open the guild screen.");
-            w.Divider();
-
-            w.SubHeader("Joining or Founding a Guild");
-            w.Bullet("/gcreate <name> [description] — found a new guild (you become Leader)");
-            w.Bullet("Browse open guilds in the Search tab and click Apply");
-            w.Bullet("/ginvite <player> — invite an online player (officer rank or higher)");
-            w.Bullet("Invited players get a popup; applications are reviewed by officers");
-            w.Divider();
-
-            w.SubHeader("Guild Screen — press G");
-            w.Bullet("Main — overview, motd, members online, your rank");
-            w.Bullet("Members — full roster with ranks; promote/demote/kick if permitted");
-            w.Bullet("Chat — guild-only chat history (persisted on the server)");
-            w.Bullet("Search — find and apply to other guilds");
-            w.Bullet("Create — new-guild form (if AllowGuildCreation is enabled)");
-            w.Divider();
-
-            w.SubHeader("Slash Commands");
-            w.Bullet("/guild — open the guild screen");
-            w.Bullet("/gcreate <name> [description] — found a new guild");
-            w.Bullet("/ginvite <player> — invite an online player by name");
-            w.Bullet("/gleave — leave your current guild");
-            w.Bullet("/gdisband — permanently dissolve your guild (Leader only)");
-            w.Bullet("/g <message> — send a one-off message to guild chat");
-            w.Bullet("/gping — drop a guild-only ping at your map cursor (Shift+ping also works)");
-            w.Divider();
-
-            w.SubHeader("Ranks & Permissions");
-            w.Bullet("Member — chat, see roster, leave guild");
-            w.Bullet("Officer — invite, kick members, edit motd");
-            w.Bullet("Coleader — promote/demote up to officer, edit guild details");
-            w.Bullet("Leader — full control, can transfer leadership or disband");
-            w.Divider();
-
-            w.SubHeader("Guild Chat");
-            w.Paragraph("Either select the Guild channel in the chat-column UI and type normally, " +
-                "or prefix any message with /g. Messages appear with a coloured [GuildName] tag and " +
-                "are persisted server-side, so the chat tab in the guild screen always shows recent " +
-                "history (even what was said while you were offline).");
-            w.Divider();
-
-            w.SubHeader("Companion Access & Ownership Transfer");
-            w.Bullet("Guildmates can interact with each other's companions (configurable)");
-            w.Bullet("Ownership of a companion can be transferred to another guild member");
-            w.Bullet("Useful for shared bases where any member can manage the work-companions");
-            w.Divider();
-
-            w.SubHeader("Guild Map Pings");
-            w.Bullet("Hold Shift while placing a map ping — only guildmates see it");
-            w.Bullet("Or use /gping anywhere in the world to ping at the map cursor");
-            w.Divider();
-
-            w.SubHeader("Limits");
-            w.Bullet("Default 20 members per guild (Guilds.MaxGuildMembers, 1-200)");
-            w.Bullet("Default 100 guilds per world (Guilds.MaxGuildsPerWorld, 1-1000)");
-            w.Bullet("Whole system can be disabled with Guilds.GuildsEnabled = false");
-
-            if (IsCurrentPlayerAdmin())
+            else
             {
-                w.AdminDivider();
-                w.AdminHeader("Admin: Guild Server Settings");
-                w.Bullet("Guilds.GuildsEnabled — master toggle (synced)");
-                w.Bullet("Guilds.AllowGuildCreation — set false to lock the world to existing guilds");
-                w.Bullet("Guilds.MaxGuildMembers / MaxGuildsPerWorld — server-wide caps");
-                w.Bullet("Guild data persists in BepInEx/config/FiresRPGmaker/Guilds/ on the server");
+                w.Paragraph("Guilds come from the FiresGuilds mod, which is not installed here. Install it to get " +
+                    "guilds: ranks, a guild screen (G), guild chat, guild-mate map pins and pings.");
             }
+            w.SubHeader("What Verdant's Ascent adds to them");
+            w.Bullet("The Guild chat channel and the /g message prefix route to the guild mod. See Chat Channels.");
+            w.Bullet("Dialogue conditions HasGuild / HasGuildWithName read your guild from the guild mod.");
         }
 
         private static void BuildParty(HelpContentWriter w)
@@ -583,7 +511,7 @@ namespace FiresRPGmaker.UI
             w.Bullet("Local — vanilla normal-talk range (~15m). Default channel.");
             w.Bullet("Global — server-wide shout. Auto-prepends the shout behavior.");
             w.Bullet("Group — placeholder for future ad-hoc group routing (currently a stub).");
-            w.Bullet("Guild — guildmates only. Wired through the guild RPC pipeline.");
+            w.Bullet("Guild — guildmates only. Sent through the guild mod (FiresGuilds).");
             w.Divider();
 
             w.SubHeader("Switching Channels");
@@ -683,17 +611,30 @@ namespace FiresRPGmaker.UI
             w.Divider();
 
             w.SubHeader("Territory Effects");
-            w.Bullet("NoBuild — Building disabled inside the zone");
-            w.Bullet("NoPickaxe — Pickaxe usage disabled");
-            w.Bullet("NoPvP — PvP damage disabled");
-            w.Bullet("Pushback — Players pushed out of the zone");
-            w.Bullet("MoveSpeedMultiplier — Speed boost or slowdown");
-            w.Bullet("IncreasedPlayerDamage — Damage multiplier");
-            w.Bullet("ForceEnvironment — Override weather/atmosphere");
-            w.Bullet("CustomSpawn — Spawn creatures inside the zone");
-            w.Bullet("AddMonsterLevel — Add star levels to spawned creatures");
-            w.Bullet("DropMultiplier — Loot multiplier");
-            w.Bullet("MapReveal — Reveal map area on entry");
+            w.Bullet("NoBuild — building and removing pieces disabled");
+            w.Bullet("NoPickaxe / NoTool — mining / every tool disabled");
+            w.Bullet("NoInteract (and NoInteractItems, NoInteractCraftingStation, NoInteractItemStands, NoInteractChests, NoInteractDoors, NoInteractPortals), NoAttack, NoPortals");
+            w.Bullet("PveOnly / PvpOnly — PvP forced off / on inside; your own setting comes back when you leave");
+            w.Bullet("PushAway — players without permission are pushed out along the ground");
+            w.Bullet("MoveSpeedMultiplier=m — walk, run and swim speed x m");
+            w.Bullet("Gravity=g (-10 to 10) — 1 = normal, 0 = weightless, 0.5 = half, 3 = three times, negative pulls you up "
+                + "(you hover 25 m above the ground). Players only; swimming and climbing keep their own physics; no fall damage below 1");
+            w.Bullet("FirstPerson — the camera is forced to first person inside (zooming out is ignored); your own camera "
+                + "comes back when you leave. Valcast camera modes still take over while they run. Applies to everyone, admins too");
+            w.Bullet("Scale=s (0.25 to 4) — your size: 0.5 = half, 2 = double. Everyone sees it. Speed, jump and reach stay normal; "
+                + "growing back waits until there is room above you");
+            w.Bullet("IncreasedPlayerDamage=x / IncreasedMonsterDamage=x — damage multipliers; GodMode — no damage from attackers");
+            w.Bullet("PeriodicDamage=x / PeriodicHeal=x / PeriodicHealALL=x — damage or healing over time");
+            w.Bullet("CustomEnvironment=env1,env2 — weather override; ForceBiome=n; ForceWind=x; SnowMask; NoMist");
+            w.Bullet("EWPSpawner=Prefab,amount,level — creatures spawn on entry and respawn after they all die; NoMonsters — no natural spawns");
+            w.Bullet("MonstersAddStars=n — extra stars on creatures spawned inside");
+            w.Bullet("DropMultiplier=x — loot multiplier");
+            w.Bullet("RevealOnMap — reveal the map area on entry");
+            w.Bullet("NoDeathPenalty — keep your skills on death; NoItemLoss — keep skills AND inventory, no tombstone");
+            w.Bullet("InfiniteStamina, InfiniteEitr, InfiniteFuel, NoBuildDamage, NoStructureSupport, CustomPaint=Paved|Dirt|Cultivated|Grass");
+            w.Bullet("OnlyForGuild=Name / OnlyForFaction=id — members of that guild / faction are exempt from the restrictions");
+            w.Bullet("ForSale=coins — the area can be bought from the large map (a plot sells once); owners may build");
+            w.Bullet("HeightBounds=min,max — the area only applies between those heights (default: up to 600)");
             w.Divider();
 
             w.SubHeader("Map & HUD");
@@ -723,18 +664,18 @@ namespace FiresRPGmaker.UI
             w.CodeBlock("[territory_name]\n" +
                 "Circle\n" +
                 "X, Z, Radius\n" +
-                "R, G, B, ShowOnMap\n" +
+                "R, G, B, ShowExternalWater\n" +
                 "Flag1, Flag2, Key=Value\n" +
                 "ALL");
             w.Divider();
 
             w.SubHeader("Lines Explained");
             w.Bullet("Line 1: [name] — Unique territory identifier");
-            w.Bullet("Line 2: Shape — Circle (more shapes planned)");
-            w.Bullet("Line 3: Position — X, Z, Radius (world coordinates)");
-            w.Bullet("Line 4: Color — R, G, B, ShowOnMap (0-255, true/false)");
-            w.Bullet("Line 5: Flags — Comma-separated effects (see Territory Effects)");
-            w.Bullet("Line 6: Applies to — ALL or specific player names");
+            w.Bullet("Line 2: Shape — Circle, Square or Rectangle");
+            w.Bullet("Line 3: Position — Circle: X, Z, Radius. Square: X, Z, HalfSide. Rectangle: MinX, MinZ, Width, Depth");
+            w.Bullet("Line 4: Color — R, G, B (0-255), then true/false for ShowExternalWater");
+            w.Bullet("Line 5: Flags — separated by , | or ; (see Territory Effects); None for no flags");
+            w.Bullet("Line 6: Exceptions — ALL means none; otherwise the player names the restrictions don't apply to (admins, owners and OnlyForGuild/OnlyForFaction members are exempt too)");
             w.Divider();
 
             w.SubHeader("Example: Safe Zone");
@@ -746,8 +687,8 @@ namespace FiresRPGmaker.UI
                 "ALL");
             w.Divider();
 
-            w.SubHeader("Custom Spawn Format");
-            w.CodeBlock("CustomSpawn=PrefabName, Amount, Level, X, Y, Z, RespawnSeconds");
+            w.SubHeader("Spawner Format (EWPSpawner)");
+            w.CodeBlock("EWPSpawner=PrefabName,Amount,Level,respawn=Seconds,xyz=X,Y,Z");
             w.Divider();
 
             w.SubHeader("Drawing Territories In-Game");
@@ -827,17 +768,10 @@ namespace FiresRPGmaker.UI
 
             w.SubHeader("Hotkeys");
             w.Bullet("QuestJournalKey — Quest Journal hotkey (default: J; chords like J + LeftAlt supported)");
-            w.Bullet("GuildScreenKey — Guild screen hotkey (default: G; chords supported)");
             w.Bullet("LeaderboardKey — Leaderboard hotkey (default: L; chords supported)");
             w.Bullet("Set any of them to None to disable.");
             w.Divider();
 
-            w.SubHeader("Guilds [Synced]");
-            w.Bullet("GuildsEnabled — master toggle for the guild system (default: true)");
-            w.Bullet("AllowGuildCreation — let players found new guilds (default: true)");
-            w.Bullet("MaxGuildMembers — cap per guild, 1-200 (default: 20)");
-            w.Bullet("MaxGuildsPerWorld — total guild cap, 1-1000 (default: 100)");
-            w.Divider();
 
             w.SubHeader("Chat");
             w.Bullet("ActiveChannel — last-selected channel (Local/Global/Group/Clan, persists)");
@@ -958,7 +892,6 @@ namespace FiresRPGmaker.UI
                 "    Territories/                 Territory zone .cfg files\n" +
                 "    Factions/                    Faction definitions (yaml)\n" +
                 "    ServerInfos/                 Info NPC content files\n" +
-                "    Guilds/                      Per-world guild storage (server)\n" +
                 "    Compendium/                  Discovery state cache\n" +
                 "    VaultData/                   Server-side player data (auto)\n" +
                 "    RuntimeSprites/              Custom quest preview images");
@@ -983,7 +916,6 @@ namespace FiresRPGmaker.UI
             w.Bullet("[QuestManager] — quest loading and tracking");
             w.Bullet("[DialogueCodex] — dialogue parsing");
             w.Bullet("[TerritoryLedger] — territory loading and entry");
-            w.Bullet("[GuildModule] / [GuildSyncManager] — guild sync and RPCs");
             w.Bullet("[PartyManager] — party invites, sync, RPCs");
             w.Bullet("[CompanionAI] / [Archetype*] — companion AI and abilities");
             w.Bullet("[ChatChannel] — chat channel switching");
@@ -1001,7 +933,6 @@ namespace FiresRPGmaker.UI
             w.SubHeader("General");
             w.Bullet("E — Interact with an NPC, chest, workbench, sign, etc.");
             w.Bullet("J — Open the Quest Journal (Hotkeys.QuestJournalKey)");
-            w.Bullet("G — Open the Guild screen (Hotkeys.GuildScreenKey)");
             w.Bullet("L — Open the Leaderboard panel (Hotkeys.LeaderboardKey)");
             w.Bullet("Escape — Close any Verdant's Ascent panel");
             w.Paragraph("The J / G / L hotkeys support multi-key CHORDS (e.g. L + LeftAlt) — set them " +
@@ -1019,7 +950,7 @@ namespace FiresRPGmaker.UI
 
             w.SubHeader("Chat");
             w.Bullet("Enter — open the chat input");
-            w.Bullet("Tab (while typing) — cycle channels: Local → Global → Group → Guild");
+            w.Bullet("Tab (while typing) — cycle channels: Local » Global » Group » Guild");
             w.Bullet("Click the channel column to pick a channel directly");
             w.Bullet("/g <message> — send a one-off guild-channel message");
             w.Bullet("Escape — close chat");
@@ -1069,10 +1000,8 @@ namespace FiresRPGmaker.UI
             w.Divider();
 
             w.SubHeader("Guilds");
-            w.Bullet("Can't see guild messages — ensure Guilds.GuildsEnabled is true, you're in a guild, and either the Guild channel is selected or you prefix with /g.");
-            w.Bullet("/gcreate fails — Guilds.AllowGuildCreation may be false on this server. Ask an admin.");
-            w.Bullet("Invite says \"player not found\" — the target must be currently online; names are case-insensitive but must match exactly.");
-            w.Bullet("Guild screen empty after relog — the client waits for FullSync from the server. Wait a few seconds; check [GuildSyncManager] in the log.");
+            w.Bullet("No guilds at all — guilds come from the FiresGuilds mod; install it (its own help group covers the rest).");
+            w.Bullet("Can't see guild messages — you must be in a guild (FiresGuilds), and either select the Guild channel or prefix with /g.");
             w.Divider();
 
             w.SubHeader("Party");
@@ -1103,7 +1032,6 @@ namespace FiresRPGmaker.UI
                 w.Bullet("[QuestManager] / [QuestTimerManager] — quest loading, tracking, timers");
                 w.Bullet("[DialogueCodex] — dialogue parsing");
                 w.Bullet("[TerritoryLedger] — territory loading and entry events");
-                w.Bullet("[GuildModule] / [GuildSyncManager] — guild sync, RPCs, persistence");
                 w.Bullet("[PartyManager] — party invites and routing");
                 w.Bullet("[ChatChannel] — channel switching");
                 w.Bullet("[CompanionAI] / [Archetype*] / [CompanionProgression] — companion behavior");
@@ -1242,7 +1170,7 @@ namespace FiresRPGmaker.UI
             w.Divider();
 
             w.SubHeader("Admin Setup");
-            w.Bullet("Hammer an NPC → choose Trader Npc tab.");
+            w.Bullet("Hammer an NPC » choose Trader Npc tab.");
             w.Bullet("Type a profile name in the input field, or pick one from the Saved Profiles dropdown.");
             w.Bullet("Enter one trade per line in the trades box (see Trader Config Format).");
             w.Bullet("Click Apply — the profile is written to disk and the NPC is committed as a Trader.");
@@ -1289,7 +1217,7 @@ namespace FiresRPGmaker.UI
                 "showing both prices side-by-side. Example to fully spec an item:");
             w.CodeBlock("Coins, 500, ArmorBronzeChest, 1\n" +
                 "ArmorBronzeChest, 1, Coins, 250");
-            w.Paragraph("→ One row shows: Buy 500, Sell 250.");
+            w.Paragraph("» One row shows: Buy 500, Sell 250.");
             w.Divider();
 
             w.SubHeader("Complete Example");
@@ -1353,7 +1281,7 @@ namespace FiresRPGmaker.UI
             w.Divider();
 
             w.SubHeader("Player Use");
-            w.Bullet("Deposit currency → it's removed from your inventory and tracked on your vault data");
+            w.Bullet("Deposit currency » it's removed from your inventory and tracked on your vault data");
             w.Bullet("Withdraw — items come back into your inventory");
             w.Bullet("Interest accrues passively while you're online (configured in seconds per minute)");
             w.Divider();
@@ -1384,7 +1312,7 @@ namespace FiresRPGmaker.UI
             w.SubHeader("Player Flow");
             w.Bullet("Visit a Transmog NPC, click an item in 'Your Items' (left pane).");
             w.Bullet("The right pane filters to transmog options matching that item's slot.");
-            w.Bullet("Click an option → cost is consumed → visual swap is applied immediately.");
+            w.Bullet("Click an option » cost is consumed » visual swap is applied immediately.");
             w.Bullet("Inventory slots holding a transmog'd item show a cyan 'T' badge in the corner.");
             w.Bullet("Click Reverse Transmog (bottom-left) to clear the visual override.");
             w.Divider();

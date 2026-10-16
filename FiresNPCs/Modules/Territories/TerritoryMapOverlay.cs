@@ -38,6 +38,25 @@ namespace FiresRPGmaker.Modules.Territories
         private static bool _visualizerDisabled;
         private static bool _overlayDirty;
         private static bool _baseTexturesCaptured;
+        // The Deep North band is a pure function of world coordinates: IsDeepnorth is static, reads no world
+        // state, and its answer never changes in a session. It used to be evaluated for EVERY pixel on EVERY
+        // pass - 4,194,304 atan2+sin+sqrt calls on a 2048 map - which is why a pass cost the same ~580 ms with
+        // 0 territories as with 290 ([99be3d] measured 573/577/579/581/657). The pixel indices are computed once
+        // per texture geometry, off the main thread when possible, and walked directly after that.
+        private static readonly Color DeepNorthBand = new Color(0.55f, 0.7f, 0.9f, 0.2f);
+        private static int[] _deepNorthIdx;
+        private static int _deepNorthTexSize;
+        private static float _deepNorthPixelSize;
+        private static volatile int[] _deepNorthBuilt;
+        private static bool _deepNorthBuilding;
+        // What the texture currently holds. A pass that would paint the same pixels again uploads nothing.
+        private static long _appliedSignature;
+        private static bool _applyScheduled;
+        // The band is static, and so is the base copy, so it belongs IN the base rather than being re-walked
+        // every pass. Baked once the indices exist; a config flip re-captures, which un-bakes it.
+        private static bool _baseBandBaked;
+        private static bool _capturedDeepNorth;
+        private static bool _forceHeightUpload;
 
         private static bool OverlayEnabled => ConfigManager.Instance?.configTerritoryOverlay?.Value ?? true;
         private static bool DeepNorthOverlayEnabled => ConfigManager.Instance?.configDeepNorthMapOverlay?.Value ?? true;
@@ -74,39 +93,44 @@ namespace FiresRPGmaker.Modules.Territories
             _scratchHeight[idx] = hc;
         }
 
+        // Territory sync delivers in chunks and fires this once per message, so a single sync used to repaint the
+        // whole minimap several times over. Passes are coalesced to at most one per frame through Core's
+        // dispatcher, and the pass itself no-ops when the pixels would be identical.
         public static void OnTerritoriesChanged()
         {
- var sw = Stopwatch.StartNew();
-    var territories = GetTerritories();
-     int count = territories?.Count() ?? 0;
-  Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay.OnTerritoriesChanged called - {count} territories, baseTexturesCaptured={_baseTexturesCaptured}, overlayEnabled={OverlayEnabled}");
-         
-     _overlayDirty = true;
-          
-        // If we haven't captured base textures yet but minimap exists, try now
-            if (!_baseTexturesCaptured && Minimap.instance != null)
-            {
-                if (TryCaptureBaseTextures())
-      {
-   Debug.Log("[FiresRPGmaker] Base textures captured on territory change");
-      }
-   }
-            
- MaybeApplyOverlay();
+            _overlayDirty = true;
+
+            if (!_baseTexturesCaptured && Minimap.instance != null && TryCaptureBaseTextures())
+                Debug.Log("[FiresRPGmaker] Base textures captured on territory change");
+
+            ScheduleApply();
+        }
+
+        public static void ForceRedraw()
+        {
+            Debug.Log("[FiresRPGmaker] TerritoryMapOverlay.ForceRedraw called");
+            _overlayDirty = true;
+            _appliedSignature = 0L;
+            var sw = Stopwatch.StartNew();
+            MaybeApplyOverlay();
             RebuildVisualizers();
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay.OnTerritoriesChanged completed in {sw.ElapsedMilliseconds}ms");
-  }
-
-     public static void ForceRedraw()
-        {
-  var sw = Stopwatch.StartNew();
-         Debug.Log("[FiresRPGmaker] TerritoryMapOverlay.ForceRedraw called");
-      _overlayDirty = true;
-            MaybeApplyOverlay();
-        RebuildVisualizers();
-            sw.Stop();
             Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay.ForceRedraw completed in {sw.ElapsedMilliseconds}ms");
+        }
+
+        private static void ScheduleApply()
+        {
+            if (_applyScheduled) return;
+            _applyScheduled = true;
+            FiresCore.Async.MainThreadDispatcher.Enqueue(() =>
+            {
+                _applyScheduled = false;
+                var sw = Stopwatch.StartNew();
+                MaybeApplyOverlay();
+                RebuildVisualizers();
+                sw.Stop();
+                Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay.OnTerritoriesChanged completed in {sw.ElapsedMilliseconds}ms");
+            });
         }
 
         private static void MaybeApplyOverlay()
@@ -174,9 +198,9 @@ namespace FiresRPGmaker.Modules.Territories
             }
             // Flipping CompactMapOverlayBuffers takes effect on the next pass: the base copy is re-taken in the
             // other form and the old buffers are dropped, so an A/B comparison needs no relog.
-            if (_baseTexturesCaptured && _capturedCompact != CompactBuffers)
+            if (_baseTexturesCaptured && (_capturedCompact != CompactBuffers || _capturedDeepNorth != DeepNorthOverlayEnabled))
             {
-                Debug.Log($"[FiresRPGmaker] Map overlay buffers switching to {(CompactBuffers ? "compact" : "legacy")} - re-capturing base textures");
+                Debug.Log($"[FiresRPGmaker] Map overlay re-capturing base textures (buffers {(CompactBuffers ? "compact" : "legacy")}, deep north {(DeepNorthOverlayEnabled ? "on" : "off")})");
                 ReleaseBuffers();
                 _baseTexturesCaptured = false;
             }
@@ -207,6 +231,31 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 Debug.LogWarning("[FiresRPGmaker] ApplyOverlay skipped - m_mapTexture is null");
                 return;
+            }
+
+            float pixelSize = GetFloat(mm, "m_pixelSize");
+            int texSize = GetInt(mm, "m_textureSize");
+            int num = texSize / 2;
+            float num2 = pixelSize / 2f;
+
+            // Nothing below changes a pixel unless the territory set, the Deep North band or the texture geometry
+            // changed, and a chunked sync fires this repeatedly with the SAME set. Comparing first turns those
+            // repeats into no work at all instead of a 16 MB copy plus a full texture upload each.
+            long signature = OverlaySignature(territories, texSize, pixelSize);
+            if (signature == _appliedSignature)
+            {
+                _overlayDirty = false;
+                global::FiresRPGmaker.FiresLogger.LogVerbose("[FiresRPGmaker] Territory overlay unchanged - skipped repaint");
+                return;
+            }
+
+            if (DeepNorthOverlayEnabled && !_baseBandBaked)
+            {
+                BakeDeepNorthIntoBase(texSize, pixelSize);
+                // The signature above was taken while the band was unbaked, and the bake is part of what the
+                // texture will now hold. Storing the stale one would make the NEXT pass see a change that is
+                // already on screen and repaint the whole map again for nothing.
+                signature = OverlaySignature(territories, texSize, pixelSize);
             }
 
             int len = BasePixelCount();
@@ -260,36 +309,13 @@ namespace FiresRPGmaker.Modules.Territories
                 }
             }
 
-            float pixelSize = GetFloat(mm, "m_pixelSize");
-            int texSize = GetInt(mm, "m_textureSize");
-            int num = texSize / 2;
-            float num2 = pixelSize / 2f;
+
 
             // Deep North ocean band overlay (visual cue similar to Ashlands)
-            if (DeepNorthOverlayEnabled)
+            if (_forceHeightUpload)
             {
-                for (int y = 0; y < texSize; y++)
-                {
-                    for (int x = 0; x < texSize; x++)
-                    {
-                        float wx = (x - num) * pixelSize;
-                        float wz = (y - num) * pixelSize;
-                        if (WorldGenerator.IsDeepnorth(wx, wz))
-                        {
-                            int idx = y * texSize + x;
-                            Color c = ReadScratchMap(idx);
-                            // Tint with icy blue
-                            Color band = new Color(0.55f, 0.7f, 0.9f, 0.2f);
-                            c = Color.Lerp(c, band, 0.6f);
-                            WriteScratchMap(idx, c);
-                            if (hasHeight)
-                            {
-                                ClampScratchHeight(idx, 29f, 89f);
-                                heightTouched = true;
-                            }
-                        }
-                    }
-                }
+                heightTouched = true;
+                _forceHeightUpload = false;
             }
 
         int drawnCount = 0;
@@ -394,10 +420,172 @@ namespace FiresRPGmaker.Modules.Territories
             }
             // Only upload when a territory actually revealed something; the pixels are already in the texture's buffer.
             if (fogTouched) fogTex.Apply(false);
+            // 0.0.576 (the lead 10-13, memory): the scratch copies are only the working space of this pass; the next pass
+            // rebuilds them from the base. Holding them between passes kept another ~72 MB (2048² map + height) for nothing.
+            _scratchMap32 = null; _scratchMap = null; _scratchHeightRaw = null; _scratchHeight = null;
             _overlayDirty = false;
+            _appliedSignature = signature;
             sw.Stop();
             Debug.Log($"[FiresRPGmaker] Territory overlay applied to minimap - drew {drawnCount} territories in {sw.ElapsedMilliseconds}ms " +
                       $"({(_capturedCompact ? "compact" : "legacy")} buffers, {HeldMegabytes():F0} MB held)");
+        }
+
+        // Cheap fingerprint of everything ApplyOverlay reads. Never returns 0, so the initial _appliedSignature
+        // cannot collide with a real state.
+        private static long OverlaySignature(IEnumerable<Territory> territories, int texSize, float pixelSize)
+        {
+            unchecked
+            {
+                long sig = 17L;
+                sig = sig * 31L + texSize;
+                sig = sig * 31L + BitConverter.DoubleToInt64Bits(pixelSize);
+                sig = sig * 31L + BasePixelCount();
+                sig = sig * 31L + (DeepNorthOverlayEnabled ? 1L : 0L);
+                sig = sig * 31L + (_deepNorthIdx != null ? _deepNorthIdx.Length : -1L);
+                sig = sig * 31L + (_baseBandBaked ? 1L : 0L);
+
+                if (territories != null)
+                {
+                    foreach (var terr in territories)
+                    {
+                        if (terr == null || !terr.DrawOnMap()) continue;
+                        sig = sig * 31L + terr.UID;
+                        sig = sig * 31L + (terr.Name?.GetHashCode() ?? 0);
+                        sig = sig * 31L + (int)terr.Shape;
+                        sig = sig * 31L + terr.Priority;
+                        sig = sig * 31L + terr.Radius;
+                        sig = sig * 31L + (int)terr.AdditionalFlags;
+                        sig = sig * 31L + (terr.ShowExternalWater ? 1L : 0L);
+                        sig = sig * 31L + (int)terr.GradientType;
+                        sig = sig * 31L + terr.Colors.Count;
+                        var c = terr.GetColor();
+                        sig = sig * 31L + ((c.r << 24) | (c.g << 16) | (c.b << 8) | c.a);
+                        if (terr.X != null) foreach (int v in terr.X) sig = sig * 31L + v;
+                        if (terr.Y != null) foreach (int v in terr.Y) sig = sig * 31L + v;
+                    }
+                }
+
+                return sig == 0L ? 1L : sig;
+            }
+        }
+
+        /// <summary>The Deep North pixel indices for this texture geometry, building them inline only if the
+        /// background build has not finished yet. Returns an empty set rather than blocking twice.</summary>
+        private static int[] GetDeepNorthIndices(int texSize, float pixelSize)
+        {
+            var built = _deepNorthBuilt;
+            if (built != null && _deepNorthTexSize == texSize && _deepNorthPixelSize == pixelSize)
+            {
+                _deepNorthIdx = built;
+                return built;
+            }
+
+            if (_deepNorthIdx != null && _deepNorthTexSize == texSize && _deepNorthPixelSize == pixelSize)
+                return _deepNorthIdx;
+
+            var sw = Stopwatch.StartNew();
+            _deepNorthIdx = BuildDeepNorthIndices(texSize, pixelSize);
+            _deepNorthTexSize = texSize;
+            _deepNorthPixelSize = pixelSize;
+            _deepNorthBuilt = _deepNorthIdx;
+            sw.Stop();
+            Debug.Log($"[FiresRPGmaker] Deep North band cached - {_deepNorthIdx.Length} pixels of {texSize * texSize} in {sw.ElapsedMilliseconds}ms (once per map geometry)");
+            return _deepNorthIdx;
+        }
+
+        /// <summary>Precomputes the band off the main thread. IsDeepnorth is static and reads no world or Unity
+        /// state - only Mathf - so it is safe here; vanilla calls WorldGenerator from its own heightmap thread.</summary>
+        private static void BeginDeepNorthBuild(int texSize, float pixelSize)
+        {
+            if (_deepNorthBuilding) return;
+            if (_deepNorthBuilt != null && _deepNorthTexSize == texSize && _deepNorthPixelSize == pixelSize) return;
+            _deepNorthBuilding = true;
+            _deepNorthTexSize = texSize;
+            _deepNorthPixelSize = pixelSize;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var sw = Stopwatch.StartNew();
+                    var built = BuildDeepNorthIndices(texSize, pixelSize);
+                    _deepNorthBuilt = built;
+                    sw.Stop();
+                    long ms = sw.ElapsedMilliseconds;
+                    FiresCore.Async.MainThreadDispatcher.Enqueue(() =>
+                        Debug.Log($"[FiresRPGmaker] Deep North band precomputed off-thread - {built.Length} pixels of {texSize * texSize} in {ms}ms"));
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] Deep North band precompute failed, falling back to inline: {ex.Message}");
+                }
+                finally
+                {
+                    _deepNorthBuilding = false;
+                }
+            });
+        }
+
+        /// <summary>Writes the band into the BASE copy once, so every later pass inherits it through the Array.Copy
+        /// it already does and no pass walks the band again. The base is the overlay's own snapshot of the pristine
+        /// minimap, never vanilla's texture, and a Deep North config flip re-captures it.</summary>
+        private static void BakeDeepNorthIntoBase(int texSize, float pixelSize)
+        {
+            var band = GetDeepNorthIndices(texSize, pixelSize);
+            if (band == null || band.Length == 0) return;
+
+            var sw = Stopwatch.StartNew();
+            bool height = _baseHeightRaw != null || _baseHeight != null;
+            for (int i = 0; i < band.Length; i++)
+            {
+                int idx = band[i];
+                if (_baseMap32 != null)
+                {
+                    if (idx >= _baseMap32.Length) continue;
+                    _baseMap32[idx] = Color.Lerp(_baseMap32[idx], DeepNorthBand, 0.6f);
+                }
+                else if (_baseMap != null)
+                {
+                    if (idx >= _baseMap.Length) continue;
+                    _baseMap[idx] = Color.Lerp(_baseMap[idx], DeepNorthBand, 0.6f);
+                }
+
+                if (!height) continue;
+                if (_baseHeightRaw != null)
+                {
+                    if (idx >= _baseHeightRaw.Length) continue;
+                    float metres = Mathf.HalfToFloat(_baseHeightRaw[idx]);
+                    float clamped = Mathf.Clamp(metres, 29f, 89f);
+                    if (clamped != metres) _baseHeightRaw[idx] = Mathf.FloatToHalf(clamped);
+                }
+                else if (_baseHeight != null && idx < _baseHeight.Length)
+                {
+                    var hc = _baseHeight[idx];
+                    hc.r = Mathf.Clamp(hc.r, 29f, 89f);
+                    _baseHeight[idx] = hc;
+                }
+            }
+
+            _baseBandBaked = true;
+            _forceHeightUpload = height;
+            _appliedSignature = 0L;
+            sw.Stop();
+            Debug.Log($"[FiresRPGmaker] Deep North band baked into the base map - {band.Length} pixels in {sw.ElapsedMilliseconds}ms, no per-pass band work from here");
+        }
+
+        private static int[] BuildDeepNorthIndices(int texSize, float pixelSize)
+        {
+            int num = texSize / 2;
+            var hits = new List<int>(texSize * 8);
+            for (int y = 0; y < texSize; y++)
+            {
+                float wz = (y - num) * pixelSize;
+                int row = y * texSize;
+                for (int x = 0; x < texSize; x++)
+                {
+                    if (WorldGenerator.IsDeepnorth((x - num) * pixelSize, wz)) hits.Add(row + x);
+                }
+            }
+            return hits.ToArray();
         }
 
         private static int BasePixelCount() => _baseMap32?.Length ?? _baseMap?.Length ?? 0;
@@ -419,6 +607,8 @@ namespace FiresRPGmaker.Modules.Territories
 
         private static void ReleaseBuffers()
         {
+            _appliedSignature = 0L;
+            _baseBandBaked = false;
             _baseMap = _scratchMap = _baseHeight = _scratchHeight = null;
             _baseMap32 = _scratchMap32 = null;
             _baseHeightRaw = _scratchHeightRaw = null;
@@ -469,7 +659,11 @@ namespace FiresRPGmaker.Modules.Territories
                 _baseHeight = ht != null ? ht.GetPixels() : null;
             }
             _capturedCompact = compact;
+            _capturedDeepNorth = DeepNorthOverlayEnabled;
+            _baseBandBaked = false;
             _baseTexturesCaptured = true;
+            _appliedSignature = 0L;
+            if (DeepNorthOverlayEnabled) BeginDeepNorthBuild(GetInt(mm, "m_textureSize"), GetFloat(mm, "m_pixelSize"));
             Debug.Log($"[FiresRPGmaker] Base textures captured successfully - map size: {BasePixelCount()}, " +
                       $"buffers {(compact ? "compact" : "legacy")} holding {HeldMegabytes():F0} MB");
        return true;
@@ -563,6 +757,20 @@ var pos = terr.Shape switch
         MaybeApplyOverlay();
     }
      }
+
+        // 0.0.576 (the lead 10-13, memory): the base map copy (2048² ARGB + height, ~72 MB) lived on in these statics after
+        // logout, from the main menu onward. The map goes with its world now; the next world captures its own. (A dedicated
+        // server has no Minimap, so it never captured any.)
+        [HarmonyPatch(typeof(Minimap), "OnDestroy")]
+        [HarmonyPostfix]
+        private static void Minimap_OnDestroy_Postfix()
+        {
+            float mb = HeldMegabytes();
+            ReleaseBuffers();
+            _baseTexturesCaptured = false;
+            _overlayDirty = false;
+            if (mb > 0f) Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay: map closed with its world; released {mb:F0} MB of map buffers");
+        }
 
         [HarmonyPatch(typeof(Minimap), "Start")]
         [HarmonyPostfix]

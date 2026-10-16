@@ -15,6 +15,7 @@ namespace FiresRPGmaker.UI.Leaderboard
         private const string ViewRanking = "ranking";
         private const string ViewAchievements = "achievements";
         private const string ViewProgression = "progression";
+        private const string ViewSeasons = "seasons";   // 0.0.601
         private const string DetailViewMode = "player_details";
 
         private const float BaseWindowWidth = 1120f;
@@ -62,6 +63,22 @@ namespace FiresRPGmaker.UI.Leaderboard
         {
             EnsureInstance();
             _instance.OpenInternal();
+        }
+
+        /// <summary>0.0.602 ([wishbone]'s FCT leaderboard_golden step; CONTRACT, add-only): opens the window on a tab - "progression" |
+        /// "seasons" | "ranking" (case-insensitive; anything else = ranking), the same as clicking that tab. Logs "[Leaderboard] tab
+        /// &lt;t&gt; shown". Returns false when the window could not open (no InventoryGui yet).</summary>
+        public static bool OpenOnTab(string tab)
+        {
+            string t = (tab ?? "").Trim().ToLowerInvariant();
+            string view = t == ViewProgression ? ViewProgression : t == ViewSeasons ? ViewSeasons : ViewRanking;
+            EnsureInstance();
+            if (!IsVisible) _instance.OpenInternal();
+            if (!IsVisible) return false;
+            _instance._selectedPlayer = null;
+            _instance._localViewMode = view;
+            _instance.RebuildCanvasView(true);
+            return true;
         }
 
         public static void Close()

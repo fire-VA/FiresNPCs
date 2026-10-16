@@ -73,11 +73,22 @@ namespace FiresRPGmaker.Modules.Territories
 
         /// <summary>MonstersAddStars — when a monster awakens inside a MonstersAddStars territory,
         /// upgrade its level (1-3 stars). Marks the ZDO so respawned chunks don't double-buff.</summary>
+        // 0.0.536: Humanoid.Start overrides Character.Start WITHOUT calling base (vanilla 1.0), so a Character.Start
+        // postfix never ran for humanoid creatures (Boar, Greydwarf, Troll ...): round 18 monsters_add_stars, level 1.
+        [HarmonyPatch(typeof(Humanoid), "Start")]
+        public static class Humanoid_Start_AddStars_Patch
+        {
+            [HarmonyPostfix]
+            private static void Postfix(Humanoid __instance) => Character_Start_AddStars_Patch.Apply(__instance);
+        }
+
         [HarmonyPatch(typeof(Character), nameof(Character.Start))]
         public static class Character_Start_AddStars_Patch
         {
             [HarmonyPostfix]
-            private static void Postfix(Character __instance)
+            private static void Postfix(Character __instance) => Apply(__instance);
+
+            internal static void Apply(Character __instance)
             {
                 if (__instance == null || !__instance.IsOwner() || __instance is Player) return;
                 var t = TerritoryRuntime.GetTerritory(__instance.transform.position);
@@ -88,36 +99,13 @@ namespace FiresRPGmaker.Modules.Territories
                 zdo.Set("KGtsLevel", true);
                 int extraStars = Random.Range(1, 4); // 1..3
                 __instance.SetLevel(Mathf.Clamp(__instance.GetLevel() + extraStars, 1, 4));
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] '{t.Name}' MonstersAddStars {__instance.name} level -> {__instance.GetLevel()} via Start (owner)");
             }
         }
 
-        /// <summary>MoveSpeedMultiplier — runspeed factor multiplier.
-        /// Territory holds the multiplier in <c>ExponentialValue</c> (Custom field per KG convention).</summary>
-        [HarmonyPatch(typeof(Player), nameof(Player.GetRunSpeedFactor))]
-        public static class Player_GetRunSpeedFactor_Patch
-        {
-            [HarmonyPostfix]
-            private static void Postfix(Player __instance, ref float __result)
-            {
-                if (__instance != Player.m_localPlayer) return;
-                var t = TerritoryRuntime.Current;
-                if (t == null || !t.Flags.HasFlag(TerritoryFlags.MoveSpeedMultiplier)) return;
-                __result *= Mathf.Max(0.01f, t.ExponentialValue);
-            }
-        }
-
-        [HarmonyPatch(typeof(Player), nameof(Player.GetJogSpeedFactor))]
-        public static class Player_GetJogSpeedFactor_Patch
-        {
-            [HarmonyPostfix]
-            private static void Postfix(Player __instance, ref float __result)
-            {
-                if (__instance != Player.m_localPlayer) return;
-                var t = TerritoryRuntime.Current;
-                if (t == null || !t.Flags.HasFlag(TerritoryFlags.MoveSpeedMultiplier)) return;
-                __result *= Mathf.Max(0.01f, t.ExponentialValue);
-            }
-        }
+        // MoveSpeedMultiplier: TerritoryRuntime.ApplyMoveSpeedMultiplier scales walk/run/swim speed. The run/jog factor
+        // postfixes that were here multiplied by ExponentialValue, which is the colour GRADIENT exponent (default 1), so
+        // a gradient territory with this flag ran at speed x multiplier x exponent. Removed 0.0.530.
 
         // ─── TIER 2: closing loopholes (flag was advertised but trivially bypassed) ───
 
@@ -237,14 +225,41 @@ namespace FiresRPGmaker.Modules.Territories
         /// <summary>NoMonsters — KG also prefixes SpawnSystem.UpdateSpawning to stop the spawning loop
         /// from even running inside the territory (we already covered SpawnSystem.Spawn but the loop
         /// keeps allocating).</summary>
+        /// It used to read the LOCAL player's territory, so a client standing in a NoMonsters area stopped every zone it
+        /// owns from spawning, and the dedicated server (no local player) never skipped. Now a zone's loop is skipped only
+        /// when the whole zone lies inside NoMonsters areas; SpawnSystem.Spawn still blocks each point inside one.
         [HarmonyPatch(typeof(SpawnSystem), nameof(SpawnSystem.UpdateSpawning))]
         public static class SpawnSystem_UpdateSpawning_Patch
         {
             [HarmonyPrefix]
-            private static bool Prefix()
+            private static bool Prefix(SpawnSystem __instance)
             {
-                var t = TerritoryRuntime.Current;
-                return t == null || !t.Flags.HasFlag(TerritoryFlags.NoMonsters);
+                if (__instance == null) return true;
+                var c = __instance.transform.position;
+                const float h = ZoneSystem.c_ZoneSize * 0.5f;
+                bool covered = NoMonstersAt(c)
+                         && NoMonstersAt(c + new Vector3(-h, 0f, -h)) && NoMonstersAt(c + new Vector3(h, 0f, -h))
+                         && NoMonstersAt(c + new Vector3(-h, 0f, h)) && NoMonstersAt(c + new Vector3(h, 0f, h));
+                if (covered) LogSkip(c);
+                return !covered;
+            }
+
+            // Evidence for rpg_territory_test (0.0.532): at most once a minute per zone.
+            private static readonly System.Collections.Generic.Dictionary<string, float> s_lastSkipLog = new System.Collections.Generic.Dictionary<string, float>();
+            private static void LogSkip(Vector3 centre)
+            {
+                var zone = ZoneSystem.GetZone(centre);
+                string key = zone.x + "," + zone.y;
+                if (s_lastSkipLog.TryGetValue(key, out float last) && Time.time - last < 60f) return;
+                s_lastSkipLog[key] = Time.time;
+                string name = TerritoryRuntime.GetTerritory(centre)?.Name ?? "?";
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] NoMonsters: skipping the spawn loop for zone ({zone.x},{zone.y}) ('{name}' covers it)");
+            }
+
+            private static bool NoMonstersAt(Vector3 pos)
+            {
+                var t = TerritoryRuntime.GetTerritory(pos);
+                return t != null && t.Flags.HasFlag(TerritoryFlags.NoMonsters);
             }
         }
 

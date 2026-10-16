@@ -131,12 +131,16 @@ namespace FiresRPGmaker.Modules.Chess
             }
 
             // Pass 2 — march free pieces of the kind (else borrow any hidden same-side piece, e.g. promotions).
+            int slid = 0;
             foreach (var w in remaining)
             {
                 var t = FreeChild(w.kind, used) ?? FreeChild(w.kind.Substring(0, 2), used, prefixOnly: true);
                 if (t == null) continue;
                 used.Add(t);
                 t.gameObject.SetActive(true);
+                // Fire 10-13: a soft scrape as the piece is dragged across the board, for everyone watching; one per move
+                // (castling slides two pieces), and not on the first Apply (a resumed game) or a bulk resync.
+                if (_appliedOnce && slid++ == 0 && remaining.Count <= 2) ChessBreakFx.Slide(t.position);
                 StartCoroutine(Slide(t, SquarePos(w.sq, t)));
             }
 

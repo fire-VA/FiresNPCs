@@ -32,7 +32,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         // Per-currency row cache so the periodic refresh updates the live numbers in place instead of
         // destroying + rebuilding every row (which flashed the +/- buttons every refresh tick).
-        private sealed class RowRefs { public TMP_Text Inventory; public TMP_Text Bank; public int Limit; }
+        private sealed class RowRefs { public TMP_Text Inventory; public TMP_Text Bank; public int Limit; public TMP_Text Capacity; public Image Fill; }
         private readonly Dictionary<string, RowRefs> _rows = new Dictionary<string, RowRefs>();
 
         public static void Show(string profileName, string npcDisplayName)
@@ -110,6 +110,25 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _rows.Clear();
 
             var profile = BankerProfileManager.GetProfile(_profileName);
+            // 0.0.548 (Fire, stream 10:19: "Profile '' not loaded"): a banker NPC with no profile name still works. It falls back
+            // to the "default" profile, or the first loaded one, and the panel and its server calls use that name from here on.
+            // 0.0.565: also when the named profile isn't loaded (FDT 582 "fdt_bigbatch" showed no rows).
+            if (profile == null)
+            {
+                string fallback = null;
+                foreach (var n in BankerProfileManager.AllProfileNames)
+                {
+                    if (string.Equals(n, "default", System.StringComparison.OrdinalIgnoreCase)) { fallback = n; break; }
+                    if (fallback == null) fallback = n;
+                }
+                if (fallback != null)
+                {
+                    string wanted = _profileName;
+                    _profileName = fallback;
+                    profile = BankerProfileManager.GetProfile(fallback);
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Banker] banker profile '{wanted}' not loaded; using '{fallback}'");
+                }
+            }
             if (profile == null)
             {
                 if (_profileSummary != null) _profileSummary.text = "Profile '" + _profileName + "' not loaded.";
@@ -120,7 +139,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 return;
             }
             if (_profileSummary != null)
-                _profileSummary.text = "Interest: " + profile.InterestPerMinute.ToString("0.##") + "% / min  -  " + profile.CurrencyLimits.Count + " accepted currency(ies)";
+                // 0.0.557: "<rate>% <period> interest · Accepts A, B, C" (the approved mockup's subtitle).
+                _profileSummary.text = (profile.InterestPerMinute > 0f ? profile.InterestPerMinute.ToString("0.##") + "% " + profile.PeriodLabel + " interest" : "No interest")
+                                     + "  ·  Accepts " + string.Join(", ", profile.CurrencyLimits.Keys);
             string playerName = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : "?";
 
             foreach (var kv in profile.CurrencyLimits)
@@ -140,7 +161,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 int balance = BankerBalanceStore.Get(playerName, kv.Key);
                 int inventory = CountInInventory(kv.Key);
                 if (kv.Value.Inventory != null) kv.Value.Inventory.text = inventory.ToString("N0");
-                if (kv.Value.Bank != null) kv.Value.Bank.text = balance.ToString("N0") + " / " + kv.Value.Limit.ToString("N0");
+                // 0.0.558 redesign: BankLabel = the banked number; CapacityText "x / max" + CapacityFill bar (old prefabs: BankLabel "x / max").
+                if (kv.Value.Bank != null) kv.Value.Bank.text = kv.Value.Capacity != null ? balance.ToString("N0") : balance.ToString("N0") + " / " + kv.Value.Limit.ToString("N0");
+                if (kv.Value.Capacity != null) kv.Value.Capacity.text = balance.ToString("N0") + " / " + kv.Value.Limit.ToString("N0");
+                if (kv.Value.Fill != null) kv.Value.Fill.fillAmount = kv.Value.Limit > 0 ? Mathf.Clamp01(balance / (float)kv.Value.Limit) : 0f;
             }
         }
 
@@ -166,7 +190,23 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (bankLabel != null) bankLabel.text = balance.ToString("N0") + " / " + limit.ToString("N0");
 
             // Cache the live-value labels so the periodic tick updates them in place (no rebuild → no flash).
-            _rows[currency] = new RowRefs { Inventory = invLabel, Bank = bankLabel, Limit = limit };
+            var capText = FindTmp(rowGo.transform, "CapacityText");
+            var fillGo = Find(rowGo.transform, "CapacityFill");
+            _rows[currency] = new RowRefs { Inventory = invLabel, Bank = bankLabel, Limit = limit, Capacity = capText, Fill = fillGo != null ? fillGo.GetComponent<Image>() : null };
+
+            // 0.0.558 redesign (Fire-approved mockup): quick buttons per row. Minus = withdraw, Plus = deposit, All = deposit
+            // every one of this currency in the bag. Shift multiplies the step by 10. Each shows a hover tip.
+            WireStep(rowGo, "Minus10", currency, limit, -10);
+            WireStep(rowGo, "Minus1",  currency, limit, -1);
+            WireStep(rowGo, "Plus1",   currency, limit, +1);
+            WireStep(rowGo, "Plus10",  currency, limit, +10);
+            var allBtn = FindBtn(rowGo.transform, "AllButton");
+            if (allBtn != null)
+            {
+                allBtn.onClick.RemoveAllListeners();
+                allBtn.onClick.AddListener(() => DepositAmount(currency, CountInInventory(currency), limit));
+                AddTip(allBtn.gameObject, "Deposit every " + currency + " in your bag");
+            }
 
             var input = FindInput(rowGo.transform, "AmountField");
             if (input != null) input.text = "";
@@ -175,6 +215,58 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (addBtn != null) { addBtn.onClick.RemoveAllListeners(); addBtn.onClick.AddListener(() => OnRowDeposit(currency, input, limit)); }
             var subBtn = FindBtn(rowGo.transform, "SubButton");
             if (subBtn != null) { subBtn.onClick.RemoveAllListeners(); subBtn.onClick.AddListener(() => OnRowWithdraw(currency, input)); }
+        }
+
+        private void WireStep(GameObject rowGo, string name, string currency, int limit, int step)
+        {
+            var btn = FindBtn(rowGo.transform, name);
+            if (btn == null) return;
+            btn.onClick.RemoveAllListeners();
+            btn.onClick.AddListener(() =>
+            {
+                int n = Mathf.Abs(step) * ((Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) ? 10 : 1);
+                if (step > 0) DepositAmount(currency, n, limit); else WithdrawAmount(currency, n);
+            });
+            AddTip(btn.gameObject, (step > 0 ? "Deposit " : "Withdraw ") + Mathf.Abs(step) + " " + currency + " (Shift = " + (Mathf.Abs(step) * 10) + ")");
+        }
+
+        private static void AddTip(GameObject go, string text)
+        {
+            var trig = go.GetComponent<UnityEngine.EventSystems.EventTrigger>() ?? go.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+            var enter = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerEnter };
+            enter.callback.AddListener(_ => { try { FiresCore.UI.FiresHoverTip.ShowAt("", text, (Vector2)Input.mousePosition + new Vector2(14f, -14f)); } catch { } });
+            var exit = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit };
+            exit.callback.AddListener(_ => { try { FiresCore.UI.FiresHoverTip.HideTip(); } catch { } });
+            trig.triggers.Add(enter); trig.triggers.Add(exit);
+        }
+
+        private void DepositAmount(string currency, int amount, int limit)
+        {
+            if (amount <= 0) { _statusText.text = "You have no " + currency + " to deposit."; return; }
+            var player = Player.m_localPlayer; if (player == null) return;
+            string name = player.GetPlayerName();
+            int balance = BankerBalanceStore.Get(name, currency);
+            int held = CountInInventory(currency);
+            int room = Mathf.Max(0, limit - balance);
+            if (room <= 0) { _statusText.text = "Bank only has room for 0 more " + currency + "."; return; }
+            amount = Mathf.Min(amount, held, room);
+            if (amount <= 0) { _statusText.text = "Not enough " + currency + " (have " + held + ")."; return; }
+            if (!ConsumeFromInventory(player.GetInventory(), currency, amount)) { _statusText.text = "Consume failed."; return; }
+            BankerNetwork.RequestDeposit(_profileName, currency, amount);
+            UpdateValues();
+        }
+
+        private void WithdrawAmount(string currency, int amount)
+        {
+            var player = Player.m_localPlayer; if (player == null) return;
+            int balance = BankerBalanceStore.Get(player.GetPlayerName(), currency);
+            amount = Mathf.Min(amount, balance);
+            if (amount <= 0) { _statusText.text = "You only have " + balance + " " + currency + " banked."; return; }
+            var pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(currency) : null;
+            var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
+            if (drop == null) { _statusText.text = "Unknown prefab '" + currency + "'."; return; }
+            if (!player.GetInventory().CanAddItem(drop.m_itemData, amount)) { _statusText.text = "No room in your inventory."; return; }
+            BankerNetwork.RequestWithdraw(_profileName, currency, amount);
         }
 
         private void OnRowDeposit(string currency, TMP_InputField input, int limit)

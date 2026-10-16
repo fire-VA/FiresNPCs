@@ -228,25 +228,36 @@ namespace FiresRPGmaker.UI.Patches
     [HarmonyPatch(typeof(Player), "RemovePiece")]
     internal static class StaticNpc_RemoveGate
     {
+        private static readonly int CharacterMask = LayerMask.GetMask("character", "character_net", "character_ghost", "character_noenv");
+        private static void Gate(string why) => global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[StaticNpc] remove gate: " + why);
+
         private static bool Prefix(Player __instance, ref bool __result)
         {
             var cam = GameCamera.instance;
             if (cam == null) return true;
 
+            // 0.0.590 (R-C1, dedi: "gate line MISSING", the NPC stayed): vanilla's m_removeRayMask has no character layers, so the ray
+            // went THROUGH the NPC's own colliders, hit the ground behind it, found no Piece and fell back to vanilla (which can't remove
+            // a Character). A second ray on the character layers finds the NPC; it wins when it is the nearer hit. Every exit logs at
+            // Debug, so a miss names its reason.
             int mask = Traverse.Create(__instance).Field("m_removeRayMask").GetValue<int>();
-            if (!Physics.Raycast(cam.transform.position, cam.transform.forward, out var hitInfo, 50f, mask))
-                return true;
+            bool hitPiece = Physics.Raycast(cam.transform.position, cam.transform.forward, out var hitInfo, 50f, mask);
+            if (Physics.Raycast(cam.transform.position, cam.transform.forward, out var charHit, 50f, CharacterMask)
+                && (!hitPiece || charHit.distance < hitInfo.distance)
+                && charHit.collider != null && charHit.collider.GetComponentInParent<Character>() is Character hc && StaticNpcProtection.IsStaticNpc(hc))
+            { hitInfo = charHit; hitPiece = true; }
+            if (!hitPiece) { Gate("no hit within 50 m"); return true; }
 
             var eye = Traverse.Create(__instance).Field("m_eye").GetValue<Transform>();
             if (eye != null && Vector3.Distance(hitInfo.point, eye.position) >= __instance.m_maxPlaceDistance)
-                return true;
+            { Gate($"hit '{hitInfo.collider?.name}' {Vector3.Distance(hitInfo.point, eye.position):F1} m away (max {__instance.m_maxPlaceDistance:F1})"); return true; }
 
             var piece = hitInfo.collider != null ? hitInfo.collider.GetComponentInParent<Piece>() : null;
-            if (piece == null) return true;
+            if (piece == null) { Gate($"hit '{hitInfo.collider?.name}' (layer {LayerMask.LayerToName(hitInfo.collider != null ? hitInfo.collider.gameObject.layer : 0)}): no Piece"); return true; }
 
             var character = piece.GetComponent<Character>();
             if (character == null || !StaticNpcProtection.IsStaticNpc(character))
-                return true; // not a static NPC — let vanilla handle normal piece removal
+            { Gate($"piece '{piece.name}' is {(character == null ? "not a Character" : "not a static NPC")}: vanilla removal"); return true; } // not a static NPC — let vanilla handle normal piece removal
 
             bool isAdmin = FiresCore.Sync.AdminSyncing.IsLocalAdmin();
             if (!isAdmin)
@@ -279,6 +290,10 @@ namespace FiresRPGmaker.UI.Patches
                 StaticNpc_DeliberateRemoveCatchAll.SuppressRouting = true;
                 try { ZNetScene.instance.Destroy(character.gameObject); }
                 finally { StaticNpc_DeliberateRemoveCatchAll.SuppressRouting = false; }
+                // 0.0.583 (Fire 10-14): the anchor orb of THIS npc goes at once, not on a zone reload.
+                bool orb = !string.IsNullOrEmpty(anchorGuid) && global::FiresRPGmaker.UI.NpcAnchorOrbViz.ActiveGuid == anchorGuid;
+                if (orb) global::FiresRPGmaker.UI.NpcAnchorOrbViz.Hide();
+                Debug.Log($"[StaticNpc] hammer removed npc '{character.m_name}' and anchor {(string.IsNullOrEmpty(anchorGuid) ? "<cell match>" : anchorGuid)}{(orb ? " (+orb)" : "")}");
                 __instance.Message(MessageHud.MessageType.Center, "Removed static NPC.");
                 __result = true;
             }
@@ -287,6 +302,39 @@ namespace FiresRPGmaker.UI.Patches
                 __result = false;
             }
             return false; // skip vanilla
+        }
+        // 0.0.650 (Fire 10-15: a placed scale_wall_2x2 would not come off with the hammer; IH's "remove anything" took it): one line
+        // per refused removal naming what refused it - the piece's own removal fields, vanilla's checks and every patch on RemovePiece.
+        private static float s_lastRefusal;
+        private static bool SafeCanBeRemoved(Piece p) { try { return p.CanBeRemoved(); } catch { return true; } }
+        private static void Postfix(Player __instance, bool __result)
+        {
+            if (__result || Time.unscaledTime - s_lastRefusal < 0.5f) return;
+            try
+            {
+                var cam = GameCamera.instance;
+                if (cam == null) return;
+                int mask = Traverse.Create(__instance).Field("m_removeRayMask").GetValue<int>();
+                if (!Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, 50f, mask)) return;
+                var piece = hit.collider != null ? hit.collider.GetComponentInParent<Piece>() : null;
+                if (piece == null || piece.GetComponent<Character>() != null) return;
+                s_lastRefusal = Time.unscaledTime;
+                var nview = piece.GetComponent<ZNetView>();
+                string station = piece.m_craftingStation == null ? "none"
+                    : $"'{piece.m_craftingStation.m_name}' in range {CraftingStation.HaveBuildStationInRange(piece.m_craftingStation.m_name, hit.point) != null}";
+                bool ward = PrivateArea.CheckAccess(hit.point, 0f, false, false);
+                bool canRemove = true;
+                try { canRemove = (bool)AccessTools.Method(typeof(Player), "CheckCanRemovePiece").Invoke(__instance, new object[] { piece }); } catch { }
+                string owners = "";
+                try
+                {
+                    var info = Harmony.GetPatchInfo(AccessTools.Method(typeof(Player), "RemovePiece"));
+                    if (info != null) owners = string.Join(", ", System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(info.Prefixes, p => p.owner + ":" + p.PatchMethod.DeclaringType?.Name)));
+                }
+                catch { }
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[RemovePiece] REFUSED '{piece.name}' at {hit.distance:0.0} m: m_canBeRemoved {piece.m_canBeRemoved}, CheckCanRemovePiece {canRemove}, piece.CanBeRemoved {SafeCanBeRemoved(piece)}, no-build location {Location.IsInsideNoBuildLocation(piece.transform.position)}, station {station}, ward access {ward}, creator {piece.GetCreator()} (me {piece.IsCreator()}), placed by player {piece.IsPlacedByPlayer()}, WearNTear {(piece.GetComponent<WearNTear>() != null)}, ZNetView {(nview != null && nview.IsValid() ? (nview.IsOwner() ? "valid, owner" : "valid, not owner") : "INVALID")}, collider '{hit.collider.name}' layer {LayerMask.LayerToName(hit.collider.gameObject.layer)}; RemovePiece prefixes: {owners}");
+            }
+            catch (System.Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[RemovePiece] refusal probe threw: " + ex.Message); }
         }
     }
 }

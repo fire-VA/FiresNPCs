@@ -47,10 +47,50 @@ namespace FiresRPGmaker.UI.Screens
                 labels.Add(anim.Label);
             }
             _animationValues[dropdown] = values;
+            AttachAnimHover(dropdown);   // 0.0.600: hover an entry = play it on the live preview
             dropdown.ClearOptions();
             dropdown.AddOptions(labels);
             dropdown.value = 0;
             dropdown.RefreshShownValue();
+        }
+
+        // 0.0.600: TMP_Dropdown clones its template "Item" for every option, naming each "Item {index}: {label}". A hover component on the
+        // template therefore lands on every option; it maps the option back to its catalog key and asks the preview to play it.
+        // Leaving the list (pointer exit / the list closing) returns the preview to the SELECTED entry.
+        private void AttachAnimHover(TMP_Dropdown dropdown)
+        {
+            var item = dropdown != null && dropdown.template != null ? dropdown.template.Find("Viewport/Content/Item") : null;
+            if (item == null || item.GetComponent<AnimOptionHover>() != null) return;
+            var h = item.gameObject.AddComponent<AnimOptionHover>();
+            h.Controller = this; h.Dropdown = dropdown;
+        }
+
+        internal string AnimKeyAt(TMP_Dropdown dropdown, int index)
+            => dropdown != null && _animationValues.TryGetValue(dropdown, out var v) && index >= 0 && index < v.Count ? v[index] : null;
+
+        internal sealed class AnimOptionHover : MonoBehaviour, UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler
+        {
+            public DressingRoomScreenController Controller;
+            public TMP_Dropdown Dropdown;
+
+            private int Index()
+            {
+                // "Item 3: Wave" -> 3 (the template itself is "Item" and is never shown)
+                string n = gameObject.name;
+                int sp = n.IndexOf(' '), colon = n.IndexOf(':');
+                return sp > 0 && colon > sp && int.TryParse(n.Substring(sp + 1, colon - sp - 1), out int i) ? i : -1;
+            }
+
+            public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData e)
+                => DressingThreePanel.PreviewAnimation(Controller != null ? Controller.AnimKeyAt(Dropdown, Index()) : null);
+
+            public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e)
+                => DressingThreePanel.PreviewAnimation(Controller != null && Dropdown != null ? Controller.AnimKeyAt(Dropdown, Dropdown.value) : null);
+
+            private void OnDisable()   // the list closed: back to the selected entry
+            {
+                if (Controller != null && Dropdown != null) DressingThreePanel.PreviewAnimation(Controller.AnimKeyAt(Dropdown, Dropdown.value));
+            }
         }
 
         private void SelectAnimationOption(TMP_Dropdown dropdown, string saved)
@@ -104,6 +144,15 @@ namespace FiresRPGmaker.UI.Screens
             // Custom mp3 sounds loaded from BepInEx/config/FiresNPCs_Sounds (KG-style).
             foreach (var key in FiresCore.Audio.FiresCustomAudioStore.Clips.Keys)
                 if (!options.Contains(key)) options.Add(key);
+
+            // 0.0.546 ([visual]'s snd2 "no clip"): PlaySound already falls back to any loaded game clip by name
+            // (ResolveClipCached), but the dropdown only listed the NPC's own and the custom clips, so it was empty on a rig
+            // with no custom files. Add the loaded game clips, sorted, after the custom ones.
+            var gameClips = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in Resources.FindObjectsOfTypeAll<AudioClip>())
+                if (c != null && !string.IsNullOrEmpty(c.name) && !options.Contains(c.name)) gameClips.Add(c.name);
+            options.AddRange(gameClips);
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[DressingRoom] sound dropdown: {options.Count} option(s) ({FiresCore.Audio.FiresCustomAudioStore.Clips.Count} custom, {gameClips.Count} game clips)");
 
             dropdown.AddOptions(options);
             dropdown.value = 0;

@@ -55,22 +55,26 @@ namespace FiresRPGmaker.Modules.TableGames
                 if (col.GetComponentInParent<Player>() == player) continue;   // the camera ray clips the local body
                 if (_hits[i].distance < firstDist) { firstDist = _hits[i].distance; first = i; }
             }
-            if (first < 0) return;
+            // 0.0.565 (FDT 582 long_range "no popup at 20 m"): say what the ray hit when E is pressed and nothing engages.
+            bool usePressed = ZInput.GetButtonDown("Use") || ZInput.GetButtonDown("JoyUse");
+            if (first < 0) { if (usePressed) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[LongRange] E: the ray hit nothing within 90 m ({n} non-solid/own hit(s))"); return; }
 
             var lri = _hits[first].collider.GetComponentInParent<LongRangeInteract>();
-            if (lri == null) return;
+            if (lri == null) { if (usePressed) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[LongRange] E: first hit '{_hits[first].collider.name}' (root '{_hits[first].collider.transform.root.name}') at {firstDist:F1} m has no LongRangeInteract"); return; }
 
             var eye = player.m_eye != null ? player.m_eye.position : player.transform.position + Vector3.up * 1.6f;
             float dist = Vector3.Distance(eye, _hits[first].point);
-            if (dist > lri.Range) return;
+            if (dist > lri.Range) { if (usePressed) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[LongRange] E: '{lri.name}' at {dist:F1} m is past its range {lri.Range:F0} m"); return; }
 
             Target = lri;
             TargetDist = dist;
 
-            if ((ZInput.GetButtonDown("Use") || ZInput.GetButtonDown("JoyUse")) && !player.InAttack() && !player.InDodge())
+            if ((ZInput.GetButtonDown("Use") || ZInput.GetButtonDown("JoyUse")) && !player.InAttack() && !player.InDodge()
+                && !FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
             {
                 var interactable = lri.GetComponentInParent<Interactable>();
-                interactable?.Interact(player, false, false);
+                bool used = interactable != null && interactable.Interact(player, false, false);
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[LongRange] E: '{lri.name}' at {dist:F1} m -> {(interactable == null ? "no Interactable" : used ? "used" : "Interact returned false")}");
             }
         }
     }

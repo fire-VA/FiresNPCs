@@ -16,14 +16,15 @@ namespace FiresRPGmaker.Modules.Buffer
     {
         private const string RPC_REQUEST = "FiresRPGmaker_BufferRequest";
         private const string RPC_GRANT = "FiresRPGmaker_BufferGrant";
-        private static bool _registered;
+        // 0.0.532: registered per ZRoutedRpc instance. A process-wide flag skipped the registration after logging out
+        // to the menu and joining again (a new ZRoutedRpc), so every buff buy after a relog did nothing.
+        private static ZRoutedRpc _registeredOn;
 
         [HarmonyPostfix]
         private static void Register()
         {
-            if (_registered) return;
-            if (ZRoutedRpc.instance == null) return;
-            _registered = true;
+            if (ZRoutedRpc.instance == null || ReferenceEquals(_registeredOn, ZRoutedRpc.instance)) return;
+            _registeredOn = ZRoutedRpc.instance;
             ZRoutedRpc.instance.Register<ZPackage>(RPC_REQUEST, new Action<long, ZPackage>(OnRequest));
             ZRoutedRpc.instance.Register<ZPackage>(RPC_GRANT, new Action<long, ZPackage>(OnGrant));
         }
@@ -54,8 +55,18 @@ namespace FiresRPGmaker.Modules.Buffer
                 var buff = BufferManager.Resolve(uniqueName);
                 if (buff == null) return;
 
-                // The NPC's profile must actually sell this buff (empty profile = admin/un-gated).
-                if (!string.IsNullOrEmpty(profileKey))
+                // The NPC's profile must actually sell this buff. An empty profile is the admin builder's un-gated apply:
+                // 0.0.532 checks the sender is an admin (or the host itself); before, any player could buff themselves.
+                if (string.IsNullOrEmpty(profileKey))
+                {
+                    bool admin = sender == ZNet.GetUID() || FiresCore.Sync.AdminSyncing.IsAdmin(sender);
+                    if (!admin)
+                    {
+                        Debug.LogWarning($"[Buffer] {sender} requested '{uniqueName}' without a profile and is not an admin — denied");
+                        return;
+                    }
+                }
+                else
                 {
                     bool sold = false;
                     foreach (var b in BufferManager.ForProfile(profileKey))

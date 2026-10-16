@@ -104,10 +104,60 @@ namespace FiresRPGmaker.Modules.Progression
             return HasGlobalKey(key);
         }
 
+        /// <summary>
+        /// The world's view of a key. With private keys on, a boss key never reaches the global list, so a boss key
+        /// counts as "global" when a player near the local player holds it (Fire 10-13: the highest progression of
+        /// the players in range). Other keys read the global list.
+        /// </summary>
         public static bool HasGlobalKey(string key)
         {
-            return string.IsNullOrEmpty(key) ||
-                   (ZoneSystem.instance != null && ZoneSystem.instance.m_globalKeys.Contains(key.ToLower()));
+            if (string.IsNullOrEmpty(key)) return true;
+            key = key.ToLower();
+            var cfg = ProgressionConfig.Instance;
+            if (cfg != null && cfg.UsePrivateKeys && BossKeyOrder.TryGetValue(key, out int order) && Player.m_localPlayer != null)
+                return GetHighestBossTierNear(Player.m_localPlayer.transform.position, DefaultProgressionRadius) >= order;
+            return ZoneSystem.instance != null && ZoneSystem.instance.m_globalKeys.Contains(key);
+        }
+
+        /// <summary>Radius for "players in range" reads and for boss-kill credit, in metres.</summary>
+        public const float DefaultProgressionRadius = 100f;
+
+        /// <summary>
+        /// CONTRACT (FiresMonsterOverhaul reads it by reflection; keep the name, parameters and return type):
+        /// the highest boss tier (1 = Eikthyr .. 7 = Fader, 0 = none) held by any player within <paramref name="radius"/>
+        /// of <paramref name="position"/>; -1 when private keys are off or no player is in range, so the caller falls back.
+        /// Works on the server (its authoritative store) and on clients (the counts the server pushes).
+        /// </summary>
+        public static int GetHighestBossTierNear(Vector3 position, float radius)
+        {
+            var cfg = ProgressionConfig.Instance;
+            if (cfg == null || !cfg.UsePrivateKeys) return -1;
+            int best = -1;
+            float r2 = radius * radius;
+            if (ZNet.instance != null && ZNet.instance.IsServer())
+            {
+                foreach (var peer in ZNet.instance.GetPeers())
+                {
+                    var zdo = peer != null && peer.IsReady() ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
+                    if (zdo == null || (zdo.GetPosition() - position).sqrMagnitude > r2) continue;
+                    best = Math.Max(best, TierOf(GetServerKeysForPlayer(zdo.GetLong(ZDOVars.s_playerID))));
+                }
+            }
+            foreach (var p in Player.GetAllPlayers())
+            {
+                if (p == null || (p.transform.position - position).sqrMagnitude > r2) continue;
+                if (p == Player.m_localPlayer) best = Math.Max(best, TierOf(_privateKeys));
+                else if (_bossTiers.TryGetValue(p.GetPlayerID(), out int t)) best = Math.Max(best, t);
+                else best = Math.Max(best, 0);
+            }
+            return best;
+        }
+
+        public static int TierOf(HashSet<string> keys)
+        {
+            int tier = 0;
+            foreach (var k in keys) if (BossKeyOrder.TryGetValue(k, out int o) && o > tier) tier = o;
+            return tier;
         }
 
         public static int GetPrivateBossCount()
@@ -120,8 +170,12 @@ namespace FiresRPGmaker.Modules.Progression
             return count;
         }
 
+        /// <summary>With private keys on: the highest boss tier near the local player (0 when nobody holds one); else the global count.</summary>
         public static int GetGlobalBossCount()
         {
+            var cfg = ProgressionConfig.Instance;
+            if (cfg != null && cfg.UsePrivateKeys && Player.m_localPlayer != null)
+                return Math.Max(0, GetHighestBossTierNear(Player.m_localPlayer.transform.position, DefaultProgressionRadius));
             int count = 0;
             if (ZoneSystem.instance == null) return count;
             foreach (var bk in BossKeysInOrder)
@@ -287,6 +341,18 @@ namespace FiresRPGmaker.Modules.Progression
         // RPC networking
         // ==============================================================
 
+        // The server owns every player's keys (0.0.572, Fire 10-13): it grants them, stores them per world
+        // (BepInEx\config\FiresRPGmaker\PrivateKeys\<world>.txt, inside the game folder) and pushes them to the
+        // owning client, which keeps a copy in m_customData for offline play. A client's own edits (va_ console
+        // commands) reach the store only when the client is an admin; anything else is answered with the server's set.
+        public const string RPC_ServerBossDefeated = "VA_ServerBossDefeated";
+        public const string RPC_ClientSyncKeys     = "VA_SyncPrivateKeys";
+        public const string RPC_ClientBossTiers    = "VA_PrivateBossTiers";
+
+        // Client side: playerID -> highest boss tier of every online player, pushed by the server.
+        private static readonly Dictionary<long, int> _bossTiers = new Dictionary<long, int>();
+        private static bool _serverStoreLoaded;
+
         public static void RegisterRPCs()
         {
             if (_rpcsRegistered) return;
@@ -297,12 +363,16 @@ namespace FiresRPGmaker.Modules.Progression
                 ZRoutedRpc.instance.Register<string>(RPC_ClientSetKey, RPC_OnSetPrivateKey);
                 ZRoutedRpc.instance.Register<string>(RPC_ClientRemoveKey, RPC_OnRemovePrivateKey);
                 ZRoutedRpc.instance.Register(RPC_ClientResetKeys, RPC_OnResetPrivateKeys);
+                ZRoutedRpc.instance.Register<string>(RPC_ClientSyncKeys, RPC_OnSyncKeys);
+                ZRoutedRpc.instance.Register<string>(RPC_ClientBossTiers, RPC_OnBossTiers);
 
                 if (ZNet.instance != null && ZNet.instance.IsServer())
                 {
                     ZRoutedRpc.instance.Register<string, long>(RPC_ServerSetKeys, RPC_OnServerSetKeys);
                     ZRoutedRpc.instance.Register<string, long>(RPC_ServerAddKey, RPC_OnServerAddKey);
                     ZRoutedRpc.instance.Register<string, long>(RPC_ServerRemoveKey, RPC_OnServerRemoveKey);
+                    ZRoutedRpc.instance.Register<string, Vector3>(RPC_ServerBossDefeated, RPC_OnServerBossDefeated);
+                    LoadServerStore();
                 }
             }
             catch
@@ -334,52 +404,215 @@ namespace FiresRPGmaker.Modules.Progression
         }
 
         /// <summary>
-        /// Sends a private key to a specific player by name (used when boss dies near multiple players).
+        /// A boss died at <paramref name="position"/> and its key was kept off the global list. Whoever ran the death
+        /// (the boss's owner: a client or the dedicated server) reports it here; the server credits every player
+        /// within <see cref="DefaultProgressionRadius"/> of the BOSS.
         /// </summary>
-        public static void SendKeyToPlayer(string playerName, string key)
+        public static void ReportBossDefeated(string key, Vector3 position)
         {
-            long targetId = GetPlayerZDOID(playerName);
-            if (targetId == 0L) return;
-            ZRoutedRpc.instance.InvokeRoutedRPC(targetId, RPC_ClientSetKey, key);
+            if (string.IsNullOrWhiteSpace(key) || ZRoutedRpc.instance == null) return;
+            key = key.ToLower();
+            if (ZNet.instance != null && ZNet.instance.IsServer()) { ServerGrantNear(key, position, DefaultProgressionRadius, "boss died here"); return; }
+            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), RPC_ServerBossDefeated, key, position);
         }
 
-        // -- Server-side RPC handlers --
+        // -- Server-side --
+
+        private static void RPC_OnServerBossDefeated(long sender, string key, Vector3 position)
+        {
+            key = (key ?? "").ToLower();
+            if (ShouldBlockPrivateKey(key)) { Debug.LogWarning($"[PrivateKeyManager] boss report for '{key}' from {sender} refused: not a private key"); return; }
+            // The reporter owns the boss, so it is near it; a report from far away is not a kill it ran.
+            var peer = ZNet.instance.GetPeer(sender);
+            var zdo = peer != null ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
+            if (zdo != null && (zdo.GetPosition() - position).sqrMagnitude > ReportRange * ReportRange)
+            {
+                Debug.LogWarning($"[PrivateKeyManager] boss report for '{key}' from {sender} refused: the reporter is {Vector3.Distance(zdo.GetPosition(), position):0} m from the boss (max {ReportRange:0})");
+                return;
+            }
+            ServerGrantNear(key, position, DefaultProgressionRadius, $"reported by {sender}");
+        }
+
+        private const float ReportRange = 200f;
+
+        private static void ServerGrantNear(string key, Vector3 position, float radius, string why)
+        {
+            float r2 = radius * radius;
+            var granted = new List<string>();
+            foreach (var peer in ZNet.instance.GetPeers())
+            {
+                var zdo = peer != null && peer.IsReady() ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
+                if (zdo == null || (zdo.GetPosition() - position).sqrMagnitude > r2) continue;
+                long playerId = zdo.GetLong(ZDOVars.s_playerID);
+                if (playerId == 0L) continue;
+                if (ServerKeys(playerId).Add(key)) granted.Add(peer.m_playerName);
+                ZRoutedRpc.instance.InvokeRoutedRPC(peer.m_uid, RPC_ClientSetKey, key);
+            }
+            // A listen host is not a peer of itself.
+            var local = Player.m_localPlayer;
+            if (local != null && (local.transform.position - position).sqrMagnitude <= r2)
+            {
+                if (ServerKeys(local.GetPlayerID()).Add(key)) granted.Add(local.GetPlayerName());
+                AddLocal(key);
+            }
+            SaveServerStore();
+            BroadcastBossTiers();
+            Debug.Log($"[PrivateKeyManager] '{key}' at ({position.x:0},{position.z:0}) {why}: granted to {granted.Count} player(s) within {radius:0} m: {string.Join(", ", granted)}");
+        }
 
         private static void RPC_OnServerSetKeys(long sender, string keys, long playerId)
         {
-            var set = ParseKeySet(keys);
-            _serverKeys[playerId] = set;
+            if (!SenderOwns(sender, playerId)) return;
+            if (_serverKeys.TryGetValue(playerId, out var stored))
+            {
+                // The server's record wins; the client gets it back (a client can't raise its own progression).
+                ZRoutedRpc.instance.InvokeRoutedRPC(sender, RPC_ClientSyncKeys, string.Join(",", stored));
+            }
+            else
+            {
+                // First time on this world: the character's own keys are taken in once (worlds from before 0.0.572).
+                _serverKeys[playerId] = ParseKeySet(keys);
+                SaveServerStore();
+                Debug.Log($"[PrivateKeyManager] first join of player {playerId}: took in {_serverKeys[playerId].Count} key(s) from the character");
+            }
+            BroadcastBossTiers();
         }
 
         private static void RPC_OnServerAddKey(long sender, string key, long playerId)
         {
-            if (!_serverKeys.ContainsKey(playerId))
-                _serverKeys[playerId] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            _serverKeys[playerId].Add(key.ToLower());
+            if (!SenderOwns(sender, playerId)) return;
+            if (!AdminSyncing.IsAdmin(sender) && sender != ZRoutedRpc.instance.m_id)
+            {
+                Debug.LogWarning($"[PrivateKeyManager] non-admin {sender} tried to add '{key}'; sending the server's keys back");
+                ZRoutedRpc.instance.InvokeRoutedRPC(sender, RPC_ClientSyncKeys, string.Join(",", ServerKeys(playerId)));
+                return;
+            }
+            if (ServerKeys(playerId).Add(key.ToLower())) { SaveServerStore(); BroadcastBossTiers(); }
         }
 
         private static void RPC_OnServerRemoveKey(long sender, string key, long playerId)
         {
-            if (_serverKeys.ContainsKey(playerId))
-                _serverKeys[playerId].Remove(key.ToLower());
+            if (!SenderOwns(sender, playerId)) return;
+            if (!AdminSyncing.IsAdmin(sender) && sender != ZRoutedRpc.instance.m_id)
+            {
+                Debug.LogWarning($"[PrivateKeyManager] non-admin {sender} tried to remove '{key}'; sending the server's keys back");
+                ZRoutedRpc.instance.InvokeRoutedRPC(sender, RPC_ClientSyncKeys, string.Join(",", ServerKeys(playerId)));
+                return;
+            }
+            if (ServerKeys(playerId).Remove(key.ToLower())) { SaveServerStore(); BroadcastBossTiers(); }
         }
 
-        // -- Client-side RPC handlers --
-
-        private static void RPC_OnSetPrivateKey(long sender, string key)
+        // The playerId in a client's message must be its own character's.
+        private static bool SenderOwns(long sender, long playerId)
         {
-            Debug.Log($"[PrivateKeyManager] Received private key from server: {key}");
-            AddPrivateKey(key);
+            if (playerId == 0L) return false;
+            if (ZRoutedRpc.instance != null && sender == ZRoutedRpc.instance.m_id) return true;
+            var peer = ZNet.instance?.GetPeer(sender);
+            var zdo = peer != null ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
+            if (zdo == null) return true;   // character not spawned on the server yet: nothing to compare with
+            long own = zdo.GetLong(ZDOVars.s_playerID);
+            if (own == playerId) return true;
+            Debug.LogWarning($"[PrivateKeyManager] {sender} sent keys for player {playerId} but plays {own}; refused");
+            return false;
         }
+
+        private static HashSet<string> ServerKeys(long playerId)
+        {
+            if (!_serverKeys.TryGetValue(playerId, out var set))
+                _serverKeys[playerId] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return set;
+        }
+
+        private static void BroadcastBossTiers()
+        {
+            if (ZRoutedRpc.instance == null) return;
+            var parts = new List<string>();
+            foreach (var kv in _serverKeys) parts.Add(kv.Key + ":" + TierOf(kv.Value));
+            string payload = string.Join(";", parts);
+            ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.Everybody, RPC_ClientBossTiers, payload);
+        }
+
+        private static string StorePath()
+        {
+            string world = ZNet.instance != null ? ZNet.instance.GetWorldName() : "world";
+            foreach (char c in System.IO.Path.GetInvalidFileNameChars()) world = world.Replace(c, '_');
+            return System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "PrivateKeys", world + ".txt");
+        }
+
+        private static void LoadServerStore()
+        {
+            if (_serverStoreLoaded) return;
+            _serverStoreLoaded = true;
+            string path = StorePath();
+            try
+            {
+                if (!System.IO.File.Exists(path)) { Debug.Log($"[PrivateKeyManager] no private key store yet ({path})"); return; }
+                foreach (var line in System.IO.File.ReadAllLines(path))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq <= 0 || !long.TryParse(line.Substring(0, eq), out long id)) continue;
+                    _serverKeys[id] = ParseKeySet(line.Substring(eq + 1));
+                }
+                Debug.Log($"[PrivateKeyManager] loaded private keys of {_serverKeys.Count} player(s) from {path}");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[PrivateKeyManager] could not read {path}: {ex.Message}"); }
+        }
+
+        private static void SaveServerStore()
+        {
+            string path = StorePath();
+            try
+            {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                var lines = new List<string>();
+                foreach (var kv in _serverKeys) lines.Add(kv.Key + "=" + string.Join(",", kv.Value));
+                System.IO.File.WriteAllLines(path, lines.ToArray());
+            }
+            catch (Exception ex) { Debug.LogWarning($"[PrivateKeyManager] could not write {path}: {ex.Message}"); }
+        }
+
+        // -- Client-side (keys from the server are applied locally and NOT sent back) --
+
+        private static void AddLocal(string key)
+        {
+            key = key.ToLower();
+            if (!_privateKeys.Add(key)) return;
+            Debug.Log($"[PrivateKeyManager] Received private key: {key}");
+            MirrorKeyToEwp(key);
+        }
+
+        private static void RPC_OnSetPrivateKey(long sender, string key) => AddLocal(key);
 
         private static void RPC_OnRemovePrivateKey(long sender, string key)
         {
-            RemovePrivateKey(key);
+            if (_privateKeys.Remove((key ?? "").ToLower())) Debug.Log($"[PrivateKeyManager] Server removed private key: {key}");
         }
 
         private static void RPC_OnResetPrivateKeys(long sender)
         {
-            ResetPrivateKeys();
+            _privateKeys.Clear();
+            Debug.Log("[PrivateKeyManager] Server reset all private keys");
+        }
+
+        private static void RPC_OnSyncKeys(long sender, string csv)
+        {
+            _privateKeys.Clear();
+            foreach (var k in ParseKeySet(csv)) if (!ShouldBlockPrivateKey(k)) _privateKeys.Add(k);
+            var cfg = ProgressionConfig.Instance;
+            if (cfg != null) foreach (var ek in cfg.EnforcedPrivateKeys) _privateKeys.Add(ek);
+            if (Player.m_localPlayer != null) SaveToPlayer(Player.m_localPlayer);
+            Debug.Log($"[PrivateKeyManager] keys from the server: {_privateKeys.Count} ({string.Join(",", _privateKeys)})");
+        }
+
+        private static void RPC_OnBossTiers(long sender, string payload)
+        {
+            _bossTiers.Clear();
+            foreach (var part in (payload ?? "").Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int c = part.IndexOf(':');
+                if (c > 0 && long.TryParse(part.Substring(0, c), out long id) && int.TryParse(part.Substring(c + 1), out int t))
+                    _bossTiers[id] = t;
+            }
         }
 
         // ==============================================================
@@ -404,23 +637,12 @@ namespace FiresRPGmaker.Modules.Progression
             return set;
         }
 
-        private static long GetPlayerZDOID(string playerName)
-        {
-            if (ZNet.instance == null) return 0L;
-            string lower = playerName.Trim().ToLower();
-            var playerList = ZNet.instance.GetPlayerList();
-            for (int i = 0; i < playerList.Count; i++)
-            {
-                if (playerList[i].m_name.Trim().ToLower().Equals(lower))
-                    return playerList[i].m_characterID.UserID;
-            }
-            return 0L;
-        }
-
         public static void Reset()
         {
             _privateKeys.Clear();
             _serverKeys.Clear();
+            _bossTiers.Clear();
+            _serverStoreLoaded = false;
             _rpcsRegistered = false;
             _initialized = false;
         }

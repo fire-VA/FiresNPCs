@@ -125,7 +125,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             hrt.sizeDelta = new Vector2(46f, 46f); hrt.anchoredPosition = new Vector2(0f, 6f);
 
             // Fixed pointer at the top, aimed into the wheel.
-            var pointer = NewText(cab.rectTransform, "Pointer", "▼", 34f, new Color(1f, 0.85f, 0.5f));
+            var pointer = NewText(cab.rectTransform, "Pointer", "v", 34f, new Color(1f, 0.85f, 0.5f));
             var prt = pointer.rectTransform; prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f); prt.pivot = new Vector2(0.5f, 0.5f);
             prt.sizeDelta = new Vector2(50f, 50f); prt.anchoredPosition = new Vector2(0f, 6f + WheelPx * 0.5f - 6f);
 

@@ -90,7 +90,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         private void LateUpdate()
         {
             if (Chat.instance == null || Chat.instance.m_input == null || Chat.instance.m_chatWindow == null) return;
-            if (!_built) { try { Build(); } catch (Exception ex) { Debug.LogError("[FiresChat] build failed: " + ex); enabled = false; return; } }
+            if (!_built) { try { Build(); RegisterWithDock(); } catch (Exception ex) { Debug.LogError("[FiresChat] build failed: " + ex); enabled = false; return; } }
 
             HideVanillaOnce();
 
@@ -112,6 +112,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             SyncInputRow(focused);
             HandleTabCycle(focused);
             HandleArrange();
+            SaveDockSize();   // 0.0.657
         }
 
         // ── build ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _win = win.rectTransform;
             _win.anchorMin = _win.anchorMax = new Vector2(1f, 0f);   // native bottom-right
             _win.pivot = new Vector2(1f, 0f);
-            _win.sizeDelta = new Vector2(WinW, WinH);
+            _win.sizeDelta = new Vector2(CurW, CurH);   // 0.0.657: the saved size (Core grip)
             _win.anchoredPosition = new Vector2(-24f, 22f);
 
             // Header — title, tabs, minimize.
@@ -322,6 +323,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         // ── per-frame sync ──────────────────────────────────────────────────────────────────────────────────────
         private void ApplyLayoutConfig()
         {
+            if (_dockOwned) return;   // 0.0.608: Core's HUD dock owns position + scale
             float s = ChatChannelManager.UiScale != null ? Mathf.Clamp(ChatChannelManager.UiScale.Value, 0.6f, 2.5f) : 1f;
             if (!Mathf.Approximately(s, _lastScale)) { _lastScale = s; _win.localScale = new Vector3(s, s, 1f); }
             float ox = ChatChannelManager.OffsetX != null ? ChatChannelManager.OffsetX.Value : 0f;
@@ -447,7 +449,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         {
             _collapsed = !_collapsed;
             _bodyGroup.SetActive(!_collapsed);
-            _win.sizeDelta = new Vector2(WinW, _collapsed ? HeadH + 22f : WinH);
+            _win.sizeDelta = new Vector2(CurW, _collapsed ? HeadH + 22f : CurH);   // 0.0.657
         }
 
         // ── arrange mode (Alt+C): free cursor, drag to move, corner grip to resize ────────────────────────────
@@ -496,12 +498,77 @@ namespace FiresRPGmaker.Modules.ChatSystem
         private void ToggleArrange(bool on)
         {
             if (on == _arranging) return;
+            if (on && _dockOwned)
+            {
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Chat is placed through the HUD layout mode now.");
+                return;
+            }
             _arranging = on;
             FiresCore.UI.InputBlock.Block(on);
             _dragSurf.SetActive(on);
             _resizeGrip.SetActive(on);
             if (on) MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
-                "Chat arrange — drag to move, corner grip to resize. Alt+C or Esc to finish.");
+                "Chat arrange - drag to move, corner grip to resize. Alt+C or Esc to finish.");
+        }
+
+        // 0.0.608 ([lead] 10-15, every HUD element movable): the chat window registers with Core's HUD dock (0.2.522+) as
+        // "firesnpcs.chatchannels". While registered, the dock moves/scales it and saves the layout, so the chat's own
+        // Offset/Scale config and arrange mode stop writing. Older Core: own arrange mode as before.
+        private bool _dockOwned;
+        private float CurW => ChatChannelManager.PanelWidth != null ? Mathf.Clamp(ChatChannelManager.PanelWidth.Value, 300f, 2000f) : WinW;
+        private float CurH => ChatChannelManager.PanelHeight != null ? Mathf.Clamp(ChatChannelManager.PanelHeight.Value, 120f, 1400f) : WinH;
+        private Vector2 _sizePending; private float _sizeDue = -1f;
+        private void OnDockSize(Vector2 size)
+        {
+            _sizePending = new Vector2(size.x, _collapsed ? CurH : size.y);   // a collapsed window keeps its open height
+            _sizeDue = Time.unscaledTime + 0.5f;
+        }
+        private void ResetDockSize()
+        {
+            _sizeDue = -1f;
+            if (ChatChannelManager.PanelWidth != null) ChatChannelManager.PanelWidth.Value = WinW;
+            if (ChatChannelManager.PanelHeight != null) ChatChannelManager.PanelHeight.Value = WinH;
+            if (_win != null) _win.sizeDelta = new Vector2(WinW, _collapsed ? HeadH + 22f : WinH);
+            Debug.Log($"[FiresChat] chat window size reset to {WinW:0}x{WinH:0} (Core layout Reset)");
+        }
+        private void SaveDockSize()
+        {
+            if (_sizeDue < 0f || Time.unscaledTime < _sizeDue) return;
+            _sizeDue = -1f;
+            if (ChatChannelManager.PanelWidth != null) ChatChannelManager.PanelWidth.Value = Mathf.Clamp(_sizePending.x, 300f, 2000f);
+            if (ChatChannelManager.PanelHeight != null) ChatChannelManager.PanelHeight.Value = Mathf.Clamp(_sizePending.y, 120f, 1400f);
+            Debug.Log($"[FiresChat] chat window size saved {_sizePending.x:0}x{_sizePending.y:0} (Core grip)");
+        }
+        private void RegisterWithDock()
+        {
+            if (_dockOwned || _win == null) return;
+            try
+            {
+                var shell = Type.GetType("FiresCore.UI.Shell.FiresShell, FiresUnifiedCore", false);
+                // 0.0.608 ([lead] 10-15): the options type is FiresCore.UI.Shell.HudElementOptions, not ...Dock...; take it from the method itself.
+                var reg = shell == null ? null : System.Linq.Enumerable.FirstOrDefault(shell.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static), m => m.Name == "RegisterHudElement" && m.GetParameters().Length == 3 && m.GetParameters()[0].ParameterType == typeof(string) && m.GetParameters()[1].ParameterType == typeof(RectTransform));
+                var optType = reg?.GetParameters()[2].ParameterType;
+                if (reg == null) { Debug.Log("[FiresChat] Core has no HUD dock (RegisterHudElement, 0.2.522+): the chat keeps its own arrange mode"); return; }
+                // 0.0.631 (Fire 10-15: chat misaligned vs his pre-overhaul default): the dock takes the window's CURRENT rect as its
+                // default when no layout is saved, and this ran right after Build(), before the first ApplyLayoutConfig placed it. Place it
+                // exactly where the pre-dock code does (anchor -24/22 + the Offset config, Scale config) first.
+                ApplyLayoutConfig();
+                var opt = Activator.CreateInstance(optType);
+                optType.GetField("Owner")?.SetValue(opt, "FiresRPGmaker");
+                optType.GetField("Label")?.SetValue(opt, "Chat channels");
+                optType.GetField("Resizable")?.SetValue(opt, true);
+                // 0.0.657 (Fire: a REAL resize - diagonal both axes, straight one axis): Core 0.2.578 SizeChanged + MinSize; Core sets
+                // sizeDelta per axis, the window's children are stretch-anchored so they re-lay, and the size is saved here (debounced)
+                optType.GetField("SizeChanged")?.SetValue(opt, (Action<Vector2>)OnDockSize);
+                optType.GetField("MinSize")?.SetValue(opt, new Vector2(300f, 120f));
+                // 0.0.658 (Core 0.2.579 SizeReset): the layout Reset also puts the chat back to its default 460x300
+                optType.GetField("SizeReset")?.SetValue(opt, (Action)ResetDockSize);
+                reg.Invoke(null, new object[] { "firesnpcs.chatchannels", _win, opt });
+                _dockOwned = true;
+                if (_arranging) ToggleArrange(false);
+                Debug.Log("[FiresChat] registered with Core's HUD dock as 'firesnpcs.chatchannels' (layout mode moves/scales it; own arrange off)");
+            }
+            catch (Exception ex) { _dockOwned = false; Debug.LogWarning("[FiresChat] HUD dock registration failed, keeping own arrange: " + (ex.InnerException ?? ex).Message); }
         }
 
         private static void AddDrag(GameObject go, Action<PointerEventData> onDrag)

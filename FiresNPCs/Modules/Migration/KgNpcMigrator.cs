@@ -41,7 +41,7 @@ namespace FiresRPGmaker.Modules.Migration
         };
 
         // kg Market_NPC.NPCType (kg.MarketplaceREF Dialogues enum order) → our FiresCore.Npc.NpcType.
-        private static readonly Dictionary<int, NpcType> TypeMap = new Dictionary<int, NpcType>
+        internal static readonly Dictionary<int, NpcType> TypeMap = new Dictionary<int, NpcType>
         {
             { 0, NpcType.None },        // None
             { 1, NpcType.Trader },      // Trader
@@ -57,7 +57,7 @@ namespace FiresRPGmaker.Modules.Migration
             { 11, NpcType.Mail },       // Mail
         };
 
-        private static readonly Dictionary<NpcType, string> ProfileKeyByType = new Dictionary<NpcType, string>
+        internal static readonly Dictionary<NpcType, string> ProfileKeyByType = new Dictionary<NpcType, string>
         {
             { NpcType.Trader, "npc_trader_profile" },
             { NpcType.InfoNpc, "npc_info_profile" },
@@ -89,7 +89,7 @@ namespace FiresRPGmaker.Modules.Migration
         // kg parity for the NPC profile field: strip a trailing "=Flag" (e.g. "botanistbuy_mp=True"),
         // lowercase (kg's ChangeProfile stores lowercase), and fall back to "default" when empty —
         // exactly what kg's ZDO.GET_NPC_Profile(...) returns at runtime.
-        private static string NormalizeKgProfile(string raw)
+        internal static string NormalizeKgProfile(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return "default";
             int eq = raw.IndexOf('=');
@@ -100,7 +100,7 @@ namespace FiresRPGmaker.Modules.Migration
         // Notes surfaced by the last confirm pass (missing model prefabs etc.) — appended to the result.
         private static readonly List<string> _swapNotes = new List<string>();
 
-        private sealed class Record
+        internal sealed class Record
         {
             public string ZdoId;
             // Unity structs self-reference under Json.NET (Vector3.normalized → Vector3 → ...), so the
@@ -145,9 +145,9 @@ namespace FiresRPGmaker.Modules.Migration
                             : "scan";
                         if (mode != "scan" && mode != "confirm" && mode != "rollback" && mode != "configs"
                             && mode != "economy" && mode != "economy confirm" && mode != "templates" && mode != "all"
-                            && mode != "census" && mode != "anchors")
+                            && mode != "census" && mode != "anchors" && mode != "dress")
                         {
-                            args.Context.AddString("[fires_migrate_kg] usage: fires_migrate_kg all|scan|confirm|configs|economy [confirm]|templates|census|anchors|rollback");
+                            args.Context.AddString("[fires_migrate_kg] usage: fires_migrate_kg all|scan|confirm|configs|economy [confirm]|templates|census|anchors|dress|rollback");
                             return;
                         }
                         if (ZNet.instance == null) { args.Context.AddString("[fires_migrate_kg] no world loaded"); return; }
@@ -219,7 +219,7 @@ namespace FiresRPGmaker.Modules.Migration
         }
 
         // Fail-closed admin gate: the sending peer's host id must be on the server's admin list.
-        private static bool IsSenderAdmin(long sender)
+        internal static bool IsSenderAdmin(long sender)
         {
             try
             {
@@ -243,6 +243,7 @@ namespace FiresRPGmaker.Modules.Migration
             if (mode == "rollback") return Rollback();
             if (mode == "census") return Census();
             if (mode == "anchors") return MintMissingAnchors();
+            if (mode == "dress") return DressMigratedBodies();
             if (mode == "configs") return ImportConfigs();
             if (mode == "economy" || mode == "economy confirm") return ImportEconomy(mode.EndsWith("confirm"));
             if (mode == "templates") return ImportTemplates(0L); // server-console path: save locally
@@ -367,7 +368,7 @@ namespace FiresRPGmaker.Modules.Migration
         /// MISSING checks run against the freshly imported content, not a stale pre-import cache.
         /// Each stage keeps its own safety net (economy import marker, NPC backup json + rollback).
         /// </summary>
-        private static List<string> RunAll(long requester)
+        internal static List<string> RunAll(long requester)
         {
             var outLines = new List<string>();
             outLines.Add("[fires_migrate_kg] FULL MIGRATION: configs -> economy -> NPC swap -> templates");
@@ -383,6 +384,11 @@ namespace FiresRPGmaker.Modules.Migration
                 global::FiresRPGmaker.Managers.TraderProfileManager.Reset();
                 global::FiresRPGmaker.Managers.TraderProfileManager.Initialize();
                 global::FiresRPGmaker.Modules.Dialogues.DialogueCodex.Reload();
+                // Quests too (0.0.493, rpgmaker_migrate_test L1): imported quest profiles only reached the server's quest
+                // caches on the config watcher's later pass, so quest NPCs offered nothing straight after a migrate-all.
+                global::FiresRPGmaker.Modules.Quest.QuestManager.Instance?.LoadQuestDatabase();
+                global::FiresRPGmaker.Modules.Quest.QuestManager.Instance?.LoadQuestProfiles();
+                global::FiresRPGmaker.UI.QuestProfileManager.Reload();
             }
             catch (Exception ex) { outLines.Add("  ! cache reload: " + ex.Message); }
 
@@ -692,7 +698,7 @@ namespace FiresRPGmaker.Modules.Migration
             return outLines;
         }
 
-        private static List<Record> Scan()
+        internal static List<Record> Scan()
         {
             var records = new List<Record>();
             if (ZDOMan.instance == null) return records;
@@ -761,7 +767,7 @@ namespace FiresRPGmaker.Modules.Migration
             return summary;
         }
 
-        private static string KgTypeName(int t)
+        internal static string KgTypeName(int t)
         {
             string[] names = { "None", "Trader", "Info", "Teleporter", "Feedback", "Banker", "Gambler", "Quests", "Buffer", "Transmog", "Marketplace", "Mail" };
             return t >= 0 && t < names.Length ? names[t] : ("Type" + t);
@@ -910,6 +916,8 @@ namespace FiresRPGmaker.Modules.Migration
             WsIf("npc_equip_lefthand", left);
             WsIf("npc_equip_righthand", right);
             WsIf("npc_equip_leftback", leftBack);
+            SeedVanillaEquipment(zdo, helmet, chest, legs, cape, left, right, leftBack, rightBack);
+            written["vanilla_equip_hashes"] = "seeded";
             WsIf("npc_equip_rightback", rightBack);
             WsIf("npc_hair", hair);
             WsIf("npc_beard", beard);
@@ -1100,6 +1108,63 @@ namespace FiresRPGmaker.Modules.Migration
             try { ZNet.instance.Save(false); } catch (Exception ex) { outL.Add("  save failed: " + ex.Message); }
             outL.Add("[fires_migrate_kg] ANCHORS: " + _anchorsMinted + " minted, " + already + " already anchored, " + bodies.Count + " StaticNpc bod(ies) scanned (world saved).");
             foreach (var n in notes) outL.Add("  ! " + n);
+            return outL;
+        }
+
+        // Vanilla VisEquipment dresses a body from the item hashes in ITS ZDO: UpdateEquipmentVisuals reads
+        // s_chestItem & co. whenever a ZDO exists, and the Set*Item setters write those hashes only on the
+        // owner. A migrated body is created here on the server, so the client-side apply runs before that
+        // client owns it and the hash never lands - the body stays naked on every client (templates, which
+        // have no ZDO, and player-placed NPCs, client-owned from birth, are unaffected). Seeding the hashes
+        // while the server still owns the ZDO is the mechanism NpcTemplateAppearance.SeedLookOntoBody uses.
+        private static void SeedVanillaEquipment(ZDO zdo, string helmet, string chest, string legs, string shoulder,
+                                                 string left, string right, string leftBack, string rightBack)
+        {
+            if (zdo == null) return;
+            zdo.Set(ZDOVars.s_helmetItem, ItemHash(helmet));
+            zdo.Set(ZDOVars.s_chestItem, ItemHash(chest));
+            zdo.Set(ZDOVars.s_legItem, ItemHash(legs));
+            zdo.Set(ZDOVars.s_shoulderItem, ItemHash(shoulder));
+            zdo.Set(ZDOVars.s_shoulderItemVariant, 0);
+            zdo.Set(ZDOVars.s_rightItem, ItemHash(right));
+            zdo.Set(ZDOVars.s_leftItem, ItemHash(left));
+            zdo.Set(ZDOVars.s_leftItemVariant, 0);
+            zdo.Set(ZDOVars.s_rightBackItem, ItemHash(rightBack));
+            zdo.Set(ZDOVars.s_leftBackItem, ItemHash(leftBack));
+        }
+
+        private static int ItemHash(string name) => string.IsNullOrEmpty(name) ? 0 : name.GetStableHashCode();
+
+        /// <summary>`fires_migrate_kg dress`: repair for bodies migrated before the swap seeded the vanilla
+        /// hashes - takes ownership (so the write is authoritative and synced) and seeds them from the
+        /// npc_equip_* slots the swap already wrote. Idempotent.</summary>
+        private static List<string> DressMigratedBodies()
+        {
+            var outL = new List<string>();
+            if (ZNet.instance == null || !ZNet.instance.IsServer()) { outL.Add("[fires_migrate_kg] dress: server only"); return outL; }
+            var bodies = new List<ZDO>();
+            int idx = 0;
+            while (!ZDOMan.instance.GetAllZDOsWithPrefabIterative(OurPrefabName, bodies, ref idx)) { }
+            int dressed = 0, bare = 0;
+            foreach (var body in bodies)
+            {
+                if (body == null || !body.IsValid()) continue;
+                string helmet = body.GetString("npc_equip_helmet", "");
+                string chest = body.GetString("npc_equip_chest", "");
+                string legs = body.GetString("npc_equip_legs", "");
+                string shoulder = body.GetString("npc_equip_shoulder", "");
+                string left = body.GetString("npc_equip_lefthand", "");
+                string right = body.GetString("npc_equip_righthand", "");
+                string leftBack = body.GetString("npc_equip_leftback", "");
+                string rightBack = body.GetString("npc_equip_rightback", "");
+                if (string.IsNullOrEmpty(helmet + chest + legs + shoulder + left + right + leftBack + rightBack)) { bare++; continue; }
+                body.SetOwner(ZDOMan.GetSessionID());
+                SeedVanillaEquipment(body, helmet, chest, legs, shoulder, left, right, leftBack, rightBack);
+                dressed++;
+            }
+            try { ZNet.instance.Save(false); } catch (Exception ex) { outL.Add("  save failed: " + ex.Message); }
+            outL.Add("[fires_migrate_kg] DRESS: vanilla equipment hashes seeded on " + dressed + " StaticNpc bod(ies) from their npc_equip_* slots, "
+                + bare + " carry no equipment, " + bodies.Count + " scanned. Bodies already loaded on a client re-dress from the ZDO within a frame.");
             return outL;
         }
 

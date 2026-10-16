@@ -255,10 +255,14 @@ namespace FiresRPGmaker.UI.Books
                     if (haveLive && m.shader != live) m.shader = live;
                     // Matte + always-dry so the leather/parchment albedo reads instead of blowing out under the
                     // bright sky reflection (FiresPiece is a wet/PBR piece shader).
-                    if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0f);
-                    if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f);
+                    // 0.0.562 ([worldgen] baked Norse cover): a material with a baked metallic map keeps its own
+                    // metallic/gloss and a white _Color (the albedo is final), so metal corners and the clasp stay bright.
+                    bool baked = (m.HasProperty("_MetallicTex") && m.GetTexture("_MetallicTex") != null) || (m.HasProperty("_MetallicGlossMap") && m.GetTexture("_MetallicGlossMap") != null);   // FiresPiece: _MetallicTex
+                    if (!baked && m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0f);
+                    if (!baked && m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f);
                     if (m.HasProperty("_FiresWetScale")) m.SetFloat("_FiresWetScale", 0f);
-                    if (m.HasProperty("_Color"))
+                    if (baked) { if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white); }
+                    else if (m.HasProperty("_Color"))
                     {
                         // Parchment keeps the neutral MatTint; the leather cover gets a red-brown tint so it reads as leather, not grey.
                         string nm = (r.name + "/" + m.name).ToLowerInvariant();
@@ -266,7 +270,7 @@ namespace FiresRPGmaker.UI.Books
                         bool isLeather = !isParchment && (nm.Contains("leather") || nm.Contains("cover") || nm.Contains("hide") || nm.Contains("bind") || nm.Contains("spine"));
                         m.SetColor("_Color", isLeather ? LeatherTint : MatTint);
                     }
-                    Debug.Log($"[FiresBookView][mat] {r.name}/{m.name} tex={(m.mainTexture != null ? m.mainTexture.name : "none")}");
+                    Debug.Log($"[FiresBookView][mat] {r.name}/{m.name} tex={(m.mainTexture != null ? m.mainTexture.name : "none")} baked={baked}");
                     log.AppendLine($"  {r.name}/{m.name}: {before} supported={beforeSup} -> {(m.shader != null ? m.shader.name : "null")} supported={(m.shader != null && m.shader.isSupported)}");
                 }
             }

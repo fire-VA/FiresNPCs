@@ -40,30 +40,35 @@ namespace FiresRPGmaker.Modules.Progression
                 return true;
             }
 
-            static void Postfix(string name, bool __runOriginal)
+            // 0.0.572 (Fire 10-13): credit goes to the players within 100 m of the BOSS, decided by the server, so it
+            // works when the dedicated server owns the boss. Outside a death (an admin's 'setkey') the key is centred
+            // on the local player, the one who typed it; a dedicated server has none, so it grants nothing then.
+            static void Postfix(string name)
             {
                 string key = name.ToLower();
                 var cfg = ProgressionConfig.Instance;
                 if (cfg == null || !cfg.UsePrivateKeys) return;
-                if (PrivateKeyManager.ShouldBlockPrivateKey(key)) return;
+                if (!PrivateKeyManager.ShouldBlockGlobalKey(key) || PrivateKeyManager.ShouldBlockPrivateKey(key)) return;
 
-                // Send private key to all nearby players
-                if (Player.m_localPlayer != null)
+                Vector3? at = Patch_Character_OnDeath_BossPosition.DyingAt;
+                if (!at.HasValue && Player.m_localPlayer != null) at = Player.m_localPlayer.transform.position;
+                if (!at.HasValue)
                 {
-                    var players = new List<Player>();
-                    Player.GetPlayersInRange(Player.m_localPlayer.transform.position, 100f, players);
-
-                    foreach (var p in players)
-                    {
-                        string pName = p.GetPlayerName();
-                        if (!string.IsNullOrEmpty(pName))
-                        {
-                            Debug.Log($"[Progression] Sending private key '{key}' to player '{pName}'");
-                            PrivateKeyManager.SendKeyToPlayer(pName, key);
-                        }
-                    }
+                    Debug.LogWarning($"[Progression] '{key}' was set outside a death with no local player; no one is credited");
+                    return;
                 }
+                PrivateKeyManager.ReportBossDefeated(key, at.Value);
             }
+        }
+
+        // Where the creature whose death is setting a key died: vanilla Character.OnDeath calls SetGlobalKey
+        // (m_defeatSetGlobalKey) on the creature's owner, with no position.
+        [HarmonyPatch(typeof(Character), "OnDeath")]
+        public static class Patch_Character_OnDeath_BossPosition
+        {
+            internal static Vector3? DyingAt;
+            static void Prefix(Character __instance) => DyingAt = __instance != null ? __instance.transform.position : (Vector3?)null;
+            static Exception Finalizer(Exception __exception) { DyingAt = null; return __exception; }
         }
 
         [HarmonyPatch(typeof(ZoneSystem), "RPC_SetGlobalKey")]

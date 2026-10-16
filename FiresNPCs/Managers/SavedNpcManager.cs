@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using BepInEx;
 using FiresRPGmaker.NpcFashion;
 using Newtonsoft.Json;
@@ -108,6 +109,7 @@ namespace FiresRPGmaker.Managers
             ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_DATA_UPDATE, new Action<long, ZPackage>(RPC_OnNpcDataUpdate));
             ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_DATA_DELETE, new Action<long, ZPackage>(RPC_OnNpcDataDelete));
             ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_ANCHOR_MOVE, new Action<long, ZPackage>(RPC_OnNpcAnchorMove));
+            ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_REDRESS, new Action<long, ZPackage>(RPC_OnNpcRedress));   // 0.0.508
             _rpcsRegistered = true;
             FiresLogger.LogVerbose("[SavedNpcManager] Registered NPC data sync RPCs");
         }
@@ -600,6 +602,8 @@ namespace FiresRPGmaker.Managers
                     destroyed++;
                     Debug.Log($"[AnchorDelete] destroyed anchor {guid} at {azdo.GetPosition()} (requested pos={position} guid={(anchorGuid ?? "<cell match>")})");
                 }
+                if (destroyed > 0)   // 0.0.583 (Fire 10-14, Ulvar: "orb is still there"): the one line Fire asked for
+                    Debug.Log($"[StaticNpc] removed npc and anchor: {destroyed} anchor(s) + linked body at {position} (guid {(anchorGuid ?? "<cell match>")}); clients drop the anchor orb when the anchor ZDO goes");
                 if (destroyed == 0)
                     Debug.LogWarning($"[AnchorDelete] NO anchor matched pos={position} guid={(anchorGuid ?? "<none>")} — " +
                         $"scanned {buf.Count} anchor ZDO(s); an orphaned anchor will keep respawning this NPC");
@@ -1443,19 +1447,10 @@ namespace FiresRPGmaker.Managers
                 // triggers the FileWatcher, and (b) writing here would re-fire the
                 // FileWatcher and potentially loop.
                 if (ZNet.instance == null || !ZNet.instance.IsServer())
-                {
-                    try
-                    {
-                        EnsureFolderExists();
-                        File.WriteAllText(NpcFilePath(npcId), json);
-                    }
-                    catch (Exception writeEx)
-                    {
-                        Debug.LogWarning($"[SavedNpcManager] Failed to persist received NPC '{npcId}' to disk: {writeEx.Message}");
-                    }
-                }
+                    QueueNpcFileWrite(NpcFilePath(npcId), json);
 
                 // Try to find any live NPC at this position and refresh it
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] client: NPC data {npcId} received from {sender}, refreshing the live NPC");   // 0.0.508 hop line
                 RefreshLiveNpc(data);
 
                 // Demoted to verbose: one of these fires per NPC per join /
@@ -1480,46 +1475,43 @@ namespace FiresRPGmaker.Managers
 
             try
             {
-                var npcs = UnityEngine.Object.FindObjectsByType<UI.NpcController>(UnityEngine.FindObjectsSortMode.None);
-                foreach (var npc in npcs)
-                {
-                    if (npc == null) continue;
+                var npc = FindLiveNpcById(data.NpcId);
+                if (npc == null) return;
 
-                    string id = GenerateNpcId(npc.transform.position);
-                    if (string.Equals(id, data.NpcId, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Apply saved data to the live NPC WITHOUT triggering a save-back.
-                        // LoadIntoNpc sets properties, then we write to ZDO directly
-                        // instead of calling npc.SaveToZDO() which would push back to server
-                        // and create an infinite loop.
-                        LoadIntoNpc(npc);
-                        var zdo = npc.GetComponent<ZNetView>()?.GetZDO();
-                        if (zdo != null)
-                        {
-                            zdo.Set("npc_profile", npc.npcProfileName ?? "");
-                            zdo.Set("npc_name_override", npc.displayNameOverride ?? "");
-                            zdo.Set("npc_dialogue_profile", npc.dialogueProfile ?? "");
-                            zdo.Set("npc_quest_profile", npc.questProfile ?? "");
-                            zdo.Set("npc_info_profile", npc.infoProfile ?? "");
-                            zdo.Set("npc_trader_profile", npc.traderProfile ?? "");
-                            zdo.Set("npc_model_override", npc.modelOverride ?? "");
-                            zdo.Set("npc_type", (int)npc.npcType);
-                            zdo.Set("npc_allow_idle_wander", npc.allowIdleWandering);
-                            zdo.Set("npc_equip_helmet", npc.equipHelmet ?? "");
-                            zdo.Set("npc_equip_chest", npc.equipChest ?? "");
-                            zdo.Set("npc_equip_legs", npc.equipLegs ?? "");
-                            zdo.Set("npc_equip_shoulder", npc.equipShoulder ?? "");
-                            zdo.Set("npc_equip_utility", npc.equipUtility ?? "");
-                            zdo.Set("npc_equip_righthand", npc.equipRightHand ?? "");
-                            zdo.Set("npc_equip_lefthand", npc.equipLeftHand ?? "");
-                            zdo.Set("npc_equip_rightback", npc.equipRightBack ?? "");
-                            zdo.Set("npc_equip_leftback", npc.equipLeftBack ?? "");
-                            if (data.FashionJson != null)
-                                zdo.Set("npc_fashion_json", data.FashionJson);
-                        }
-                        break;
-                    }
-                }
+                // Apply saved data to the live NPC WITHOUT triggering a save-back. LoadIntoNpc sets the
+                // properties, then we write the ZDO directly instead of npc.SaveToZDO(), which would push
+                // back to the server and loop.
+                LoadIntoNpc(npc);
+                var zdo = npc.GetComponent<ZNetView>()?.GetZDO();
+                if (zdo == null) return;
+
+                zdo.Set("npc_profile", npc.npcProfileName ?? "");
+                zdo.Set("npc_name_override", npc.displayNameOverride ?? "");
+                zdo.Set("npc_dialogue_profile", npc.dialogueProfile ?? "");
+                zdo.Set("npc_quest_profile", npc.questProfile ?? "");
+                zdo.Set("npc_info_profile", npc.infoProfile ?? "");
+                zdo.Set("npc_trader_profile", npc.traderProfile ?? "");
+                zdo.Set("npc_model_override", npc.modelOverride ?? "");
+                zdo.Set("npc_equip_helmet", npc.equipHelmet ?? "");
+                zdo.Set("npc_equip_chest", npc.equipChest ?? "");
+                zdo.Set("npc_equip_legs", npc.equipLegs ?? "");
+                zdo.Set("npc_equip_shoulder", npc.equipShoulder ?? "");
+                zdo.Set("npc_equip_utility", npc.equipUtility ?? "");
+                zdo.Set("npc_equip_righthand", npc.equipRightHand ?? "");
+                zdo.Set("npc_equip_lefthand", npc.equipLeftHand ?? "");
+                zdo.Set("npc_equip_rightback", npc.equipRightBack ?? "");
+                zdo.Set("npc_equip_leftback", npc.equipLeftBack ?? "");
+                zdo.Set("npc_type", (int)npc.npcType);
+                zdo.Set("npc_allow_idle_wander", npc.allowIdleWandering);
+                if (data.FashionJson != null)
+                    zdo.Set("npc_fashion_json", data.FashionJson);
+
+                // 0.0.505 (Fire 10-06: "hitting apply in the dressing room did not change the clothing the NPC wore"):
+                // the refresh now RE-DRESSES. Vanilla VisEquipment re-reads its items from the ZDO every update and its
+                // setters only write the ZDO on the owner, so an admin client's local re-dress snapped back and nobody
+                // else ever saw it. Here every peer re-applies the outfit + fashion, and the OWNER (the server on a dedi)
+                // also writes vanilla's VisEquipment item hashes straight into the ZDO, which every peer renders from.
+                RedressLiveNpc(npc, zdo, data);
             }
             catch (Exception ex)
             {
@@ -1527,7 +1519,252 @@ namespace FiresRPGmaker.Managers
             }
         }
 
+        // 0.0.508 (Fire 17:0x: "I would change the clothing the NPC wore, hit Apply, and nothing would happen"): vanilla's
+        // VisEquipment draws every peer from the item hashes in the NPC's ZDO, and only the ZDO OWNER may write them. On a
+        // dedicated server the owner is usually a CLIENT (whoever loaded the area first, typically the admin standing there),
+        // not the server, so the 0.0.505 refresh (owner-writes on the server's file reload) often had no owner to run on, and
+        // the admin's local re-dress snapped back. Now the Apply itself sends the outfit straight to the owner (itself when the
+        // admin owns it), which writes the hashes at once; every peer renders them. The file push / broadcast still persists it.
+        private const string RPC_NPC_REDRESS = "FiresRPGmaker_NpcRedress";
+
+        public static void RedressNow(UI.NpcController npc, string why)
+        {
+            var nview = npc != null ? npc.GetComponent<ZNetView>() : null;
+            var zdo = nview != null && nview.IsValid() ? nview.GetZDO() : null;
+            if (zdo == null) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress ({why}): no valid ZDO, skipped"); return; }
+            if (nview.IsOwner())
+            {
+                WriteOutfitHashes(npc, zdo);
+                try { npc.ApplyVisualEquipment(); } catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] re-dress failed: {ex.Message}"); }
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress ({why}) '{npc.GetDisplayName()}': this peer owns it, VisEquipment ZDO written (helmet '{npc.equipHelmet}', chest '{npc.equipChest}')");
+                return;
+            }
+            if (ZRoutedRpc.instance == null) return;
+            var pkg = new ZPackage();
+            pkg.Write(zdo.m_uid);
+            foreach (string s in OutfitOf(npc)) pkg.Write(s ?? "");
+            pkg.Write(npc.equipPet ?? "~keep");   // 0.0.559: 10th string = cosmetic pet; "~keep" = not set here (older owners stop reading at 9)
+            long owner = zdo.GetOwner();
+            ZRoutedRpc.instance.InvokeRoutedRPC(owner, RPC_NPC_REDRESS, pkg);
+            try { npc.ApplyVisualEquipment(); } catch { }
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress ({why}) '{npc.GetDisplayName()}': sent to owner {owner} (helmet '{npc.equipHelmet}', chest '{npc.equipChest}')");
+        }
+
+        private static string[] OutfitOf(UI.NpcController n) => new[] { n.equipHelmet, n.equipChest, n.equipLegs, n.equipShoulder, n.equipUtility, n.equipRightHand, n.equipLeftHand, n.equipRightBack, n.equipLeftBack };
+
+        private static void WriteOutfitHashes(UI.NpcController npc, ZDO zdo)
+        {
+            SetItemHash(zdo, ZDOVars.s_helmetItem, npc.equipHelmet);
+            SetItemHash(zdo, ZDOVars.s_chestItem, npc.equipChest);
+            SetItemHash(zdo, ZDOVars.s_legItem, npc.equipLegs);
+            SetItemHash(zdo, ZDOVars.s_shoulderItem, npc.equipShoulder);
+            SetItemHash(zdo, ZDOVars.s_utilityItem, npc.equipUtility);
+            SetItemHash(zdo, ZDOVars.s_rightItem, npc.equipRightHand);
+            SetItemHash(zdo, ZDOVars.s_leftItem, npc.equipLeftHand);
+            SetItemHash(zdo, ZDOVars.s_rightBackItem, npc.equipRightBack);
+            SetItemHash(zdo, ZDOVars.s_leftBackItem, npc.equipLeftBack);
+            zdo.Set("npc_equip_helmet", npc.equipHelmet ?? ""); zdo.Set("npc_equip_chest", npc.equipChest ?? ""); zdo.Set("npc_equip_legs", npc.equipLegs ?? "");
+            zdo.Set("npc_equip_shoulder", npc.equipShoulder ?? ""); zdo.Set("npc_equip_utility", npc.equipUtility ?? ""); zdo.Set("npc_equip_righthand", npc.equipRightHand ?? "");
+            zdo.Set("npc_equip_lefthand", npc.equipLeftHand ?? ""); zdo.Set("npc_equip_rightback", npc.equipRightBack ?? ""); zdo.Set("npc_equip_leftback", npc.equipLeftBack ?? "");
+            global::FiresRPGmaker.Modules.Pets.NpcPetSlot.WriteOnOwner(npc, "redress");   // 0.0.559
+        }
+
+        // The owner side: an admin's Apply. Only an admin's request is honoured (the same rule as the SyncFiles push).
+        private static void RPC_OnNpcRedress(long sender, ZPackage pkg)
+        {
+            try
+            {
+                var id = pkg.ReadZDOID();
+                var outfit = new string[9];
+                for (int i = 0; i < outfit.Length; i++) outfit[i] = pkg.ReadString();
+                var inst = ZNetScene.instance != null ? ZNetScene.instance.FindInstance(id) : null;
+                var npc = inst != null ? inst.GetComponent<UI.NpcController>() : null;
+                var nview = inst != null ? inst.GetComponent<ZNetView>() : null;
+                if (npc == null || nview == null || !nview.IsValid()) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress from {sender}: NPC {id} not loaded here"); return; }
+                if (!nview.IsOwner()) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress from {sender}: not the owner of {id} any more (owner {nview.GetZDO().GetOwner()}), skipped"); return; }
+                if (!IsAdminPeer(sender)) { Debug.LogWarning($"[SavedNpcManager] redress from non-admin {sender} refused"); return; }
+                npc.equipHelmet = outfit[0]; npc.equipChest = outfit[1]; npc.equipLegs = outfit[2]; npc.equipShoulder = outfit[3]; npc.equipUtility = outfit[4];
+                npc.equipRightHand = outfit[5]; npc.equipLeftHand = outfit[6]; npc.equipRightBack = outfit[7]; npc.equipLeftBack = outfit[8];
+                if (pkg.GetPos() < pkg.Size()) { string pet = pkg.ReadString(); if (pet != "~keep") npc.equipPet = pet; }   // 0.0.559: pet (absent from older senders)
+                WriteOutfitHashes(npc, nview.GetZDO());
+                if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null)
+                    try { npc.ApplyVisualEquipment(); } catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] re-dress failed: {ex.Message}"); }
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress from {sender} applied as owner on '{npc.GetDisplayName()}': helmet '{npc.equipHelmet}', chest '{npc.equipChest}'");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] redress RPC error: {ex.Message}"); }
+        }
+
+        // Admin check by peer uid: the local peer (an admin's own Apply) or, on the server, the server's admin list.
+        private static bool IsAdminPeer(long sender)
+        {
+            if (ZNet.instance == null) return false;
+            if (sender == ZNet.GetUID()) return ZNet.instance.LocalPlayerIsAdminOrHost();
+            if (ZNet.instance.IsServer()) return AdminSyncing.IsAdmin(sender);
+            return true;   // a client owner can't see the admin list; the sender's own client gated the Apply (the book is admin-only)
+        }
+
+        private static void RedressLiveNpc(UI.NpcController npc, ZDO zdo, SavedNpcData data)
+        {
+            var nview = npc.GetComponent<ZNetView>();
+            bool owner = nview != null && nview.IsValid() && nview.IsOwner();
+            if (owner)
+            {
+                // The authoritative look: the item prefab hashes vanilla's VisEquipment renders from on every peer.
+                SetItemHash(zdo, ZDOVars.s_helmetItem, npc.equipHelmet);
+                SetItemHash(zdo, ZDOVars.s_chestItem, npc.equipChest);
+                SetItemHash(zdo, ZDOVars.s_legItem, npc.equipLegs);
+                SetItemHash(zdo, ZDOVars.s_shoulderItem, npc.equipShoulder);
+                SetItemHash(zdo, ZDOVars.s_utilityItem, npc.equipUtility);
+                SetItemHash(zdo, ZDOVars.s_rightItem, npc.equipRightHand);
+                SetItemHash(zdo, ZDOVars.s_leftItem, npc.equipLeftHand);
+                SetItemHash(zdo, ZDOVars.s_rightBackItem, npc.equipRightBack);
+                SetItemHash(zdo, ZDOVars.s_leftBackItem, npc.equipLeftBack);
+            }
+            // The local visuals (models, colors, the fashion data) on every peer that draws the NPC.
+            if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null)
+            {
+                try { npc.ApplyVisualEquipment(); } catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] re-dress failed: {ex.Message}"); }
+                if (!string.IsNullOrEmpty(data.FashionJson))
+                    try { NpcFashionManager.ApplyFashionJsonToNpc(data.FashionJson, npc); } catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] fashion re-apply failed: {ex.Message}"); }
+            }
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] re-dressed '{npc.GetDisplayName()}' ({(owner ? "owner: VisEquipment ZDO written" : "visuals only")}): chest '{npc.equipChest}', helmet '{npc.equipHelmet}', right '{npc.equipRightHand}'");
+        }
+
+        private static void SetItemHash(ZDO zdo, int key, string prefab)
+        {
+            int hash = string.IsNullOrEmpty(prefab) ? 0 : prefab.GetStableHashCode();
+            if (zdo.GetInt(key) != hash) zdo.Set(key, hash);
+        }
+
+        // RPC_OnNpcDataUpdate used to call FindObjectsByType<NpcController> ONCE PER RECEIVED NPC: a full
+        // scene walk plus an array allocation per RPC, 56 of them in a join burst, measured by [99be3d] as
+        // ~490 ms per frame in which HandleRoutedRPC ran. Live controllers now register themselves and the id
+        // map is rebuilt at most once per frame; an id is recomputed only for a controller that changed
+        // placement cell, since GenerateNpcId formats a string and reads the world UID on every call.
+        private static readonly List<UI.NpcController> _liveNpcs = new List<UI.NpcController>();
+        private static readonly Dictionary<UI.NpcController, LiveNpcKey> _liveNpcKeys = new Dictionary<UI.NpcController, LiveNpcKey>();
+        private static readonly Dictionary<string, UI.NpcController> _liveNpcById = new Dictionary<string, UI.NpcController>(StringComparer.OrdinalIgnoreCase);
+        private static int _liveNpcMapFrame = -1;
+
+        private sealed class LiveNpcKey
+        {
+            public int X, Y, Z;
+            public string Id;
+        }
+
+        internal static void RegisterLiveNpc(UI.NpcController npc)
+        {
+            if (npc == null || _liveNpcs.Contains(npc)) return;
+            _liveNpcs.Add(npc);
+            _liveNpcMapFrame = -1;
+        }
+
+        internal static void UnregisterLiveNpc(UI.NpcController npc)
+        {
+            if (npc == null) return;
+            _liveNpcKeys.Remove(npc);
+            if (_liveNpcs.Remove(npc)) _liveNpcMapFrame = -1;
+        }
+
+        private static UI.NpcController FindLiveNpcById(string npcId)
+        {
+            if (string.IsNullOrEmpty(npcId)) return null;
+
+            int frame = Time.frameCount;
+            if (_liveNpcMapFrame != frame)
+            {
+                _liveNpcById.Clear();
+                for (int i = _liveNpcs.Count - 1; i >= 0; i--)
+                {
+                    var npc = _liveNpcs[i];
+                    if (npc == null)
+                    {
+                        _liveNpcs.RemoveAt(i);
+                        continue;
+                    }
+
+                    var pos = npc.transform.position;
+                    int x = Mathf.RoundToInt(pos.x), y = Mathf.RoundToInt(pos.y), z = Mathf.RoundToInt(pos.z);
+                    if (!_liveNpcKeys.TryGetValue(npc, out var key))
+                    {
+                        key = new LiveNpcKey();
+                        _liveNpcKeys[npc] = key;
+                    }
+                    if (key.Id == null || key.X != x || key.Y != y || key.Z != z)
+                    {
+                        key.X = x; key.Y = y; key.Z = z;
+                        key.Id = GenerateNpcId(pos);
+                    }
+                    _liveNpcById[key.Id] = npc;
+                }
+                _liveNpcMapFrame = frame;
+            }
+
+            return _liveNpcById.TryGetValue(npcId, out var hit) ? hit : null;
+        }
+
+        // Received bytes are persisted so the next login manifest reports the same SHA-256 as the server file
+        // and ManifestDiffSync can skip the re-send. That reason stands; doing it with a synchronous
+        // File.WriteAllText inside the RPC handler does not. The path is resolved on the main thread, deduped
+        // against what this session already wrote, and drained by one background task. A write lost to a hard
+        // quit costs one re-send on the next login, which is the fallback that path already has.
+        private static readonly Dictionary<string, string> _pendingNpcWrites = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> _writtenNpcJson = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly object _npcWriteLock = new object();
+        private static bool _npcWriterRunning;
+
+        private static void QueueNpcFileWrite(string path, string json)
+        {
+            if (string.IsNullOrEmpty(path) || json == null) return;
+
+            lock (_npcWriteLock)
+            {
+                if (_writtenNpcJson.TryGetValue(path, out var written) && string.Equals(written, json, StringComparison.Ordinal)) return;
+                _pendingNpcWrites[path] = json;
+                if (_npcWriterRunning) return;
+                _npcWriterRunning = true;
+            }
+
+            Task.Run((Action)DrainNpcFileWrites);
+        }
+
+        private static void DrainNpcFileWrites()
+        {
+            while (true)
+            {
+                string path = null, json = null;
+                lock (_npcWriteLock)
+                {
+                    foreach (var pending in _pendingNpcWrites)
+                    {
+                        path = pending.Key;
+                        json = pending.Value;
+                        break;
+                    }
+                    if (path == null)
+                    {
+                        _npcWriterRunning = false;
+                        return;
+                    }
+                    _pendingNpcWrites.Remove(path);
+                }
+
+                try
+                {
+                    string folder = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(folder) && !Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                    File.WriteAllText(path, json);
+                    lock (_npcWriteLock) _writtenNpcJson[path] = json;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[SavedNpcManager] Failed to persist a received NPC file: {ex.Message}");
+                }
+            }
+        }
+
         private static Dictionary<string, float> _recentServerWrites = new Dictionary<string, float>();
+        private static readonly Dictionary<string, string> _recentServerJson = new Dictionary<string, string>();   // 0.0.508
         private const float SERVER_WRITE_COOLDOWN = 2f;
 
         /// <summary>
@@ -1544,12 +1781,6 @@ namespace FiresRPGmaker.Managers
             // _savedNpcs with template_* records on every file event).
             if (fileName.Replace('\\', '/').StartsWith("templates/", StringComparison.OrdinalIgnoreCase)) return;
 
-            // Debounce: FileSystemWatcher fires multiple events per write
-            float now = Time.realtimeSinceStartup;
-            if (_recentServerWrites.TryGetValue(fileName, out float lastTime) && (now - lastTime) < SERVER_WRITE_COOLDOWN)
-                return;
-            _recentServerWrites[fileName] = now;
-
             Initialize();
 
             string filePath = Path.Combine(SavedNpcsFolder, fileName);
@@ -1558,6 +1789,15 @@ namespace FiresRPGmaker.Managers
             try
             {
                 string json = File.ReadAllText(filePath);
+                // Debounce: FileSystemWatcher fires several events per write. 0.0.508: only an IDENTICAL file within the window
+                // is a duplicate; a second admin Apply within 2 s (new content) used to be dropped here, never broadcast.
+                float now = Time.realtimeSinceStartup;
+                if (_recentServerWrites.TryGetValue(fileName, out float lastTime) && (now - lastTime) < SERVER_WRITE_COOLDOWN
+                    && _recentServerJson.TryGetValue(fileName, out string lastJson) && lastJson == json)
+                    return;
+                _recentServerWrites[fileName] = now;
+                _recentServerJson[fileName] = json;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] server: SavedNPCs/{fileName} changed, broadcasting + refreshing");
                 var data = JsonConvert.DeserializeObject<SavedNpcData>(json, _jsonSettings);
                 if (data != null && !string.IsNullOrEmpty(data.NpcId))
                 {

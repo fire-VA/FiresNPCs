@@ -153,9 +153,12 @@ namespace FiresRPGmaker.UI.ContextMenu
                 _aim = hit.point;
 
             float step = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) ? StepLarge : StepSmall;
-            if (Input.GetKeyDown(KeyCode.PageUp)) _height += step;
-            if (Input.GetKeyDown(KeyCode.PageDown)) _height -= step;
-            if (Input.GetKeyDown(KeyCode.Keypad0) || Input.GetKeyDown(KeyCode.Home)) _height = 0f;
+            if (!FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
+            {
+                if (Input.GetKeyDown(KeyCode.PageUp)) _height += step;
+                if (Input.GetKeyDown(KeyCode.PageDown)) _height -= step;
+                if (Input.GetKeyDown(KeyCode.Keypad0) || Input.GetKeyDown(KeyCode.Home)) _height = 0f;
+            }
 
             // Build-piece rotation on the wheel (vanilla camera zoom is already off in place mode,
             // and our UpdatePlacement suppressor keeps vanilla from consuming the scroll itself).

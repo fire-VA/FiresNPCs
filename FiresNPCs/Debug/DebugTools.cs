@@ -31,6 +31,7 @@ namespace FiresRPGmaker
         /// </summary>
         public static void RegisterConsoleCommands()
         {
+            FiresNpcsTest.Register();   // 0.0.613: firesnpcs_test (area test for the runner)
 // Load last push time from disk if available
             try
             {
@@ -74,6 +75,41 @@ namespace FiresRPGmaker
             // NPC UI DEBUG COMMANDS
      // ============================================================
 
+     // 0.0.606 ([lead] 10-15): scripted patrol-map check for seasons_round (admin only)
+      new Terminal.ConsoleCommand("firesnpcs_patrolmap", "Opens the patrol map view on the nearest NPC. Usage: firesnpcs_patrolmap [x z [halfSize]]",
+          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsoleOpen(args));
+      new Terminal.ConsoleCommand("firesnpcs_patrolmap_shot", "Saves the patrol map render as PNG and logs pixel shares. Usage: firesnpcs_patrolmap_shot <file.png>",
+          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsoleShot(args));
+      // 0.0.611 ([lead] scripted proof): the same path as Shift+E -> book, and the map view's Preview
+      new Terminal.ConsoleCommand("firesnpcs_npcbook", "Opens the NPC book on the nearest NPC (admin; the Shift+E path)",
+          (Terminal.ConsoleEventArgs args) =>
+          {
+              var npc = global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.NearestNpc();
+              if (npc == null) { args.Context?.AddString("no NPC loaded near you"); return; }
+              global::FiresRPGmaker.UI.NpcBookController.ShowForNpc(npc);
+              args.Context?.AddString($"[NpcBook] console open on '{npc.GetDisplayName()}' (book broken: {(global::FiresRPGmaker.UI.NpcBookController.Broken ? "yes" : "no")})");
+          });
+      new Terminal.ConsoleCommand("firesnpcs_patrolroute", "Opens the Set Patrol Route popup on the nearest NPC (admin)",
+          (Terminal.ConsoleEventArgs args) =>
+          {
+              var npc = global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.NearestNpc();
+              if (npc == null) { args.Context?.AddString("no NPC loaded near you"); return; }
+              global::FiresRPGmaker.UI.PatrolRoutePopup.Open(npc, global::FiresRPGmaker.UI.NpcBookController.Instance != null && global::FiresRPGmaker.UI.NpcBookController.Instance.IsOpen ? global::FiresRPGmaker.UI.NpcBookController.Instance : null);
+              Debug.Log($"[PatrolRoutePopup] console open on '{npc.GetDisplayName()}'");
+              args.Context?.AddString($"[PatrolRoutePopup] console open on '{npc.GetDisplayName()}'");
+          });
+      new Terminal.ConsoleCommand("firesnpcs_patrolmap_preview", "Starts / pauses the patrol map Preview (map view must be open with 2+ points)",
+          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsolePreview(args));
+      // 0.0.620 (Fire 10-15: prove the Live map): opens the large map with the « Live map » header on, or closes it
+      new Terminal.ConsoleCommand("firesnpcs_livemap", "Opens the large map with the Live map header on (or 'off' closes it). Usage: firesnpcs_livemap [on|off]",
+          (Terminal.ConsoleEventArgs args) =>
+          {
+              bool on = !(args.Length >= 2 && args[1].Equals("off", StringComparison.OrdinalIgnoreCase));
+              args.Context?.AddString(global::FiresRPGmaker.UI.Map.LiveMap.ConsoleSet(on));
+          });
+      new Terminal.ConsoleCommand("firesnpcs_patrolmap_close", "Closes the patrol map view",
+          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsoleClose(args));
+
      // Command: testnpcui - Opens the NPC panel with a mock NPC for testing
       new Terminal.ConsoleCommand("testnpcui", "Opens the NPC UI panel for testing (no NPC required)", (Terminal.ConsoleEventArgs args) =>
          {
@@ -100,6 +136,84 @@ namespace FiresRPGmaker
            args.Context.AddString($"[FiresRPGmaker] testnpcui error: {ex.Message}");
     }
        });
+
+            // 0.0.543 (the lead, for [visual]'s rpg_economy_test): the supported way to give a placed NPC a role from the
+            // console, instead of writing its ZDO keys. Same path as the NPC book's Apply: set the controller's fields, then
+            // SavedNpcManager.SaveFromNpc (server record + every client refreshed). Targets the nearest NPC within 10 m.
+            new Terminal.ConsoleCommand("firesnpcs_setrole",
+                "firesnpcs_setrole <role> [profile=<trader profile>] [name=<display name>] - give the nearest NPC (10 m) a role: " + string.Join("|", Enum.GetNames(typeof(NpcType))) + ". Admin.",
+                (Terminal.ConsoleEventArgs args) =>
+                {
+                    try
+                    {
+                        if (args.Length < 2 || !Enum.TryParse(args[1], true, out NpcType role))
+                        { args.Context.AddString("[FiresRPGmaker] usage: firesnpcs_setrole <" + string.Join("|", Enum.GetNames(typeof(NpcType))) + "> [profile=<name>] [name=<display name>]"); return; }
+                        var player = Player.m_localPlayer;
+                        if (player == null) { args.Context.AddString("[FiresRPGmaker] firesnpcs_setrole: no local player"); return; }
+                        NpcController best = null; float bestD = 10f;
+                        foreach (var c in UnityEngine.Object.FindObjectsByType<NpcController>(FindObjectsSortMode.None))
+                        {
+                            if (c == null) continue;
+                            float d = Vector3.Distance(c.transform.position, player.transform.position);
+                            if (d < bestD) { bestD = d; best = c; }
+                        }
+                        if (best == null) { args.Context.AddString("[FiresRPGmaker] firesnpcs_setrole: no NPC within 10 m"); return; }
+                        string rest = args.Length > 2 ? string.Join(" ", args.Args.Skip(2)) : "";
+                        string profile = null, name = null;
+                        int pi = rest.IndexOf("profile=", StringComparison.OrdinalIgnoreCase), ni = rest.IndexOf("name=", StringComparison.OrdinalIgnoreCase);
+                        if (pi >= 0) { int end = ni > pi ? ni : rest.Length; profile = rest.Substring(pi + 8, end - pi - 8).Trim(); }
+                        if (ni >= 0) { int end = pi > ni ? pi : rest.Length; name = rest.Substring(ni + 5, end - ni - 5).Trim(); }
+                        best.npcType = role;
+                        // 0.0.548: profile= goes to the ROLE's own profile field (it only ever set the trader's, so a Banker kept '').
+                        if (!string.IsNullOrEmpty(profile))
+                            switch (role)
+                            {
+                                case NpcType.Trader: best.traderProfile = profile; break;
+                                case NpcType.Banker: best.bankerProfile = profile; break;
+                                case NpcType.Gambler: best.gamblerProfile = profile; break;
+                                case NpcType.Marketplace: best.marketplaceProfile = profile; break;
+                                case NpcType.Achievement: best.achievementProfile = profile; break;
+                                case NpcType.Leaderboard: best.leaderboardProfile = profile; break;
+                                case NpcType.Buffer: best.bufferProfile = profile; break;
+                                case NpcType.Mail: best.mailProfile = profile; break;
+                                case NpcType.Transmog: best.transmogProfile = profile; break;
+                                case NpcType.QuestNpc: best.questProfile = profile; break;
+                                case NpcType.InfoNpc: best.infoProfile = profile; break;
+                                case NpcType.DialogueNpc: best.dialogueProfile = profile; break;
+                                default: best.traderProfile = profile; break;
+                            }
+                        if (!string.IsNullOrEmpty(name)) best.displayNameOverride = name;
+                        SavedNpcManager.SaveFromNpc(best);
+                        string line = $"[FiresRPGmaker] firesnpcs_setrole: NPC at {best.transform.position:F1} ({bestD:F1} m) -> role {role}"
+                            + (profile != null ? $", {role} profile '{profile}'" : "") + (name != null ? $", name '{name}'" : "") + " (saved like the NPC book's Apply)";
+                        args.Context.AddString(line);
+                        Debug.Log(line);
+                    }
+                    catch (Exception ex) { args.Context.AddString($"[FiresRPGmaker] firesnpcs_setrole error: {ex.Message}"); }
+                }, isCheat: true);
+
+            // 0.0.547 (Fire: NPC-driven ships, step 1): bind the nearest ship within 20 m to a saved patrol route. The ship is
+            // then sailed by vanilla physics with its controls worked by NpcShipDriver (owner side). "none" unbinds.
+            new Terminal.ConsoleCommand("firesnpcs_shipdrive",
+                "firesnpcs_shipdrive <patrol route|none> - the nearest ship (20 m) sails that patrol route point to point (real sailing). Admin.",
+                (Terminal.ConsoleEventArgs args) =>
+                {
+                    try
+                    {
+                        var player = Player.m_localPlayer;
+                        if (player == null || args.Length < 2) { args.Context.AddString("[FiresRPGmaker] usage: firesnpcs_shipdrive <route|none>"); return; }
+                        string route = string.Equals(args[1], "none", StringComparison.OrdinalIgnoreCase) ? "" : string.Join(" ", args.Args.Skip(1));
+                        if (route.Length > 0 && FiresCore.Npc.Patrol.PatrolRouteManager.GetRoute(route) == null) { args.Context.AddString($"[FiresRPGmaker] no patrol route '{route}'"); return; }
+                        Ship best = null; float bd = 20f;
+                        foreach (var s in UnityEngine.Object.FindObjectsByType<Ship>(FindObjectsSortMode.None))
+                        { float d = Vector3.Distance(s.transform.position, player.transform.position); if (d < bd) { bd = d; best = s; } }
+                        if (best == null) { args.Context.AddString("[FiresRPGmaker] no ship within 20 m"); return; }
+                        global::FiresRPGmaker.Modules.Vehicles.NpcShipDriver.Bind(best, route);
+                        string line = $"[FiresRPGmaker] firesnpcs_shipdrive: {best.name} at {best.transform.position:F0} -> route '{(route.Length > 0 ? route : "none")}'";
+                        args.Context.AddString(line); Debug.Log(line);
+                    }
+                    catch (Exception ex) { args.Context.AddString($"[FiresRPGmaker] firesnpcs_shipdrive error: {ex.Message}"); }
+                }, isCheat: true);
 
          // Command: closenpcui - Closes the NPC panel if open
       new Terminal.ConsoleCommand("closenpcui", "Closes the NPC UI panel if open", (Terminal.ConsoleEventArgs args) =>
@@ -632,7 +746,7 @@ if (QuestManager.Instance == null)
  args.Context.AddString("[FiresRPGmaker] QuestManager initialized on demand");
              }
 
-         string filter = (args.Args != null && args.Args.Length > 0) ? string.Join(" ", args.Args).Trim() : string.Empty;
+         string filter = (args.Args != null && args.Args.Length > 1) ? string.Join(" ", args.Args.Skip(1)).Trim() : string.Empty;   // 0.0.544: Args[0] is the command word ("Quests (0)" bug)
         var all = QuestManager.Instance.GetAllQuests();
     var list = string.IsNullOrEmpty(filter) ? all : all.Where(t => (t.Name ?? t.QuestId).IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 || t.QuestId.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
 

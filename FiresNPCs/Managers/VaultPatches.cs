@@ -194,7 +194,7 @@ namespace FiresRPGmaker.Modules.Vault
                 // (== OwnerKey), so two characters from one Steam ID each get their own row.
                 if (!string.IsNullOrEmpty(playerName))
                 {
-                    try { FiresCore.Storage.LeaderboardRepository.GetOrCreate(playerName.Trim(), playerName); }
+                    try { FiresCore.Storage.LeaderboardRepository.EnsureRow(playerName.Trim(), playerName); }
                     catch (Exception lex) { Debug.LogWarning($"[FiresRPGmaker] Leaderboard GetOrCreate on connect failed: {lex.Message}"); }
                 }
                 
@@ -298,6 +298,16 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     if (FiresLogger.VerboseEnabled)
                         Debug.Log("[FiresRPGmaker] Player_OnSpawned_LoadVaultData: host detected — skipping client-side announce/request (server-side ServerUpdateVault covers it)");
+                    // 0.0.532: the host's own player still needs its client-local active-quest store. This return used to
+                    // skip ActiveQuestStore.Load (RunLoadVaultData), so on a host or in single player the store never loaded:
+                    // a book accept flipped back after 6 s, no tracker row appeared and kills never counted. Load only
+                    // reads the player's own m_customData, so it doesn't race the server path above.
+                    PlayerSpawnGate.RunWhenReady(__instance, 30f, p =>
+                    {
+                        if (p != Player.m_localPlayer) return;
+                        try { global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Load(p); }
+                        catch (Exception ex) { Debug.LogWarning("[QuestPipe] ActiveQuestStore.Load (host) failed: " + ex.Message); }
+                    });
                     return;
                 }
 

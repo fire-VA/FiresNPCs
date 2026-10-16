@@ -189,8 +189,25 @@ namespace FiresRPGmaker.Modules.Dialogues
             return firstToken != null && KnownConditionPrefixes.Contains(firstToken);
         }
 
+        /// <summary>0.0.532 (Fire 10-08, conditions fail closed): a part of an option line the parser doesn't understand
+        /// (a typo'd key, a condition without "Condition:" that isn't one of the bare names) used to be dropped silently,
+        /// which could leave the option un-gated. It now locks the option through a condition the engine always fails,
+        /// with one warning naming the line.</summary>
+        private static void LockUnreadable(List<string[]> conditions, string uid, string segment, string line)
+        {
+            conditions.Add(new[] { "UnreadableDialoguePart," + segment.Replace(",", ";") });
+            Debug.LogWarning($"[DialogueCodex] Dialogue '{uid}': '{segment}' isn't understood (a typo, or a condition missing 'Condition:'?); the option stays locked. Line: {line}");
+        }
         private static void ParseLines(string[] lines)
         {
+            // 0.0.607 (LOG_AUDIT 10-15 B9: 12 warnings per start): the old DialogueManager's example_merchant.cfg ("Key = Value",
+            // DefaultGreeting/Response/Priority) sits in the same folder; it isn't a codex file, so it is skipped, not parsed.
+            if (lines != null && lines.Any(l => l != null && (l.TrimStart().StartsWith("DefaultGreeting", StringComparison.OrdinalIgnoreCase)
+                                                             || l.StartsWith("# Example Dialogue Profile for FiresRPGmaker", StringComparison.Ordinal))))
+            {
+                Debug.Log("[DialogueCodex] skipped a legacy DialogueManager profile (DefaultGreeting / Key = Value format); not a codex dialogue file");
+                return;
+            }
             RawDialogue current = null;
             List<RawPlayerOption> options = null;
 
@@ -301,13 +318,14 @@ namespace FiresRPGmaker.Modules.Dialogues
                             opt.NextUID = seg.Substring("Transition ".Length).Trim()
                                 .Replace(" ", string.Empty);
                         }
+                        else LockUnreadable(conditions, current?.UID, seg, line);
                         continue;
                     }
 
                     string keyStr = parts[0].Trim();
                     string payload = parts[1];
 
-                    if (!Enum.TryParse(keyStr, true, out InputType type)) continue;
+                    if (!Enum.TryParse(keyStr, true, out InputType type)) { LockUnreadable(conditions, current?.UID, seg, line); continue; }
 
                     switch (type)
                     {

@@ -108,7 +108,7 @@ namespace FiresRPGmaker.Modules.Factions
                 new Terminal.ConsoleCommand("factioneditor", "- open the admin faction editor window", args =>
                 {
                     if (!FiresCore.Sync.AdminSyncing.IsLocalAdmin())
-                    { args.Context.AddString("[faction] admin only."); return; }
+                    { args.Context.AddString("[faction] admin only."); FiresCore.Logging.FiresLogger.LogDebug("[faction] factioneditor refused: not admin (AdminSyncing.IsLocalAdmin false)"); return; }
                     FactionEditorPanel.Toggle();
                 });
             }

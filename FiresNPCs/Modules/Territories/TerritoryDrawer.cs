@@ -68,6 +68,7 @@ namespace FiresRPGmaker.Modules.Territories
   {
    try
             {
+     if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[TerritoryDrawer]")) return;   // 0.0.504
      if (Player.m_localPlayer == null)
       {
            args.Context.AddString("[TerritoryDrawer] No local player");
@@ -105,10 +106,12 @@ namespace FiresRPGmaker.Modules.Territories
       lines.Add($"{x},{z},{parsed.Radius}");
      break;
           case TerritoryShape.Rectangle:
-       // For rectangle: x1,z1,x2,z2 (create from center outward)
+       // For rectangle: minX,minZ,width,depth, centred on the player. Every reader (Territory.IsInside2D, the sync
+       // bounds, the map overlay) takes X[1]/Y[1] as the SIZE; writing the far corner here made the area wrong away
+       // from (0,0) and empty at negative coordinates (rpg_territory_test spec, 10-08).
                int halfW = parsed.Radius / 2;
                int halfH = parsed.Height / 2;
-        lines.Add($"{x - halfW},{z - halfH},{x + halfW},{z + halfH}");
+        lines.Add($"{x - halfW},{z - halfH},{parsed.Radius},{parsed.Height}");
         break;
          }
 
@@ -122,6 +125,7 @@ namespace FiresRPGmaker.Modules.Territories
    lines.Add("ALL");
 
  File.WriteAllLines(filePath, lines);
+ TerritoryFileSync.Saved(filePath);   // 0.0.504: on a dedi client, the server gets it (one source of truth)
 
     args.Context.AddString($"[TerritoryDrawer] Created territory '{parsed.Name}' at ({x},{z})");
     args.Context.AddString($"[TerritoryDrawer]   Shape: {parsed.Shape}, Size: {parsed.Radius}" +
@@ -153,6 +157,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             try
             {
+                if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[TerritoryDrawer]")) return;   // 0.0.504
      var name = ExtractArguments(args.FullLine, "removeterritory");
                 if (string.IsNullOrWhiteSpace(name))
      {
@@ -171,6 +176,7 @@ namespace FiresRPGmaker.Modules.Territories
     }
 
         File.Delete(filePath);
+        TerritoryFileSync.Deleted(filePath);   // 0.0.504: on a dedi client, the server deletes its copy too
                 args.Context.AddString($"[TerritoryDrawer] Removed territory '{name}'");
        MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Territory '{name}' removed");
 

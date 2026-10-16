@@ -227,14 +227,18 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
 
             long now = DateTime.UtcNow.Ticks;
             bool changed = false;
+            // One scan for the whole tick, built on first need: the dupe guard used to scan the scene per due
+            // entry, so a batch of expiring respawns paid for a full FindObjectsOfType each.
+            global::FiresCore.Npc.NpcMode.CompanionNpcModule[] liveModules = null;
             for (int i = _pending.Count - 1; i >= 0; i--)
             {
                 if (now < _pending[i].DeadlineUtcTicks) continue;
                 var entry = _pending[i];
+                liveModules ??= UnityEngine.Object.FindObjectsOfType<global::FiresCore.Npc.NpcMode.CompanionNpcModule>();
 
                 // Single-instance guard (covers crash-after-spawn-before-save): if a static NPC is already
                 // standing at this spot, the respawn already happened — just clear the stale entry.
-                if (StaticNpcAlreadyAt(entry.Position))
+                if (StaticNpcAlreadyAt(liveModules, entry.Position))
                 {
                     _pending.RemoveAt(i); changed = true; continue;
                 }
@@ -331,9 +335,9 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             return true;
         }
 
-        private static bool StaticNpcAlreadyAt(Vector3 pos)
+        private static bool StaticNpcAlreadyAt(global::FiresCore.Npc.NpcMode.CompanionNpcModule[] modules, Vector3 pos)
         {
-            var modules = UnityEngine.Object.FindObjectsOfType<global::FiresCore.Npc.NpcMode.CompanionNpcModule>();
+            if (modules == null) return false;
             foreach (var m in modules)
             {
                 if (m == null || !m.isStaticPlacement) continue;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -67,6 +67,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             // pushes ride the existing SyncFiles channel.
             RegisterRpc("FiresRPGmaker_PullConfigs", RPC_PullConfigs);
             RegisterRpc("FiresRPGmaker_FileDownload", RPC_FileDownload);
+            // [release] audit #1: the server's MarketPlace.cfg for the NPC book's Marketplace + Mail tabs.
+            try { global::FiresRPGmaker.Managers.MarketCfgSync.Register(); } catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] MarketCfgSync RPC registration failed: {ex.Message}"); }
 
             // NPC data/delete/anchor-move RPCs MUST bind here too. Their FinishInit registration runs
             // during plugin Awake when ZRoutedRpc is still null (the ManifestDiffSync note below in
@@ -323,7 +325,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             "Quests", "QuestProfiles", "QuestEvents", "Dialogues", "Traders", "Territories", "ServerInfos", "SavedNPCs",
             "Bankers", "Gamblers", "Transmogrifications", "Mail", "Buffers", "BufferProfiles", "LeaderboardAchievements",
-            "Factions"
+            "Factions", "PatrolRoutes"   // 0.0.505: Core 0.2.308 pushes admin patrol-route saves here
         };
 
         /// <summary>
@@ -626,6 +628,9 @@ namespace FiresRPGmaker.Modules.Dialogues
                             try { global::FiresRPGmaker.Modules.Marketplace.AchievementProfileManager.ReloadAll();
                                   global::FiresRPGmaker.Modules.Marketplace.LeaderboardProfileManager.ReloadAll(); } catch { }
                             break;
+                        case "patrolroutes":   // 0.0.505: an admin's patrol route (Core 0.2.308 push), on the server and on clients
+                            try { FiresCore.Npc.Patrol.PatrolRouteManager.Reset(); FiresCore.Npc.Patrol.PatrolRouteManager.Initialize(); } catch { }
+                            break;
                     }
                 }
                 catch (Exception ex)
@@ -876,7 +881,10 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void RPC_DlgCdState(long sender, ZPackage pkg)
         {
-            if (ZNet.instance != null && ZNet.instance.IsServer()) return; // clients only
+            // Anyone with a local player: a client, or a host / single player answering itself. 0.0.532: this returned on
+            // every server, so a listen host or single player never got its own cooldown state or pick result back, and
+            // cooldown options never ran their commands there.
+            if (Player.m_localPlayer == null && ZNet.instance != null && ZNet.instance.IsServer()) return;
             if (pkg == null) return;
 
             try
@@ -966,7 +974,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void RPC_DlgPickResult(long sender, ZPackage pkg)
         {
-            if (ZNet.instance != null && ZNet.instance.IsServer()) return; // clients only
+            if (Player.m_localPlayer == null && ZNet.instance != null && ZNet.instance.IsServer()) return; // see RPC_DlgCdState
             if (pkg == null) return;
 
             try

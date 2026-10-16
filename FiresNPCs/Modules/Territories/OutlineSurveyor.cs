@@ -74,6 +74,7 @@ namespace FiresRPGmaker.Modules.Territories
  {
         try
      {
+         if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[Outline]")) return;   // 0.0.504
          if (Player.m_localPlayer == null)
         {
          args.Context.AddString("[Outline] No local player");
@@ -166,6 +167,7 @@ _active = false;
                 }
 
             File.WriteAllLines(filePath, lines);
+            TerritoryFileSync.Saved(filePath);   // 0.0.504: on a dedi client, the server gets the outline
 
  args.Context.AddString($"[Outline] Saved outline '{_name}'");
              args.Context.AddString($"[Outline]   Points walked: {_points.Count}");

@@ -28,6 +28,8 @@ namespace FiresRPGmaker.Modules.Territories.Paint
         private static readonly TerritoryBrush _snap = new TerritoryBrush();
 
         public static string EditingCfgRel { get; private set; }
+        public static string EditingName { get; private set; }   // the name as loaded (a rename edits the blocks still under it)
+        private string _ownerArg = "";
 
         private Rect _rect = new Rect(-1f, -1f, 0f, 0f);
         private Rect _collapsedRect;
@@ -47,9 +49,12 @@ namespace FiresRPGmaker.Modules.Territories.Paint
         private static readonly TerritoryPaintType[] TypeVals =
             { TerritoryPaintType.FloodFill, TerritoryPaintType.Road, TerritoryPaintType.Circle, TerritoryPaintType.Square };
 
+        // 0.0.533: JoinOtherServer is unsupported (0.0.531) and left out; ForSale and HeightBounds are line keys, not enum
+        // bits, so they are offered by name ([release] 10-08).
         private static string[] FlagNames => _flagNames ??=
             Enum.GetNames(typeof(TerritoryFlags)).Where(n => n != "None")
-            .Concat(Enum.GetNames(typeof(AdditionalTerritoryFlags)).Where(n => n != "None"))
+            .Concat(Enum.GetNames(typeof(AdditionalTerritoryFlags)).Where(n => n != "None" && n != nameof(AdditionalTerritoryFlags.JoinOtherServer)))
+            .Concat(new[] { "ForSale", "HeightBounds" })
             .ToArray();
 
         // ── static API (call sites in TerritoryPaintDriver / TerritoryPaintCommit are unchanged) ──
@@ -62,7 +67,7 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             if (!show && _instance != null) FiresCore.Input.FiresInputBlock.Release(_instance._textToken);
         }
 
-        public static void ClearEdit() { EditingCfgRel = null; }
+        public static void ClearEdit() { EditingCfgRel = null; EditingName = null; }
 
         public static void PushBrushToUi() => _instance?.SyncFromBrush();
 
@@ -76,7 +81,8 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             b.Name = terr.Name;
             if (terr.Colors != null && terr.Colors.Count > 0) { var c = terr.Colors[0]; b.R = c.r; b.G = c.g; b.B = c.b; b.Alpha = c.a; }
             b.Flags = FlagsToLine(terr);
-            EditingCfgRel = cfgRel;
+            EditingCfgRel = cfgRel ?? "*";   // 0.0.510: the server finds every block of the name; no local file needed
+            EditingName = terr.Name;
             _collapsed = false;
             _instance?.SyncFromBrush();
         }
@@ -159,8 +165,26 @@ namespace FiresRPGmaker.Modules.Territories.Paint
                 }
             }
             catch { }
-            _collapsedRect = new Rect(x, y, w, h);
-            if (GUI.Button(_collapsedRect, "<b>▸ Territory</b>", FiresRoundedSkin.Button))
+            // 0.0.623 (Fire 10-15): stack under the map info box: directly below the Live map Level widget when it shows, else
+            // below the biome/coords box; same width and right edge as that box, 8 px gap.
+            float wPill = w;
+            try
+            {
+                RectTransform anchor = global::FiresRPGmaker.UI.Map.LiveMap.WidgetRect;
+                if (anchor == null && Minimap.instance != null && Minimap.instance.m_biomeNameLarge != null) anchor = Minimap.instance.m_biomeNameLarge.rectTransform;
+                if (anchor != null)
+                {
+                    var c = new Vector3[4];
+                    anchor.GetWorldCorners(c);                             // overlay canvas: world == screen px
+                    float left = c[0].x / _scale, right = c[2].x / _scale, bottomGui = (Screen.height - c[0].y) / _scale;
+                    wPill = Mathf.Max(120f, right - left);
+                    x = right - wPill;
+                    y = bottomGui + 8f;
+                }
+            }
+            catch { }
+            _collapsedRect = new Rect(x, y, wPill, h);
+            if (GUI.Button(_collapsedRect, "<b>» Territory</b>", FiresRoundedSkin.Button))
                 { _collapsed = false; SyncFromBrush(); }
         }
 
@@ -176,7 +200,21 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             GUILayout.EndHorizontal();
             GUILayout.Space(3f);
 
-            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(_rect.height - 108f));
+            // 0.0.510 (Fire 10-06): pick a territory on the map to edit it.
+            if (GUILayout.Button(TerritoryPaintDriver.PickMode ? "<b>Right-click a territory on the map…</b>  (Esc cancels)" : "<b>Edit territory</b>",
+                    TerritoryPaintDriver.PickMode ? FiresRoundedSkin.NavSel : FiresRoundedSkin.Button, GUILayout.Height(28f)))
+            {
+                if (TerritoryPaintDriver.PickMode) TerritoryPaintDriver.CancelPick(); else TerritoryPaintDriver.BeginPick();
+            }
+            GUILayout.Space(3f);
+
+            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(_rect.height - 140f));
+
+            if (EditingName != null)
+            {
+                int areas = TerritoryAdminEdit.AreaCount(EditingName);
+                GUILayout.Label($"Editing '{EditingName}': {areas} area(s) share this name. Saving changes all of them (name, colour, flags; shapes stay).", FiresRoundedSkin.Hint);
+            }
 
             GUILayout.Label("Territory Name", FiresRoundedSkin.Hint);
             b.Name = GUILayout.TextField(b.Name ?? "", FiresRoundedSkin.TextInput);
@@ -243,6 +281,22 @@ namespace FiresRPGmaker.Modules.Territories.Paint
                 GUILayout.EndHorizontal();
             }
             if (removeAt >= 0) { _flags.RemoveAt(removeAt); BuildFlags(b); }
+
+            // Owners (name-keyed: they cover every area of the name; a rename carries them over).
+            if (EditingName != null)
+            {
+                GUILayout.Space(6f);
+                GUILayout.Label("Owners", FiresRoundedSkin.SectionBar);
+                var owners = TerritoryOwnership.OwnersOf(EditingName);
+                GUILayout.Label(owners.Count == 0 ? "(none)" : string.Join(", ", owners), FiresRoundedSkin.Field);
+                GUILayout.BeginHorizontal();
+                _ownerArg = GUILayout.TextField(_ownerArg ?? "", FiresRoundedSkin.TextInput);
+                if (GUILayout.Button("+ Add", FiresRoundedSkin.Button, GUILayout.Width(56f)) && !string.IsNullOrWhiteSpace(_ownerArg))
+                { TerritoryAdminEdit.RequestOwners("add", EditingName, _ownerArg.Trim()); _ownerArg = ""; }
+                GUILayout.EndHorizontal();
+                FiresRoundedSkin.MarkHint("An online player's name, or a Steam ID.");
+                if (GUILayout.Button("Clear owners", FiresRoundedSkin.Button)) TerritoryAdminEdit.RequestOwners("clear", EditingName, "");
+            }
 
             GUILayout.EndScrollView();
 
@@ -320,9 +374,9 @@ namespace FiresRPGmaker.Modules.Territories.Paint
         {
             if (EditingCfgRel != null)
             {
-                bool ok = TerritoryPaintCommit.EditTerritory(EditingCfgRel, TerritoryPaintDriver.Brush);
+                // 0.0.510: every block of the name, on the server (it answers with what it changed).
+                TerritoryAdminEdit.RequestEdit(EditingName ?? TerritoryPaintDriver.Brush.Name, TerritoryPaintDriver.Brush);
                 try { TerritoryMapOverlay.ForceRedraw(); } catch { }
-                Hud(ok ? $"Saved changes to '{TerritoryPaintDriver.Brush.Name}'" : "Could not find that territory's file to save");
                 ClearEdit();
                 return;
             }
@@ -365,8 +419,17 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             foreach (var name in Enum.GetNames(typeof(AdditionalTerritoryFlags)))
             {
                 if (name == "None") continue;
-                if (terr.AdditionalFlags.HasFlag((AdditionalTerritoryFlags)Enum.Parse(typeof(AdditionalTerritoryFlags), name))) parts.Add(name);
+                var add = (AdditionalTerritoryFlags)Enum.Parse(typeof(AdditionalTerritoryFlags), name);
+                if (!terr.AdditionalFlags.HasFlag(add)) continue;
+                // 0.0.498: the valued body flags keep their value when a territory is loaded back into the brush
+                if (add == AdditionalTerritoryFlags.Gravity) parts.Add(name + "=" + terr.Gravity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+                else if (add == AdditionalTerritoryFlags.Scale) parts.Add(name + "=" + terr.Scale.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+                else parts.Add(name);
             }
+            // The line keys the ledger reads outside the enums, so loading a territory back into the brush keeps them.
+            if (terr.Type == TerritoryType.ForSale) parts.Add(terr.SellPrice > 0 ? "ForSale=" + terr.SellPrice : "ForSale");
+            if (!(terr.HeightBounds.Item1 == -100000 && terr.HeightBounds.Item2 == 100000))
+                parts.Add("HeightBounds=" + terr.HeightBounds.Item1 + "," + terr.HeightBounds.Item2);
             return parts.Count > 0 ? string.Join("|", parts) : "None";
         }
 

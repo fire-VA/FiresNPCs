@@ -1111,15 +1111,17 @@ namespace FiresRPGmaker.Modules.Territories
             catch { return null; }
         }
 
+        // 0.0.535 (Fire 10-08): where territories overlap, the highest Priority wins; at equal priority the SMALLER area wins,
+        // then the newer one (later in the list). This was "first in the list", so one stray big circle could mask every
+        // smaller area under it (round 16's leftover 'No Interact Chests' over the test pad).
         public static Territory GetCurrent(Vector3 pos)
         {
+            Territory best = null;
             if (ZNet.instance != null && ZNet.instance.IsServer())
             {
                 foreach (var t in TerritoryLedger.Territories)
-                {
-                    if (t.IsInside(pos)) return t;
-                }
-                return null;
+                    if (t.IsInside(pos) && Beats(t, best)) best = t;
+                return best;
             }
 
             if (_combinedClient.Count > 0)
@@ -1129,18 +1131,33 @@ namespace FiresRPGmaker.Modules.Territories
                 {
                     if (p2.x < group.Min.x || p2.x > group.Max.x || p2.y < group.Min.y || p2.y > group.Max.y) continue;
                     foreach (var t in group.Members)
-                    {
-                        if (t.IsInside(pos)) return t;
-                    }
+                        if (t.IsInside(pos) && Beats(t, best)) best = t;
                 }
-                return null;
+                return best;
             }
 
             foreach (var t in ClientTerritories)
+                if (t.IsInside(pos) && Beats(t, best)) best = t;
+            return best;
+        }
+
+        // Later candidates win full ties, so "newer" = later in the list.
+        private static bool Beats(Territory candidate, Territory best)
+        {
+            if (best == null) return true;
+            if (candidate.Priority != best.Priority) return candidate.Priority > best.Priority;
+            return Area(candidate) <= Area(best);
+        }
+
+        private static float Area(Territory t)
+        {
+            switch (t.Shape)
             {
-                if (t.IsInside(pos)) return t;
+                case TerritoryShape.Circle: return Mathf.PI * t.Radius * t.Radius;
+                case TerritoryShape.Square: return 4f * t.Radius * t.Radius;
+                case TerritoryShape.Rectangle: return t.X != null && t.Y != null && t.X.Length > 1 && t.Y.Length > 1 ? Mathf.Abs((float)t.X[1] * t.Y[1]) : float.MaxValue;
+                default: return float.MaxValue;
             }
-            return null;
         }
     }
 }

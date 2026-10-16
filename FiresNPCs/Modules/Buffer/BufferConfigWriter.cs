@@ -36,6 +36,8 @@ namespace FiresRPGmaker.Modules.Buffer
             if (b.Backend == BuffBackend.TargetSE && !string.IsNullOrEmpty(b.TargetSE)) sb.AppendLine($"TargetSE={b.TargetSE}");
             if (b.StrengthCap < 0.999f) sb.AppendLine($"StrengthCap={b.StrengthCap.ToString(CultureInfo.InvariantCulture)}");
             if (b.DurationCap > 0) sb.AppendLine($"DurationCap={b.DurationCap.ToString(CultureInfo.InvariantCulture)}");
+            // 10-09: the parser read CostScales but the writer never wrote it (Buffer Setup edits it now).
+            if (!string.IsNullOrEmpty(b.CostScales) && !string.Equals(b.CostScales, "none", StringComparison.OrdinalIgnoreCase)) sb.AppendLine($"CostScales={b.CostScales}");
             return sb.ToString();
         }
 

@@ -184,7 +184,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             _stopBtn = MakeButton(cab.rectTransform, "Stop Chain", new Vector2(0.5f, 0.5f), new Vector2(140, 40), new Vector2(-430, -292), OnStopChain);
             _stopBtn.gameObject.SetActive(false);
             MakeButton(cab.rectTransform, "New Game", new Vector2(0.5f, 0.5f), new Vector2(140, 40), new Vector2(430, -292), NewGame);
-            MakeButton(cab.rectTransform, "Leave", new Vector2(1, 1), new Vector2(96, 34), new Vector2(-56, -10), () => _overlay.Close());
+            MakeButton(cab.rectTransform, "Leave", new Vector2(1, 1), new Vector2(96, 34), new Vector2(-62, -31), () => _overlay.Close());
 
             BuildChooser(cab.rectTransform);
 

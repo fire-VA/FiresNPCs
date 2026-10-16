@@ -1244,6 +1244,9 @@ catch
         private static void Game_Logout_Postfix()
         {
             RuntimeSpriteSync.ResetForLogout();
+            global::FiresRPGmaker.Modules.Sounds.NpcSoundSync.ResetForLogout();
+            global::FiresRPGmaker.UI.PatrolRouteSync.ResetForLogout();
+            global::FiresRPGmaker.UI.NpcBookController.VaPlayerPanel(false);   // 0.0.549: never leave the VA player panel hidden after a logout
         }
 
         [HarmonyPatch(typeof(Player), "OnSpawned")]

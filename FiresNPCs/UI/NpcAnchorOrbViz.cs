@@ -104,10 +104,36 @@ namespace FiresRPGmaker.UI
             FiresContextMenu.RegisterMarkerSource(_tester);
         }
 
+        private float _nextAnchorCheck;
+        private static readonly System.Collections.Generic.List<ZDO> s_sector = new System.Collections.Generic.List<ZDO>();
+
         private void Update()
         {
             // World gone (logout/menu) — the marker is world-space and meaningless without it.
-            if (ZNetScene.instance == null) Hide();
+            if (ZNetScene.instance == null) { Hide(); return; }
+
+            // 0.0.583 (Fire 10-14, Ulvar: "cant delete static npcs?? ... orb is still there"): the orb drops itself as soon as its
+            // anchor ZDO is gone, whoever removed it (our hammer gate, Infinity Hammer's remove-anything, another admin, the
+            // catch-all), with no zone reload. Checked once a second against the anchor's own zone (the zone is loaded: the orb is
+            // only shown for an NPC the admin is standing near).
+            if (Time.time < _nextAnchorCheck || ZDOMan.instance == null) return;
+            _nextAnchorCheck = Time.time + 1f;
+            if (!ZNetScene.instance.IsAreaReady(_world)) return;   // not loaded yet: can't tell gone from far
+            if (AnchorExists()) return;
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[StaticNpc] anchor {_guid} ({_npcName}) is gone: anchor orb removed (no zone reload needed)");
+            Hide();
+        }
+
+        private bool AnchorExists()
+        {
+            // the same anchor lookup SavedNpcManager.DestroyAnchors uses (anchors are few; once a second is cheap)
+            s_sector.Clear();
+            int idx = 0;
+            while (!ZDOMan.instance.GetAllZDOsWithPrefabIterative(global::FiresCore.Npc.Anchor.NpcAnchorFields.AnchorPrefabName, s_sector, ref idx)) { }
+            foreach (var zdo in s_sector)
+                if (zdo != null && zdo.IsValid()
+                    && zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.Guid, "") == _guid) return true;
+            return false;
         }
 
         private void OnDestroy()

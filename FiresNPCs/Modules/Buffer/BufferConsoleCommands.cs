@@ -71,6 +71,8 @@ namespace FiresRPGmaker.Modules.Buffer
             }
             string uniqueName = args[1];
             string profileKey = args.Length > 2 ? args[2] : "";
+            // Without a profile it is the admin's un-gated apply (the server checks too, 0.0.532).
+            if (string.IsNullOrEmpty(profileKey) && !RequireAdmin(args)) return;
             int secs = args.Length > 3 && int.TryParse(args[3], out var sc) ? sc : 0;
             float strength = args.Length > 4 && float.TryParse(args[4], out var st) ? Mathf.Clamp01(st / 100f) : 1f;
             BufferNetwork.RequestApply(profileKey, uniqueName, secs, strength);

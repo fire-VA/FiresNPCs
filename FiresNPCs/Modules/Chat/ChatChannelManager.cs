@@ -35,6 +35,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         /// <summary>Horizontal / vertical nudge of the chat panel, in pixels. Hot-reloads live.</summary>
         public static ConfigEntry<float> OffsetX;
         public static ConfigEntry<float> OffsetY;
+        public static ConfigEntry<float> PanelWidth, PanelHeight;   // 0.0.657: the chat window size set by Core's resize grip
         /// <summary>Hotkey to toggle chat arrange mode — frees the cursor to drag / resize the panel.</summary>
         public static ConfigEntry<KeyboardShortcut> ArrangeKey;
         /// <summary>Replace the vanilla chat window with the Fires chat panel. Off = untouched vanilla chat.</summary>
@@ -50,10 +51,12 @@ namespace FiresRPGmaker.Modules.ChatSystem
                 "Last-selected chat channel. Persisted between sessions.");
 
             UiScale = config.Bind("Chat", "PanelScale", 1.0f,
-                new ConfigDescription("Chat panel size multiplier — larger is easier to read.",
-                    new AcceptableValueRange<float>(0.6f, 2.5f)));
-            OffsetX = config.Bind("Chat", "PanelOffsetX", 0f, "Horizontal nudge of the chat panel (pixels).");
-            OffsetY = config.Bind("Chat", "PanelOffsetY", 0f, "Vertical nudge of the chat panel (pixels).");
+                new BepInEx.Configuration.ConfigDescription("Chat panel size multiplier — larger is easier to read.",
+                    new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 2.5f)));
+            OffsetX = config.Bind("Chat", "PanelOffsetX", 0f, new BepInEx.Configuration.ConfigDescription("Horizontal nudge of the chat panel (pixels).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+            OffsetY = config.Bind("Chat", "PanelOffsetY", 0f, new BepInEx.Configuration.ConfigDescription("Vertical nudge of the chat panel (pixels).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+            PanelWidth = config.Bind("Chat", "PanelWidth", 460f, new BepInEx.Configuration.ConfigDescription("Chat window width (Core's HUD layout grip sets it; 0.0.657).", new BepInEx.Configuration.AcceptableValueRange<float>(300f, 2000f)));
+            PanelHeight = config.Bind("Chat", "PanelHeight", 300f, new BepInEx.Configuration.ConfigDescription("Chat window height (Core's HUD layout grip sets it; 0.0.657).", new BepInEx.Configuration.AcceptableValueRange<float>(120f, 1400f)));
             ArrangeKey = config.Bind("Chat", "ArrangeHotkey", new KeyboardShortcut(KeyCode.C, KeyCode.LeftAlt),
                 "Toggle chat arrange mode — frees the cursor to drag the panel and drag its corner grip to resize.");
             CustomWindow = config.Bind("Chat", "CustomChatWindow", true,

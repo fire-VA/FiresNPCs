@@ -55,7 +55,9 @@ namespace FiresRPGmaker.UI.Books
         private static string _npcName;
         private static List<QuestDefinition> _npcQuests;
 
-        public static bool IsOpen => _built && _canvas != null && _canvas.activeSelf;
+        // 0.0.635 (R-1015F pause menu blocked: ModUiRegistry.IsAnyOpen): this canvas can sit inside the NPC book shell, which hides it by
+        // deactivating a PARENT, so activeSelf stayed true after the book closed and every pause menu was shut. Judge what is on screen.
+        public static bool IsOpen => _built && _canvas != null && _canvas.activeInHierarchy;
         public static void Toggle() { if (IsOpen) Close(); else Open(); }
 
         public static void Open()
@@ -173,7 +175,7 @@ namespace FiresRPGmaker.UI.Books
             c.renderMode = RenderMode.ScreenSpaceCamera; c.worldCamera = _uiCam; c.planeDistance = 10f; c.sortingOrder = 6300;
             var s = _canvas.GetComponent<CanvasScaler>(); s.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; s.referenceResolution = new Vector2(1920f, 1080f); s.matchWidthOrHeight = 1f;
 
-            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform);
+            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panel);   // 0.0.614
             var rt = _panel.GetComponent<RectTransform>(); rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero; rt.localScale = Vector3.one;
 
             Bind(_panel.transform);

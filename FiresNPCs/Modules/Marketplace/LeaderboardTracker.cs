@@ -76,6 +76,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "Explored"       => Mathf.RoundToInt(s.MapExplored * 100f),
                 "Harvested"      => string.IsNullOrEmpty(prefab) ? 0 : (s.HarvestedByPrefab.TryGetValue(prefab, out var v) ? v : 0),
                 "PlayersKilled"  => s.KilledPlayers,
+                "LoreCollected" or "Granted" => global::FiresRPGmaker.Modules.Quest.LoreBooksBridge.LocalProgress(triggerType, prefab),   // 0.0.560 LoreBooks
                 _ => 0,
             };
         }

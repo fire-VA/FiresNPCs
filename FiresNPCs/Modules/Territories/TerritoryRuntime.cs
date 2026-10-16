@@ -25,6 +25,8 @@ namespace FiresRPGmaker.Modules.Territories
     internal static partial class TerritoryRuntime
     {
         public static Territory Current { get; private set; }
+        // 0.0.579: cached accessor for the tool check in Player_UpdatePlacement_Prefix (was AccessTools.Field(...).GetValue per call).
+        private static readonly AccessTools.FieldRef<Humanoid, ItemDrop.ItemData> s_rightItem = AccessTools.FieldRefAccess<Humanoid, ItemDrop.ItemData>("m_rightItem");
         private static Territory _last;
         private static float _tick;
         private static float _nextPeriodicTime;
@@ -65,9 +67,25 @@ namespace FiresRPGmaker.Modules.Territories
                 }
                 catch { /* guild source not loaded — skip */ }
             }
-            // OnlyForFaction — placeholder until we ship our Faction module. If a faction registry is
-            // present in the future we resolve it here; for now treat as "permission denied unless other
-            // condition above already granted" (KG's behavior when faction system absent).
+            // OnlyForFaction: members of the named faction (its id or display name) are permitted, the way OnlyForGuild
+            // permits guild members. This was a placeholder from before the Faction module shipped, so the flag parsed
+            // and did nothing.
+            if (t.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.OnlyForFaction) && !string.IsNullOrEmpty(t.OnlyForFaction))
+            {
+                try
+                {
+                    string factionId = player == Player.m_localPlayer
+                        ? global::FiresRPGmaker.Modules.Factions.FactionMembership.LocalFactionId()
+                        : global::FiresRPGmaker.Modules.Factions.FactionMembership.FactionIdOf(player);
+                    var faction = global::FiresRPGmaker.Modules.Factions.FactionManager.Get(factionId);
+                    string wanted = t.OnlyForFaction.Trim();
+                    if (!string.IsNullOrEmpty(factionId)
+                        && (string.Equals(factionId, wanted, StringComparison.OrdinalIgnoreCase)
+                            || (faction != null && string.Equals(faction.Name, wanted, StringComparison.OrdinalIgnoreCase))))
+                        return true;
+                }
+                catch { /* faction data not loaded: skip */ }
+            }
 
             // Steam-ID territory OWNERSHIP (server-synced). Owning this territory's NAME grants build rights on
             // every area sharing that name. Keyed by Steam ID so it survives renames, and granted/sold via the
@@ -270,6 +288,81 @@ namespace FiresRPGmaker.Modules.Territories
         }
         private static Territory GetTerritory(Player player) => player == null ? null : GetTerritoryInternal(player.transform.position);
 
+        // ── Vedr season / weather while inside (0.0.533, Fire 10-08) ──────────────────────────────────────────────────
+        // ForceSeason / ForceVedrWeather go through Vedr's public API (Vedr.VedrApi, API 7+), found by name: no hard
+        // reference. Client-local only (Vedr refuses on a dedicated server); players outside keep the world season.
+        // One owner tag per territory UID; Clear on exit falls back to the next active override, then the world.
+        private static Type s_vedrApi;
+        private static bool s_vedrResolved, s_vedrWarned;
+
+        private static Type VedrApi()
+        {
+            if (s_vedrResolved) return s_vedrApi;
+            s_vedrResolved = true;
+            try
+            {
+                var t = Type.GetType("Vedr.VedrApi, Norger.Vedr");
+                var ver = t?.GetField("ApiVersion", BindingFlags.Public | BindingFlags.Static);
+                if (t != null && ver != null && Convert.ToInt32(ver.GetValue(null)) >= 7) s_vedrApi = t;
+            }
+            catch { }
+            return s_vedrApi;
+        }
+
+        private static void CallVedr(string method, params object[] args)
+        {
+            try { VedrApi()?.GetMethod(method, BindingFlags.Public | BindingFlags.Static)?.Invoke(null, args); }
+            catch (Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] Vedr {method} failed: {ex.Message}"); }
+        }
+
+        // The tag currently applied. Cleared on exit, logout and world unload (lead 10-08: never rely on Vedr resetting);
+        // a territory removed while inside drops Current on the next tick, which comes through ApplyVedr as an exit.
+        private static string s_vedrActiveTag;
+
+        private static void ClearVedrActive()
+        {
+            if (s_vedrActiveTag == null || VedrApi() == null) { s_vedrActiveTag = null; return; }
+            CallVedr("ClearLocalSeasonOverride", s_vedrActiveTag);
+            CallVedr("ClearLocalWeatherOverride", s_vedrActiveTag);
+            s_vedrActiveTag = null;
+        }
+
+        [HarmonyPatch(typeof(Game), nameof(Game.Logout))]
+        [HarmonyPrefix]
+        private static void Vedr_Logout() => ClearVedrActive();
+
+        [HarmonyPatch(typeof(ZNet), "OnDestroy")]
+        [HarmonyPrefix]
+        private static void Vedr_WorldUnload() => ClearVedrActive();
+
+        private static bool HasVedrFlags(Territory t) => t != null && (!string.IsNullOrEmpty(t.ForceSeason) || !string.IsNullOrEmpty(t.ForceVedrWeather));
+
+        private static void ApplyVedr(Territory oldTerr, Territory newTerr)
+        {
+            if (!HasVedrFlags(oldTerr) && !HasVedrFlags(newTerr)) return;
+            if (VedrApi() == null)
+            {
+                if (!s_vedrWarned && HasVedrFlags(newTerr))
+                {
+                    s_vedrWarned = true;
+                    Debug.LogWarning($"[FiresRPGmaker] Territory '{newTerr.Name}': ForceSeason / ForceVedrWeather need Vedr (API 7+); ignoring them.");
+                }
+                return;
+            }
+            if (HasVedrFlags(oldTerr) || s_vedrActiveTag != null)
+            {
+                ClearVedrActive();
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] '{oldTerr?.Name}' Vedr overrides cleared");
+            }
+            if (HasVedrFlags(newTerr))
+            {
+                string tag = "RPGmaker:" + newTerr.UID;
+                s_vedrActiveTag = tag;
+                if (!string.IsNullOrEmpty(newTerr.ForceSeason)) CallVedr("SetLocalSeasonOverride", newTerr.ForceSeason, tag);
+                if (!string.IsNullOrEmpty(newTerr.ForceVedrWeather)) CallVedr("SetLocalWeatherOverride", newTerr.ForceVedrWeather, tag);
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] '{newTerr.Name}' Vedr season '{newTerr.ForceSeason}' weather '{newTerr.ForceVedrWeather}'");
+            }
+        }
         [HarmonyPatch(typeof(Player), "Update")]
         [HarmonyPostfix]
         private static void PlayerUpdate_Postfix(Player __instance)
@@ -742,23 +835,25 @@ namespace FiresRPGmaker.Modules.Territories
             if (__instance == null || __instance != Player.m_localPlayer) return true;
             if (!takeInput) return true;
 
-            var terr = GetTerritory(__instance);
+            // 0.0.579 (ITTO R4: 2.15 ms/s, a territory lookup every frame): the block only matters on a click with a tool, so the
+            // cheap click test runs first; the territory is the local player's tracked Current (refreshed at 5 Hz / every 1 m)
+            // instead of a fresh lookup; the held item comes through a cached field ref instead of reflection each call.
+            bool leftClick = ZInput.GetButton("Attack") || ZInput.GetButtonDown("Attack");
+            bool rightClick = ZInput.GetButton("Block") || ZInput.GetButtonDown("Block") || ZInput.GetButton("AltPlace") || ZInput.GetButtonDown("AltPlace");
+            if (!leftClick && !rightClick) return true;
+
+            var terr = Current;
             if (terr == null) return true;
             if (!terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.NoTool)) return true;
             if (HasRestrictionBypass(terr, __instance)) return true;
 
             ItemDrop.ItemData rightItem = null;
-            try { rightItem = AccessTools.Field(typeof(Humanoid), "m_rightItem")?.GetValue(__instance) as ItemDrop.ItemData; } catch { }
+            try { rightItem = s_rightItem(__instance); } catch { }
 
             if (rightItem != null && IsTool(rightItem))
             {
-                bool leftClick = ZInput.GetButton("Attack") || ZInput.GetButtonDown("Attack");
-                bool rightClick = ZInput.GetButton("Block") || ZInput.GetButtonDown("Block") || ZInput.GetButton("AltPlace") || ZInput.GetButtonDown("AltPlace");
-                if (leftClick || rightClick)
-                {
-                    MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Tools blocked in this territory");
-                    return false;
-                }
+                MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Tools blocked in this territory");
+                return false;
             }
 
             return true;
@@ -953,20 +1048,20 @@ namespace FiresRPGmaker.Modules.Territories
             return true;
         }
 
-        [HarmonyPatch(typeof(Player), "CreateDeathEffects")]
+        // NoItemLoss (Fire 10-08): a death inside keeps the whole inventory and leaves no tombstone. Vanilla's
+        // DeathKeepInventory world modifier does exactly this: Player.CreateTombStone returns before it unequips or
+        // moves anything. Skills are kept as well (OnPlayerDeathPrefix marks the death protected). Before, the flag
+        // only kept skills; its patch sat on CreateDeathEffects and never touched the grave.
+        [HarmonyPatch(typeof(Player), nameof(Player.CreateTombStone))]
         [HarmonyPrefix]
-        private static void NoItemLoss_CreateTombstone(Player __instance)
+        private static bool NoItemLoss_KeepInventory(Player __instance)
         {
-            // If NoItemLoss flag is active, we need to prevent tombstone item loss
-            // The actual logic is complex - vanilla creates a tombstone with inventory
-            // For now, we check the territory and could prevent the tombstone creation
+            if (__instance == null || __instance != Player.m_localPlayer) return true;
             var terr = GetTerritory(__instance);
-            if (terr != null && terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.NoItemLoss))
-            {
-                // Items will be kept - vanilla handles this via m_hardDeath which we can't access
-                // Instead, we mark for the tombstone patch to handle
-                _lastDeathWasProtected = true;
-            }
+            if (terr == null || !terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.NoItemLoss)) return true;
+            int items = __instance.GetInventory()?.NrOfItems() ?? 0;
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] '{terr.Name}' NoItemLoss: {__instance.GetPlayerName()} keeps {items} item(s), no tombstone");
+            return false;
         }
 
         [HarmonyPatch(typeof(TeleportWorld), nameof(TeleportWorld.Teleport))]
@@ -995,10 +1090,15 @@ namespace FiresRPGmaker.Modules.Territories
             int newUID = newTerritory?.UID ?? 0;
             if (string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase) && oldUID == newUID) return;
 
+            bool sameName = !string.IsNullOrEmpty(newName) && string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase);
             if (ZNet.instance == null || ZNet.instance.IsServer() || player == Player.m_localPlayer)
             {
-                Debug.Log($"[FiresRPGmaker] Territory change for {player.GetPlayerName()} name '{oldName}' -> '{newName}' (UID {oldUID} -> {newUID})");
+                // 0.0.499: disk-to-disk hops inside one named territory (a road) are routine: Debug, not Info
+                if (sameName) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"Territory hop for {player.GetPlayerName()} inside '{newName}' (UID {oldUID} -> {newUID})");
+                else Debug.Log($"[FiresRPGmaker] Territory change for {player.GetPlayerName()} name '{oldName}' -> '{newName}' (UID {oldUID} -> {newUID})");
             }
+            if (player == Player.m_localPlayer) TerritoryEntryBanner.NoteChange(oldName, newName);
+            if (player == Player.m_localPlayer) ApplyVedr(oldTerritory, newTerritory);
 
             if (newTerritory != null)
             {
@@ -1006,7 +1106,7 @@ namespace FiresRPGmaker.Modules.Territories
             }
 
             // Entry announcement in Valheim's native location-discovery style (braided plaque) — enter only,
-            // local player only. Leaving shows nothing (kg parity). The banner self-throttles (5s).
+            // local player only. Leaving shows nothing (kg parity). The banner shows once per territory NAME (0.0.499).
             if (newTerritory != null && player == Player.m_localPlayer)
             {
                 TerritoryEntryBanner.Show(newName);

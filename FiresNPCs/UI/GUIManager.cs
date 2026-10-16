@@ -328,7 +328,7 @@ namespace FiresRPGmaker.UI
 public static bool IsCustomPanelOpen()
        {
     // Check the book NPC config panel (parchment admin UI)
-    if (NpcBookController.Instance != null && NpcBookController.Instance.IsOpen)
+    if (NpcBookController.Instance != null && NpcBookController.Instance.IsOnScreen)   // 0.0.634: on screen, not activeSelf
         return true;
 
     // Check player info display panel
@@ -361,6 +361,10 @@ public static bool IsCustomPanelOpen()
     if (Screens.PlayerPanels.MailPlayerPanel.AnyOpen)
         return true;
 
+    // Faction editor (IMGUI window, admin)
+    if (global::FiresRPGmaker.Modules.Factions.FactionEditorPanel.IsOpen)
+        return true;
+
     // Check Help panel
     if (FiresCore.Help.HelpPanel.Instance != null &&
         FiresCore.Help.HelpPanel.Instance.IsVisible)
@@ -385,6 +389,7 @@ return false;
          Screens.TraderUIController.HideIfVisible();
          Screens.PlayerPanels.BasePlayerModulePanel.CloseAny();
          Screens.PlayerPanels.MailPlayerPanel.CloseAny();
+         global::FiresRPGmaker.Modules.Factions.FactionEditorPanel.CloseIfOpen();
          FiresCore.Help.HelpPanel.Instance?.Hide();
          FiresCore.Bridge.ModUiRegistry.CloseAll();
         }

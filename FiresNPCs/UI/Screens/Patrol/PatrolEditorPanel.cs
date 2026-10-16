@@ -40,7 +40,9 @@ namespace FiresRPGmaker.UI.Screens.Patrol
 
         private static readonly string[] _shapeNames = { "Flat", "EaseInOut", "Arch", "Ramp" };
 
-        public static bool IsOpen => _built && _canvas != null && _canvas.activeSelf;
+        // 0.0.635 (R-1015F pause menu blocked: ModUiRegistry.IsAnyOpen): this canvas can sit inside the NPC book shell, which hides it by
+        // deactivating a PARENT, so activeSelf stayed true after the book closed and every pause menu was shut. Judge what is on screen.
+        public static bool IsOpen => _built && _canvas != null && _canvas.activeInHierarchy;
 
         /// <summary>Open (or re-focus) the editor on a route node. Called from the Shift+RMB driver.</summary>
         public static void Open(string route, int node)
@@ -91,7 +93,7 @@ namespace FiresRPGmaker.UI.Screens.Patrol
             var canvas = _canvas.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 6200;
             var scaler = _canvas.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1920f, 1080f); scaler.matchWidthOrHeight = 0.5f;
 
-            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform);
+            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panel);   // 0.0.614
             var rt = _panel.GetComponent<RectTransform>();
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero;
 

@@ -113,19 +113,18 @@ namespace FiresRPGmaker.UI
             // Position: auto-stack directly under the group HUD (following its dynamic height) until the player
             // drags the tracker — then honour their saved spot. Skip auto-positioning while the pause menu is
             // open so a live drag isn't fought by the poll.
-            if (cfg?.configQuestTrackerUserPositioned?.Value ?? false)
+            // 0.0.655 (UI audit): Core places the tracker - its minimap column when present, else the HUD dock; the own drag + saved
+            // [Quest tracker] position are retired.
+            if (!Menu.IsVisible())
             {
-                float posX = cfg?.configQuestTrackerPosX?.Value ?? -12f;
-                float posY = cfg?.configQuestTrackerPosY?.Value ?? -410f;
-                if (posX != _appliedPosX || posY != _appliedPosY)
-                {
-                    _root.anchoredPosition = new Vector2(posX, posY);
-                    _appliedPosX = posX; _appliedPosY = posY;
-                }
-            }
-            else if (!Menu.IsVisible())
-            {
-                AutoPositionBelowTerritory();
+                // 0.0.595 ([generator] Core 0.2.502): in Core's minimap column (order 20, under the territory box at 10) Core places us;
+                // our root (pivot top-right) is sized to the visible panel so Core sees a real box. Without the column: as before.
+                var vis = _collapsed ? (_bookChip != null ? _bookChip.transform as RectTransform : null) : _panelRect;
+                if (vis != null && (_root.sizeDelta - vis.rect.size).sqrMagnitude > 0.25f) _root.sizeDelta = vis.rect.size;
+                bool column = global::FiresRPGmaker.Modules.Territories.MinimapColumn.Register("FiresRPGmaker.QuestTracker", _root, 20)
+                              && global::FiresRPGmaker.Modules.Territories.MinimapColumn.Active;
+                if (!column && !_hudDocked) _hudDocked = CoreUiBridge.RegisterHud("rpgmaker.questtracker", _root, "Quest tracker", "FiresRPGmaker");
+                if (!column && !_hudDocked) AutoPositionBelowTerritory();
             }
 
             _bookChip.SetActive(_collapsed);
@@ -207,6 +206,7 @@ namespace FiresRPGmaker.UI
             _root.gameObject.SetActive(false);
         }
 
+        private bool _hudDocked;   // 0.0.655
         private void SavePosition(Vector2 pos)
         {
             var cfg = ConfigManager.Instance;
@@ -227,8 +227,10 @@ namespace FiresRPGmaker.UI
             if (terr != null && terr.gameObject.activeInHierarchy) anchor = terr;
             else
             {
+                // 0.0.594: under Core's round-minimap info plate when it is shown (override ON), else under the minimap
+                anchor = global::FiresRPGmaker.Modules.Territories.TerritoryHudOverlay.MinimapPlate();
                 var mm = Minimap.instance;
-                if (mm != null && mm.m_smallRoot != null) anchor = mm.m_smallRoot.transform as RectTransform;
+                if (anchor == null && mm != null && mm.m_smallRoot != null) anchor = mm.m_smallRoot.transform as RectTransform;
             }
             if (anchor == null) return;
 
@@ -251,13 +253,11 @@ namespace FiresRPGmaker.UI
             _panelRect.sizeDelta = new Vector2(BoxWidth, 60f);
 
             var bg = panelGo.GetComponent<Image>();
-            bg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(13, PanelFill, GoldBorder, 2);
+            bg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(10, PanelFill, GoldBorder, 2);   // 0.0.594: radius 10 like the territory box + Core's minimap plate
             bg.type = Image.Type.Sliced;
             bg.raycastTarget = false;
 
-            // Drag-to-reposition — only grab-able with the pause menu open (DraggableHud gates it). Persists to config.
-            var drag = panelGo.AddComponent<DraggableHud>();
-            drag.Target = _root; drag.DragGraphic = bg; drag.OnMoved = SavePosition;
+            // 0.0.655 (UI audit): no own DraggableHud - Core (minimap column / HUD dock) moves the tracker
 
             var vlg = panelGo.AddComponent<VerticalLayoutGroup>();
             vlg.padding = new RectOffset(0, 0, 0, 8);
@@ -559,7 +559,7 @@ namespace FiresRPGmaker.UI
             if (minLevel <= 0) return string.Empty;
             int stars = string.Equals(type, "Kill", StringComparison.OrdinalIgnoreCase) ? minLevel - 1 : minLevel;
             if (stars <= 0) return string.Empty;
-            return $" <color=#4fd24f>({stars}★)</color>";
+            return $" <color=#4fd24f>({stars}*)</color>";
         }
 
         private Text CreateText(string name, Transform parent, int size, Color color, FontStyle style, TextAnchor anchor)

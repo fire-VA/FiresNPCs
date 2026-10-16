@@ -328,8 +328,8 @@ namespace FiresRPGmaker.UI
             headerBg.sprite = FiresRoundedSkin.RoundedSprite(7, HeaderBg);
             headerBg.type = Image.Type.Sliced;
             headerBg.color = Color.white; headerBg.raycastTarget = true;
-            var drag = headerGo.AddComponent<PopupDragHandler>();
-            drag.target = _popupRect;
+            // 0.0.655 (UI audit): the header is Core's drag handle (live panel), no own PopupDragHandler
+            CoreUiBridge.RegisterLivePanel("FiresRPGmaker:BookOption", "rpgmaker.bookoption", _popupRect, headerGo.GetComponent<RectTransform>(), "Edit option", "FiresRPGmaker");
 
             var titleGo = CreateChild(headerGo.transform, "TitleText");
             var tr = titleGo.AddComponent<RectTransform>();

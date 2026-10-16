@@ -62,6 +62,12 @@ namespace FiresRPGmaker.Modules.Territories
         RevealOnMap = 1 << 11,
         NoTool = 1 << 12,
         OnlyForFaction = 1 << 13, // KG parity — pairs with OnlyForGuild, gates territory access by faction membership
+        /// <summary>Gravity=g, -10..10: 1 = vanilla, 0 = weightless, 0.5 = half, 3 = three times, negative = pulls up (players only).</summary>
+        Gravity = 1 << 14,
+        /// <summary>Scale=s, 0.25..4: the player's size (body and colliders; speed, jump and reach unchanged). Seen by everyone.</summary>
+        Scale = 1 << 15,
+        /// <summary>FirstPerson: the camera is forced to first person inside (Core's CrawlCamera); zoom-out ignored. No admin bypass.</summary>
+        FirstPerson = 1 << 16,
     }
 
     public enum TerritoryShape
@@ -128,6 +134,8 @@ namespace FiresRPGmaker.Modules.Territories
         public float IncreasedMonsterDamageValue;
         public string[] CustomEnvironment;
         public float MoveSpeedMultiplier = 1f;
+        public float Gravity = 1f;   // 0.0.498, with AdditionalTerritoryFlags.Gravity
+        public float Scale = 1f;     // 0.0.498, with AdditionalTerritoryFlags.Scale
         public float OverridenHeight;
         public int OverridenBiome;
         public int AddMonsterLevel;
@@ -144,10 +152,18 @@ namespace FiresRPGmaker.Modules.Territories
         public TerritoryType Type;
         public string Owner = string.Empty;
         public int SellPrice;
+        // 0.0.533 (Fire 10-08): Vedr season / weather shown while inside (client-local, Vedr API 7+). Empty = none.
+        public string ForceSeason = string.Empty;
+        public string ForceVedrWeather = string.Empty;
         public ValueTuple<int, int> HeightBounds = new(-100000, 100000);
         public string Permitted = string.Empty;
 
         public Vector3 Pos3D() => new(X?.Length > 0 ? X[0] : 0, (HeightBounds.Item1 + HeightBounds.Item2) / 2f, Y?.Length > 0 ? Y[0] : 0);
+
+        // The middle of the area on the ground plane. A Rectangle's X/Y hold its min corner and its size.
+        public Vector2 Center2D() => Shape == TerritoryShape.Rectangle && X?.Length > 1 && Y?.Length > 1
+            ? new Vector2(X[0] + X[1] * 0.5f, Y[0] + Y[1] * 0.5f)
+            : new Vector2(X?.Length > 0 ? X[0] : 0, Y?.Length > 0 ? Y[0] : 0);
         public bool DrawOnMap() => Colors.Count > 0;
         public bool UsingGradient() => Shape != TerritoryShape.Rectangle && Colors.Count > 1;
 
@@ -229,6 +245,10 @@ namespace FiresRPGmaker.Modules.Territories
             pkg.Write(RevealCenterX);
             pkg.Write(RevealCenterZ);
             pkg.Write(RevealRadius);
+            pkg.Write(Gravity);   // 0.0.498: appended last, read with a fallback, so older packages still load
+            pkg.Write(Scale);
+            pkg.Write(ForceSeason ?? "");       // 0.0.533, appended last with a fallback
+            pkg.Write(ForceVedrWeather ?? "");
         }
 
         public static Territory Deserialize(ZPackage pkg)
@@ -317,6 +337,10 @@ namespace FiresRPGmaker.Modules.Territories
                 t.RevealRadius = pkg.ReadSingle();
             }
             catch { }
+            try { t.Gravity = pkg.ReadSingle(); t.Scale = pkg.ReadSingle(); }
+            catch { t.Gravity = 1f; t.Scale = 1f; }
+            try { t.ForceSeason = pkg.ReadString(); t.ForceVedrWeather = pkg.ReadString(); }
+            catch { t.ForceSeason = string.Empty; t.ForceVedrWeather = string.Empty; }
             return t;
         }
 

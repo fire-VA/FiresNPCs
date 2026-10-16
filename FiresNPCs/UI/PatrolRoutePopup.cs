@@ -99,11 +99,21 @@ namespace FiresRPGmaker.UI
                 var act = rightClick ? h.RightAction : h.Action;
                 if (act == null) continue;
                 if (h.Clip != null && !RectTransformUtility.RectangleContainsScreenPoint(h.Clip, mouse, null)) continue;
-                if (RectTransformUtility.RectangleContainsScreenPoint(h.Rect, mouse, null)) { act.Invoke(); return; }
+                if (RectTransformUtility.RectangleContainsScreenPoint(h.Rect, mouse, null)) { Fire(act); return; }
             }
         }
 
-        private void Close()
+        // One run per frame: the manual hit (the mouse while the InventoryGui swallows events) and the button's onClick
+        // (a click the EventSystem delivers) can both see the same click.
+        private int _hitFrame = -1;
+        private void Fire(Action act)
+        {
+            if (act == null || _hitFrame == Time.frameCount) return;
+            _hitFrame = Time.frameCount;
+            act.Invoke();
+        }
+
+        internal void Close()   // 0.0.613: firesnpcs_test closes it
         {
             _open = false;
             if (_canvasGo != null) Destroy(_canvasGo);
@@ -175,20 +185,28 @@ namespace FiresRPGmaker.UI
                 bool showing = PatrolRouteVisualizer.IsShowing(_npc.patrolRouteName);
                 AddButton(showing ? "Hide Route Lines" : "Visualize Route",
                     new Vector2(0.12f, 0.68f), new Vector2(0.88f, 0.80f), OnToggleVisualize);
-                AddButton("Speed Presets…", new Vector2(0.12f, 0.54f), new Vector2(0.88f, 0.66f), OnEditSpeeds);
+                AddButton("Speed Presets…", new Vector2(0.12f, 0.54f), new Vector2(0.49f, 0.66f), OnEditSpeeds);
+                AddButton("View on map", new Vector2(0.51f, 0.54f), new Vector2(0.88f, 0.66f), OnViewOnMap);   // 0.0.605: edit it top-down
                 AddButton("Change Route / Preset", new Vector2(0.12f, 0.40f), new Vector2(0.88f, 0.52f), RebuildPicker);
                 AddButton("Clear Route", new Vector2(0.12f, 0.26f), new Vector2(0.88f, 0.38f), OnClear);
             }
             else
             {
-                SetStatus("No patrol route set for this NPC.");
-                AddButton("Set New Route", new Vector2(0.12f, 0.62f), new Vector2(0.88f, 0.78f), OnSetNew);
-                AddButton("Use Existing", new Vector2(0.12f, 0.42f), new Vector2(0.88f, 0.58f), RebuildPicker);
+                // 0.0.605 (Fire 10-15, the approved patrol_popup mock): "Copy player movement" (the recorder) / "Draw on map" (the
+                // top-down editor) / "Use existing" (a saved route).
+                SetStatus("How do you want to make the route?");
+                AddButton("Copy player movement  (walk it, it records)", new Vector2(0.06f, 0.62f), new Vector2(0.49f, 0.80f), OnSetNew);
+                AddButton("Draw on map  (draw it top-down)", new Vector2(0.51f, 0.62f), new Vector2(0.94f, 0.80f), OnDrawOnMap);
+                AddButton("Use existing (pick a saved route)", new Vector2(0.20f, 0.44f), new Vector2(0.80f, 0.56f), RebuildPicker);
             }
 
             AddButton("Cancel", new Vector2(0.30f, 0.12f), new Vector2(0.70f, 0.26f), Close);
             FiresCore.UI.FiresPopupTheme.Reskin(_panelGo);
         }
+
+        // 0.0.605: the top-down map editor (FiresRPGmaker.UI.Screens.Patrol.PatrolMapView); this popup closes while it is open.
+        private void OnDrawOnMap() { var npc = _npc; Close(); global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.Open(npc, null); }
+        private void OnViewOnMap() { var npc = _npc; string route = npc != null ? npc.patrolRouteName : null; Close(); global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.Open(npc, route); }
 
         private void RebuildPicker() => BuildPicker(resetSelection: true);
 
@@ -239,6 +257,7 @@ namespace FiresRPGmaker.UI
                 rt.offsetMin = new Vector2(0f, top - rowPx);
                 rt.offsetMax = new Vector2(0f, top);
                 if (selected) btn.GetComponent<Image>().color = UIFontConfig.Colors.ParchmentButtonHover;
+                btn.onClick.AddListener(() => Fire(() => OnSelectRoute(routeName)));
                 _hot.Add(new HotZone
                 {
                     Rect = rt,
@@ -375,6 +394,7 @@ namespace FiresRPGmaker.UI
         {
             var btn = UIBuilderHelper.CreateParchmentButton(_content, label, min, max, null);
             _hot.Add(new HotZone { Rect = btn.GetComponent<RectTransform>(), Action = action });
+            btn.onClick.AddListener(() => Fire(action));   // a click the EventSystem delivers (gamepad, a test); deduped with DispatchHit
             return btn;
         }
 

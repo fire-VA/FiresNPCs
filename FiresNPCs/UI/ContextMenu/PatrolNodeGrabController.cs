@@ -112,7 +112,8 @@ namespace FiresRPGmaker.UI.ContextMenu
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.Keypad0) || Input.GetKeyDown(KeyCode.Home))
+            if ((Input.GetKeyDown(KeyCode.Keypad0) || Input.GetKeyDown(KeyCode.Home))
+                && !FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
             {
                 _working = _original;
                 _heightOffset = 0f;
@@ -131,6 +132,7 @@ namespace FiresRPGmaker.UI.ContextMenu
         private bool Fire(KeyCode key, ref float timer)
         {
             if (key == KeyCode.None) { timer = 0f; return false; }
+            if (FiresCore.Input.FiresInputBlock.IsTyping()) { timer = 0f; return false; } // 0.0.550 typing gate (Fire 10-09)
             if (Input.GetKeyDown(key)) { timer = 0f; return true; }
             if (Input.GetKey(key))
             {

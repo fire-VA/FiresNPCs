@@ -31,22 +31,22 @@ namespace FiresRPGmaker.Modules.Marketplace
     {
         public static readonly List<MilestoneDef> All = new List<MilestoneDef>
         {
-            Def("first_build",       "First structure", null,                e => Sum(e.BuiltStructures) > 0),
-            Def("first_craft",       "First craft",     null,                e => Sum(e.ItemsCrafted) > 0),
-            Def("biome_blackforest", "Black Forest",    null,                e => Biome(e, "BlackForest")),
+            Def("first_build",       "First structure", "Hammer",                e => Sum(e.BuiltStructures) > 0),
+            Def("first_craft",       "First craft",     "Club",                e => Sum(e.ItemsCrafted) > 0),
+            Def("biome_blackforest", "Black Forest",    "TrophyGreydwarf",                e => Biome(e, "BlackForest")),
             Def("boss_eikthyr",      "Eikthyr",         "TrophyEikthyr",     e => Killed(e, "eikthyr")),
-            Def("biome_swamp",       "Swamp",           null,                e => Biome(e, "Swamp")),
+            Def("biome_swamp",       "Swamp",           "TrophyDraugr",                e => Biome(e, "Swamp")),
             Def("boss_elder",        "The Elder",       "TrophyTheElder",    e => Killed(e, "gd_king", "elder")),
             Def("boss_bonemass",     "Bonemass",        "TrophyBonemass",    e => Killed(e, "bonemass")),
-            Def("biome_mountain",    "Mountains",       null,                e => Biome(e, "Mountain")),
+            Def("biome_mountain",    "Mountains",       "TrophyWolf",                e => Biome(e, "Mountain")),
             Def("boss_moder",        "Moder",           "TrophyDragonQueen", e => Killed(e, "dragon", "moder")),
-            Def("biome_plains",      "Plains",          null,                e => Biome(e, "Plains")),
+            Def("biome_plains",      "Plains",          "TrophyGoblin",                e => Biome(e, "Plains")),
             Def("boss_yagluth",      "Yagluth",         "TrophyGoblinKing",  e => Killed(e, "goblinking", "yagluth")),
-            Def("biome_mistlands",   "Mistlands",       null,                e => Biome(e, "Mistlands")),
+            Def("biome_mistlands",   "Mistlands",       "TrophySeeker",                e => Biome(e, "Mistlands")),
             Def("boss_queen",        "The Queen",       "TrophySeekerQueen", e => Killed(e, "seekerqueen")),
-            Def("biome_ashlands",    "Ashlands",        null,                e => Biome(e, "AshLands")),
-            Def("boss_fader",        "Fader",           null,                e => Killed(e, "fader")),
-            Def("first_tame",        "First tame",      null,                e => e.Tamed > 0),
+            Def("biome_ashlands",    "Ashlands",        "TrophyCharredMelee",                e => Biome(e, "AshLands")),
+            Def("boss_fader",        "Fader",           "TrophyFader",                e => Killed(e, "fader")),
+            Def("first_tame",        "First tame",      "TrophyBoar",                e => e.Tamed > 0),
         };
 
         private static readonly Dictionary<string, MilestoneDef> ById =

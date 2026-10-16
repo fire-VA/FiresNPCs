@@ -16,7 +16,6 @@ using FiresCore.Npc.Commands;
 using FiresCore.Npc.Archetypes;
 using FiresRPGmaker.Modules.Compendium;
 using FiresRPGmaker.Modules.ChatSystem;
-using FiresRPGmaker.Modules.Guilds;
 
 using FiresCore.Sync;
 using FiresCore.Lifecycle;
@@ -26,17 +25,22 @@ namespace FiresRPGmaker
     [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
     [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency("com.Fire.FiresWayshrines", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("com.Fire.VAInventory", BepInDependency.DependencyFlags.SoftDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.471";
+        public const string PluginVersion = "0.0.659";
+        // ConfigSync's minimum for connecting clients: a FIXED constant, raised only when a synced key's name, type or meaning changes
+        // (0.0.571 moved synced keys to new sections). Not PluginVersion, which forced every update in lockstep.
+        private const string MinimumSyncVersion = "0.0.571";
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
         public static AssetBundle booksBundle;   // book models (props + the animated UI book), embedded alongside firesnpcsui
         public static AssetBundle chessBundle;   // the in-world chess table piece (vaitems_chessboard)
         public static AssetBundle propsBundle;   // mailbox + sign/board props (firesnpcs_props)
+        public static AssetBundle leaderboardTabBundle;   // the inventory Leaderboards tab view (firesleaderboardtab, self-contained)
         public static readonly List<GameObject> piecePrefabs = [];
         public static readonly List<GameObject> itemPrefabs = [];
         public static GameObject RootObject;
@@ -80,43 +84,49 @@ namespace FiresRPGmaker
          {
         DisplayName = PluginName,
         CurrentVersion = PluginVersion,
-          MinimumRequiredVersion = PluginVersion
+          MinimumRequiredVersion = MinimumSyncVersion   // 0.0.571: a fixed constant, raised only when a synced key changes
  };
 
    configSync.lockedConfigChanged += ConfigManager.Instance.OnConfigLockChanged;
             AdminSyncing.AdminStatusChanged += _refreshConfigLockOnAdminChange;
 
+            global::FiresRPGmaker.Managers.ConfigMoves.PreBind(Config);   // 0.0.571: merged sections, moved before any bind
             ConfigManager.Instance.Initialize(Config);
-            try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.TurnSecondsCfg = Config.Bind("Poker", "PlayerTurnSeconds", 60, "Seconds a seated human has to act at the poker table before auto-fold (min 10)."); } catch { }
+            try { global::FiresRPGmaker.Modules.Pets.PetVisual.BindConfig(Config); } catch { }
+            // 0.0.561: [wishbone] Pets.Progress joins the first config sync
+            try { global::FiresRPGmaker.Modules.Pets.Progress.PetProgress.BindConfig(); } catch (Exception ex) { Logger.LogWarning($"PetProgress.BindConfig: {ex.Message}"); }
+            try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.TurnSecondsCfg = Config.Bind("Poker", "PlayerTurnSeconds", 60, new BepInEx.Configuration.ConfigDescription("Seconds a seated human has to act at the poker table before auto-fold (min 10).", new BepInEx.Configuration.AcceptableValueRange<int>(10, 600))); } catch { }
             try { global::FiresRPGmaker.Modules.Poker.PokerAI.DifficultyCfg = Config.Bind("Poker", "Difficulty", "Medium", new BepInEx.Configuration.ConfigDescription("Poker AI table strength (hot-reloads).", new BepInEx.Configuration.AcceptableValueList<string>("Easy", "Medium", "Hard", "Master"))); } catch { }
             try
             {
                 global::FiresRPGmaker.Modules.Poker.PokerCashTables.CurrencyCfg = Config.Bind("Poker", "CashCurrency", "Coins", "Currency item played at open (cash) tables - bank it with the Banker to buy in.");
-                global::FiresRPGmaker.Modules.Poker.PokerCashTables.BuyInCfg = Config.Bind("Poker", "CashBuyIn", 500, "Open-table buy-in, withdrawn from your bank when you sit down.");
-                global::FiresRPGmaker.Modules.Poker.PokerCashTables.BigBlindCfg = Config.Bind("Poker", "CashBigBlind", 10, "Open-table big blind.");
+                global::FiresRPGmaker.Modules.Poker.PokerCashTables.BuyInCfg = Config.Bind("Poker", "CashBuyIn", 500, new BepInEx.Configuration.ConfigDescription("Open-table buy-in, withdrawn from your bank when you sit down.", new BepInEx.Configuration.AcceptableValueRange<int>(0, 1000000)));
+                global::FiresRPGmaker.Modules.Poker.PokerCashTables.BigBlindCfg = Config.Bind("Poker", "CashBigBlind", 10, new BepInEx.Configuration.ConfigDescription("Open-table big blind.", new BepInEx.Configuration.AcceptableValueRange<int>(1, 100000)));
             }
             catch { }
             try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.DifficultyCfg = Config.Bind("Chess", "Difficulty", "Medium", new BepInEx.Configuration.ConfigDescription("Chess AI strength (hot-reloads; a firesnpcs_chess depth argument overrides it).", new BepInEx.Configuration.AcceptableValueList<string>("Easy", "Medium", "Hard", "Master"))); } catch { }
-            try { global::FiresRPGmaker.UI.Books.FiresBookView.DebugCapture = Config.Bind("Debug", "BookViewCaptures", false, "Dev tool (off by default): when a 3D book view opens, dump render PNGs + a state file to BepInEx/config/FiresRPGmaker/Debug/BookView. Off avoids the login capture stall + [FiresBookView] log spam.").Value; } catch { }
+            try { global::FiresRPGmaker.UI.Books.FiresBookView.DebugCapture = Config.Bind("General", "BookViewCaptures", false, "Dev tool (off by default): when a 3D book view opens, dump render PNGs + a state file to BepInEx/config/FiresRPGmaker/Debug/BookView. Off avoids the login capture stall + [FiresBookView] log spam.").Value; } catch { }
+            global::FiresRPGmaker.Managers.ConfigMoves.Apply(Config);   // 0.0.571: [Debug] BookViewCaptures -> [General]
+            global::FiresRPGmaker.UI.FiresKitBookSkin.Bind(Config);   // 0.0.592 ([saddles]): [UI] Use classic book UI (default true = today)
             try
             {
                 global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.UiScaleCfg = Config.Bind("Poker", "UiScale", 1.0f, new BepInEx.Configuration.ConfigDescription("Poker window scale (drag the corner grip in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 1.6f)));
-                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.OffsetXCfg = Config.Bind("Poker", "OffsetX", 0f, "Poker window horizontal position (drag the title bar in-game).");
-                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.OffsetYCfg = Config.Bind("Poker", "OffsetY", 0f, "Poker window vertical position (drag the title bar in-game).");
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.OffsetXCfg = Config.Bind("Poker", "OffsetX", 0f, new BepInEx.Configuration.ConfigDescription("Poker window horizontal position (drag the title bar in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.OffsetYCfg = Config.Bind("Poker", "OffsetY", 0f, new BepInEx.Configuration.ConfigDescription("Poker window vertical position (drag the title bar in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
             }
             catch { }
             try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.UiScaleCfg = Config.Bind("Chess", "UiScale", 1.0f, new BepInEx.Configuration.ConfigDescription("Chess window scale - stretches the whole board UI (hot-reloads).", new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 1.6f))); } catch { }
             try
             {
-                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.OffsetXCfg = Config.Bind("Chess", "OffsetX", 0f, "Chess window horizontal position (drag the title bar in-game).");
-                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.OffsetYCfg = Config.Bind("Chess", "OffsetY", 0f, "Chess window vertical position (drag the title bar in-game).");
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.OffsetXCfg = Config.Bind("Chess", "OffsetX", 0f, new BepInEx.Configuration.ConfigDescription("Chess window horizontal position (drag the title bar in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.OffsetYCfg = Config.Bind("Chess", "OffsetY", 0f, new BepInEx.Configuration.ConfigDescription("Chess window vertical position (drag the title bar in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
             }
             catch { }
             try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.UiScaleCfg = Config.Bind("Fanorona", "UiScale", 1.0f, new BepInEx.Configuration.ConfigDescription("Fanorona window scale - stretches the whole board UI (hot-reloads).", new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 1.6f))); } catch { }
             try
             {
-                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.OffsetXCfg = Config.Bind("Fanorona", "OffsetX", 0f, "Fanorona window horizontal position (drag the title bar in-game).");
-                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.OffsetYCfg = Config.Bind("Fanorona", "OffsetY", 0f, "Fanorona window vertical position (drag the title bar in-game).");
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.OffsetXCfg = Config.Bind("Fanorona", "OffsetX", 0f, new BepInEx.Configuration.ConfigDescription("Fanorona window horizontal position (drag the title bar in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+                global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.FanoronaTableGame.OffsetYCfg = Config.Bind("Fanorona", "OffsetY", 0f, new BepInEx.Configuration.ConfigDescription("Fanorona window vertical position (drag the title bar in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
             }
             catch { }
  BindConfigsToSync();
@@ -218,11 +228,6 @@ namespace FiresRPGmaker
             "FiresRPGmaker.Modules.Dialogues.DialogueUI",
             // Chat
             "FiresRPGmaker.Modules.ChatSystem.ChatPatches",
-            // Guild (client-only patches: nameplate EnemyHud update, chat intercept, map pings)
-            "FiresRPGmaker.Modules.Guilds.Patches.GuildPatches+EnemyHud_UpdateHuds_Patch",
-            "FiresRPGmaker.Modules.Guilds.GuildChat.GuildChatChannel+Chat_InputText_Patch",
-            "FiresRPGmaker.Modules.Guilds.Map.GuildMapFeatures+Minimap_UpdatePlayerPins_Patch",
-            "FiresRPGmaker.Modules.Guilds.Map.GuildMapFeatures+Minimap_OnMapMiddleClick_Patch",
             // Leaderboard hooks: InventoryGui is client-only; the rest (Character/Piece/Pickable/Player) exist
             // server-side and patch fine. Without this the dedi server crashes natively in PatchAll's IL rewrite
             // (the cause of an ErrorConnectFailed handshake).
@@ -230,6 +235,7 @@ namespace FiresRPGmaker
             // Leaderboard window modal input-capture (PlayerController/GameCamera/ZInput/Minimap/Player placement)
             // - all client-only types; on a headless server these would native-crash Mono's IL rewriter.
             "FiresRPGmaker.UI.Leaderboard.FiresLeaderboardInputPatches",
+            "FiresRPGmaker.UI.Leaderboard.LeaderboardTabLateRegister",
             // Marketplace console commands - Terminal exists server-side too, but the patch class registers
             // a player-side flow only; keeping it client-skipped is harmless.
             "FiresRPGmaker.Modules.Marketplace.MarketplaceConsoleCommands",
@@ -268,6 +274,8 @@ namespace FiresRPGmaker
             // Long-range board interact - GameCamera/Hud/Minimap/InventoryGui touches, local-player only.
             "FiresRPGmaker.Modules.TableGames.LongRange_Player_Update_Patch",
             "FiresRPGmaker.Modules.TableGames.LongRange_Hud_Crosshair_Patch",
+            // 0.0.608 Live map: Minimap / Camera / RenderTexture, client only.
+            "FiresRPGmaker.UI.Map.LiveMap+MinimapStartPatch",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server
@@ -281,6 +289,7 @@ namespace FiresRPGmaker
         {
             FiresRPGmakerBanner.Print();
             EmitWorldStartSummary();
+            global::FiresRPGmaker.UI.FiresStatsSections.TryRegister();   // 0.0.596: Core hub Stats cards (no-op before Core 0.2.510)
         }
         protected override void TitleScene(bool isFirstBoot) { }
 
@@ -288,15 +297,14 @@ namespace FiresRPGmaker
         {
             try
             {
-                string guildSync = global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred
-                    ? "deferred"
-                    : (global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.ClientNeedsSync ? "pending" : "ok");
+                // 0.0.527: RPG Maker's own guild module is removed (Fire 10-08); guilds come from FiresGuilds or VikingLands.Core.
+                string guildOwner = global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildOwner ?? "none (install FiresGuilds)";
                 FiresCore.Logging.LoadSummary.For(PluginName).EmitMiniBox("\uD83D\uDCD6 RPG MAKER", new[]
                 {
                     $"saved npcs   {SavedNpcManager.GetAllSavedNpcs().Count()}",
                     $"territories  {(ZNet.instance != null && ZNet.instance.IsServer() ? TerritoryLedger.Territories.Count : TerritorySyncedState.ClientTerritories.Count)}",
                     $"vault        {(VaultOfKnowledge.Instance != null ? "ok" : "off")}",
-                    $"guild sync   {guildSync}",
+                    $"guilds       {guildOwner}",
                 });
             }
             catch (Exception ex)
@@ -337,39 +345,9 @@ namespace FiresRPGmaker
                 Debug.LogWarning($"[FiresRPGmaker] Failed to register SyncFiles RPC: {ex.Message}");
             }
 
-            // Guild registration in its OWN try/catch so a throw in the block above
-            // can't skip over it. This was the actual root cause of the "guild RPC
-            // not registering on the server" bug - TerritorySyncedState or one of
-            // the manifest helpers above was throwing silently and the shared catch
-            // was swallowing the whole chain. The Harmony backup hook below is a
-            // second-chance guarantee in case ZRoutedRpc.instance was still null
-            // at FinishInit time.
-            try
-            {
-                if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
-                {
-                    // Another mod owns guilds - stand ours down. Our guild-dependent features
-                    // (chat / dialogue conditions / territory) read the owner via RpgMakerApi.
-                    Debug.Log($"[FiresRPGmaker] GuildModule.Initialize SKIPPED - {(global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildOwner)} owns guilds.");
-                }
-                else if (ZRoutedRpc.instance != null)
-                {
-                    GuildModule.Initialize();
-                }
-                else
-                {
-                    // Expected path on plugin Awake - BepInEx loads us before ZRoutedRpc
-                    // is constructed.  The Harmony Game.Start backup below re-runs
-                    // Initialize() once ZRoutedRpc is wired, so this is just a
-                    // breadcrumb, not a problem.  Demoted from Warning so it doesn't
-                    // look alarming in the log.
-                    Debug.Log("[FiresRPGmaker] GuildModule.Initialize deferred to Game.Start (ZRoutedRpc not constructed yet - expected during plugin Awake).");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[FiresRPGmaker] GuildModule.Initialize threw: {ex}");
-            }
+            // 0.0.527 (Fire 10-08): RPG Maker's own guild module is removed. Guilds come from FiresGuilds (or VikingLands.Core);
+            // the guild-dependent features here (the Clan chat channel, dialogue guild conditions) read the owner through
+            // FiresCore.Bridge.GuildBridge / RpgMakerApi.
 
             // Banker + Mail + Marketplace are server-authoritative over Core's LiteDB vault. Register in their own
             // guard so a guild throw above can't skip them; idempotent + instance-tracked, re-run by Game.Start.
@@ -396,19 +374,16 @@ namespace FiresRPGmaker
         }
 
         /// <summary>
-        /// Backup registration hook: runs once on Game.Start (server and client).
-        /// Game.Start fires after ZNet/ZRoutedRpc are fully wired, so this guarantees
-        /// guild RPCs are registered even if FinishInit ran before ZRoutedRpc was
-        /// available (or threw before reaching the guild registration call). Safe
-        /// to call repeatedly - GuildSyncManager.Initialize is idempotent via its
-        /// own _registered flag.
+        /// Backup registration hook: runs once on Game.Start (server and client). Game.Start fires after ZNet/ZRoutedRpc are
+        /// fully wired, so this guarantees the Banker / Mail / Marketplace / Poker / Faction chat / webhook / map pin RPCs are
+        /// registered even if FinishInit ran before ZRoutedRpc was available. Each EnsureRegistered / Initialize is idempotent.
+        /// (0.0.527: it no longer registers guilds; RPG Maker's guild module is removed.)
         /// </summary>
         [HarmonyPatch(typeof(Game), nameof(Game.Start))]
-        public static class GuildModule_GameStart_BackupRegistration
+        public static class GameStart_BackupRegistration
         {
             private static void Postfix()
             {
-                // Banker + Mail + Marketplace RPCs bind regardless of the guild ownership branch below.
                 try
                 {
                     global::FiresRPGmaker.Modules.Marketplace.BankerNetwork.Initialize();
@@ -420,16 +395,6 @@ namespace FiresRPGmaker
                     global::FiresRPGmaker.UI.NpcMapPins.EnsureRegistered();
                 }
                 catch (Exception ex) { Debug.LogError($"[FiresRPGmaker] Game.Start backup Banker/Mail/Market Initialize threw: {ex}"); }
-
-                try
-                {
-                    if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred) return; // TDV/FiresGuilds owns guilds
-                    GuildModule.Initialize();
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[FiresRPGmaker] Game.Start backup GuildModule.Initialize threw: {ex}");
-                }
             }
         }
 
@@ -582,11 +547,20 @@ namespace FiresRPGmaker
                 assetBundle = GetAssetBundleFromResources("firesnpcs");
                 if (assetBundle == null) throw new Exception("Bundle not found");
 
-                uiBundle = GetAssetBundleFromResources("firesnpcsui");
+                // 0.0.574 (the lead 10-13, dedi memory): the baked UI panels and the inventory Leaderboards tab are UI only;
+                // a dedicated server shows no UI, so it neither loads those two bundles nor installs their hosts.
+                bool headless = FiresCore.Lifecycle.FiresMod.IsDedicatedServer;
+                uiBundle = headless ? null : GetAssetBundleFromResources("firesnpcsui");
                 booksBundle = GetAssetBundleFromResources("firesbooks");   // self-contained (ships Custom/FiresPiece); no cross-bundle deps
+                leaderboardTabBundle = headless ? null : GetAssetBundleFromResources("firesleaderboardtab");
                 chessBundle = GetAssetBundleFromResources("vaitems_chessboard");   // self-contained vanilla-clone chess table
 
-                global::FiresRPGmaker.UI.FiresNpcsUIBuilderHost.Install();
+                if (headless) Debug.Log("[FiresRPGmaker] dedicated server: the UI bundles (firesnpcsui, firesleaderboardtab) are not loaded.");
+                else
+                {
+                    global::FiresRPGmaker.UI.FiresNpcsUIBuilderHost.Install();
+                    global::FiresRPGmaker.UI.Leaderboard.LeaderboardInventoryTab.Register();
+                }
 
                 VAItemManager.LoadItems("Assets/Custom/NPCs/", this);
                 VAPieceManager.LoadPieces("Assets/Custom/NPCs/", PluginName);
@@ -812,60 +786,29 @@ if (hashDict != null)
         }
 
         /// <summary>
-        /// Fallback retry for the rare case where the initial RequestSync RPC
-        /// (gated on PlayerSpawnGate.RunWhenLocalReady) was dropped on the wire
-        /// during the connect handshake. The "spin until the player is ready"
-        /// case is gone now that the FIRST request only fires once the player
-        /// has a real ID, so this loop only ever fires when a packet actually
-        /// got lost - hence small retry count + short interval.
+        /// Diagnostic for the guild hand-off (FiresGuilds or VikingLands.Core own guilds; 0.0.527 removed RPG Maker's own module):
+        /// polls Core's guild bridge until the owner resolves the local player's guild, then logs it once. The owner resolves it a
+        /// few seconds after spawn (a server round-trip), so a one-shot read at spawn would sample before it arrives.
         /// </summary>
-        private IEnumerator RetryGuildSync()
-        {
-            int attempts = 0;
-            const int MaxAttempts = 5;
-            const float RetryIntervalSeconds = 6f;
-
-            while (global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.ClientNeedsSync
-                   && attempts < MaxAttempts)
-            {
-                yield return new WaitForSeconds(RetryIntervalSeconds);
-                if (!global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.ClientNeedsSync) yield break;
-                if (ZNet.instance == null || ZNet.instance.IsServer()) yield break;
-
-                // Skip if player isn't ready yet - that's PlayerSpawnGate's job, not ours.
-                var local = Player.m_localPlayer;
-                long localPlayerId = local != null ? local.GetPlayerID() : 0L;
-                if (local == null || localPlayerId == 0L) continue;
-
-                attempts++;
-                Debug.Log($"[FiresRPGmaker] Guild sync retry #{attempts} - no FullSync received yet, re-requesting (likely dropped packet).");
-                global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.RequestSync();
-            }
-        }
-
-        /// <summary>
-        /// Diagnostic for the TDV (VikingLands.Core) guild hand-off: polls the GuildAPI proxy until the
-        /// external owner resolves the local player's guild, then logs it once. TDV resolves the local
-        /// guild a few seconds after spawn (server round-trip), so a one-shot read at spawn would sample
-        /// before it arrives. Only started when VikingLands.Core owns guilds.
-        /// </summary>
-        private IEnumerator LogTdvGuildWhenResolved()
+        private IEnumerator LogExternalGuildWhenResolved()
         {
             const float TimeoutSeconds = 20f;
             const float PollSeconds = 2f;
             float waited = 0f;
+            string owner = global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildOwner ?? "an external guild mod";
             while (waited < TimeoutSeconds)
             {
-                var g = global::FiresRPGmaker.Modules.Guilds.GuildAPI.GetOwnGuild();
-                if (g != null)
+                string name = null;
+                try { name = FiresCore.Bridge.GuildBridge.LocalGuildName(); } catch { }
+                if (!string.IsNullOrEmpty(name))
                 {
-                    Debug.Log($"[FiresRPGmaker] TDV owns guilds - local guild '{g.Name}' resolved via TDV with {g.Members.Count} member(s).");
+                    Debug.Log($"[FiresRPGmaker] {owner} owns guilds - local guild '{name}' resolved through the guild bridge.");
                     yield break;
                 }
                 yield return new WaitForSeconds(PollSeconds);
                 waited += PollSeconds;
             }
-            Debug.Log("[FiresRPGmaker] TDV owns guilds - local player still resolves to NO guild after 20s (GetOwnGuild=null). If you ARE in a TDV guild, TDV's local-guild sync isn't reaching the client.");
+            Debug.Log($"[FiresRPGmaker] {owner} owns guilds - the local player resolves to no guild after 20s. If you ARE in a guild there, its local-guild sync isn't reaching the client.");
         }
 
         private IEnumerator WaitForZNetReady()
@@ -919,6 +862,8 @@ if (hashDict != null)
 
                         // Initialize RuntimeSprites sync for quest preview images
                           global::FiresRPGmaker.UI.QuestJournal.RuntimeSpriteSync.Init();
+                          global::FiresRPGmaker.Modules.Sounds.NpcSoundSync.Init();   // 0.0.544: synced custom NPC sounds
+                          global::FiresRPGmaker.UI.PatrolRouteSync.EnsureRegistered();   // 0.0.544: route key via the server
 
                            if (ZNet.instance != null && !ZNet.instance.IsServer())
                            {
@@ -927,36 +872,11 @@ if (hashDict != null)
                                // Request sprite + UI asset sync from server on first login (deferred to ensure connection is ready)
                                StartCoroutine(DeferredSpriteSyncRequest());
 
-                               // Guilds: defer the first request until the local player is fully
-                               // spawned. Player.m_localPlayer.GetPlayerID() returns 0 for
-                               // several frames after respawn while PlayerProfile finishes
-                               // loading; firing RequestSync from here (which runs as soon
-                               // as ZNetScene + ObjectDB exist) hit that 0-ID window every
-                               // time, the server returned an empty FullSync because it
-                               // could not resolve the requester, and the retry loop then
-                               // span on the same useless request until ZRpc keep-alive
-                               // timed out and disconnected the client.  Gating the FIRST
-                               // request on PlayerSpawnGate.RunWhenLocalReady lets the
-                               // request fire exactly when the ID is real - RetryGuildSync
-                               // below is now only a fallback for genuine packet drops, not
-                               // a "spin until the player is ready" loop.
-                               // Guilds: only sync/retry when RPG Maker owns them. When VikingLands.Core
-                               // (TDV) is present it owns guild membership, so requesting our own sync just
-                               // produced the misleading "RequestSync ... 0 guild(s)" spam. When deferring,
-                               // log what TDV actually resolves so the hand-off is verifiable in the log.
-                               if (!global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
-                               {
-                                   FiresCore.Lifecycle.PlayerSpawnGate.RunWhenLocalReady(
-                                       60f,
-                                       _ => global::FiresRPGmaker.Modules.Guilds.Network.GuildSyncManager.RequestSync());
-                                   StartCoroutine(RetryGuildSync());
-                               }
-                               else
-                               {
-                                   // TDV resolves the local guild a few seconds after spawn (server round-trip),
-                                   // so poll rather than sample one frame too early.
-                                   StartCoroutine(LogTdvGuildWhenResolved());
-                               }
+                               // 0.0.527: no guild sync of our own (the module is removed). When a guild mod owns
+                               // guilds, log what it resolves for the local player (a few seconds after spawn: a
+                               // server round-trip), so the hand-off is verifiable in the log.
+                               if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
+                                   StartCoroutine(LogExternalGuildWhenResolved());
                              }
 
             // Register debug commands now that everything is ready
@@ -1188,6 +1108,7 @@ if (hashDict != null)
             if (ZRoutedRpc.instance != null && ZNet.instance != null && !ZNet.instance.IsServer())
             {
                 global::FiresRPGmaker.UI.QuestJournal.RuntimeSpriteSync.RequestSyncFromServer();
+                global::FiresRPGmaker.Modules.Sounds.NpcSoundSync.RequestFromServer();
                 Debug.Log($"{PluginName}: Deferred sprite sync request sent to server");
             }
         }

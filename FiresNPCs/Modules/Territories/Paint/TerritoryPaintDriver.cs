@@ -45,6 +45,7 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             bool mapOpen = MapPaintMath.IsLargeMapOpen();
             bool admin = IsLocalAdmin();
             TerritoryPaintPalette.SetVisible(mapOpen && admin);
+            if (PickMode && (!mapOpen || !admin || Input.GetKeyDown(KeyCode.Escape))) CancelPick();
             if (!mapOpen) { if (_striking) Cancel(); return; }
             if (!admin) { if (_striking) Cancel(); return; }
 
@@ -178,6 +179,21 @@ namespace FiresRPGmaker.Modules.Territories.Paint
 
         private static bool IsLocalAdmin() => FiresCore.Sync.AdminSyncing.IsLocalAdmin();
 
+        // 0.0.510 (Fire 10-06): the palette's "Edit territory" button arms a pick: the next right-click on the open map
+        // loads the territory under the cursor (no Shift+Alt needed). Escape or closing the map cancels.
+        public static bool PickMode { get; private set; }
+
+        public static void BeginPick()
+        {
+            if (!IsLocalAdmin()) return;
+            PickMode = true;
+            try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Right-click the territory you want to edit"); } catch { }
+        }
+
+        public static void CancelPick() => PickMode = false;
+
+        internal static void PickClick() { PickMode = false; OnEditRightClick(); }
+
         // Shift+Alt+Right-click: first click on a territory loads it into the palette for editing; a second click
         // (now in edit mode) saves the tweaked colour/alpha/flags back to that territory's cfg, keeping its shape.
         public static void OnEditRightClick()
@@ -195,9 +211,7 @@ namespace FiresRPGmaker.Modules.Territories.Paint
 
             string rel = TerritoryPaintCommit.FindCfgRel(hit.Name);
             TerritoryPaintPalette.LoadFromTerritory(hit, rel);
-            Hud(rel != null
-                ? $"Editing '{hit.Name}' — adjust, then Save Changes on the panel"
-                : $"Loaded '{hit.Name}' settings (legacy file — paint to re-create)");
+            Hud($"Editing '{hit.Name}' — adjust, then Save on the panel (every area named '{hit.Name}' changes)");
         }
 
         private static void Hud(string msg)
@@ -221,6 +235,7 @@ namespace FiresRPGmaker.Modules.Territories.Paint
         private static bool Prefix()
         {
             if (Minimap.instance == null || !Minimap.instance.m_largeRoot.activeSelf) return true;
+            if (TerritoryPaintDriver.PickMode) { TerritoryPaintDriver.PickClick(); return false; }
             bool shiftAlt = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
                          && (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt));
             if (!shiftAlt) return true;

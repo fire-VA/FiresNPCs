@@ -22,7 +22,18 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
     {
         private static MailPlayerPanel _instance;
         private static int _openCount;
-        public static bool AnyOpen => _openCount > 0;
+        // 0.0.634: same stale-counter guard as BasePlayerModulePanel.AnyOpen (pause menu blocked after the NPC book)
+        public static bool AnyOpen
+        {
+            get
+            {
+                if (_openCount <= 0) return false;
+                if (_instance != null && _instance._panelGo != null && _instance._panelGo.activeInHierarchy) return true;
+                Debug.LogWarning("[FiresRPGmaker] [Panels] Mail counted open but not on screen; counter reset (pause menu unblocked)");
+                _openCount = 0; if (_instance != null) _instance._opened = false;
+                return false;
+            }
+        }
         private bool _opened;
         // Closed by the central Menu.Show Escape hook (GUIManager.CloseAllPanels) — no self-close on Escape.
         public static void CloseAny() { try { if (_instance != null && _instance.IsOpen) _instance.Close(); } catch { } }
@@ -163,7 +174,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
 
-            _panelGo = Object.Instantiate(prefab, _canvasGo.transform);
+            _panelGo = Object.Instantiate(prefab, _canvasGo.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panelGo);   // 0.0.614
             _panelGo.name = "FiresMailPanel";
             _panelGo.SetActive(false);
 
@@ -180,6 +191,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _titleText      = FindTmp(root, "Background/TitleBar/TitleText");
             _subtitleText   = FindTmp(root, "Background/TitleBar/SubtitleText");
             _closeButton    = FindBtn(root, "Background/TitleBar/CloseButton");
+            BasePlayerModulePanel.FixCloseGlyph(_closeButton);   // 0.0.564
             _tabInboxBtn    = FindBtn(root, "Background/TabInbox");
             _tabSendBtn     = FindBtn(root, "Background/TabSend");
 
@@ -190,6 +202,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _envelopeStack    = Find(root, "Background/EnvelopeStack")?.GetComponent<RectTransform>();
             _envelopeTemplate = Find(root, "Background/EnvelopeStack/EnvelopeTemplate");
             if (_envelopeTemplate != null) _envelopeTemplate.SetActive(false);
+
+            FitInsideParchment(Find(root, "Background")?.GetComponent<RectTransform>(), Find(root, "Background/ContentArea")?.GetComponent<RectTransform>());
+            // 0.0.557 (Fire: the right-hand detail pane still touched the border): move it 20 px left.
+            var detailPane = Find(root, "DetailPane")?.GetComponent<RectTransform>();
+            if (detailPane != null) { detailPane.anchoredPosition -= new Vector2(20f, 0f); global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[MailPanel] DetailPane moved 20 px left"); }
 
             // Subtitle (NPC name + profile) is irrelevant for Mail and was overlapping "Attachments".
             if (_subtitleText != null) _subtitleText.gameObject.SetActive(false);
@@ -386,6 +403,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (subject != null) subject.text = msg.Subject;
             if (sender  != null) sender.text  = msg.SenderName;
             if (date    != null) date.text    = msg.DateString;
+            // 0.0.618 ([lead] R-NIGHT7 shot: white envelope text on the parchment was unreadable): dark ink on the envelope
+            var ink = new Color(0.20f, 0.13f, 0.07f, 1f);
+            if (subject != null) subject.color = ink;
+            if (sender  != null) sender.color  = new Color(ink.r, ink.g, ink.b, 0.85f);
+            if (date    != null) date.color    = new Color(ink.r, ink.g, ink.b, 0.75f);
 
             var btn = clone.GetComponent<Button>() ?? clone.AddComponent<Button>();
             btn.targetGraphic = img;
@@ -441,6 +463,35 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         }
 
         // ── actions ───────────────────────────────────────────────────────────
+
+        // 0.0.548 (Fire, stream 10:20: the detail pane + Claim All ran into the parchment's right border): give the content the
+        // same right margin as its left one inside Background, then pull any Inbox/Send child that still pokes past the content's
+        // right edge back inside it. Done once per build, in each node's own parent space; one Debug line with the numbers.
+        private static void FitInsideParchment(RectTransform bg, RectTransform content)
+        {
+            if (bg == null || content == null) return;
+            try
+            {
+                Canvas.ForceUpdateCanvases();
+                var b = new Vector3[4]; var c = new Vector3[4];
+                bg.GetWorldCorners(b); content.GetWorldCorners(c);
+                float scale = Mathf.Max(0.0001f, content.lossyScale.x);
+                float leftGap = (c[0].x - b[0].x) / scale, rightGap = (b[2].x - c[2].x) / scale;
+                float pull = leftGap - rightGap;
+                if (pull > 0.5f) content.offsetMax -= new Vector2(pull, 0f);
+                int clamped = 0;
+                content.GetWorldCorners(c);
+                foreach (RectTransform view in content)
+                    foreach (RectTransform child in view)
+                    {
+                        var k = new Vector3[4]; child.GetWorldCorners(k);
+                        float over = (k[2].x - c[2].x) / Mathf.Max(0.0001f, child.lossyScale.x);
+                        if (over > 0.5f) { child.anchoredPosition -= new Vector2(over, 0f); clamped++; }
+                    }
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] parchment margins: left {leftGap:F0}, right {rightGap:F0} -> pulled content in by {Mathf.Max(0f, pull):F0}; {clamped} child(ren) moved back inside");
+            }
+            catch (System.Exception ex) { Debug.LogWarning($"[MailPanel] fit failed: {ex.Message}"); }
+        }
 
         private void OnClaimClicked()
         {

@@ -303,10 +303,31 @@ namespace FiresRPGmaker.Modules.Chess
             Stamp(_sfx, pos, 1f);
         }
 
+        // A piece moving: a quiet stone-on-wood scrape (vanilla build sounds, the first that exists), turned down and lowered.
+        private static GameObject _slide;
+        private const float SlideVolume = 0.25f, SlidePitch = 0.8f;
+
+        internal static void Slide(Vector3 pos)
+        {
+            if (ZNetScene.instance == null) return;
+            Resolve();
+            if (_slide == null) return;
+            var go = UnityEngine.Object.Instantiate(_slide, pos, Quaternion.identity);
+            foreach (var z in go.GetComponentsInChildren<ZSFX>(true))
+            {
+                z.m_minVol = z.m_maxVol = Mathf.Min(z.m_maxVol, 1f) * SlideVolume;
+                z.m_minPitch = z.m_maxPitch = SlidePitch;
+            }
+            go.SetActive(true);
+            UnityEngine.Object.Destroy(go, 5f);
+        }
+
         private static void Resolve()
         {
             if (_resolved) return;
             _resolved = true;
+            _slide = Template(new[] { "sfx_build_hammer_stone", "sfx_build_hammer_wood", "sfx_rock_hit" });
+            if (_slide == null) Debug.LogWarning("[FiresRPGmaker] chess move sfx prefab not found — moves stay quiet.");
             _vfx = Template(new[] { "vfx_RockDestroyed", "vfx_Rock_destroyed", "vfx_RockHit" });
             _sfx = Template(new[] { "sfx_rock_destroyed", "sfx_rock_hit" });
             if (_vfx == null) Debug.LogWarning("[FiresRPGmaker] chess capture vfx prefab not found — captures stay quiet.");

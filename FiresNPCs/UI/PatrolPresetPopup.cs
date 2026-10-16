@@ -287,7 +287,7 @@ namespace FiresRPGmaker.UI
             AddSlider("Run threshold (×walk)", A(0.06f, 0.86f), A(0.94f, 0.93f), 1.0f, 1.6f, _work.RunThreshold,
                 v => _work.RunThreshold = v, () => _work.RunThreshold.ToString("0.00"));
 
-            UIBuilderHelper.CreateLabel(_content, "SecHdr", "Sections (span → speed envelope):", 12,
+            UIBuilderHelper.CreateLabel(_content, "SecHdr", "Sections (span » speed envelope):", 12,
                 UIFontConfig.Colors.ParchmentLabel, A(0.06f, 0.79f), A(0.94f, 0.84f), TextAlignmentOptions.Left);
 
             float y = 0.78f;

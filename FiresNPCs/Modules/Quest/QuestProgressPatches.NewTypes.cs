@@ -167,27 +167,16 @@ namespace FiresRPGmaker.Modules.Quest
             catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] SendProgress failed: " + ex.Message); }
         }
 
-        /// <summary>Move-quest distance check. Server compares position to the quest's target (parsed
-        /// from <c>QuestTarget.Prefab</c> as <c>"x,y,z"</c>) and increments when within ~10m.</summary>
+        /// <summary>Move-quest distance check (x/z within ~10 m of the quest's "x,y,z" target), applied on the player's
+        /// own client like every other objective type. 0.0.532: it used to go to the server, which read the vault blob of
+        /// a remote Player; vanilla never sends Player.m_customData to the server, so Move quests never progressed on a
+        /// dedicated server (and on a host it read the vault blob, not the active-quest store the accept writes).</summary>
         public static void SendMoveCheck(Vector3 position)
         {
             try
             {
-                var local = Player.m_localPlayer;
-                if (local == null) return;
-                long pid = local.GetPlayerID();
-
-                if (ZNet.instance == null || ZNet.instance.IsServer())
-                {
-                    VaultOfKnowledge.ApplyMoveQuestCheckLocal(pid, position);
-                    return;
-                }
-
-                if (ZRoutedRpc.instance == null) return;
-                var pkg = new ZPackage();
-                pkg.Write(pid);
-                pkg.Write(position.x); pkg.Write(position.y); pkg.Write(position.z);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_QuestMoveCheck", pkg);
+                if (Player.m_localPlayer == null) return;
+                VaultOfKnowledge.ApplyMoveQuestCheckClientLocal(position);
             }
             catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] SendMoveCheck failed: " + ex.Message); }
         }

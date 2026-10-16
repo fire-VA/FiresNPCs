@@ -81,6 +81,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             public TMP_Text IndexText;
             public TMP_Text LabelText;
             public TMP_Text ErrorText;
+            public string ErrorMessage;
             public Image IconImage;
             public bool Enabled;
             public string CooldownKey;
@@ -93,6 +94,16 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static ZNetView _pendingPickNpcView;
 
         public static bool IsVisible => _visible;
+
+        /// <summary>Set when PopulateDialogue closed the panel itself (a page of only @interaction lines).</summary>
+        private static bool _closedWhilePopulating;
+
+        /// <summary>
+        /// Set where a page is ENTERED (Show, TransitionTo, GoBack) and consumed by PopulateDialogue: @interaction lines run
+        /// once per entry. The cooldown reply's re-populate (a hidden-while-cooling option appearing) doesn't set it, so it
+        /// no longer runs them twice (rpg_dialogue_test finding 5: a GiveItem interaction gave double on the dedi).
+        /// </summary>
+        private static bool _pageEntered;
 
         #region Lifecycle
 
@@ -132,7 +143,12 @@ namespace FiresRPGmaker.Modules.Dialogues
             EnsureUI();
             HookCooldownHandlers();
             RequestCooldownState(dialogueUID);
+            _closedWhilePopulating = false;
+            _pageEntered = true;
             PopulateDialogue(dialogue);
+            // A page of only @interaction lines runs them and closes; it must not be reopened, empty, below
+            // (rpg_dialogue_test, 10-08: opened by E it stayed up with nothing in it).
+            if (_closedWhilePopulating) return;
 
             _root.SetActive(true);
             _visible = true;
@@ -166,6 +182,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
             _currentUID = nextUID;
             RequestCooldownState(nextUID);
+            _pageEntered = true;
             PopulateDialogue(dialogue);
         }
 
@@ -187,6 +204,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
             _currentUID = previousUID;
             RequestCooldownState(previousUID);
+            _pageEntered = true;
             PopulateDialogue(dialogue);
         }
 
@@ -222,14 +240,17 @@ namespace FiresRPGmaker.Modules.Dialogues
             //
             // SPACEBAR closes the dialogue (owner request — dialogue + info only, never UIs with text fields).
             // Space doesn't open the vanilla menu, so a direct self-close here is safe (no race/hook needed).
-            if (Input.GetKeyDown(KeyCode.Space))
+            // Keys go through Core's FiresKeys (the same seam FDT's TestKeys press), and none of them act while the player
+            // is typing in chat, the console or a text prompt (an EnterPassword box) (rpg_dialogue_test, 10-08).
+            bool typing = Typing();
+            if (!typing && FiresCore.Input.FiresKeys.GetKeyDown(KeyCode.Space))
             {
                 Hide();
                 return;
             }
 
             // Back on Backspace
-            if (Input.GetKeyDown(KeyCode.Backspace) && _navigationStack.Count > 0)
+            if (!typing && FiresCore.Input.FiresKeys.GetKeyDown(KeyCode.Backspace) && _navigationStack.Count > 0)
             {
                 GoBack();
                 return;
@@ -243,7 +264,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
 
             // Hotbar keys (1-9 = options 0-8, 0 = option 9)
-            HandleHotkeys();
+            if (!typing) HandleHotkeys();
 
             // Fade animation - only update when not yet at target to avoid
             // dirtying the canvas every frame (which forces a full rebuild).
@@ -645,7 +666,9 @@ namespace FiresRPGmaker.Modules.Dialogues
                 : rawText;
             _dialogueText.text = $"\"{localizedText}\"";
 
-            // Process interactions
+            // Process interactions (their commands only on a fresh page entry, see _pageEntered)
+            bool runInteractions = _pageEntered;
+            _pageEntered = false;
             int optionIndex = 0;
             if (dialogue.Interactions != null)
             {
@@ -654,8 +677,8 @@ namespace FiresRPGmaker.Modules.Dialogues
                     switch (interaction.Type)
                     {
                         case InteractionType.Interaction:
-                            // Auto-execute: evaluate conditions, if pass run commands silently
-                            ExecuteInteraction(interaction);
+                            // Auto-execute: evaluate conditions, if pass run commands silently (once per page entry)
+                            if (runInteractions) ExecuteInteraction(interaction);
                             break;
 
                         case InteractionType.InRange:
@@ -685,6 +708,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 if (hasOnlyNonOptions)
                 {
                     Hide();
+                    _closedWhilePopulating = true;
                 }
             }
 
@@ -722,7 +746,9 @@ namespace FiresRPGmaker.Modules.Dialogues
                 reason = $"Available in {FormatCooldown(cooldownRemaining)}";
             }
 
-            var entry = CreateOptionRow(option, index, condPass, reason);
+            // Numbered by its VISIBLE position (hidden options take no number): the badge, its hotkey and the click all
+            // index _activeOptions, so a hidden option above can't make a click run the wrong row (rpg_dialogue_test).
+            var entry = CreateOptionRow(option, _activeOptions.Count, condPass, reason);
             _activeOptions.Add(entry);
         }
 
@@ -786,6 +812,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 string errorMsg = !string.IsNullOrEmpty(option.OverrideError) ? option.OverrideError : reason;
                 if (!string.IsNullOrEmpty(errorMsg))
                     displayText += $"\n<size=11><color=#B3261E><i>{errorMsg}</i></color></size>";
+                entry.ErrorMessage = errorMsg;   // what a click / hotkey on this greyed row says (OverrideError first)
             }
 
             // The "Text" panel (go_4) - add the label TMP directly as a child of
@@ -931,13 +958,20 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         #region Input
 
+        /// <summary>The player is typing somewhere: chat, the console, or a text prompt.</summary>
+        private static bool Typing() =>
+            FiresCore.Input.FiresInputBlock.IsTyping() // 0.0.550 typing gate (Fire 10-09)
+            || (Chat.instance != null && Chat.instance.HasFocus()) || Console.IsVisible() || TextInput.IsVisible();
+
         private static void HandleHotkeys()
         {
-            // Keys 1-9 map to options 0-8; key 0 maps to option 9
+            if (Typing()) return; // 0.0.550 typing gate (Fire 10-09)
+            // Keys 1-9 map to options 0-8; key 0 maps to option 9. Options are numbered by their VISIBLE position, so the
+            // key, the badge and a click all reach the same row.
             for (int i = 0; i < 10 && i < _activeOptions.Count; i++)
             {
                 KeyCode key = i < 9 ? KeyCode.Alpha1 + i : KeyCode.Alpha0;
-                if (Input.GetKeyDown(key))
+                if (FiresCore.Input.FiresKeys.GetKeyDown(key))
                 {
                     OnOptionClicked(i);
                     return;
@@ -952,8 +986,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             var entry = _activeOptions[index];
             if (!entry.Enabled)
             {
-                // Show error message for disabled option
-                string errorMsg = entry.ErrorText != null ? entry.ErrorText.text : "Requirements not met.";
+                // Show error message for disabled option: its OverrideError, else the failed condition's reason.
+                string errorMsg = !string.IsNullOrEmpty(entry.ErrorMessage) ? entry.ErrorMessage : "Requirements not met.";
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, errorMsg);
                 return;
             }
@@ -988,11 +1022,31 @@ namespace FiresRPGmaker.Modules.Dialogues
             {
                 TransitionTo(nextUID);
             }
+            else if (option.Cooldown != CooldownScope.None && OpensTextPrompt(option))
+            {
+                // A cooling option runs its commands only when the server says yes (OnPickResult). If one of them opens a
+                // text prompt, keep the dialogue up until then, or the prompt's answer would land on a closed dialogue.
+            }
+            else if (TextInput.IsVisible())
+            {
+                // The option opened a text prompt (EnterPassword) and has no transition: the prompt's own answer moves
+                // the dialogue on (OnSuccess / OnFail, or closes it). Closing here cleared the dialogue and the prompt
+                // showed nothing (rpg_dialogue_test, 10-08).
+            }
             else
             {
                 // No transition - close dialogue
                 Hide();
             }
+        }
+
+        /// <summary>True when one of the option's commands opens a text prompt (EnterPassword).</summary>
+        private static bool OpensTextPrompt(RawPlayerOption option)
+        {
+            if (option?.Commands == null) return false;
+            foreach (string command in option.Commands)
+                if (command != null && command.TrimStart().StartsWith("EnterPassword", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         /// <summary>Runs an option's reward commands (the shared, non-gated execution path).</summary>

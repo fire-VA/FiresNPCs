@@ -143,10 +143,11 @@ namespace FiresRPGmaker.UI.Patches
             return true;
         }
 
-        private static bool HandleDressingRoomDrop(InventoryGui __instance, ItemDrop.ItemData dragItem)
+        // slotOverride: the slot an EventSystem click landed on (SlotClickHandler); null = the slot under the mouse.
+        internal static bool HandleDressingRoomDrop(InventoryGui __instance, ItemDrop.ItemData dragItem, DressingRoomScreenController.EquipmentSlotUI slotOverride = null)
         {
             var dressingRoom = DressingRoomScreenController.Instance;
-            var slot = dressingRoom.GetSlotUnderMouse();
+            var slot = slotOverride ?? dressingRoom.GetSlotUnderMouse();
 
             if (slot == null)
                 return true;

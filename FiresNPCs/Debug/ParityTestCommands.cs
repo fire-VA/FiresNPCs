@@ -327,6 +327,7 @@ namespace FiresRPGmaker
                     def.LifecycleEvents[QuestLifecycleDispatcher.EventOnDeath]    = new System.Collections.Generic.List<string>();
                 }
                 db[id] = def;
+                QuestManager.Instance?.ForgetSerialisedQuestDb();
                 sentinelIds.Add(id);
                 return def;
             }
@@ -623,6 +624,7 @@ namespace FiresRPGmaker
                 foreach (var id in sentinelIds)
                 {
                     db.Remove(id);
+                    QuestManager.Instance?.ForgetSerialisedQuestDb();
                     data.ActiveQuests.RemoveAll(q => string.Equals(q.QuestId, id, StringComparison.OrdinalIgnoreCase));
                     data.CompletedQuests.Remove(id);
                 }

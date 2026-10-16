@@ -307,13 +307,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             BuildControls(cab.rectTransform);
 
             // Leave button, top-right of the cabinet. Online: leaving quits the tournament; Minimize keeps the seat.
-            var leave = MakeButton(cab.rectTransform, "Leave", new Vector2(1, 1), new Vector2(96, 34), new Vector2(-56, -10), () =>
+            var leave = MakeButton(cab.rectTransform, "Leave", new Vector2(1, 1), new Vector2(96, 34), new Vector2(-62, -31), () =>
             {
                 if (_net) { _quit = true; PokerNetClient.Quit(); }
                 _overlay.Close();
             });
             if (_net)
-                MakeButton(cab.rectTransform, "Minimize", new Vector2(1, 1), new Vector2(110, 34), new Vector2(-171, -10), () => _overlay.Close());
+                MakeButton(cab.rectTransform, "Minimize", new Vector2(1, 1), new Vector2(110, 34), new Vector2(-173, -31), () => _overlay.Close());
 
             var averia = UIFontConfig.GetFont(UIFontConfig.FontStyle.AveriaLibre);
             if (averia != null) foreach (var t in GetComponentsInChildren<TMP_Text>(true)) t.font = averia;
@@ -373,8 +373,10 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             // top seat = right of theirs. The side seats keep the toward-the-centre layout.
             bool top = index == 2;
             float betY = human ? 28f : top ? -32f : -86f;
-            float betX = human ? -88f : top ? 228f : 52f;
             float chipX = human ? -158f : top ? 158f : -30f;
+            // The bet text (120 wide, centred, left-aligned) starts 6 px right of the 22 px chip stack; the old fixed X
+            // put "bet 20" on the chips' edge (Fire 10-08: Sigrid's chip overlapped its text).
+            float betX = chipX + 11f + 6f + 60f;
             s.bet = NewTxt(holder, "", 14, new Color(1f, 0.85f, 0.5f));
             Place(s.bet.rectTransform, 120, 20, betX, betY); s.bet.alignment = TextAlignmentOptions.MidlineLeft;   // number sits clear to the right of the chip stack
             s.chipStack = new Image[4];
@@ -465,8 +467,12 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             _timerFill.fillOrigin = (int)Image.Origin360.Top;
             _timerFill.fillClockwise = false;
             Place(_timerFill.rectTransform, 42, 42, -412, 8);
-            _timerText = NewTxt(rt, "", 15, new Color(0.12f, 0.09f, 0.05f));
+            // Light with a dark outline: readable over the gold fill AND the dark disc (Fire 10-08: the "3" was hidden).
+            _timerText = NewTxt(rt, "", 15, new Color(1f, 0.96f, 0.84f));
             _timerText.fontStyle = FontStyles.Bold;
+            _timerText.outlineWidth = 0.25f;
+            _timerText.outlineColor = new Color32(20, 14, 8, 255);
+            _timerText.transform.SetAsLastSibling();
             Place(_timerText.rectTransform, 48, 20, -412, 8);
             SetTimerVisible(false);
 
@@ -960,7 +966,11 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
                 var g = _game.Seats[i]; var v = _seats[View(i)];
                 int di = View(i);
                 v.name.text = di == 0 ? g.Name : g.Name + "\n<color=#8BE28B>" + g.Chips + "</color>";   // stack in green, online-style
-                v.bet.text = g.Bet > 0 ? "bet " + g.Bet : (g.Folded ? "<color=#E8D06A>FOLD</color>" : g.AllIn ? "all-in" : "");
+                // A fold shows once: the action line already reads "Fold" (Fire 10-08: Hakon showed "FOLD" and "Fold").
+                bool actionShown = v.action != null && !string.IsNullOrEmpty(g.LastAction);
+                v.bet.text = g.Bet > 0 ? "bet " + g.Bet
+                    : g.Folded ? (actionShown ? "" : "<color=#E8D06A>FOLD</color>")
+                    : g.AllIn ? "all-in" : "";
                 if (v.action != null) v.action.text = g.LastAction ?? "";
                 v.dealer.SetActive(i == _game.Button && g.Occupied);
 

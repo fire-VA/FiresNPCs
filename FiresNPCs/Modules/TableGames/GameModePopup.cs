@@ -14,10 +14,58 @@ namespace FiresRPGmaker.Modules.TableGames
     /// </summary>
     public static class GameModePopup
     {
+        // 0.0.556 (Fire saw tests stuck twice; "Esc — never mind" did nothing): the overlay holds the input block, so vanilla's
+        // Escape → menu path never runs and nothing closed it. An EscWatcher on the overlay now closes it (and the overlay) on
+        // Escape. Tests get IsOpen / Close() / Pick(label or index) — the same paths a click takes.
+        private static FiresMinigameOverlay s_overlay;
+        private static (string Label, string Sub, Action Pick)[] s_options;
+
+        public static bool IsOpen => s_overlay != null;
+
+        public static void Close()
+        {
+            var o = s_overlay; s_overlay = null; s_options = null;
+            if (o != null) { o.Close(); global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[GameModePopup] closed"); }
+        }
+
+        /// <summary>Runs an option exactly as clicking it does (closes the popup first). Label match is case-insensitive.</summary>
+        public static bool Pick(string label)
+        {
+            if (s_options == null) return false;
+            for (int i = 0; i < s_options.Length; i++)
+                if (string.Equals(s_options[i].Label, label, StringComparison.OrdinalIgnoreCase)) return Pick(i);
+            return false;
+        }
+
+        public static bool Pick(int index)
+        {
+            var opts = s_options;
+            if (opts == null || index < 0 || index >= opts.Length) return false;
+            string label = opts[index].Label;
+            Close();
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[GameModePopup] picked '{label}'");
+            opts[index].Pick?.Invoke();
+            return true;
+        }
+
+        private sealed class EscWatcher : MonoBehaviour
+        {
+            private void Update()
+            {
+                if (Input.GetKeyDown(KeyCode.Escape)) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[GameModePopup] Esc"); Close(); }
+            }
+        }
+
         public static void Show(string title, string subtitle, (string Label, string Sub, Action Pick)[] options)
         {
+            Close();
             var overlay = FiresMinigameOverlay.Create("FiresGameModePopup", 6700);
             if (overlay == null || options == null || options.Length == 0) return;
+            s_overlay = overlay; s_options = options;
+            // 0.0.557: Esc is Core's now (FiresMinigameOverlay, Core 0.2.380): it closes this overlay; OnClosed below clears our state.
+            // (0.0.556's own EscWatcher is gone, so one press closes exactly one thing.)
+            overlay.OnClosed += () => { if (s_overlay == overlay) { s_overlay = null; s_options = null; } };
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[GameModePopup] '{title}' open with {options.Length} option(s): {string.Join(" | ", System.Linq.Enumerable.Select(options, o => o.Label))}");
 
             float h = 150f + options.Length * 92f;
             var panel = NewImg(overlay.PlayField,
@@ -42,7 +90,9 @@ namespace FiresRPGmaker.Modules.TableGames
                 b.transition = Selectable.Transition.ColorTint;
                 b.targetGraphic = btn;
                 var cols = b.colors; cols.highlightedColor = new Color(1.25f, 1.2f, 1.05f); cols.pressedColor = new Color(0.85f, 0.8f, 0.7f); b.colors = cols;
-                b.onClick.AddListener(() => { overlay.Close(); opt.Pick?.Invoke(); });
+                int idx = i;
+                btn.gameObject.name = "Option_" + i;   // 0.0.556: stable names for tests (Option_0 = the first option)
+                b.onClick.AddListener(() => Pick(idx));
 
                 var lbl = NewTxt(btn.rectTransform, opt.Label, 19, new Color(0.98f, 0.92f, 0.78f));
                 Place(lbl.rectTransform, 380f, 26f, 0f, 14f);

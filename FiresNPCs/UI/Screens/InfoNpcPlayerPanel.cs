@@ -384,9 +384,8 @@ namespace FiresRPGmaker.UI.Screens
             // Size button (top-left)
             CreateSizeButton(_panelInstance);
 
-            // Drag handler
-            var dragHandler = _panelInstance.AddComponent<InfoPanelDragHandler>();
-            dragHandler.Initialize(_panelInstance);
+            // 0.0.655 (UI audit): Core's live panel moves / resizes / saves the window by a top strip (no own InfoPanelDragHandler)
+            { var prt = _panelInstance.GetComponent<RectTransform>(); global::FiresRPGmaker.UI.CoreUiBridge.RegisterLivePanel("FiresRPGmaker:InfoNpc", "rpgmaker.infonpc", prt, global::FiresRPGmaker.UI.CoreUiBridge.HeaderStrip(prt, 56f), "NPC info", "FiresRPGmaker"); }
 
             // Escape handler
             _panelInstance.AddComponent<InfoPlayerPanelEscapeHandler>();
@@ -794,7 +793,8 @@ namespace FiresRPGmaker.UI.Screens
             // Escape owned by the central Menu.Show hook (CloseAllPanels → InfoNpcPlayerPanel.Hide) — no
             // self-close on Escape here, so the panel is still open when the hook intercepts the menu open.
             // SPACEBAR closes it (owner request; info panel has no text field, so a direct self-close is safe).
-            if (gameObject.activeSelf && Input.GetKeyDown(KeyCode.Space))
+            if (gameObject.activeSelf && Input.GetKeyDown(KeyCode.Space)
+                && !FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
             {
                 InfoNpcPlayerPanel.Hide();
             }

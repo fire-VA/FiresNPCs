@@ -11,7 +11,7 @@ namespace FiresRPGmaker.UI.Leaderboard
     // summary stat grid, skills, favorite weapon, completed-achievements pager, milestone timeline) is
     // present and positioned at TDV's exact rects. Panels showing data Fires does not yet capture (skills,
     // favorite weapon, completed achievements, milestones, the live preview render) render a positioned
-    // "pending next phase" placeholder — the box is never omitted.
+    // "pending next phase" placeholder - the box is never omitted.
     //
     // Coordinate note: TDV's CreatePanelBox returns the panel ROOT (children placed in root space, origin 0,0,
     // usable size = full panel WxH). Fires' CreatePanelBox returns an inset CONTENT child (origin = panel+8,+8,
@@ -31,7 +31,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             FiresLeaderboardRanking local = ResolveLocalPlayer();
             if (local == null)
             {
-                CreateTextAt(parent, "No local progression yet — your stats will appear once the board has you.", rect, 18f, Pal.ParchmentInk, TextAnchor.UpperLeft, true);
+                CreateTextAt(parent, "No local progression yet - your stats will appear once the board has you.", rect, 18f, LbText, TextAnchor.UpperLeft, true);
                 return;
             }
 
@@ -40,8 +40,8 @@ namespace FiresRPGmaker.UI.Leaderboard
             float detailsGap = 8f;
             float adventureWidth = Mathf.Max(200f, rect.width - 156f);
             float adventureX = rect.x + Mathf.Max(0f, (rect.width - adventureWidth) * 0.5f);
-            GameObject adventurePanel = CreatePanelBox(parent, "Leaderboard.Progression.Adventure", new Rect(adventureX, rect.y + adventureYOffset, adventureWidth, adventureHeight), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(adventurePanel.transform, "Adventure", new Rect(12f, 8f, adventureWidth - 24f, 22f), 20f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
+            GameObject adventurePanel = CreatePanelBox(parent, "Leaderboard.Progression.Adventure", new Rect(adventureX, rect.y + adventureYOffset, adventureWidth, adventureHeight), LbWell, LbEdge);
+            CreateTextAt(adventurePanel.transform, "Adventure", new Rect(12f, 8f, adventureWidth - 24f, 22f), 20f, LbText, TextAnchor.MiddleLeft, false);
             BuildTimelineGrid(adventurePanel.transform, new Rect(12f, 36f, adventureWidth - 24f, adventureHeight - 44f), local.Milestones);
 
             Rect detailsRect = new Rect(rect.x, rect.y + adventureYOffset + adventureHeight + detailsGap, rect.width, rect.height - adventureHeight - detailsGap - adventureYOffset);
@@ -59,8 +59,8 @@ namespace FiresRPGmaker.UI.Leaderboard
             float detailsGap = 8f;
             float adventureWidth = Mathf.Max(200f, rect.width - 156f);
             float adventureX = rect.x + Mathf.Max(0f, (rect.width - adventureWidth) * 0.5f);
-            GameObject adventurePanel = CreatePanelBox(parent, "Leaderboard.Detail.Adventure", new Rect(adventureX, rect.y + adventureYOffset, adventureWidth, adventureHeight), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(adventurePanel.transform, "Adventure", new Rect(12f, 8f, adventureWidth - 24f, 22f), 20f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
+            GameObject adventurePanel = CreatePanelBox(parent, "Leaderboard.Detail.Adventure", new Rect(adventureX, rect.y + adventureYOffset, adventureWidth, adventureHeight), LbWell, LbEdge);
+            CreateTextAt(adventurePanel.transform, "Adventure", new Rect(12f, 8f, adventureWidth - 24f, 22f), 20f, LbText, TextAnchor.MiddleLeft, false);
             BuildTimelineGrid(adventurePanel.transform, new Rect(12f, 36f, adventureWidth - 24f, adventureHeight - 44f), _selectedPlayer?.Milestones);
 
             BuildCanvasPlayerDetails(parent, new Rect(rect.x, rect.y + adventureYOffset + adventureHeight + detailsGap, rect.width, rect.height - adventureHeight - detailsGap - adventureYOffset), true);
@@ -90,51 +90,20 @@ namespace FiresRPGmaker.UI.Leaderboard
             float leftWidth = Mathf.Max(380f, rect.width * 0.55f);
             float rightWidth = rect.width - leftWidth - gap;
             float yOffset = 36f;
-            GameObject leftPanel = CreatePanelBox(parent, "Leaderboard.Player.Left", new Rect(rect.x, rect.y + yOffset, leftWidth, rect.height - 52f), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            GameObject rightPanel = CreatePanelBox(parent, "Leaderboard.Player.Right", new Rect(rect.x + leftWidth + gap, rect.y + yOffset, rightWidth, rect.height - 52f), Pal.ParchmentPanel, Pal.ParchmentEdge);
+            GameObject leftPanel = CreatePanelBox(parent, "Leaderboard.Player.Left", new Rect(rect.x, rect.y + yOffset, leftWidth, rect.height - 52f), LbWell, LbEdge);
+            GameObject rightPanel = CreatePanelBox(parent, "Leaderboard.Player.Right", new Rect(rect.x + leftWidth + gap, rect.y + yOffset, rightWidth, rect.height - 52f), LbWell, LbEdge);
             string playerHeader = player.PlayerName ?? "Player";
-            CreateTextAt(leftPanel.transform, playerHeader, new Rect(12f, 8f, leftWidth - 24f, 22f), 20f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
+            CreateTextAt(leftPanel.transform, playerHeader, new Rect(12f, 8f, leftWidth - 24f, 22f), 20f, LbText, TextAnchor.MiddleLeft, false);
 
-            // LOCAL: compute the completed list/count live from LeaderboardTracker. REMOTE (Steps 2/3): the COUNT
-            // arrives inline in the snapshot (player.AchievementCount), and the completed LIST is fetched lazily from
-            // the server (LeaderboardAchievementBoard). Cached → resolve the returned ids to defs; not-yet-fetched →
-            // empty page + a binder that requests it and rebuilds this card when the reply lands.
-            string profile = AchievementProfile;
-            bool isLocal = IsLocalRanking(player);
-            List<AchievementDef> completedDetails;
-            if (isLocal)
-            {
-                completedDetails = new List<AchievementDef>(AchievementCompletion.CompletedForLocalPlayer(profile));
-            }
-            else if (LeaderboardAchievementBoard.TryGet(player.PlayerName, LeaderboardBoard.ViewedSeason, out var completedIds))
-            {
-                completedDetails = ResolveDefsByIds(profile, completedIds);
-            }
-            else
-            {
-                completedDetails = new List<AchievementDef>();
-                string who = player.PlayerName;
-                int season = LeaderboardBoard.ViewedSeason;
-                if (!string.IsNullOrEmpty(who))
-                {
-                    var binder = rightPanel.AddComponent<LeaderboardAchievementsBinder>();
-                    binder.Initialize(who, season, () =>
-                    {
-                        if (IsVisible && _selectedPlayer != null &&
-                            string.Equals(_selectedPlayer.PlayerName, who, StringComparison.OrdinalIgnoreCase) &&
-                            LeaderboardBoard.ViewedSeason == season)
-                            RebuildCanvasView(true);
-                    });
-                }
-            }
-            int totalDefs = AchievementProfileManager.GetAchievements(profile).Count;
-            int earnedCount = isLocal ? completedDetails.Count : player.AchievementCount;
-            CreateTextAt(rightPanel.transform, "Achievements earned: " + earnedCount + " / " + totalDefs, new Rect(12f, 8f, rightWidth - 24f, 22f), 20f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
+            // 0.0.601: the right column's title (its rows are built at the end of this method).
+            int viewedSeason = LeaderboardBoard.ViewedSeason;
+            CreateTextAt(rightPanel.transform, "Season ranking", new Rect(12f, 8f, rightWidth - 140f, 22f), 20f, LbGold, TextAnchor.MiddleLeft, false);
+            CreateTextAt(rightPanel.transform, viewedSeason == LeaderboardBoard.OverallSeason ? "Overall" : "Season " + viewedSeason, new Rect(rightWidth - 160f, 8f, 120f, 22f), 13f, LbMuted, TextAnchor.MiddleRight, false);
 
             float previewW = leftWidth * 0.48f;
             float previewH = leftPanel.GetComponent<RectTransform>().rect.height - 44f;
-            GameObject previewPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.Preview", new Rect(8f, 34f, previewW, previewH), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(previewPanel.transform, "Player preview", new Rect(10f, 12f, previewPanel.GetComponent<RectTransform>().rect.width - 20f, 24f), 18f, Pal.ParchmentLabel, TextAnchor.MiddleCenter, false);
+            GameObject previewPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.Preview", new Rect(8f, 34f, previewW, previewH), LbWell, LbEdge);
+            CreateTextAt(previewPanel.transform, "Player preview", new Rect(10f, 12f, previewPanel.GetComponent<RectTransform>().rect.width - 20f, 24f), 18f, LbMuted, TextAnchor.MiddleCenter, false);
             CreateEmbeddedPlayerPreview(previewPanel.transform, new Rect(10f, 42f, previewPanel.GetComponent<RectTransform>().rect.width - 20f, previewPanel.GetComponent<RectTransform>().rect.height - 52f), player);
 
             float sideX = leftWidth * 0.48f + 16f;
@@ -143,37 +112,37 @@ namespace FiresRPGmaker.UI.Leaderboard
             float removedWeaponPanelHeight = 88f;
             float resumePanelHeight = 156f + removedWeaponPanelHeight + sectionGap;
             float skillsPanelHeight = 118f;
-            GameObject resumePanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.Resume", new Rect(sideX, 34f, sideWidth, resumePanelHeight), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(resumePanel.transform, "Summary", new Rect(8f, 6f, sideWidth - 16f, 18f), 16f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
+            GameObject resumePanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.Resume", new Rect(sideX, 34f, sideWidth, resumePanelHeight), LbWell, LbEdge);
+            CreateTextAt(resumePanel.transform, "Summary", new Rect(8f, 6f, sideWidth - 16f, 18f), 16f, LbMuted, TextAnchor.MiddleLeft, false);
             float resumeContentX = 14f;
             float resumeContentY = 34f;
             float resumeContentWidth = sideWidth - 28f;
             float resumeColumnGap = 18f;
             float resumeColumnWidth = (resumeContentWidth - resumeColumnGap) * 0.5f;
             float resumeRowHeight = 26f;
-            CreateTextAt(resumePanel.transform, "Rank", new Rect(resumeContentX, resumeContentY, resumeColumnWidth, resumeRowHeight), 14f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "#" + player.Rank, new Rect(resumeContentX, resumeContentY + 18f, resumeColumnWidth, resumeRowHeight), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "Exploration", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY, resumeColumnWidth, resumeRowHeight), 14f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, (player.MapExplored * 100f).ToString("0.##") + "%", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 18f, resumeColumnWidth, resumeRowHeight), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "Quests", new Rect(resumeContentX, resumeContentY + 56f, resumeColumnWidth, resumeRowHeight), 14f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "0", new Rect(resumeContentX, resumeContentY + 74f, resumeColumnWidth, resumeRowHeight), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "Players", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 56f, resumeColumnWidth, resumeRowHeight), 14f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, player.PlayersKilled.ToString(), new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 74f, resumeColumnWidth, resumeRowHeight), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "Monsters", new Rect(resumeContentX, resumeContentY + 112f, resumeColumnWidth, resumeRowHeight), 14f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, player.Monsters.ToString(), new Rect(resumeContentX, resumeContentY + 130f, resumeColumnWidth, resumeRowHeight), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "Deaths", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 112f, resumeColumnWidth, resumeRowHeight), 14f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, player.Deaths.ToString(), new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 130f, resumeColumnWidth, resumeRowHeight), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, "Score", new Rect(resumeContentX, resumeContentY + 168f, resumeContentWidth, resumeRowHeight), 14f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            CreateTextAt(resumePanel.transform, player.Score.ToString(), new Rect(resumeContentX, resumeContentY + 186f, resumeContentWidth, resumeRowHeight), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "Rank", new Rect(resumeContentX, resumeContentY, resumeColumnWidth, resumeRowHeight), 14f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "#" + player.Rank, new Rect(resumeContentX, resumeContentY + 18f, resumeColumnWidth, resumeRowHeight), 16f, LbText, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "Exploration", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY, resumeColumnWidth, resumeRowHeight), 14f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, (player.MapExplored * 100f).ToString("0.##") + "%", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 18f, resumeColumnWidth, resumeRowHeight), 16f, LbText, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "Crafted", new Rect(resumeContentX, resumeContentY + 56f, resumeColumnWidth, resumeRowHeight), 14f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, player.Crafted.ToString(), new Rect(resumeContentX, resumeContentY + 74f, resumeColumnWidth, resumeRowHeight), 16f, LbText, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "PvP kills", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 56f, resumeColumnWidth, resumeRowHeight), 14f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, player.PlayersKilled.ToString(), new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 74f, resumeColumnWidth, resumeRowHeight), 16f, LbText, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "Monsters", new Rect(resumeContentX, resumeContentY + 112f, resumeColumnWidth, resumeRowHeight), 14f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, player.Monsters.ToString(), new Rect(resumeContentX, resumeContentY + 130f, resumeColumnWidth, resumeRowHeight), 16f, LbText, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "Deaths", new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 112f, resumeColumnWidth, resumeRowHeight), 14f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, player.Deaths.ToString(), new Rect(resumeContentX + resumeColumnWidth + resumeColumnGap, resumeContentY + 130f, resumeColumnWidth, resumeRowHeight), 16f, LbText, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, "Score", new Rect(resumeContentX, resumeContentY + 168f, resumeContentWidth, resumeRowHeight), 14f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(resumePanel.transform, player.Score.ToString(), new Rect(resumeContentX, resumeContentY + 186f, resumeContentWidth, resumeRowHeight), 16f, LbText, TextAnchor.MiddleLeft, false);
 
             float skillsPanelY = 34f + resumePanelHeight + sectionGap;
             float bottomPanelGap = 6f;
             float skillsBlockWidth = Mathf.Max(120f, (sideWidth - bottomPanelGap) * 0.5f);
             float favoriteWeaponBlockWidth = Mathf.Max(120f, sideWidth - skillsBlockWidth - bottomPanelGap);
-            GameObject skillsPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.Skills", new Rect(sideX, skillsPanelY, skillsBlockWidth, skillsPanelHeight), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(skillsPanel.transform, "Skills", new Rect(8f, 6f, skillsBlockWidth - 16f, 18f), 16f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
-            GameObject favoriteWeaponPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.FavoriteWeapon", new Rect(sideX + skillsBlockWidth + bottomPanelGap, skillsPanelY, favoriteWeaponBlockWidth, skillsPanelHeight), Pal.ParchmentPanel, Pal.ParchmentEdge);
-            CreateTextAt(favoriteWeaponPanel.transform, "Favorite weapon", new Rect(8f, 6f, favoriteWeaponBlockWidth - 16f, 18f), 16f, Pal.ParchmentLabel, TextAnchor.MiddleLeft, false);
+            GameObject skillsPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.Skills", new Rect(sideX, skillsPanelY, skillsBlockWidth, skillsPanelHeight), LbWell, LbEdge);
+            CreateTextAt(skillsPanel.transform, "Skills", new Rect(8f, 6f, skillsBlockWidth - 16f, 18f), 16f, LbMuted, TextAnchor.MiddleLeft, false);
+            GameObject favoriteWeaponPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.FavoriteWeapon", new Rect(sideX + skillsBlockWidth + bottomPanelGap, skillsPanelY, favoriteWeaponBlockWidth, skillsPanelHeight), LbWell, LbEdge);
+            CreateTextAt(favoriteWeaponPanel.transform, "Favorite weapon", new Rect(8f, 6f, favoriteWeaponBlockWidth - 16f, 18f), 16f, LbMuted, TextAnchor.MiddleLeft, false);
             float favoriteWeaponIconSize = 40f * PreferredWeaponPreviewScale;
             Rect favoriteWeaponIconRect = new Rect((favoriteWeaponBlockWidth - favoriteWeaponIconSize) * 0.5f, 34f, favoriteWeaponIconSize, favoriteWeaponIconSize);
             Sprite weaponSprite = ResolveWeaponSprite(ResolveFavoriteWeaponId(player));
@@ -186,59 +155,29 @@ namespace FiresRPGmaker.UI.Leaderboard
             {
                 skillsText = "No skills synced yet.";
             }
-            CreateTextAt(skillsPanel.transform, skillsText, new Rect(8f, 28f, skillsBlockWidth - 16f, skillsPanel.GetComponent<RectTransform>().rect.height - 36f), 14f, Pal.ParchmentInk, TextAnchor.UpperLeft, true);
+            CreateTextAt(skillsPanel.transform, skillsText, new Rect(8f, 28f, skillsBlockWidth - 16f, skillsPanel.GetComponent<RectTransform>().rect.height - 36f), 14f, LbText, TextAnchor.UpperLeft, true);
 
-            // The paging math below is TDV's verbatim and correct against any count. For the LOCAL row
-            // completedDetails is the live client-computed list; for a REMOTE row it's empty (Step 3 wires it),
-            // so it resolves to page 1/1 and the empty-branch text.
-            int completedDetailsCount = completedDetails.Count;
-            bool progressionMode = !showBackButton;
-            float rowHeight = 72f;
-            float rowGap = 6f;
-            float usableHeight = Mathf.Max(1f, rightPanel.GetComponent<RectTransform>().rect.height - 42f);
-            int pageSize = Mathf.Max(1, Mathf.FloorToInt((usableHeight + rowGap) / (rowHeight + rowGap)));
-            int totalPages = Mathf.Max(1, Mathf.CeilToInt(completedDetailsCount / (float)pageSize));
-            int currentPage = Mathf.Clamp(GetCompletedAchievementsPage(progressionMode), 1, totalPages);
-            SetCompletedAchievementsPage(progressionMode, currentPage);
-
-            CreateTextAt(rightPanel.transform, currentPage + "/" + totalPages, new Rect(rightWidth - 136f, 8f, 34f, 22f), 14f, Pal.ParchmentLabel, TextAnchor.MiddleCenter, false);
-            CreateActionButtonAt(rightPanel.transform, "<", new Rect(rightWidth - 100f, 8f, 28f, 22f), delegate
+            // 0.0.601 (Fire 10-15, the approved mock): the right column is the SEASON RANKING of the viewed season (Rank / Viking /
+            // Score); achievements moved to Core's hub Achievements tab. The shown player's row is highlighted in gold.
+            var rows = LeaderboardBoard.Rows ?? new List<LeaderboardRow>();
+            float rankRowH = 38f, colRank = 12f, colName = 82f;
+            CreateTextAt(rightPanel.transform, "Rank", new Rect(colRank, 34f, 60f, 18f), 13f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(rightPanel.transform, "Viking", new Rect(colName, 34f, rightWidth * 0.5f, 18f), 13f, LbMuted, TextAnchor.MiddleLeft, false);
+            CreateTextAt(rightPanel.transform, "Score", new Rect(rightWidth - 160f, 34f, 120f, 18f), 13f, LbMuted, TextAnchor.MiddleRight, false);
+            float listTop = 56f, listBottom = Mathf.Max(listTop, rightPanel.GetComponent<RectTransform>().rect.height - 8f);
+            int fit = Mathf.Max(1, Mathf.FloorToInt((listBottom - listTop) / rankRowH));
+            if (rows.Count == 0)
+                CreateTextAt(rightPanel.transform, "No ranked vikings this season yet.", new Rect(12f, listTop, rightWidth - 24f, 24f), 16f, LbText, TextAnchor.UpperLeft, false);
+            for (int i = 0; i < rows.Count && i < fit; i++)
             {
-                if (currentPage > 1)
-                {
-                    SetCompletedAchievementsPage(progressionMode, currentPage - 1);
-                    RebuildCanvasView(true);
-                }
-            }, currentPage > 1, false, 14f, false);
-            CreateActionButtonAt(rightPanel.transform, ">", new Rect(rightWidth - 66f, 8f, 28f, 22f), delegate
-            {
-                if (currentPage < totalPages)
-                {
-                    SetCompletedAchievementsPage(progressionMode, currentPage + 1);
-                    RebuildCanvasView(true);
-                }
-            }, currentPage < totalPages, false, 14f, false);
-
-            List<AchievementDef> pagedDetails = new List<AchievementDef>();
-            int pageStart = (currentPage - 1) * pageSize;
-            for (int i = pageStart; i < completedDetails.Count && i < pageStart + pageSize; i++)
-            {
-                pagedDetails.Add(completedDetails[i]);
-            }
-
-            if (pagedDetails.Count == 0)
-            {
-                CreateTextAt(rightPanel.transform, "No achievements validated yet.", new Rect(12f, 40f, rightWidth - 24f, 24f), 16f, Pal.ParchmentInk, TextAnchor.UpperLeft, false);
-            }
-            else
-            {
-                float rowY = 34f;
-                for (int i = 0; i < pagedDetails.Count; i++)
-                {
-                    float achievementRowWidth = rightWidth - 44f;
-                    CreateAchievementRow(rightPanel.transform, new Rect(8f, rowY, achievementRowWidth, rowHeight), pagedDetails[i]);
-                    rowY += rowHeight + rowGap;
-                }
+                var r = rows[i];
+                bool me = r != null && player != null && string.Equals(r.PlayerName, player.PlayerName, StringComparison.OrdinalIgnoreCase);
+                float ry = listTop + i * rankRowH;
+                if (me) CreateCanvasSolidRect(rightPanel.transform, "Leaderboard.SeasonRank.Highlight", new Rect(4f, ry, rightWidth - 40f, rankRowH - 4f), new Color(LbGold.r, LbGold.g, LbGold.b, 0.22f));
+                CreateCanvasSolidRect(rightPanel.transform, "Leaderboard.SeasonRank.Rule." + i, new Rect(4f, ry + rankRowH - 2f, rightWidth - 40f, 1f), LbEdge);
+                CreateTextAt(rightPanel.transform, "#" + (i + 1), new Rect(colRank, ry + 6f, 60f, 22f), 15f, me ? LbGold : LbMuted, TextAnchor.MiddleLeft, false);
+                CreateTextAt(rightPanel.transform, r?.PlayerName ?? "?", new Rect(colName, ry + 6f, rightWidth * 0.5f, 22f), 17f, me ? LbGold : LbText, TextAnchor.MiddleLeft, false);
+                CreateTextAt(rightPanel.transform, (r?.Score ?? 0).ToString("N0"), new Rect(rightWidth - 160f, ry + 6f, 120f, 22f), 15f, LbText, TextAnchor.MiddleRight, false);
             }
         }
 
@@ -246,11 +185,11 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         // A 72px row: optional 44px icon at (8,11) when the prefab resolves to a sprite (else the text shifts left
         // by 54), title @16 top-left, points @12 right "{Score} pts", description @14 wrapped below. TDV's biome
-        // label is omitted — Fires' AchievementDef carries no biome data.
+        // label is omitted - Fires' AchievementDef carries no biome data.
         private void CreateAchievementRow(Transform parent, Rect rowRect, AchievementDef def)
         {
             if (def == null) return;
-            GameObject rowPanel = CreatePanelBox(parent, "Leaderboard.Player.Achievement", rowRect, Pal.ParchmentPanel, Pal.ParchmentEdge);
+            GameObject rowPanel = CreatePanelBox(parent, "Leaderboard.Player.Achievement", rowRect, LbWell, LbEdge);
 
             float rowW = rowRect.width;
             float iconSize = 44f;
@@ -265,10 +204,10 @@ namespace FiresRPGmaker.UI.Leaderboard
                 textWidth -= iconSize + 10f;
             }
 
-            CreateTextAt(rowPanel.transform, def.Name ?? "Achievement", new Rect(textX, 12f, textWidth - 86f, 18f), 16f, Pal.ParchmentInk, TextAnchor.MiddleLeft, false);
-            CreateTextAt(rowPanel.transform, def.Score + " pts", new Rect(rowW - 82f, 30f, 56f, 16f), 12f, Pal.ParchmentLabel, TextAnchor.MiddleRight, false);
+            CreateTextAt(rowPanel.transform, def.Name ?? "Achievement", new Rect(textX, 12f, textWidth - 86f, 18f), 16f, LbText, TextAnchor.MiddleLeft, false);
+            CreateTextAt(rowPanel.transform, def.Score + " pts", new Rect(rowW - 82f, 30f, 56f, 16f), 12f, LbMuted, TextAnchor.MiddleRight, false);
             string description = string.IsNullOrWhiteSpace(def.Description) ? "No description." : def.Description;
-            CreateTextAt(rowPanel.transform, description, new Rect(textX, 34f, textWidth, 30f), 14f, Pal.ParchmentLabel, TextAnchor.UpperLeft, true);
+            CreateTextAt(rowPanel.transform, description, new Rect(textX, 34f, textWidth, 30f), 14f, LbMuted, TextAnchor.UpperLeft, true);
         }
 
         // Resolve a sprite for an achievement's target prefab: the item icon when it's an ObjectDB item (mirrors
@@ -318,7 +257,7 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         // Adventure timeline: an 8x2 grid of the 16 LeaderboardMilestones, each rendered with its label and lit
         // when the player has achieved it (achievedIds = server-computed set from the snapshot). A new/empty
-        // player simply shows all 16 slots locked (dim) — the timeline of what's ahead, not "No milestones yet."
+        // player simply shows all 16 slots locked (dim) - the timeline of what's ahead, not "No milestones yet."
         private void BuildTimelineGrid(Transform parent, Rect rect, List<string> achievedIds)
         {
             // Memorial mode: the Adventure panel becomes the obituary, composed from the selected player's OVERALL
@@ -370,7 +309,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             FiresLeaderboardRanking player = _selectedPlayer;
             if (player == null)
             {
-                CreateTextAt(parent, "Their tale is not yet recorded.", rect, 16f, Pal.ParchmentLabel, TextAnchor.UpperLeft, true);
+                CreateTextAt(parent, "Their tale is not yet recorded.", rect, 16f, LbMuted, TextAnchor.UpperLeft, true);
                 return;
             }
 
@@ -383,7 +322,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             string weapon = ResolveFavoriteWeaponDisplayName(player);
 
             string obituary = ObituaryComposer.Compose(player, _memorialFirstJoinedTicks, earnedCount, totalDefs, skills, weapon);
-            CreateTextAt(parent, obituary, rect, 15f, Pal.ParchmentInk, TextAnchor.UpperLeft, true);
+            CreateTextAt(parent, obituary, rect, 15f, LbText, TextAnchor.UpperLeft, true);
         }
 
         private GameObject CreateMilestoneSlotBox(Transform parent, string name, Rect rect, global::FiresRPGmaker.Modules.Marketplace.MilestoneDef def, bool completed)
@@ -391,21 +330,46 @@ namespace FiresRPGmaker.UI.Leaderboard
             GameObject slotRoot = new GameObject(name, typeof(RectTransform));
             slotRoot.transform.SetParent(parent, false);
             SetRect(slotRoot.GetComponent<RectTransform>(), rect.x, rect.y, rect.width, rect.height);
-            AddImage(slotRoot, completed ? Pal.ParchmentItemSelected : Pal.ParchmentField);
-            CreateCanvasOutlineRect(slotRoot.transform, name + ".Border", new Rect(0f, 0f, rect.width, rect.height), Pal.ParchmentEdge);
+            // Fire 10-08 (leaderboard overhaul, mockup a): a dark cell plate with the milestone's vanilla icon. Done = a gold
+            // edge, a gold check and the icon in full colour; ahead = a thin edge and the icon dimmed and grey.
+            // 0.0.601 (the approved mock): a rounded plate (radius 6), gold 2 px rim when done, a thin edge when ahead.
+            {
+                Component plate = slotRoot.AddComponent(CanvasImageType);
+                SetProperty(plate, "sprite", FiresCore.UI.FiresRoundedSkin.RoundedSprite(6, completed ? LbCellDone : LbCell, completed ? LbGold : LbEdge, completed ? 2 : 1));
+                SetTypeSliced(plate);
+                SetProperty(plate, "color", Color.white);
+                SetBoolProperty(plate, "raycastTarget", false);
+            }
             if (def != null)
             {
-                // Completed = crisp parchment ink; locked = the muted label color, so the achieved milestones
-                // read as lit and the pending ones recede.
-                Color labelCol = completed ? Pal.ParchmentInk : Pal.ParchmentLabel;
-                CreateTextAt(slotRoot.transform, def.Label, new Rect(3f, 3f, rect.width - 6f, rect.height - 6f), 12f, labelCol, TextAnchor.MiddleCenter, true);
+                Sprite icon = ResolveWeaponSprite(def.Icon);
+                float labelH = Mathf.Min(16f, rect.height * 0.28f);
+                if (icon != null)
+                {
+                    float iconSize = Mathf.Max(8f, rect.height - labelH - 8f);
+                    GameObject iconObject = new GameObject("Icon", typeof(RectTransform));
+                    iconObject.transform.SetParent(slotRoot.transform, false);
+                    SetRect(iconObject.GetComponent<RectTransform>(), (rect.width - iconSize) * 0.5f, 3f, iconSize, iconSize);
+                    Component image = iconObject.AddComponent(CanvasImageType);
+                    SetProperty(image, "sprite", icon);
+                    SetProperty(image, "color", completed ? Color.white : new Color(0.45f, 0.45f, 0.45f, 0.55f));
+                    SetBoolProperty(image, "raycastTarget", false);
+                }
+                CreateTextAt(slotRoot.transform, def.Label, new Rect(2f, rect.height - labelH - 2f, rect.width - 4f, labelH), 10f,
+                    completed ? LbText : LbMuted, TextAnchor.MiddleCenter, true);
+                if (completed)
+                {
+                    // 0.0.601: a small gold diamond in the top-right corner (was a "✓" glyph, which is not Latin-1 and drew a box)
+                    GameObject badge = CreateCanvasSolidRect(slotRoot.transform, name + ".Earned", new Rect(rect.width - 13f, 5f, 8f, 8f), LbGold);
+                    badge.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+                }
             }
             return slotRoot;
         }
 
         // ---- 3D preview (our own Core widget: FiresCore.UI.UIOverridePlayerPreview) ----------------------
 
-        // Renders the player using our existing Core preview widget — a camera aimed at the live Player.m_localPlayer
+        // Renders the player using our existing Core preview widget - a camera aimed at the live Player.m_localPlayer
         // visual, rendered to a RawImage with drag-to-rotate and a transparent background. Because it renders the LIVE
         // local player, it only works for the local row; a remote row has no live model to aim at, so it shows an
         // honest "Preview unavailable" (remote-appearance rendering would be a separate feature). The dark inner
@@ -422,7 +386,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             background.transform.SetParent(host.transform, false);
             SetRect(background.GetComponent<RectTransform>(), 0f, 0f, rect.width, rect.height);
             AddImage(background, new Color(0f, 0f, 0f, 0.565f));
-            CreateCanvasOutlineRect(host.transform, "Leaderboard.Player.EmbeddedPreview.Border", new Rect(0f, 0f, rect.width, rect.height), Pal.ParchmentEdge);
+            CreateCanvasOutlineRect(host.transform, "Leaderboard.Player.EmbeddedPreview.Border", new Rect(0f, 0f, rect.width, rect.height), LbEdge);
 
             string localName = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : null;
             bool isLocal = ranking == null
@@ -435,9 +399,15 @@ namespace FiresRPGmaker.UI.Leaderboard
                 SetRect(imageObject.GetComponent<RectTransform>(), 0f, 0f, rect.width, rect.height);
                 Component rawImage = imageObject.AddComponent(CanvasRawImageType);
                 SetBoolProperty(rawImage, "raycastTarget", true); // lets drag-to-rotate work where a raycaster exists
-                // UIOverridePlayerPreview.Start grabs this RawImage and wires its own camera/RenderTexture. It cleans
-                // itself up via OnDestroy when ClearCanvasContent destroys this host on the next rebuild.
-                imageObject.AddComponent<FiresCore.UI.UIOverridePlayerPreview>();
+                // 0.0.542 (Fire 10-09: "dark, odd angle, world behind"): the live-player camera (UIOverridePlayerPreview)
+                // filmed the player where they stand. Like the remote rows, the local row now stages an isolated mannequin
+                // (UIMannequinPreview: own stage far above the world, own light, facing the camera) from a snapshot of
+                // the local player's current look, so only the player and their gear show.
+                var localMannequin = imageObject.AddComponent<FiresCore.UI.UIMannequinPreview>();
+                var look = FiresCore.Appearance.PlayerAppearanceCapture.Capture(Player.m_localPlayer);
+                localMannequin.SetAppearance(look);
+                imageObject.AddComponent<LeaderboardMannequinGuard>().Watch(localMannequin);
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Leaderboard] player preview: local row -> UIMannequinPreview (isolated stage), appearance {(look != null ? "captured" : "unavailable")}");
             }
             else if (!isLocal && CanvasRawImageType != null)
             {
@@ -453,6 +423,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 var mannequin = imageObject.AddComponent<FiresCore.UI.UIMannequinPreview>();
                 LeaderboardMannequinBinder binder = host.AddComponent<LeaderboardMannequinBinder>();
                 binder.Initialize(ranking != null ? ranking.PlayerName : null, mannequin);
+                imageObject.AddComponent<LeaderboardMannequinGuard>().Watch(mannequin);
             }
             else
             {
@@ -468,10 +439,10 @@ namespace FiresRPGmaker.UI.Leaderboard
             iconObject.transform.SetParent(parent, false);
             SetRect(iconObject.GetComponent<RectTransform>(), rect.x, rect.y, rect.width, rect.height);
             Component baseImage = iconObject.AddComponent(CanvasImageType);
-            SetProperty(baseImage, "color", Pal.ParchmentField);
+            SetProperty(baseImage, "color", LbCell);
             SetBoolProperty(baseImage, "raycastTarget", true);
-            CreateCanvasOutlineRect(iconObject.transform, name + ".Border", new Rect(0f, 0f, rect.width, rect.height), Pal.ParchmentEdge);
-            CreateTextAt(iconObject.transform, "?", new Rect(0f, 0f, rect.width, rect.height), 18f, Pal.ParchmentInk, TextAnchor.MiddleCenter, false);
+            CreateCanvasOutlineRect(iconObject.transform, name + ".Border", new Rect(0f, 0f, rect.width, rect.height), LbEdge);
+            CreateTextAt(iconObject.transform, "?", new Rect(0f, 0f, rect.width, rect.height), 18f, LbText, TextAnchor.MiddleCenter, false);
             return iconObject;
         }
 
@@ -496,7 +467,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             return string.Join("\n", lines);
         }
 
-        // Read the local player's live skill list, top-4 by level (>0, desc) — the freshest possible source.
+        // Read the local player's live skill list, top-4 by level (>0, desc) - the freshest possible source.
         private static List<LeaderboardSkillEntry> GetLocalTopSkills(int count)
         {
             var result = new List<LeaderboardSkillEntry>();
@@ -562,7 +533,10 @@ namespace FiresRPGmaker.UI.Leaderboard
             {
                 var local = Player.m_localPlayer;
                 var item = local != null ? local.GetCurrentWeapon() : null;
-                if (item == null) return string.Empty;
+                // Bare hands are no "favourite weapon": the unarmed item has no drop prefab and no icon, which showed "?"
+                // (Fire 10-08). Fall through to the server's tracked favourite.
+                if (item == null || item.m_dropPrefab == null
+                    || (local.m_unarmedWeapon != null && item == local.m_unarmedWeapon.m_itemData)) return string.Empty;
                 if (item.m_dropPrefab != null)
                 {
                     string n = item.m_dropPrefab.name;
@@ -583,9 +557,9 @@ namespace FiresRPGmaker.UI.Leaderboard
             iconObject.transform.SetParent(parent, false);
             SetRect(iconObject.GetComponent<RectTransform>(), rect.x, rect.y, rect.width, rect.height);
             Component baseImage = iconObject.AddComponent(CanvasImageType);
-            SetProperty(baseImage, "color", Pal.ParchmentField);
+            SetProperty(baseImage, "color", LbCell);
             SetBoolProperty(baseImage, "raycastTarget", true);
-            CreateCanvasOutlineRect(iconObject.transform, name + ".Border", new Rect(0f, 0f, rect.width, rect.height), Pal.ParchmentEdge);
+            CreateCanvasOutlineRect(iconObject.transform, name + ".Border", new Rect(0f, 0f, rect.width, rect.height), LbEdge);
 
             GameObject spriteObject = new GameObject("Sprite", typeof(RectTransform));
             spriteObject.transform.SetParent(iconObject.transform, false);
@@ -741,13 +715,13 @@ namespace FiresRPGmaker.UI.Leaderboard
             borderObject.transform.SetParent(tooltipObject.transform, false);
             RectTransform borderRect = borderObject.GetComponent<RectTransform>();
             SetRect(borderRect, 0f, 0f, tooltipWidth, tooltipHeight);
-            AddImage(borderObject, Pal.ParchmentEdge);
+            AddImage(borderObject, LbEdge);
 
             GameObject fillObject = new GameObject(targetObject.name + ".Tooltip.Fill", typeof(RectTransform));
             fillObject.transform.SetParent(borderObject.transform, false);
             RectTransform fillRect = fillObject.GetComponent<RectTransform>();
             SetRect(fillRect, 1f, 1f, tooltipWidth - 2f, tooltipHeight - 2f);
-            AddImage(fillObject, Pal.ParchmentPanel);
+            AddImage(fillObject, LbWell);
 
             GameObject textObject = CloneTextObject(_canvasTextTemplate, "TooltipText", fillObject.transform);
             RectTransform textRect = textObject != null ? textObject.GetComponent<RectTransform>() : null;
@@ -759,7 +733,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             Component textComponent = textObject != null ? FindFirstText(textObject.transform) : null;
             SetText(textComponent, tooltipText);
             SetFontSize(textComponent, 11f);
-            ApplyTextColor(textComponent, Pal.ParchmentInk);
+            ApplyTextColor(textComponent, LbText);
             SetTextAlignment(textComponent, TextAnchor.UpperLeft);
             SetTextWrapping(textComponent, true);
             SetTextRaycast(textComponent, false);

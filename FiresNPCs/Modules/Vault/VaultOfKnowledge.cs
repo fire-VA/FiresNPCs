@@ -1223,23 +1223,25 @@ namespace FiresRPGmaker.Modules.Vault
             return null;
         }
 
-        private string FindPlayerFileById(long playerId)
+        private string FindPlayerFileById(long playerId) => FindPlayerFile(PlayersDir, playerId);
+
+        private static string FindPlayerFile(string playersDir, long playerId)
         {
             try
             {
-                if (!Directory.Exists(PlayersDir)) return null;
+                if (!Directory.Exists(playersDir)) return null;
 
                 // prefer name_id pattern
-                var matches = Directory.GetFiles(PlayersDir, $"*_{playerId}.json");
+                var matches = Directory.GetFiles(playersDir, $"*_{playerId}.json");
                 if (matches != null && matches.Length > 0)
                     return matches[0];
 
                 // legacy id-only file
-                var legacy = Path.Combine(PlayersDir, $"{playerId}.json");
+                var legacy = Path.Combine(playersDir, $"{playerId}.json");
                 if (File.Exists(legacy)) return legacy;
 
                 // orphan zero file
-                var zero = Path.Combine(PlayersDir, "0.json");
+                var zero = Path.Combine(playersDir, "0.json");
                 if (File.Exists(zero)) return zero;
             }
             catch (Exception) { }
@@ -1270,11 +1272,10 @@ namespace FiresRPGmaker.Modules.Vault
         // data, materialising a default if needed" semantics. SAVE-PATH
         // SAFEGUARDS MUST NOT CALL THIS - see ReadPlayerDataFromDiskNoCreate
         // below for the recursion-safe variant.
-        private PlayerVaultData LoadPlayerData(long playerId)
-        {
-            var disk = ReadPlayerDataFromDiskNoCreate(playerId);
-            if (disk != null) return disk;
+        private PlayerVaultData LoadPlayerData(long playerId) => ReadPlayerDataFromDiskNoCreate(playerId) ?? CreateSamplePlayerData(playerId);
 
+        private PlayerVaultData CreateSamplePlayerData(long playerId)
+        {
             // No file on disk. Before we write a "sample" record for this
             // player, resolve their real display name. Without a real name we
             // would be writing "Unknown_<id>.json" - exactly the case the save
@@ -1353,39 +1354,58 @@ namespace FiresRPGmaker.Modules.Vault
         /// - they just no-op the "create sample" side effect, which the
         /// outer SavePlayerData call is about to do anyway.
         /// </summary>
-        private PlayerVaultData ReadPlayerDataFromDiskNoCreate(long playerId)
-        {
-            string file = FindPlayerFileById(playerId);
-            if (string.IsNullOrEmpty(file) || !File.Exists(file)) return null;
+        private PlayerVaultData ReadPlayerDataFromDiskNoCreate(long playerId) => FinishDiskRead(playerId, ReadPlayerFile(PlayersDir, playerId));
 
+        /// <summary>The disk half of a vault load (find, read, parse): no Unity or game state, so it can run on a worker thread.</summary>
+        private sealed class DiskRead
+        {
+            public PlayerVaultData Data;
+            public string Error;
+        }
+
+        private static DiskRead ReadPlayerFile(string playersDir, long playerId)
+        {
+            var read = new DiskRead();
+            string file = FindPlayerFile(playersDir, playerId);
+            if (string.IsNullOrEmpty(file) || !File.Exists(file)) return read;
             try
             {
-                string json = File.ReadAllText(file);
-                var data = JsonConvert.DeserializeObject<PlayerVaultData>(json);
-                if (data == null) return null;
-
-                data.IsDirty = false;
-
-                // Auto-schedule missing timers for active quests with time limits (server only)
-                if (ZNet.instance != null && ZNet.instance.IsServer())
-                {
-                    try
-                    {
-                        ScheduleMissingTimersForPlayerData(playerId, data);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[FiresRPGmaker] Failed to schedule missing timers for player {playerId}: {ex.Message}");
-                    }
-                }
-
-                return data;
+                read.Data = JsonConvert.DeserializeObject<PlayerVaultData>(File.ReadAllText(file));
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[FiresRPGmaker] Failed to load player data {playerId}: {ex.Message}");
+                read.Error = ex.Message;
+            }
+            return read;
+        }
+
+        /// <summary>The main-thread half: the loaded record's timers (server only), or null when there was no usable file.</summary>
+        private PlayerVaultData FinishDiskRead(long playerId, DiskRead read)
+        {
+            if (read.Error != null)
+            {
+                Debug.LogError($"[FiresRPGmaker] Failed to load player data {playerId}: {read.Error}");
                 return null;
             }
+            var data = read.Data;
+            if (data == null) return null;
+
+            data.IsDirty = false;
+
+            // Auto-schedule missing timers for active quests with time limits (server only)
+            if (ZNet.instance != null && ZNet.instance.IsServer())
+            {
+                try
+                {
+                    ScheduleMissingTimersForPlayerData(playerId, data);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] Failed to schedule missing timers for player {playerId}: {ex.Message}");
+                }
+            }
+
+            return data;
         }
 
         // Auto-schedule missing timers for active quests
@@ -1647,6 +1667,37 @@ namespace FiresRPGmaker.Modules.Vault
         }
 
         // Deserialize PlayerVaultData from player's m_customData
+        /// <summary>0.0.532: a quest turned in or dropped from <see cref="ActiveQuestStore"/> stayed listed in the old vault
+        /// (the m_customData blob, and on a host the server record). ActiveQuestStore.Load's one-time migration then copied
+        /// it back on every spawn, so a finished quest returned after a relog. Called from ActiveQuestStore.Abandon.</summary>
+        internal static void DropActiveQuestFromVault(Player player, string questId)
+        {
+            if (player == null || string.IsNullOrEmpty(questId)) return;
+            try
+            {
+                var blob = DeserializeFromCustomData(player);
+                if (blob?.ActiveQuests != null
+                    && blob.ActiveQuests.RemoveAll(q => string.Equals(ActiveQuestStore.Norm(q?.QuestId), questId, StringComparison.OrdinalIgnoreCase)) > 0)
+                {
+                    Instance?.SerializeToCustomData(player, blob);
+                    Debug.Log($"[QuestPipe] dropped {questId} from the old vault blob");
+                }
+                if (Instance != null && ZNet.instance != null && ZNet.instance.IsServer())
+                {
+                    long pid = player.GetPlayerID();
+                    var record = Instance.ReadPlayerDataFromDiskNoCreate(pid);
+                    if (record?.ActiveQuests != null
+                        && record.ActiveQuests.RemoveAll(q => string.Equals(ActiveQuestStore.Norm(q?.QuestId), questId, StringComparison.OrdinalIgnoreCase)) > 0)
+                    {
+                        record.IsDirty = true;
+                        Instance.SavePlayerData(pid, record);
+                        Debug.Log($"[QuestPipe] dropped {questId} from the server vault record");
+                    }
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning($"[QuestPipe] dropping {questId} from the old vault failed: {ex.Message}"); }
+        }
+
         private static PlayerVaultData DeserializeFromCustomData(Player player)
         {
             try
@@ -1898,9 +1949,49 @@ namespace FiresRPGmaker.Modules.Vault
                 float x = pkg.ReadSingle();
                 float y = pkg.ReadSingle();
                 float z = pkg.ReadSingle();
-                ApplyMoveQuestCheckLocal(playerId, new Vector3(x, y, z));
+                var position = new Vector3(x, y, z);
+                if (Player.GetPlayer(playerId) == null && ZNet.instance != null) QueueMoveCheckUntilRead(playerId, position);
+                else ApplyMoveQuestCheckLocal(playerId, position);
             }
             catch (Exception ex) { Debug.LogError("[FiresRPGmaker] RPC_QuestMoveCheck exception: " + ex); }
+        }
+
+        // A move check for a player whose object the server hasn't loaded yet (early in a join) read that player's vault file on
+        // the main thread every 3 s: 464 ms on the rig dedi (2026-09-28 R18). The file is now read on a worker thread; checks
+        // that arrive meanwhile wait, and all of them are applied in order on the main thread against the same record.
+        private static readonly Dictionary<long, List<Vector3>> s_movesWaitingForDisk = new Dictionary<long, List<Vector3>>();
+
+        private static void QueueMoveCheckUntilRead(long playerId, Vector3 position)
+        {
+            if (s_movesWaitingForDisk.TryGetValue(playerId, out var waiting)) { waiting.Add(position); return; }
+            s_movesWaitingForDisk[playerId] = new List<Vector3> { position };
+            string playersDir = Instance.PlayersDir;
+            var read = System.Threading.Tasks.Task.Run(() => ReadPlayerFile(playersDir, playerId));
+            ZNet.instance.StartCoroutine(ApplyMovesWhenRead(playerId, read));
+        }
+
+        private static System.Collections.IEnumerator ApplyMovesWhenRead(long playerId, System.Threading.Tasks.Task<DiskRead> read)
+        {
+            while (!read.IsCompleted) yield return null;
+            s_movesWaitingForDisk.TryGetValue(playerId, out var moves);
+            s_movesWaitingForDisk.Remove(playerId);
+            if (Instance == null || QuestManager.Instance == null || moves == null) yield break;
+
+            PlayerVaultData data = null;
+            bool finished = false;
+            foreach (Vector3 position in moves)
+            {
+                if (Player.GetPlayer(playerId) != null) { ApplyMoveQuestCheckLocal(playerId, position); continue; }
+                if (!finished)
+                {
+                    DiskRead disk = read.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+                        ? read.Result
+                        : new DiskRead { Error = read.Exception?.GetBaseException().Message };
+                    data = Instance.FinishDiskRead(playerId, disk) ?? Instance.CreateSamplePlayerData(playerId);
+                    finished = true;
+                }
+                ApplyMoveQuestCheck(playerId, position, null, data);
+            }
         }
 
         /// <summary>Shared progress applier — used by both the RPC handler and the inline single-player
@@ -2004,8 +2095,43 @@ namespace FiresRPGmaker.Modules.Vault
             catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] ApplyQuestProgressClientLocal failed: " + ex.Message); }
         }
 
+        /// <summary>Move-quest distance check on the player's own client (0.0.532), against the same active-quest store
+        /// (m_customData "FiresQuest.&lt;id&gt;") every other objective type uses. Each Move target ("x,y,z" in
+        /// <c>QuestTarget.Prefab</c>) within 10 m (x/z) counts one tick through <see cref="ApplyQuestProgressClientLocal"/>,
+        /// which logs "[QuestPipe] Progress ..." and handles autocomplete and rewards.</summary>
+        public static void ApplyMoveQuestCheckClientLocal(Vector3 position)
+        {
+            try
+            {
+                if (QuestManager.Instance == null || Player.m_localPlayer == null) return;
+                var ticked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var active in ActiveQuestStore.Active.ToList())
+                {
+                    var def = QuestManager.Instance.GetQuestDefinition(active.QuestId);
+                    if (def?.QuestTargets == null) continue;
+                    foreach (var t in def.QuestTargets)
+                    {
+                        if (t == null || string.IsNullOrEmpty(t.Prefab) || ticked.Contains(t.Prefab)) continue;
+                        string objType = !string.IsNullOrEmpty(t.Type) ? t.Type : def.QuestType;
+                        if (!string.Equals(objType, "Move", StringComparison.OrdinalIgnoreCase)) continue;
+                        var bits = t.Prefab.Split(',');
+                        if (bits.Length < 3
+                            || !float.TryParse(bits[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var tx)
+                            || !float.TryParse(bits[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var tz)) continue;
+                        if (Vector2.Distance(new Vector2(position.x, position.z), new Vector2(tx, tz)) > 10f) continue;
+                        ticked.Add(t.Prefab);
+                        ApplyQuestProgressClientLocal("Move", t.Prefab, 1);
+                    }
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] ApplyMoveQuestCheckClientLocal failed: " + ex.Message); }
+        }
+
         /// <summary>Move-quest distance check (KG parity, every 3s on client). Target stored as
-        /// "x,y,z" string in <c>QuestTarget.Prefab</c>; within 10m counts as one progress tick.</summary>
+        /// "x,y,z" string in <c>QuestTarget.Prefab</c>; within 10m counts as one progress tick.
+        /// 0.0.532: no longer called by the client. It reads the vault blob, which a dedicated server never has for a
+        /// remote player (vanilla keeps Player.m_customData in the client's profile), so Move quests never progressed there.
+        /// Kept for firesrpg_test and the old RPC.</summary>
         public static void ApplyMoveQuestCheckLocal(long playerId, Vector3 position)
         {
             if (Instance == null || QuestManager.Instance == null) return;
@@ -2013,6 +2139,11 @@ namespace FiresRPGmaker.Modules.Vault
             PlayerVaultData data = player != null
                 ? (DeserializeFromCustomData(player) ?? new PlayerVaultData(playerId))
                 : Instance.LoadPlayerData(playerId);
+            ApplyMoveQuestCheck(playerId, position, player, data);
+        }
+
+        private static void ApplyMoveQuestCheck(long playerId, Vector3 position, Player player, PlayerVaultData data)
+        {
             if (data == null) return;
 
             bool anyChange = false;

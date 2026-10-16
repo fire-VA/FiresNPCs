@@ -1,3 +1,16 @@
+## 0.0.629
+- 10-15 release: the rig-proven build (R-NIGHT). Requires FiresUnifiedCore 0.2.550.
+
+## 0.0.628
+- 10-15 release: the rig-proven build (R-NIGHT). Requires FiresUnifiedCore 0.2.550.
+
+## 0.0.619
+- 10-15 release: the rig-proven build (R-NIGHT). Requires FiresUnifiedCore 0.2.547.
+
+* v0.0.567 - Static NPCs no longer trigger an AI-guard warning after load.
+
+* v0.0.566 - Non-combat pets (follow, emotes, item stands) and fixes.
+
 * v0.0.463 - liquid globe HUD, NPC animations
   - the health, stamina, eitr and adrenaline globes are liquid: they slosh as you move and show value popups and tooltips
   - the globe HUD remembers where you put it and how big you made it, even tucked against the screen edge

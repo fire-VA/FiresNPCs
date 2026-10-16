@@ -528,9 +528,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             _statusText.enableWordWrapping = true;
 
             MakeButton(cab.rectTransform, "New Game", new Vector2(0.5f, 0.5f), new Vector2(150, 42), new Vector2(420, -240), NewGame);
-            MakeButton(cab.rectTransform, "Leave", new Vector2(1, 1), new Vector2(96, 34), new Vector2(-56, -10), () => _overlay.Close());
+            MakeButton(cab.rectTransform, "Leave", new Vector2(1, 1), new Vector2(96, 34), new Vector2(-62, -31), () => _overlay.Close());
             if (_mp)
-                MakeButton(cab.rectTransform, "Minimize", new Vector2(1, 1), new Vector2(110, 34), new Vector2(-171, -10), MinimizeToChip);
+                MakeButton(cab.rectTransform, "Minimize", new Vector2(1, 1), new Vector2(110, 34), new Vector2(-173, -31), MinimizeToChip);
 
             BuildPromoPanel(cab.rectTransform);
 
@@ -773,7 +773,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             {
                 line = who + ": " + PieceName(moverType)
                      + (capturedCode != 0 ? " takes " + PieceName(ChessBoard.TypeOf(capturedCode)) : "")
-                     + " → " + ChessBoard.SquareName(m.To);
+                     + " » " + ChessBoard.SquareName(m.To);
                 if (m.Promo != ChessPiece.None) line += " = " + PieceName(m.Promo);
             }
             if (ChessMoveGen.InCheck(_game, _game.SideToMove)) line += "  +";

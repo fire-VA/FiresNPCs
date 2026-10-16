@@ -175,6 +175,8 @@ namespace FiresRPGmaker.Modules.Vault
             bool had = _active.Remove(questId);
             var p = Player.m_localPlayer;
             if (p?.m_customData != null) p.m_customData.Remove(KeyPrefix + questId);
+            // 0.0.532: also out of the old vault, or Load's migration brings a turned-in quest back after a relog.
+            VaultOfKnowledge.DropActiveQuestFromVault(p, questId);
             Debug.Log($"[QuestPipe] {(had ? "Abandon OK" : "Abandon skip (not active)")} {questId} total={_active.Count}");
             return had;
         }

@@ -117,7 +117,17 @@ Shoulder,
             RightHand,
             LeftHand,
    RightBack,
-    LeftBack
+    LeftBack,
+            Pet   // 0.0.559: cosmetic pet (not gear; never in _pendingEquipment)
+        }
+
+        // 0.0.659 (Fire 10-16: "slots = FiresSkin.ApplySlotLook exactly like every other grid square"): Core's ONE pouch-cell look;
+        // the old empty / filled tints only for a Core older than 0.2.572. Drag-hover valid / invalid tints are kept as feedback.
+        private static void SlotFace(EquipmentSlotUI slot)
+        {
+            if (slot?.Background == null) return;
+            if (CoreUiBridge.ApplySlotLook(slot.Background)) return;
+            slot.Background.color = string.IsNullOrEmpty(slot.CurrentPrefab) ? SlotEmptyColor : SlotFilledColor;
         }
 
         #region Lifecycle
@@ -197,6 +207,19 @@ Shoulder,
       /// Manually checks if any of our buttons were clicked.
         /// This bypasses Unity's event system which may be blocked by InventoryGui.
         /// </summary>
+        private int _buttonClickFrame = -1;
+
+        // The manual hit-test and the EventSystem onClick can both see one mouse click; the first one this frame runs it.
+        private bool TakeButtonClick()
+        {
+            if (_buttonClickFrame == Time.frameCount) return false;
+            _buttonClickFrame = Time.frameCount;
+            return true;
+        }
+
+        private void OnApplyEvent() { if (TakeButtonClick()) { Debug.Log("[DressingRoomScreen] Apply button clicked (EventSystem)"); HandleApplyClicked(); } }
+        private void OnClearAllEvent() { if (TakeButtonClick()) { Debug.Log("[DressingRoomScreen] Clear All button clicked (EventSystem)"); HandleClearAllClicked(); } }
+
         private void HandleManualButtonClick()
   {
           Vector2 mousePos = Input.mousePosition;
@@ -205,7 +228,7 @@ Shoulder,
             if (_applyButtonRect != null && RectTransformUtility.RectangleContainsScreenPoint(_applyButtonRect, mousePos, null))
             {
  Debug.Log("[DressingRoomScreen] Apply button clicked via manual detection!");
-           HandleApplyClicked();
+           if (TakeButtonClick()) HandleApplyClicked();
     return;
         }
 
@@ -213,7 +236,7 @@ Shoulder,
     if (_clearAllButtonRect != null && RectTransformUtility.RectangleContainsScreenPoint(_clearAllButtonRect, mousePos, null))
  {
                 Debug.Log("[DressingRoomScreen] Clear All button clicked via manual detection!");
-         HandleClearAllClicked();
+         if (TakeButtonClick()) HandleClearAllClicked();
          return;
   }
 
@@ -373,7 +396,7 @@ Shoulder,
         private void HandleRightClick()
         {
        var slot = GetSlotUnderMouse();
-    if (slot != null && !string.IsNullOrEmpty(slot.CurrentPrefab))
+    if (slot != null && (slot.SlotType == EquipmentSlot.Pet || !string.IsNullOrEmpty(slot.CurrentPrefab)))
        {
   Debug.Log($"[DressingRoomScreen] Right-click on slot {slot.SlotType} - clearing and returning item");
      OnSlotCleared(slot.SlotType);
@@ -567,9 +590,7 @@ Shoulder,
           else
       {
       // Reset to appropriate color
-             slot.Background.color = string.IsNullOrEmpty(slot.CurrentPrefab)
-        ? SlotEmptyColor
-          : SlotFilledColor;
+             SlotFace(slot);   // 0.0.659
              }
             }
         }
@@ -599,6 +620,11 @@ Shoulder,
             if (_applyButton != null)
                 _applyButtonRect = _applyButton.GetComponent<RectTransform>();
 
+            // EventSystem clicks too (a click that reaches the button: mouse when nothing swallows it, a gamepad submit, a test);
+            // the manual hit-test above stays for the mouse while the InventoryGui swallows events. One run per frame either way.
+            if (_clearAllButton != null) { _clearAllButton.onClick.RemoveListener(OnClearAllEvent); _clearAllButton.onClick.AddListener(OnClearAllEvent); }
+            if (_applyButton != null) { _applyButton.onClick.RemoveListener(OnApplyEvent); _applyButton.onClick.AddListener(OnApplyEvent); }
+
             // Equipment grid and slots
             var gridTransform = CodegenUIWiring.FindChild(t, "EquipmentGrid");
             if (gridTransform != null)
@@ -612,6 +638,7 @@ Shoulder,
                 WireEquipmentSlot(gridTransform, "Slot_LeftHand", EquipmentSlot.LeftHand);
                 WireEquipmentSlot(gridTransform, "Slot_RightBack", EquipmentSlot.RightBack);
                 WireEquipmentSlot(gridTransform, "Slot_LeftBack", EquipmentSlot.LeftBack);
+                WirePetSlot(gridTransform);   // 0.0.559
             }
 
             // Fashion Panel Right (animation/sounds)
@@ -656,6 +683,7 @@ Shoulder,
                 _skinColorDropdown = FindDropdownInContainer(fashionLeft, "Skin Tone_Container");
                 _eyeColorDropdown = FindDropdownInContainer(fashionLeft, "Eye Color_Container");
                 _modelScaleInput = FindInputInContainer(fashionLeft, "ModelScale_Container", 0);
+                HookLivePreview();   // 0.0.659
 
                 if (_hairItemDropdown != null) _dropdowns.Add(_hairItemDropdown);
                 if (_hairColorDropdown != null) _dropdowns.Add(_hairColorDropdown);
@@ -717,8 +745,11 @@ Shoulder,
 
             var slotGO = slotTransform.gameObject;
             var slotRect = slotGO.GetComponent<RectTransform>();
-            var slotBg = slotGO.GetComponent<Image>();
             var iconImage = slotTransform.Find("Icon")?.GetComponent<Image>();
+            // 0.0.569 (R-1012G NRE in ClearSlotVisual): a slot whose background is a child, not an Image on the slot itself
+            var slotBg = slotGO.GetComponent<Image>()
+                ?? slotTransform.Find("Background")?.GetComponent<Image>()
+                ?? System.Linq.Enumerable.FirstOrDefault(slotGO.GetComponentsInChildren<Image>(true), i => i != iconImage);
             var labelText = slotTransform.Find("Label")?.GetComponent<TextMeshProUGUI>();
             var itemNameText = slotTransform.Find("ItemName")?.GetComponent<TextMeshProUGUI>();
 
@@ -734,6 +765,8 @@ Shoulder,
                 CurrentPrefab = null
             };
 
+            if (iconImage != null && iconImage.sprite == null) iconImage.color = new Color(1f, 1f, 1f, 0f);   // 0.0.659: no grey placeholder
+            SlotFace(slotUI);   // 0.0.659: Core's slot look from the start
             var clickHandler = slotGO.AddComponent<SlotClickHandler>();
             clickHandler.Initialize(this, slotUI);
 
@@ -1611,9 +1644,12 @@ _inputFields.Add(input);
 
    screenRoot.SetActive(true);
    screenRoot.transform.SetAsLastSibling();
- OpenPlayerInventory();
+            // 0.0.635 (Fire: the inventory grid, the crafting panel and an icon wall sat on top of the kit book): in the kit shell the
+            // three-panel's own inventory panel (beside the book) is the only inventory; vanilla's full InventoryGui stays closed.
+            if (!DressingThreePanel.ShellMode) OpenPlayerInventory();
 
         Debug.Log($"[DressingRoomScreen] Opened for NPC: {npc?.GetDisplayName()}");
+            DressingThreePanel.Attach(this, npc);   // 0.0.597: grid / live preview / gear browser around the book
         }
 
         // Pushes the NPC's stats values onto the scroll-strip controls when the dressing room opens.
@@ -1795,6 +1831,7 @@ _inputFields.Add(input);
   public void Hide()
         {
      screenRoot.SetActive(false);
+            EndLivePreview(false);   // 0.0.659: left without Apply = the stored look back
             _currentNpc = null;
         _pendingEquipment.Clear();
           _lastDraggedItem = null;
@@ -1811,6 +1848,7 @@ _sizeButtonRect = null;
       ClearSlotVisual(slot);
             }
 
+            DressingThreePanel.Detach();   // 0.0.597
      ClosePlayerInventory();
             RestoreMainPanelButtons();
 
@@ -1830,6 +1868,7 @@ _sizeButtonRect = null;
                 if (InventoryGui.instance != null && !InventoryGui.IsVisible())
        {
          InventoryGui.instance.Show(null);
+                    SetInventoryDropButton(false);   // 0.0.545: its full-screen drop button (canvas 600) ate every click on the book (210)
            Debug.Log("[DressingRoomScreen] Opened player inventory");
            }
          }
@@ -1839,13 +1878,34 @@ _sizeButtonRect = null;
      }
         }
 
+        // 0.0.545 ([visual]'s npc_looks: "Apply ... hit IngameGui/Inventory_screen/root/dropButton"): the inventory's root drop
+        // button stretches over the whole screen above the NPC book, so no click reached the dressing room while the
+        // inventory was open. It is switched off while the dressing room uses the inventory, and back on when it closes.
+        private static GameObject _droppedButton;
+        private static void SetInventoryDropButton(bool on)
+        {
+            try
+            {
+                if (!on)
+                {
+                    if (InventoryGui.instance == null) return;
+                    foreach (var t in InventoryGui.instance.GetComponentsInChildren<Transform>(true))
+                        if (t.name == "dropButton" && t.gameObject.activeSelf) { _droppedButton = t.gameObject; _droppedButton.SetActive(false); break; }
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[DressingRoomScreen] inventory drop button {(_droppedButton != null ? "hidden" : "not found")} while the dressing room is open");
+                }
+                else if (_droppedButton != null) { _droppedButton.SetActive(true); _droppedButton = null; }
+            }
+            catch (Exception ex) { Debug.LogWarning($"[DressingRoomScreen] drop button toggle failed: {ex.Message}"); }
+        }
+
         private void ClosePlayerInventory()
       {
     try
             {
                 if (InventoryGui.instance != null && InventoryGui.IsVisible())
   {
-        InventoryGui.instance.Hide();
+        SetInventoryDropButton(true);
+                    InventoryGui.instance.Hide();
          Debug.Log("[DressingRoomScreen] Closed player inventory");
           }
          }
@@ -1899,9 +1959,7 @@ _sizeButtonRect = null;
         {
             foreach (var slot in _slots.Values)
     {
-   slot.Background.color = string.IsNullOrEmpty(slot.CurrentPrefab)
-      ? SlotEmptyColor
-          : SlotFilledColor;
+            SlotFace(slot);   // 0.0.659
     }
         }
 
@@ -1926,6 +1984,7 @@ _sizeButtonRect = null;
 
             foreach (EquipmentSlot slot in Enum.GetValues(typeof(EquipmentSlot)))
             {
+                if (slot == EquipmentSlot.Pet) { LoadPetSlot(npc); continue; }   // 0.0.559
                 string fieldVal = equipment.TryGetValue(slot, out var v) ? (v ?? "") : "";
                 string liveVal = (zdo != null) ? GetVanillaEquipName(zdo, slot) : "";
 
@@ -2017,14 +2076,13 @@ if (itemDrop == null)
      ClearSlotVisual(slot);
             return;
        }
-
-            slot.Background.color = SlotFilledColor;
+            ReportMissingParts(slot);
+            SlotFace(slot);   // 0.0.659
 
         if (itemDrop.m_itemData?.m_shared?.m_icons != null &&
    itemDrop.m_itemData.m_shared.m_icons.Length > 0)
         {
-       slot.Icon.sprite = itemDrop.m_itemData.m_shared.m_icons[0];
-      slot.Icon.color = Color.white;
+       if (slot.Icon != null) { slot.Icon.sprite = itemDrop.m_itemData.m_shared.m_icons[0]; slot.Icon.color = Color.white; }
           }
 
       if (slot.Label != null)
@@ -2033,31 +2091,36 @@ if (itemDrop == null)
    string displayName = itemDrop.m_itemData?.m_shared?.m_name ?? prefabName;
             if (displayName.StartsWith("$"))
    displayName = Localization.instance?.Localize(displayName) ?? displayName;
-
-            slot.ItemName.text = displayName;
-   slot.ItemName.gameObject.SetActive(true);
+            if (slot.ItemName != null) { slot.ItemName.text = displayName; slot.ItemName.gameObject.SetActive(true); }
 
             Debug.Log($"[DressingRoomScreen] Set slot {slot.SlotType} to {prefabName}");
+        }
+
+        // 0.0.569: a slot whose wiring found no Background / Icon / ItemName (a cloned or reskinned slot) is drawn with what it has;
+        // which parts are missing is logged once per slot instead of a NullReferenceException that aborted the whole dressing load.
+        private readonly HashSet<EquipmentSlot> _reportedSlotParts = new HashSet<EquipmentSlot>();
+        private void ReportMissingParts(EquipmentSlotUI slot)
+        {
+            if (slot == null || (slot.Background != null && slot.Icon != null && slot.ItemName != null) || !_reportedSlotParts.Add(slot.SlotType)) return;
+            Debug.LogWarning($"[DressingRoomScreen] slot {slot.SlotType}: missing {(slot.Background == null ? "Background " : "")}{(slot.Icon == null ? "Icon " : "")}{(slot.ItemName == null ? "ItemName" : "")}(drawn without them)");
         }
 
         public void ClearSlotVisual(EquipmentSlotUI slot)
         {
          if (slot == null) return;
-
-     slot.CurrentPrefab = null;
-         slot.Background.color = SlotEmptyColor;
- slot.Icon.sprite = null;
-    slot.Icon.color = new Color(1, 1, 1, 0.3f);
+            ReportMissingParts(slot);   // 0.0.569 (R-1012G NRE: a slot without its Background / Icon / ItemName)
+            slot.CurrentPrefab = null;
+            SlotFace(slot);   // 0.0.659
+            if (slot.Icon != null) { slot.Icon.sprite = null; slot.Icon.color = new Color(1f, 1f, 1f, 0f); }   // 0.0.659 (Fire: no grey placeholder in an empty slot)
 
       if (slot.Label != null)
     slot.Label.gameObject.SetActive(true);
-
-            slot.ItemName.text = "";
-         slot.ItemName.gameObject.SetActive(false);
+            if (slot.ItemName != null) { slot.ItemName.text = ""; slot.ItemName.gameObject.SetActive(false); }
    }
 
         public void OnSlotCleared(EquipmentSlot slotType)
  {
+            if (slotType == EquipmentSlot.Pet) { OpenPetPicker(); return; }   // 0.0.559: right-click on the Pet slot picks
             if (_slots.TryGetValue(slotType, out var slot))
           {
           ReturnItemToInventory(slot.CurrentPrefab);
@@ -2151,6 +2214,7 @@ if (itemDrop == null) return prefabName;
 
         public void OnItemDropped(EquipmentSlot slotType, string prefabName)
         {
+            if (slotType == EquipmentSlot.Pet) { OnPetDropped(prefabName); return; }   // 0.0.559
  if (_slots.TryGetValue(slotType, out var slot))
             {
      if (!string.IsNullOrEmpty(slot.CurrentPrefab))
@@ -2192,6 +2256,67 @@ if (itemDrop == null) return prefabName;
 }
         }
 
+        // 0.0.659 (Fire 10-16: "appearance changes do not show in the preview until Apply Changes"): the fashion the dropdowns hold, built
+        // once here for Apply AND the live preview. Fields the UI has no control for carry the NPC's current values.
+        private NPCFashionData BuildFashion(NpcFashionComponent existingComp)
+        {
+            return new NPCFashionData
+  {
+      PeriodicAnimation = SelectedAnimationValue(_periodicAnimationDropdown),
+  PeriodicAnimationTime = _periodicAnimationTimeInput?.text,
+       PeriodicSound = _periodicSoundDropdown?.options[_periodicSoundDropdown.value].text,
+ PeriodicSoundTime = _periodicSoundTimeInput?.text,
+ InteractAnimation = SelectedAnimationValue(_interactAnimationDropdown),
+      GreetAnimation = SelectedAnimationValue(_greetAnimationDropdown),
+     ByeAnimation = SelectedAnimationValue(_byeAnimationDropdown),
+      GreetText = _greetTextInput?.text,
+      ByeText = _byeTextInput?.text,
+        HairItem = _hairItemDropdown?.options[_hairItemDropdown.value].text,
+   HairColor = _hairColorDropdown?.options[_hairColorDropdown.value].text,
+    BeardItem = _beardItemDropdown?.options[_beardItemDropdown.value].text,
+    BeardColor = _beardColorDropdown?.options[_beardColorDropdown.value].text,
+   SkinColor = _skinColorDropdown?.options[_skinColorDropdown.value].text,
+      EyeColor = _eyeColorDropdown?.options[_eyeColorDropdown.value].text,
+       ModelScale = _modelScaleInput?.text,
+       InteractAudioClip = existingComp != null ? existingComp.InteractSound : null,
+       CraftingAnimation = existingComp != null ? existingComp.CraftingAnimation.ToString() : null,
+       LookAtPlayer = existingComp != null ? (existingComp.LookAtPlayer ? "true" : "false") : "true"
+    };
+        }
+
+        // Live preview: every appearance change is applied to the real NPC VISUALLY only (no SetPendingFashionJson, nothing saved), so the
+        // live preview (the real NPC) shows it at once. Leaving without Apply puts the stored look back.
+        private string _previewOriginal; private bool _previewDirty; private NpcController _previewNpc;
+        private void HookLivePreview()
+        {
+            foreach (var d in new[] { _hairItemDropdown, _hairColorDropdown, _beardItemDropdown, _beardColorDropdown, _skinColorDropdown, _eyeColorDropdown })
+                if (d != null) { d.onValueChanged.RemoveListener(OnAppearanceChanged); d.onValueChanged.AddListener(OnAppearanceChanged); }
+            if (_modelScaleInput != null) { _modelScaleInput.onEndEdit.RemoveListener(OnAppearanceEdited); _modelScaleInput.onEndEdit.AddListener(OnAppearanceEdited); }
+        }
+        private void OnAppearanceChanged(int _) => PreviewAppearance();
+        private void OnAppearanceEdited(string _) => PreviewAppearance();
+        private void PreviewAppearance()
+        {
+            if (_currentNpc == null || !screenRoot.activeInHierarchy) return;
+            try
+            {
+                if (_previewNpc != _currentNpc) { _previewNpc = _currentNpc; _previewOriginal = _currentNpc.GetPendingFashionJson(); _previewDirty = false; }
+                var json = JsonConvert.SerializeObject(BuildFashion(_currentNpc.GetComponent<NpcFashionComponent>()));
+                NpcFashionManager.ApplyFashionJsonToNpc(json, _currentNpc);
+                _previewDirty = true;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[DressingRoomScreen] live preview: appearance applied to '{_currentNpc.GetDisplayName()}' (not saved until Apply Changes)");
+            }
+            catch (Exception ex) { Debug.LogWarning("[DressingRoomScreen] live preview failed: " + ex.Message); }
+        }
+        private void EndLivePreview(bool applied)
+        {
+            if (!applied && _previewDirty && _previewNpc != null && !string.IsNullOrEmpty(_previewOriginal))
+            {
+                try { NpcFashionManager.ApplyFashionJsonToNpc(_previewOriginal, _previewNpc); global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[DressingRoomScreen] live preview: left without Apply, stored look restored"); } catch { }
+            }
+            _previewDirty = false; _previewNpc = null; _previewOriginal = null;
+        }
+
         public void HandleApplyClicked()
         {
             Debug.Log("[DressingRoomScreen] Apply button clicked!");
@@ -2221,28 +2346,7 @@ if (itemDrop == null) return prefabName;
     // carry the NPC's current values through instead of blanking them (blanking broke migrated
     // kg NPCs: crafting pose lost + LookAtPlayer forced true on every admin Apply).
     var existingComp = _currentNpc.GetComponent<NpcFashionComponent>();
-    var fashion = new NPCFashionData
-  {
-      PeriodicAnimation = SelectedAnimationValue(_periodicAnimationDropdown),
-  PeriodicAnimationTime = _periodicAnimationTimeInput?.text,
-       PeriodicSound = _periodicSoundDropdown?.options[_periodicSoundDropdown.value].text,
- PeriodicSoundTime = _periodicSoundTimeInput?.text,
- InteractAnimation = SelectedAnimationValue(_interactAnimationDropdown),
-      GreetAnimation = SelectedAnimationValue(_greetAnimationDropdown),
-     ByeAnimation = SelectedAnimationValue(_byeAnimationDropdown),
-      GreetText = _greetTextInput?.text,
-      ByeText = _byeTextInput?.text,
-        HairItem = _hairItemDropdown?.options[_hairItemDropdown.value].text,
-   HairColor = _hairColorDropdown?.options[_hairColorDropdown.value].text,
-    BeardItem = _beardItemDropdown?.options[_beardItemDropdown.value].text,
-    BeardColor = _beardColorDropdown?.options[_beardColorDropdown.value].text,
-   SkinColor = _skinColorDropdown?.options[_skinColorDropdown.value].text,
-      EyeColor = _eyeColorDropdown?.options[_eyeColorDropdown.value].text,
-       ModelScale = _modelScaleInput?.text,
-       InteractAudioClip = existingComp != null ? existingComp.InteractSound : null,
-       CraftingAnimation = existingComp != null ? existingComp.CraftingAnimation.ToString() : null,
-       LookAtPlayer = existingComp != null ? (existingComp.LookAtPlayer ? "true" : "false") : "true"
-    };
+    var fashion = BuildFashion(existingComp);   // 0.0.659: one builder for Apply and the live preview
 
             _currentNpc.hairItem = NormalizeDropdownValue(fashion.HairItem);
             _currentNpc.hairColor = NormalizeDropdownValue(fashion.HairColor);
@@ -2254,6 +2358,7 @@ if (itemDrop == null) return prefabName;
             Debug.Log("[DressingRoomScreen] Applied fashion JSON to NPC from UI");
 
                 _currentNpc.SetPendingFashionJson(fashionJson);
+                EndLivePreview(true);   // 0.0.659: the previewed look is now the stored one
  Debug.Log("[DressingRoomScreen] Stored fashion JSON in NPC for persistence");
        }
       catch (Exception ex)
@@ -2267,6 +2372,7 @@ if (itemDrop == null) return prefabName;
             ApplyStatControlsToNpc();
 
             _currentNpc.SaveToZDO();
+            global::FiresRPGmaker.Managers.SavedNpcManager.RedressNow(_currentNpc, "dressing Apply");   // 0.0.508: the owner writes the look now
  Debug.Log("[DressingRoomScreen] Called SaveToZDO");
 
           int equippedCount = 0;
@@ -2290,6 +2396,7 @@ if (itemDrop == null) return prefabName;
 
             foreach (var slot in _slots.Values)
      {
+                if (slot.SlotType == EquipmentSlot.Pet) { SetNpcPet("", "clear all"); continue; }   // 0.0.559
         if (!string.IsNullOrEmpty(slot.CurrentPrefab))
     {
                   ReturnItemToInventory(slot.CurrentPrefab);
@@ -2363,6 +2470,13 @@ Debug.Log("[DressingRoomScreen] Close button clicked");
         {
       _controller.OnSlotCleared(_slot.SlotType);
       }
+                // A left click that reaches the slot through the EventSystem drops the item being dragged onto THIS slot
+                // (the same drop the InventoryGui patches make for the mouse; once dropped the drag is cleared, so it runs once).
+                else if (eventData.button == PointerEventData.InputButton.Left && InventoryGui.instance != null)
+                {
+                    var dragItem = HarmonyLib.AccessTools.Field(typeof(InventoryGui), "m_dragItem")?.GetValue(InventoryGui.instance) as ItemDrop.ItemData;
+                    if (dragItem != null) global::FiresRPGmaker.UI.Patches.InventoryGui_OnSelectedItem_Patch.HandleDressingRoomDrop(InventoryGui.instance, dragItem, _slot);
+                }
          }
         }
 
@@ -2409,6 +2523,7 @@ Debug.Log("[DressingRoomScreen] Close button clicked");
             itemType == ItemDrop.ItemData.ItemType.Bow ||
          itemType == ItemDrop.ItemData.ItemType.Shield ||
       itemType == ItemDrop.ItemData.ItemType.Tool,
+        EquipmentSlot.Pet => global::FiresRPGmaker.Modules.Pets.PetApi.IsPet(item),
         EquipmentSlot.LeftBack => itemType == ItemDrop.ItemData.ItemType.OneHandedWeapon ||
         itemType == ItemDrop.ItemData.ItemType.TwoHandedWeapon ||
        itemType == ItemDrop.ItemData.ItemType.Bow ||

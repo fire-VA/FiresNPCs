@@ -69,9 +69,24 @@ namespace FiresRPGmaker.Modules.Marketplace
             => GetListings(myListingsOnly, profileName, filterLower, MarketCategory.All);
 
         // profileName is retained for call-site compatibility but ignored — the market is global now.
+        /// <summary>The key the server files the local player's listings under: the platform user id (Core OwnerKeys,
+        /// kg parity), parsed the way the listing rows are sent (MarketplaceNetwork ParseId). 0.0.532: the UI compared
+        /// rows with Player.GetPlayerID() (the save-file id), so My Listings was empty for every non-admin and nobody
+        /// could cancel their own listing. Falls back to the player id when the platform id isn't numeric.</summary>
+        internal static long LocalSellerKey()
+        {
+            try
+            {
+                string local = Splatform.PlatformManager.DistributionPlatform.LocalUser.PlatformUserID.m_userID;
+                if (long.TryParse(local, out long key) && key != 0L) return key;
+            }
+            catch { }
+            return Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerID() : 0L;
+        }
+
         public static IReadOnlyList<MarketplaceListing> GetListings(bool myListingsOnly, string profileName, string filterLower, MarketCategory category)
         {
-            long myId = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerID() : 0L;
+            long myId = LocalSellerKey();
             IEnumerable<MarketplaceListing> q = _live;
             // Admins see EVERY listing on the My Listings tab (kg's admin-remove surface): the existing
             // Cancel flow then routes non-owned removals through the server's admin branch.

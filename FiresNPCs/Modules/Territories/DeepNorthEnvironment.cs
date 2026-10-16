@@ -16,57 +16,62 @@ internal static class DeepNorthEnvironment
         private static Material _crystalLeviathanMat;
         private static bool _envRegistered;
 
-     [HarmonyPatch(typeof(EnvMan), "Awake")]
+        // 10-05 ([ghost], Fire: "the deep north might be from fires npcs"): this used to APPEND its own "DeepNorth_Setup"
+        // biome setup in EnvMan.Awake. The location lists add the real Deep North setup ("Deep north", with its music and
+        // weathers) later, in ZoneSystem.Start, and vanilla keeps only the FIRST setup per biome. So the real one was thrown
+        // away (vanilla's ERROR "EnvSetup Deep north sets music, but is already defined previously in DeepNorth_Setup") and
+        // the Deep North ran on this single freezing env with no music. Now: the env is registered in Awake (every EnvMan,
+        // every world), and our entry JOINS whichever Deep North setup the game appends. A setup of our own is made only if
+        // none exists once ZoneSystem.Start has added every location list.
+        [HarmonyPatch(typeof(EnvMan), "Awake")]
         [HarmonyPostfix]
-private static void EnvMan_Awake_Postfix(EnvMan __instance)
-   {
-  if (_envRegistered) return; // only register once
-  try
-{
-       if (__instance == null) return;
-
-            // Create or fetch the environment
-    var env = __instance.m_environments.FirstOrDefault(e => e != null && e.m_name == EnvName) ?? BuildEnv();
-         if (!__instance.m_environments.Any(e => e != null && e.m_name == EnvName))
-              {
-  __instance.AppendEnvironment(env);
-    }
-
-                // Ensure biome setup exists
-         var deepNorth = __instance.m_biomes.FirstOrDefault(b => b != null && b.m_biome == Heightmap.Biome.DeepNorth);
-         if (deepNorth == null)
-     {
-    deepNorth = new BiomeEnvSetup
-   {
-       m_name = "DeepNorth_Setup",
-       m_biome = Heightmap.Biome.DeepNorth,
-    m_environments = new List<EnvEntry>()
-    };
-         __instance.AppendBiomeSetup(deepNorth);
-     }
-
- // If not already present, add our env entry with high weight
-            bool hasEnv = deepNorth.m_environments?.Exists(e => e.m_environment == EnvName) == true;
-           if (!hasEnv)
-              {
-          deepNorth.m_environments.Add(new EnvEntry
-    {
-     m_environment = EnvName,
-          m_weight = 1f,
-     m_ashlandsOverride = false,
-    m_deepnorthOverride = true
-           });
-    // Resolve EnvSetup reference
-deepNorth.m_environments[deepNorth.m_environments.Count - 1].m_env = env;
-              }
-    
-      _envRegistered = true;
+        private static void EnvMan_Awake_Postfix(EnvMan __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+                var env = __instance.m_environments.FirstOrDefault(e => e != null && e.m_name == EnvName) ?? BuildEnv();
+                if (env.m_auroraColors == null) env.m_auroraColors = AuroraFrom(__instance);
+                if (!__instance.m_environments.Any(e => e != null && e.m_name == EnvName)) __instance.AppendEnvironment(env);
+                _envRegistered = true;
+                // A Deep North setup that is already there (vanilla scene data) gets our entry now.
+                foreach (var b in __instance.m_biomes) if (b != null && b.m_biome == Heightmap.Biome.DeepNorth) AddOurEntry(__instance, b);
             }
-     catch
-  {
-    // swallow errors to avoid breaking EnvMan
-     }
- }
+            catch (Exception e) { Debug.LogWarning("[DeepNorthEnvironment] env registration failed: " + e.Message); }
+        }
+
+        // Every Deep North setup the game appends (the location lists' "Deep north") gets our entry; it stays the first one.
+        [HarmonyPatch(typeof(EnvMan), nameof(EnvMan.AppendBiomeSetup))]
+        [HarmonyPostfix]
+        private static void EnvMan_AppendBiomeSetup_Postfix(EnvMan __instance, BiomeEnvSetup __0)   // positional: the parameter name is vanilla's
+        {
+            try { if (__instance != null && __0 != null && __0.m_biome == Heightmap.Biome.DeepNorth) AddOurEntry(__instance, __0); }
+            catch (Exception e) { Debug.LogWarning("[DeepNorthEnvironment] joining the Deep North setup failed: " + e.Message); }
+        }
+
+        // Only when NO Deep North setup exists after every location list is in: then ours, so forced biomes still have an env.
+        [HarmonyPatch(typeof(ZoneSystem), "Start")]
+        [HarmonyPostfix]
+        private static void ZoneSystem_Start_Postfix()
+        {
+            try
+            {
+                var envMan = EnvMan.instance;
+                if (envMan == null || envMan.m_biomes.Any(b => b != null && b.m_biome == Heightmap.Biome.DeepNorth)) return;
+                var own = new BiomeEnvSetup { m_name = "DeepNorth_Setup", m_biome = Heightmap.Biome.DeepNorth, m_environments = new List<EnvEntry>() };
+                envMan.AppendBiomeSetup(own);   // the postfix above adds our entry
+            }
+            catch (Exception e) { Debug.LogWarning("[DeepNorthEnvironment] fallback Deep North setup failed: " + e.Message); }
+        }
+
+        private static void AddOurEntry(EnvMan envMan, BiomeEnvSetup setup)
+        {
+            if (setup.m_environments == null) setup.m_environments = new List<EnvEntry>();
+            if (setup.m_environments.Exists(e => e != null && e.m_environment == EnvName)) return;
+            var env = envMan.m_environments.FirstOrDefault(e => e != null && e.m_name == EnvName);
+            if (env == null) return;
+            setup.m_environments.Add(new EnvEntry { m_environment = EnvName, m_weight = 1f, m_ashlandsOverride = false, m_deepnorthOverride = true, m_env = env });
+        }
 
   private static bool IsInDeepNorthArea(Vector3 pos)
      {
@@ -120,6 +125,19 @@ try
                 for (int i = 0; i < mats.Length; i++) mats[i] = _crystalLeviathanMat;
   r.sharedMaterials = mats;
      }
+        }
+
+        // Valheim 1.0 lerps EnvSetup.m_auroraColors every FixedUpdate (EnvMan.InterpolateEnvironment); this hand-built env
+        // left it null, so Utils.Gradient.Lerp threw a NullReferenceException there every frame (H1, 2026-10-01: 3,891 on the
+        // client in four minutes). It borrows a vanilla environment's aurora; with none, an invisible one.
+        private static Gradient AuroraFrom(EnvMan envMan)
+        {
+            var source = envMan.m_environments.FirstOrDefault(e => e != null && e.m_name != EnvName && e.m_auroraColors != null);
+            if (source != null) return source.m_auroraColors;
+            var none = new Gradient();
+            none.SetKeys(new[] { new GradientColorKey(Color.black, 0f), new GradientColorKey(Color.black, 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(0f, 1f) });
+            return none;
         }
 
         private static EnvSetup BuildEnv()

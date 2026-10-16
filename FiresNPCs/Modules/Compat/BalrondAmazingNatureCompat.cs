@@ -23,6 +23,7 @@ namespace FiresRPGmaker
     ///    Location.Awake_Postfix strips those components from any location that is not
     ///    a dungeon or boss arena - the only vanilla locations that legitimately carry them.
     /// </summary>
+    [HarmonyPatch]   // 0.0.502: without the class attribute PatchAll skipped the Location.Awake strip (Check-HarmonyClassAttributes)
     public static class BalrondAmazingNatureCompat
     {
         private const string BalrondGUID = "balrond.astafaraios.BalrondAmazingNature";

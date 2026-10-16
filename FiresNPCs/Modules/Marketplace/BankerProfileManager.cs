@@ -13,7 +13,12 @@ namespace FiresRPGmaker.Modules.Marketplace
         public string Name;
         /// <summary>currency prefab name -> max balance the bank will hold for the player.</summary>
         public Dictionary<string, int> CurrencyLimits = new Dictionary<string, int>();
-        public float InterestPerMinute; // % of current balance, e.g. 0.1 = 0.1% per minute
+        // 0.0.557 (Fire/audit: "the mockup says weekly, the code does per-minute"): `interest=` is the % per PERIOD and
+        // `interestperiod=` picks the period (minute | hour | day | week; default minute, so existing cfgs keep their meaning).
+        public float InterestPerMinute; // % per PERIOD (name kept for compatibility); see InterestPeriod
+        public string InterestPeriod = "minute";
+        public long PeriodTicks => InterestPeriod == "week" ? System.TimeSpan.TicksPerDay * 7 : InterestPeriod == "day" ? System.TimeSpan.TicksPerDay : InterestPeriod == "hour" ? System.TimeSpan.TicksPerHour : System.TimeSpan.TicksPerMinute;
+        public string PeriodLabel => InterestPeriod == "week" ? "weekly" : InterestPeriod == "day" ? "daily" : InterestPeriod == "hour" ? "hourly" : "per minute";
     }
 
     /// <summary>
@@ -104,6 +109,12 @@ namespace FiresRPGmaker.Modules.Marketplace
                     continue;
                 }
                 if (profile == null) { profile = new BankerProfile { Name = key }; _profiles[key] = profile; }
+                if (line.StartsWith("interestperiod=", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    var per = line.Substring(15).Trim().ToLowerInvariant();
+                    if (per == "minute" || per == "hour" || per == "day" || per == "week") profile.InterestPeriod = per;
+                    continue;
+                }
                 if (line.StartsWith("interest=", System.StringComparison.OrdinalIgnoreCase))
                 {
                     var s = line.Substring(9);
@@ -131,6 +142,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             if (profile == null) return "";
             var sb = new System.Text.StringBuilder();
             if (profile.InterestPerMinute != 0f) sb.AppendLine($"interest={profile.InterestPerMinute}");
+            if (profile.InterestPeriod != "minute") sb.AppendLine($"interestperiod={profile.InterestPeriod}");
             foreach (var kv in profile.CurrencyLimits) sb.AppendLine($"{kv.Key}:{kv.Value}");
             return sb.ToString().TrimEnd();
         }

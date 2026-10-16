@@ -11532,7 +11532,7 @@ public static partial class GeneratedUI_completecompanionsui
         go_535_rect.offsetMax = new Vector2(22f, 0f);
         _pathLookup["Root/FiresRPGmaker_NpcPanel/QuestConfigScreen/Checkbox_Auto-Complete/Toggle/Checkmark"] = go_535;
         var tmp_535 = go_535.AddComponent<TextMeshProUGUI>();
-        tmp_535.text = "✓";
+        tmp_535.text = "v";   // 0.0.616: Latin-1 (Averia has no check mark)
         tmp_535.fontSize = 16f;
         tmp_535.fontStyle = (FontStyles)0;
         tmp_535.color = new Color(1f, 0.7f, 0.3f, 1f);

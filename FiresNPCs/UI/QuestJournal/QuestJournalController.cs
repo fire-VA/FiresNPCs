@@ -112,15 +112,15 @@ private const float ITEM_HEIGHT = 32f;
     if (FiresRPGmaker.Instance != null)
       {
      if (_panelPosXConfig == null)
-            _panelPosXConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Position X", 0f, "X position of the Quest Journal");
+            _panelPosXConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Position X", 0f, new BepInEx.Configuration.ConfigDescription("X position of the Quest Journal", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
         if (_panelPosYConfig == null)
-             _panelPosYConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Position Y", 0f, "Y position of the Quest Journal");
+             _panelPosYConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Position Y", 0f, new BepInEx.Configuration.ConfigDescription("Y position of the Quest Journal", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
           if (_panelLockedConfig == null)
   _panelLockedConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Locked", false, "Whether the Quest Journal position is locked");
            if (_panelWidthConfig == null)
-           _panelWidthConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Width", 600f, "Width of the Quest Journal content area");
+           _panelWidthConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Width", 600f, new BepInEx.Configuration.ConfigDescription("Width of the Quest Journal content area", new BepInEx.Configuration.AcceptableValueRange<float>(200f, 3000f)));
            if (_panelHeightConfig == null)
-         _panelHeightConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Height", 700f, "Height of the Quest Journal content area");
+         _panelHeightConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Height", 700f, new BepInEx.Configuration.ConfigDescription("Height of the Quest Journal content area", new BepInEx.Configuration.AcceptableValueRange<float>(200f, 3000f)));
             }
  }
 
@@ -199,9 +199,9 @@ CreateHeader(contentRect);
             CreateQuestListPanel(contentRect);
        CreateQuestDetailsPanel(contentRect);
    CreateButtonsPanel(contentRect);
-       CreateResizeHandle(rootRect);
+            // 0.0.655 (UI audit): no own resize handle (Core's bottom-right grip scales the journal)
 
-      SetupDragHandler();
+            // 0.0.655 (UI audit): no own background drag (Core live panel)
             FixAllFonts();
   }
 
@@ -259,8 +259,8 @@ CreateHeader(contentRect);
          headerText.alignment = TextAlignmentOptions.Center;
             headerText.fontSize = 20f;
 
-    var headerDragHandler = headerGO.AddComponent<JournalDragHandler>();
-    headerDragHandler.Initialize(this);
+            // 0.0.655 (UI audit): the header is Core's drag handle (FiresShell.RegisterLivePanel: drag, resize, dock, save)
+            CoreUiBridge.RegisterLivePanel("FiresQuestBookJournal", "rpgmaker.questjournal", GetComponent<RectTransform>(), headerGO.GetComponent<RectTransform>(), "Quest journal", "FiresRPGmaker");
         }
 
     private void CreateQuestListPanel(RectTransform parent)
@@ -396,7 +396,7 @@ CreateHeader(contentRect);
             handleRect.sizeDelta = new Vector2(RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
 
   var handleImage = _resizeHandle.AddComponent<Image>();
-      handleImage.color = new Color(0.6f, 0.5f, 0.3f, 0.8f);
+      handleImage.color = new Color(0.6f, 0.5f, 0.3f, 0f);   // 0.0.542: invisible hit area; the dot triangle below is the grip (it was drawn over a solid square)
     handleImage.raycastTarget = true;
 
             var lineContainer = new GameObject("ResizeLines");
@@ -429,7 +429,7 @@ dotRect.sizeDelta = new Vector2(3, 3);
             var resizeHandler = _resizeHandle.AddComponent<JournalResizeHandler>();
           resizeHandler.Initialize(this);
 
-        Debug.Log("[QuestJournalController] Resize handle created");
+        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[QuestJournalController] resize handle: dot-triangle grip on a transparent hit area");
         }
 
         private bool _fontsApplied;
@@ -750,7 +750,7 @@ if (btnText != null) btnText.fontSize = FONT_SIZE * scale;
             Cursor.lockState = CursorLockMode.None;
 
     FixAllFonts();
-     LoadPanelPosition();
+            // 0.0.655 (UI audit): Core's live panel applies the saved position (the [UI] Quest Journal Position X/Y keys are retired)
   LoadPanelSize();
    Canvas.ForceUpdateCanvases();
 

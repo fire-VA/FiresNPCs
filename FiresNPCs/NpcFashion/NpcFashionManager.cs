@@ -55,6 +55,7 @@ namespace FiresRPGmaker.NpcFashion
         public string PeriodicSound;
         public string PeriodicSoundTime;
         public string LookAtPlayer; // "true" or "false" - whether NPC looks at nearby players
+        public string Pet; // 0.0.559: cosmetic pet item or creature ("" = none)
     }
 
     // Predefined color options for hair/beard
@@ -223,6 +224,45 @@ return ColorPresets["(none)"];
         // prefabs themselves don't change at runtime).
         private static readonly Dictionary<int, GameObject> _attachChildCache = new Dictionary<int, GameObject>();
 
+        // PeriodicSound fires off a FixedUpdate timer on EVERY NPC, and the lookup was
+        // Resources.FindObjectsOfTypeAll<AudioClip>() - every loaded clip in the game - on every play that was
+        // not already the source's current clip. A name that resolves to nothing rescanned forever and logged a
+        // warning each time, so one mistyped sound name cost a full asset scan per NPC per interval. Hits are
+        // cached for the session; MISSES ARE CACHED TOO, with a retry window, so a clip that a later bundle
+        // brings in is still found without paying for the scan in between.
+        private const float ClipMissRetrySeconds = 60f;
+        private static readonly Dictionary<string, AudioClip> _clipCache = new Dictionary<string, AudioClip>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, float> _clipMissRetryAt = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+
+        internal static AudioClip ResolveClipCached(string soundName)
+        {
+            if (string.IsNullOrEmpty(soundName)) return null;
+
+            if (_clipCache.TryGetValue(soundName, out var cached))
+            {
+                if (cached != null) return cached;
+                if (_clipMissRetryAt.TryGetValue(soundName, out float retryAt) && Time.realtimeSinceStartup < retryAt) return null;
+            }
+
+            AudioClip found = null;
+            foreach (var c in Resources.FindObjectsOfTypeAll<AudioClip>())
+            {
+                if (c != null && c.name.Equals(soundName, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = c;
+                    break;
+                }
+            }
+
+            _clipCache[soundName] = found;
+            if (found == null)
+            {
+                _clipMissRetryAt[soundName] = Time.realtimeSinceStartup + ClipMissRetrySeconds;
+                Debug.LogWarning($"[NpcFashionComponent] Could not find audio clip: {soundName} - not retrying for {ClipMissRetrySeconds:F0}s");
+            }
+            return found;
+        }
+
         private const string SkinnedAttachChildName = "attach_skin";
         private const string EquipOffsetChildName = "equipoffset";
         private const string EquippedEffectsChildName = "equiped";
@@ -238,10 +278,23 @@ return ColorPresets["(none)"];
 
         /// <summary>The joint vanilla parents hair and beard to (VisEquipment.AttachItem passes m_helmet
         /// for both). Falls back to a name search only when the rig carries no VisEquipment.</summary>
+        // The joint a rigid hair/beard hangs on, always under the ANIMATED head: VisEquipment's m_helmet when it sits under the
+        // animator's Head bone, else a "Helmet_attach" under that bone, else the bone itself. A name lookup alone can land on a
+        // same-named transform of the pre-1.0 bake that no animation moves, which is a style floating off the head.
         private static Transform ResolveHelmetJoint(GameObject npcRoot, Transform visual)
         {
+            var animator = visual != null ? visual.GetComponentInChildren<Animator>() : null;
+            var head = animator != null && animator.isHuman ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
             var visEquipment = npcRoot != null ? npcRoot.GetComponent<VisEquipment>() : null;
-            if (visEquipment != null && visEquipment.m_helmet != null) return visEquipment.m_helmet;
+            if (visEquipment != null && visEquipment.m_helmet != null && (head == null || visEquipment.m_helmet.IsChildOf(head)))
+                return visEquipment.m_helmet;
+            if (head != null)
+            {
+                if (visEquipment != null && visEquipment.m_helmet != null)
+                    Debug.LogWarning($"[NpcFashionManager] '{(npcRoot != null ? npcRoot.name : "?")}': VisEquipment.m_helmet "
+                                     + $"'{visEquipment.m_helmet.name}' is not under the animated Head bone; using the Head's own joint.");
+                return FindTransformRecursive(head, "Helmet_attach") ?? head;
+            }
             return FindTransformRecursive(visual, "Helmet_attach") ?? FindTransformRecursive(visual, "Head");
         }
 
@@ -384,6 +437,13 @@ return ColorPresets["(none)"];
    bool lookAtPlayer = !string.IsNullOrEmpty(data.LookAtPlayer) && 
    data.LookAtPlayer.Equals("true", StringComparison.OrdinalIgnoreCase);
     comp.LookAtPlayer = lookAtPlayer;
+                // 0.0.559: the cosmetic pet rides in the fashion JSON (null = an older JSON, leave the pet alone)
+                if (data.Pet != null)
+                {
+                    npc.equipPet = data.Pet;
+                    var petView = npc.GetComponent<ZNetView>();
+                    if (petView != null && petView.IsValid() && petView.IsOwner()) global::FiresRPGmaker.Modules.Pets.NpcPetSlot.WriteOnOwner(npc, "fashion apply");
+                }
     ConfigureLookAtComponent(npc, lookAtPlayer);
 
             // Suppress LookAt errors on equipped items (torches, etc.)
@@ -768,6 +828,7 @@ return ColorPresets["(none)"];
             hairGO.SetActive(true);
 
             Debug.Log($"[NpcFashionManager] Attached hair '{hairItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
+            LogAttachEvidence(visual, hairGO, hairItem, "rigid (helmet joint)");
         }
 
         /// <summary>
@@ -892,6 +953,7 @@ return ColorPresets["(none)"];
             beardGO.SetActive(true);
 
             Debug.Log($"[NpcFashionManager] Attached beard '{beardItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
+            LogAttachEvidence(visual, beardGO, beardItem, "rigid (helmet joint)");
         }
 
         /// <summary>
@@ -1153,6 +1215,13 @@ return ColorPresets["(none)"];
 
                 StripUnwantedComponents(clonedGO);
 
+                // --- 4b. MagicaCloth, as vanilla AttachItem does right after the same rebind: the NPC's own
+                // VisEquipment.SetupCloth (Initialize, DisableAutoBuild, its cloth colliders, ReplaceTransform onto the
+                // character's bones by name, BuildAndRun). 1.0 hair and beards simulate with MagicaCloth2; without this
+                // the cloth kept driving the mesh from the clone's own unanimated bone copies, so the hair floated off
+                // the head and ignored every attack (Fire, 2026-09-29, Sigrid).
+                string clothSetup = SetupClothLikeVanilla(visualRoot, clonedGO);
+
                 // --- 5. Replace the hair mesh's material with an instanced copy of the ---
                 // body material, EXACTLY like VisEquipment.AttachHair() does.
                 // Custom/Player's _HairColor tinting only works when the mesh carries
@@ -1198,12 +1267,68 @@ return ColorPresets["(none)"];
                 int totalBones = bodyModel?.bones?.Length ?? smrs[0]?.bones?.Length ?? 0;
                 if (FiresLogger.VerboseEnabled)
                     Debug.Log($"[NpcFashionManager] Applied {itemName} as skinned mesh (bones: {bonesFound}/{totalBones})");
+                LogAttachEvidence(visualRoot, clonedGO, itemName, $"skinned (bones {bonesFound}/{totalBones}, {clothSetup})");
                 return true;
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[NpcFashionManager] TryApplySkinnedMeshToNpc failed for {itemName}: {ex.Message}");
                 return false;
+            }
+        }
+
+        private static readonly System.Reflection.MethodInfo s_setupCloth =
+            HarmonyLib.AccessTools.Method(typeof(VisEquipment), "SetupCloth", new[] { typeof(GameObject) });
+
+        // Runs the NPC's own vanilla VisEquipment.SetupCloth on `item` when it carries MagicaCloth; says what happened.
+        private static string SetupClothLikeVanilla(Transform visualRoot, GameObject item)
+        {
+            int cloths = item.GetComponentsInChildren<Component>(true).Count(c => c != null && c.GetType().FullName == "MagicaCloth2.MagicaCloth");
+            if (cloths == 0) return "no MagicaCloth";
+            var vis = visualRoot != null ? visualRoot.GetComponentInParent<VisEquipment>() : null;
+            if (vis == null) return $"{cloths} MagicaCloth NOT set up: no VisEquipment on the NPC";
+            if (s_setupCloth == null) return $"{cloths} MagicaCloth NOT set up: VisEquipment.SetupCloth not found";
+            try
+            {
+                s_setupCloth.Invoke(vis, new object[] { item });
+                return $"{cloths} MagicaCloth set up by vanilla SetupCloth";
+            }
+            catch (Exception ex)
+            {
+                var inner = ex.InnerException ?? ex;
+                Debug.LogWarning($"[NpcFashionManager] SetupCloth failed for '{item.name}': {inner.GetType().Name}: {inner.Message}");
+                return $"{cloths} MagicaCloth setup FAILED ({inner.GetType().Name})";
+            }
+        }
+
+        // One ungated line per hair/beard put on an NPC: how, where it hangs, and whether that is under the ANIMATED head (the
+        // animator's own Head bone, never a name lookup), with its bounds in the head's frame. A floating style shows here
+        // as "under the animated Head: no" or a large head offset.
+        private static void LogAttachEvidence(Transform visualRoot, GameObject item, string itemName, string how)
+        {
+            try
+            {
+                var npc = visualRoot != null ? (visualRoot.GetComponentInParent<ZNetView>()?.transform ?? visualRoot.root) : null;
+                var animator = visualRoot != null ? visualRoot.GetComponentInChildren<Animator>() : null;
+                var head = animator != null && animator.isHuman ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
+                string under;
+                var smr = item.GetComponentInChildren<SkinnedMeshRenderer>(true);
+                if (head == null) under = "no animated Head bone found";
+                else if (smr != null && smr.bones != null && smr.bones.Length > 0)
+                    under = System.Array.IndexOf(smr.bones, head) >= 0 ? "skinned to the animated Head: yes" : "skinned to the animated Head: NO";
+                else under = item.transform.IsChildOf(head) ? "under the animated Head: yes" : "under the animated Head: NO";
+                var renderer = item.GetComponentInChildren<Renderer>(true);
+                string offset = head != null && renderer != null
+                    ? head.InverseTransformPoint(renderer.bounds.center).ToString("F2") : "-";
+                string path = item.transform.parent != null ? item.transform.parent.name : "-";
+                Debug.Log($"[NpcFashionManager][attach] '{itemName}' on '{(npc != null ? npc.name : "?")}': {how}, parent '{path}', {under}, "
+                          + $"localPos {item.transform.localPosition:F2}, bounds centre in the head's frame {offset}");
+                // 0.0.581: the body's render state right after the attach (R4 invisible-body hunt).
+                NpcBodyProbe.Log(visualRoot, "after attach '" + itemName + "'");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[NpcFashionManager][attach] evidence failed for '{itemName}': {ex.Message}");
             }
         }
 
@@ -1411,7 +1536,9 @@ return ColorPresets["(none)"];
 {
         // Add LookAt component to the NPC
      // It should be on the Visual or a child that has the head bone
-         Transform visual = npc.transform.Find("Visual") ?? npc.transform;
+         // 0.0.546 ([visual]'s a7: head never followed): vanilla LookAt drives the head from OnAnimatorIK, which Unity calls
+         // only on the Animator's own GameObject. The swapped/cloned model's Animator sits below "Visual", so put it there.
+         Transform visual = npc.GetComponentInChildren<Animator>(true)?.transform ?? npc.transform;
    lookAt = visual.gameObject.AddComponent<LookAt>();
        Debug.Log($"[NpcFashionManager] Added LookAt component to NPC {npc.name}");
      }
@@ -1500,6 +1627,8 @@ return ColorPresets["(none)"];
                 if (type == typeof(Transform) || type == typeof(Renderer) || type == typeof(MeshFilter) ||
                     type == typeof(SkinnedMeshRenderer) || type == typeof(Light))
                     continue;
+                // 1.0 hair/beard cloth: vanilla keeps it and sets it up (SetupClothLikeVanilla), so do we.
+                if (type.FullName == "MagicaCloth2.MagicaCloth") continue;
 
                 // Destroy the component
                 UnityEngine.Object.Destroy(comp);
@@ -1829,6 +1958,7 @@ bool isEyeMaterial = matName.Contains("eye") || objName.Contains("eye");
                 data.RightItemHidden = npc.equipRightBack;
                 data.TextSize = npc.nameplateScale.ToString(CultureInfo.InvariantCulture);
                 data.TextHeight = npc.nameplateYOffset.ToString(CultureInfo.InvariantCulture);
+                data.Pet = npc.equipPet;   // null = never set: the apply side leaves the pet alone
 
                 return JsonConvert.SerializeObject(data);
             }
@@ -1963,11 +2093,15 @@ _audioSource = gameObject.AddComponent<AudioSource>();
           if (LookAtPlayer)
         {
     _lookAt = GetComponentInChildren<LookAt>(true);
+      // 0.0.546: a LookAt that isn't on the Animator's GameObject never gets OnAnimatorIK (NPCs placed before this build carry one on "Visual").
+      var animGo = GetComponentInChildren<Animator>(true)?.gameObject;
+      if (_lookAt != null && animGo != null && _lookAt.gameObject != animGo) { Destroy(_lookAt); _lookAt = null; }
       if (_lookAt == null)
                 {
-      // Add LookAt component - it will automatically find the head bone
-    Transform visual = transform.Find("Visual") ?? transform;
+      // Add LookAt component on the Animator's GameObject (OnAnimatorIK only fires there)
+    Transform visual = animGo != null ? animGo.transform : transform;
          _lookAt = visual.gameObject.AddComponent<LookAt>();
+         global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[NpcFashionComponent] LookAt on '{visual.name}' (animator {(animGo != null ? "found" : "missing")})");
       Debug.Log($"[NpcFashionComponent] Added LookAt component for player tracking");
      }
 }
@@ -2162,29 +2296,14 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
         clip = _audioSource.clip;
   }
 
-      if (clip == null)
-                {
-             var allClips = Resources.FindObjectsOfTypeAll<AudioClip>();
-       foreach (var c in allClips)
-             {
-        if (c != null && c.name.Equals(soundName, StringComparison.OrdinalIgnoreCase))
-     {
-         clip = c;
-       break;
-       }
-        }
-     }
+                if (clip == null) clip = NpcFashionManager.ResolveClipCached(soundName);
 
-        if (clip != null)
-       {
-  _audioSource.clip = clip;
-             _audioSource.Play();
-        Debug.Log($"[NpcFashionComponent] Played sound: {clip.name}");
-    }
-      else
-    {
-            Debug.LogWarning($"[NpcFashionComponent] Could not find audio clip: {soundName}");
-       }
+                if (clip != null)
+                {
+                    _audioSource.clip = clip;
+                    _audioSource.Play();
+                    global::FiresRPGmaker.FiresLogger.LogVerbose($"[NpcFashionComponent] Played sound: {clip.name}");
+                }
             }
          catch (Exception ex)
       {

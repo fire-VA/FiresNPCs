@@ -182,6 +182,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "[optional path to Marketplace\\Configs] - copy KG Marketplace .cfg files into FiresRPGmaker folders + reload",
                 args =>
                 {
+                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // 0.0.505: admin only
                     string src = args.Length > 1 ? string.Join(" ", args.Args, 1, args.Args.Length - 1)
                                                  : @"C:\Program Files (x86)\Steam\steamapps\common\Valheim dedicated server\BepInEx\config\Marketplace\Configs";
                     int copied = ImportKGConfigs(src, line => args.Context.AddString("[firesnpcs] " + line));
@@ -244,6 +245,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "- delete every config\\firesnpcs\\<module>\\example.cfg and regenerate the latest sample",
                 args =>
                 {
+                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // 0.0.505: admin only
                     int deleted = DeleteExampleFiles();
                     int reloaded = ReloadModule("all"); // triggers WriteExampleProfile for each missing example
                     args.Context.AddString("[firesnpcs] reset " + deleted + " example.cfg file(s), reloaded " + reloaded + " module(s).");
@@ -255,6 +257,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "[optional profile name=server] - probe the live game (monsters/pickables/skills/build categories) + write baseline AutoGen_*.cfg achievements",
                 args =>
                 {
+                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // 0.0.505: admin only
                     string profile = args.Length > 1 ? args[1] : "server";
                     string result = AchievementGenerator.Generate(profile, line => args.Context.AddString("[firesnpcs] " + line));
                     args.Context.AddString("[firesnpcs] " + result);

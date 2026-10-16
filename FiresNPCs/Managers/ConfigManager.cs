@@ -79,18 +79,18 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<KeyboardShortcut> configQuestJournalHotkey;
         public ConfigEntry<float> configQuestBookOpenSpeed;
         public ConfigEntry<float> configBookScale;
+        public ConfigEntry<float> configMapRoutePointSpacing;   // 0.0.605
+        public ConfigEntry<bool> configLiveMap;                 // 0.0.608
+        public ConfigEntry<int> configLiveMapFps;              // 0.0.608
+        public ConfigEntry<float> configLiveMapMaxView;        // 0.0.608
+        public ConfigEntry<int> configLiveMapResolution;       // 0.0.608
         public ConfigEntry<string> configQuestRewardOverflow;
-        public ConfigEntry<KeyboardShortcut> configGuildHotkey;
         public ConfigEntry<KeyboardShortcut> configLeaderboardHotkey;
         public ConfigEntry<bool> configLeaderboardBackgroundToggle;
         public ConfigEntry<string> configLeaderboardBackground;
         public ConfigEntry<string> configAchievementProfile;
 
-        // ────── Guilds ──────
-        public ConfigEntry<bool> configGuildsEnabled;
-        public ConfigEntry<bool> configAllowGuildCreation;
-        public ConfigEntry<int>  configMaxGuildMembers;
-        public ConfigEntry<int>  configMaxGuildsPerWorld;
+        // ────── Guilds ──────  0.0.527: removed with RPG Maker's guild module (FiresGuilds owns guilds and their settings).
 
         // ────── Territories ──────
         public ConfigEntry<bool> configAdminBypassTerritory;
@@ -103,6 +103,10 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<bool> configShowCompanionBillboard;
         public ConfigEntry<bool> configShowGroupHud;
         public ConfigEntry<bool> configUseGlobeHud;
+        public ConfigEntry<bool> configGlobeFoodRow;
+        public ConfigEntry<bool> configGlobeOverfillPulse;
+        public ConfigEntry<bool> configGlobeStates;
+        public ConfigEntry<float> configGlobeLowThreshold, configGlobeDamageDrop, configGlobeFillingRate, configGlobeFullFloor;
         public ConfigEntry<bool> configGlobeLiquidMotion;
         public ConfigEntry<float> configGlobeSloshStrength;
         public ConfigEntry<bool> configGlobeValuePopups;
@@ -129,7 +133,6 @@ namespace FiresRPGmaker.Managers
         // Territory HUD box position (client-local; drag with the pause menu open to reposition)
         public ConfigEntry<float> configTerritoryHudPosX;
         public ConfigEntry<float> configTerritoryHudPosY;
-        public ConfigEntry<bool> configHideMinimapBackdrop;
 
         // Companion Behavior Settings
         public ConfigEntry<float> configCompanionIdleWanderRadius;
@@ -228,42 +231,34 @@ namespace FiresRPGmaker.Managers
             // ────── Hotkeys ──────
             configQuestJournalHotkey = config.Bind("Hotkeys", "QuestJournalKey", new KeyboardShortcut(KeyCode.J),
                 "Hotkey to open the Quest Journal. Supports chords (e.g. J + LeftAlt). Set to None to disable.");
-            configQuestBookOpenSpeed = config.Bind("UI", "QuestBookOpenSpeed", 1f,
-                "Speed multiplier for the quest book's opening animation (1 = normal, 2 = twice as fast). The UI reveal delay scales with it automatically.");
+            configQuestBookOpenSpeed = config.Bind("UI", "QuestBookOpenSpeed", 1f, new BepInEx.Configuration.ConfigDescription("Speed multiplier for the quest book's opening animation (1 = normal, 2 = twice as fast). The UI reveal delay scales with it automatically.", new BepInEx.Configuration.AcceptableValueRange<float>(0.1f, 5f)));
+            configMapRoutePointSpacing = config.Bind("Dressing", "Map route point spacing", 6f,
+                new BepInEx.Configuration.ConfigDescription("Patrol map editor (Set Patrol Route > Draw on map): metres between the points a drag drops. Walk-recorded routes keep 1.5 m.",
+                    new BepInEx.Configuration.AcceptableValueRange<float>(1f, 50f)));   // 0.0.605
+            // 0.0.608 (Fire 10-15): the large map (M) can show a live top-down miniature of the loaded area when zoomed in.
+            configLiveMap = config.Bind("Live map", "Enabled", false, "Large map (M): when zoomed in, show a LIVE top-down render of the loaded area (players, creatures, NPCs, ships, day/night) over the painted map. The header at the top of the map cycles Live map / Default. Costs one extra camera render at the capped rate below while the map is open.");
+            configLiveMapFps = config.Bind("Live map", "Frames per second", 15, new BepInEx.Configuration.ConfigDescription("How often the live map re-renders while it is shown.", new BepInEx.Configuration.AcceptableValueRange<int>(1, 60)));
+            configLiveMapMaxView = config.Bind("Live map", "Max view width", 400f, new BepInEx.Configuration.ConfigDescription("Metres across the map view below which the live render replaces the painted map (zoom in past this).", new BepInEx.Configuration.AcceptableValueRange<float>(50f, 2000f)));
+            configLiveMapResolution = config.Bind("Live map", "Resolution", 1024, new BepInEx.Configuration.ConfigDescription("Longest side of the live render in pixels.", new BepInEx.Configuration.AcceptableValueRange<int>(256, 2048)));
             configBookScale = config.Bind("UI", "BookScale", 1f,
                 new BepInEx.Configuration.ConfigDescription(
                     "Overall scale of the NPC config book UI. Scales the whole book evenly — text, fields, buttons, everything — so you can size it to your liking. 1 = normal, 0.5 = half, 2 = double. Applies live and on next open.",
                     new BepInEx.Configuration.AcceptableValueRange<float>(0.5f, 2f)));
-            configQuestRewardOverflow = config.Bind("Quests", "RewardOverflowDelivery", "Mail",
+            configQuestRewardOverflow = config.Bind("General", "QuestRewardOverflowDelivery", "Mail",
                 new BepInEx.Configuration.ConfigDescription(
                     "Where quest reward items go when your inventory is FULL. Mail = mailed to you with attachments (check a mailbox), Bank = queued into your bank items (visit a banker), Ground = dropped at your feet (kg Marketplace behavior). Rewards that fit in your inventory always go there first.",
                     new BepInEx.Configuration.AcceptableValueList<string>("Mail", "Bank", "Ground")));
-            configGuildHotkey = config.Bind("Hotkeys", "GuildScreenKey", new KeyboardShortcut(KeyCode.G),
-                "Hotkey to open the Guild screen. Supports chords (e.g. G + LeftAlt). Set to None to disable.");
             configLeaderboardHotkey = config.Bind("Hotkeys", "LeaderboardKey", new KeyboardShortcut(KeyCode.L),
                 "Hotkey to open the Leaderboard. Supports chords (e.g. L + LeftAlt). Set to None to disable.");
             configLeaderboardBackgroundToggle = config.Bind("UI", "LeaderboardBackgroundToggle", false,
                 "If true, the Leaderboard panel uses a PNG/JPG you drop into BepInEx/config/FiresUIBackgrounds/ as its background instead of the built-in art.");
             configLeaderboardBackground = config.Bind("UI", "LeaderboardBackground", "",
                 "Filename (e.g. parchment.png) inside BepInEx/config/FiresUIBackgrounds/. Only used when LeaderboardBackgroundToggle is on.");
-            configAchievementProfile = config.Bind("Leaderboard", "AchievementProfile", "server",
+            configAchievementProfile = config.Bind("General", "LeaderboardAchievementProfile", "server",
                 "Name of the achievement profile (.cfg under BepInEx/config/FiresRPGmaker/LeaderboardAchievements/) the " +
                 "leaderboard scores against. The generator writes to 'server' by default. If the named profile is empty, " +
                 "the first non-empty loaded profile is used (else 'example'). [Synced with Server]");
 
-            // ────── Guilds ──────
-            configGuildsEnabled = config.Bind("Guilds", "GuildsEnabled", true,
-                "Enable the guild system. When false, all guild commands and UI are disabled. [Synced with Server]");
-            configAllowGuildCreation = config.Bind("Guilds", "AllowGuildCreation", true,
-                "Allow players to create new guilds. Set to false to lock the world to existing guilds only. [Synced with Server]");
-            configMaxGuildMembers = config.Bind("Guilds", "MaxGuildMembers", 20,
-                new ConfigDescription(
-                    "Maximum number of members a single guild can have. Range: 1-200. [Synced with Server]",
-                    new AcceptableValueRange<int>(1, 200)));
-            configMaxGuildsPerWorld = config.Bind("Guilds", "MaxGuildsPerWorld", 100,
-                new ConfigDescription(
-                    "Maximum total guilds allowed on the server at once. Range: 1-1000. [Synced with Server]",
-                    new AcceptableValueRange<int>(1, 1000)));
 
             // ────── Territories ──────
             configAdminBypassTerritory = config.Bind("Territories", "AdminBypassTerritoryRestrictions", true,
@@ -285,22 +280,36 @@ namespace FiresRPGmaker.Managers
                 "Show the health bar and name floating above companions' heads.");
             configShowGroupHud = config.Bind("Companions", "ShowGroupHud", true,
                 "Show the group HUD panel on the right side of the screen with companion health/stamina bars.");
+            configGlobeFoodRow = config.Bind("UI", "Food row", false,
+                "Shows your three active foods under the globe HUD: icon, time left (m:ss) and a radial fill of the time left; a food blinks in its last minute. Follows the globe HUD's position and scale.");
+            configGlobeOverfillPulse = config.Bind("UI", "Overfill pulse", false,
+                "The Health / Stamina / Eitr globes pulse when food lifts your maximum above its no-food base; the bigger the boost, the stronger the pulse (2x about 40 %, 5x about 90 %).");
+            configGlobeStates = config.Bind("UI", "Globe states", false,
+                "The globes show what is happening: FULL breathes (stronger the more food lifts your max), FILLING beats while the value rises, DAMAGE flashes on a sharp drop, LOW throbs as a warning. Priority DAMAGE > LOW > FILLING > FULL. Off = today's look (the old low pulse).");
+            configGlobeLowThreshold = config.Bind("UI", "Globe low threshold", 0.25f,
+                new BepInEx.Configuration.ConfigDescription("Globe states: LOW below this fraction of max.", new BepInEx.Configuration.AcceptableValueRange<float>(0.05f, 0.6f)));
+            configGlobeDamageDrop = config.Bind("UI", "Globe damage drop", 0.08f,
+                new BepInEx.Configuration.ConfigDescription("Globe states: DAMAGE when the value falls by this fraction of max within 0.3 s (shown 0.6 s).", new BepInEx.Configuration.AcceptableValueRange<float>(0.01f, 0.5f)));
+            configGlobeFillingRate = config.Bind("UI", "Globe filling rate", 0.02f,
+                new BepInEx.Configuration.ConfigDescription("Globe states: FILLING while the value rises at least this fraction of max per second.", new BepInEx.Configuration.AcceptableValueRange<float>(0.005f, 0.5f)));
+            configGlobeFullFloor = config.Bind("UI", "Globe full breath floor", 0.15f,
+                new BepInEx.Configuration.ConfigDescription("Globe states: FULL breath strength with no food overfill (0 = none); it rises to 1 as food lifts your max.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 1f)));
             configUseGlobeHud = config.Bind("UI", "UseGlobeHud", true,
                 "Enable the custom globe-style Health/Stamina/Eitr/Adrenaline HUD overlay. " +
                 "Set to false to hide the globe entirely and use the vanilla Valheim HUD bars instead.");
             configUseGlobeHud.SettingChanged += (_, __) =>
                 global::FiresRPGmaker.UI.GlobeHudController.ApplyEnabled(configUseGlobeHud.Value);
-            configGlobeLiquidMotion = config.Bind("UI.GlobeHud", "LiquidMotion", true,
+            configGlobeLiquidMotion = config.Bind("UI.Hud", "Globe LiquidMotion", true,
                 "Slosh the liquid in the globes when you start moving, stop, strafe, jump, land or turn the camera.");
-            configGlobeSloshStrength = config.Bind("UI.GlobeHud", "SloshStrength", 1f,
-                new ConfigDescription("How hard movement throws the globe liquid around. 1 = default, 0 = still.",
-                    new AcceptableValueRange<float>(0f, 2f)));
-            configGlobeValuePopups = config.Bind("UI.GlobeHud", "ValuePopups", true,
+            configGlobeSloshStrength = config.Bind("UI.Hud", "Globe SloshStrength", 1f,
+                new BepInEx.Configuration.ConfigDescription("How hard movement throws the globe liquid around. 1 = default, 0 = still.",
+                    new BepInEx.Configuration.AcceptableValueRange<float>(0f, 2f)));
+            configGlobeValuePopups = config.Bind("UI.Hud", "Globe ValuePopups", true,
                 "Show current / max above a globe while its value is changing (sprinting, casting, taking a hit, healing).");
-            configGlobePopupHoldSeconds = config.Bind("UI.GlobeHud", "PopupHoldSeconds", 1.5f,
-                new ConfigDescription("How long the current / max text stays after the value stops changing, before it fades.",
-                    new AcceptableValueRange<float>(0.3f, 6f)));
-            configGlobeInventoryTooltips = config.Bind("UI.GlobeHud", "InventoryTooltips", true,
+            configGlobePopupHoldSeconds = config.Bind("UI.Hud", "Globe PopupHoldSeconds", 1.5f,
+                new BepInEx.Configuration.ConfigDescription("How long the current / max text stays after the value stops changing, before it fades.",
+                    new BepInEx.Configuration.AcceptableValueRange<float>(0.3f, 6f)));
+            configGlobeInventoryTooltips = config.Bind("UI.Hud", "Globe InventoryTooltips", true,
                 "With the inventory open, hovering a globe explains its maximum: base, each food, trinkets, and what " +
                 "buffs or other mods add beyond vanilla.");
             configUseBookAdminUI = config.Bind("UI", "UseBookAdminPanel", true,
@@ -312,74 +321,54 @@ namespace FiresRPGmaker.Managers
             configShowAdminHints.SettingChanged += (_, __) =>
                 FiresCore.UI.FiresHoverTip.Enabled = configShowAdminHints.Value;
             FiresCore.UI.FiresHoverTip.Enabled = configShowAdminHints.Value;
-            configFeedbackWebhook = config.Bind("Feedback", "WebhookUrl", "",
+            configFeedbackWebhook = config.Bind("General", "FeedbackWebhookUrl", "",
                 "Discord webhook URL that /feedback posts to (with or without the https:// prefix). Empty = disabled.");
-            configExtendedInteractRange = config.Bind("UI", "ExtendedInteractRange", 0f,
-                "DistancedUI: if > 0, sets the player's max interaction distance (meters) so NPCs/objects can be " +
-                "used from further away. 0 = vanilla (~5m).");
+            configExtendedInteractRange = config.Bind("UI", "ExtendedInteractRange", 0f, new BepInEx.Configuration.ConfigDescription("DistancedUI: if > 0, sets the player's max interaction distance (meters) so NPCs/objects can be " +
+                "used from further away. 0 = vanilla (~5m).", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 20f)));
 
             // Group HUD layout — panel stretches to fit the actual group up to MaxRowsPerColumn,
             // then becomes scrollable. Columns 1 = single list, 2 = side-by-side.
-            configGroupHudMaxRowsPerColumn = config.Bind("UI.GroupHud", "MaxRowsPerColumn", 8,
-                "Maximum rows visible per column before the group HUD panel scrolls. " +
+            configGroupHudMaxRowsPerColumn = config.Bind("UI.Hud", "GroupHud MaxRowsPerColumn", 8, new BepInEx.Configuration.ConfigDescription("Maximum rows visible per column before the group HUD panel scrolls. " +
                 "The panel auto-shrinks to fit smaller groups; this value is just the upper cap. " +
-                "Range: 1-20.");
-            configGroupHudColumns = config.Bind("UI.GroupHud", "Columns", 1,
-                "Number of columns in the group HUD. 1 = single list, 2 = side-by-side. Range: 1-2.");
-            configGroupHudDefaultPosX = config.Bind("UI.GroupHud", "DefaultPosX", -10f,
-                "Default panel X offset from the screen's top-right anchor (negative = left of anchor). " +
-                "Used when the player has not yet dragged the panel, and when ResetPosition is invoked.");
-            configGroupHudDefaultPosY = config.Bind("UI.GroupHud", "DefaultPosY", -200f,
-                "Default panel Y offset from the screen's top-right anchor (negative = below anchor). " +
-                "Used when the player has not yet dragged the panel, and when ResetPosition is invoked.");
+                "Range: 1-20.", new BepInEx.Configuration.AcceptableValueRange<int>(1, 30)));
+            configGroupHudColumns = config.Bind("UI.Hud", "GroupHud Columns", 1, new BepInEx.Configuration.ConfigDescription("Number of columns in the group HUD. 1 = single list, 2 = side-by-side. Range: 1-2.", new BepInEx.Configuration.AcceptableValueRange<int>(1, 6)));
+            configGroupHudDefaultPosX = config.Bind("UI.Hud", "GroupHud DefaultPosX", -10f, new BepInEx.Configuration.ConfigDescription("Default panel X offset from the screen's top-right anchor (negative = left of anchor). " +
+                "Used when the player has not yet dragged the panel, and when ResetPosition is invoked.", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+            configGroupHudDefaultPosY = config.Bind("UI.Hud", "GroupHud DefaultPosY", -200f, new BepInEx.Configuration.ConfigDescription("Default panel Y offset from the screen's top-right anchor (negative = below anchor). " +
+                "Used when the player has not yet dragged the panel, and when ResetPosition is invoked.", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
 
             // Quest tracker HUD — right side, under the territory box. Client-local personal HUD.
-            configShowQuestTracker = config.Bind("UI.QuestTracker", "ShowQuestTracker", true,
+            configShowQuestTracker = config.Bind("UI.Hud", "QuestTracker Show", true,
                 "Show the on-screen quest tracker (right side, under the territory box). Hides when you have no accepted quests and on the vanilla Ctrl+F3 hide-HUD toggle.");
-            configQuestTrackerPosX = config.Bind("UI.QuestTracker", "PosX", -12f,
-                "Quest tracker X offset from the screen's top-right anchor. Set by dragging the panel with the pause menu open.");
-            configQuestTrackerPosY = config.Bind("UI.QuestTracker", "PosY", -410f,
-                "Quest tracker Y offset from the screen's top-right anchor (negative = below anchor). Set by dragging the panel with the pause menu open.");
-            configQuestTrackerCollapsed = config.Bind("UI.QuestTracker", "Collapsed", false,
+            configQuestTrackerPosX = config.Bind("UI.Hud", "QuestTracker PosX", -12f, new BepInEx.Configuration.ConfigDescription("Quest tracker X offset from the screen's top-right anchor. Set by dragging the panel with the pause menu open.", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+            configQuestTrackerPosY = config.Bind("UI.Hud", "QuestTracker PosY", -410f, new BepInEx.Configuration.ConfigDescription("Quest tracker Y offset from the screen's top-right anchor (negative = below anchor). Set by dragging the panel with the pause menu open.", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+            configQuestTrackerCollapsed = config.Bind("UI.Hud", "QuestTracker Collapsed", false,
                 "When true the tracker starts collapsed to just the book icon; click the icon to expand. Toggling in-game persists here.");
-            configQuestTrackerUserPositioned = config.Bind("UI.QuestTracker", "UserPositioned", false,
+            configQuestTrackerUserPositioned = config.Bind("UI.Hud", "QuestTracker UserPositioned", false,
                 "Once you drag the tracker it stops auto-stacking under the group HUD and stays where you dropped it (PosX/PosY). " +
                 "Set back to false to resume auto-stacking below the group HUD.");
 
             // Territory HUD box — drag to reposition with the pause menu open.
-            configTerritoryHudPosX = config.Bind("UI.Territory", "HudPosX", -8f,
-                "Territory box X offset from the minimap's bottom-right anchor. Set by dragging with the pause menu open.");
-            configTerritoryHudPosY = config.Bind("UI.Territory", "HudPosY", -8f,
-                "Territory box Y offset from the minimap's bottom-right anchor. Set by dragging with the pause menu open.");
-            configHideMinimapBackdrop = config.Bind("UI.Territory", "HideMinimapBackdrop", true,
-                "Hide the faint square backdrop (Unity's InputFieldBackground sprite) baked into the small minimap prefab, " +
-                "whose corners poke past the circular map and read as an empty box behind the territory UI. Vanilla code never uses it.");
+            configTerritoryHudPosX = config.Bind("UI.Hud", "Territory PosX", -8f, new BepInEx.Configuration.ConfigDescription("Territory box X offset from the minimap's bottom-right anchor. Set by dragging with the pause menu open.", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
+            configTerritoryHudPosY = config.Bind("UI.Hud", "Territory PosY", -8f, new BepInEx.Configuration.ConfigDescription("Territory box Y offset from the minimap's bottom-right anchor. Set by dragging with the pause menu open.", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
 
             // Companion Behavior Settings
-            configCompanionIdleWanderRadius = config.Bind("Companions.Behavior", "IdleWanderRadius", 20f,
-                "Default radius (in meters) that companions will wander from their home position when in Stay mode. " +
-                "Range: 5-100. Individual NPCs can override this via their ZDO settings.");
-            configCompanionReturnHomeRadius = config.Bind("Companions.Behavior", "ReturnHomeRadius", 25f,
-                "Radius (in meters) beyond which companions will automatically return to their home position. " +
-                "This is the single source of truth for all return-home logic. Range: 10-100.");
-            configCompanionChestSearchRadius = config.Bind("Companions.Behavior", "ChestSearchRadius", 50f,
-                "Radius (in meters) to search for chests when companions operate smelters, kilns, or deposit items. " +
-                "Range: 5-100.");
-            configCompanionStayModeWorkRadius = config.Bind("Companions.Behavior", "StayModeWorkRadius", 50f,
-                "Radius (in meters) that staying companions search for work opportunities (smelters, fires, resources, etc.). " +
-                "Range: 10-100.");
-            configChestAutoSortRadius = config.Bind("Companions.Behavior", "ChestAutoSortRadius", 10f,
-                "Radius (in meters) for auto-sorting items across multiple chests when interacting with a single chest. " +
-                "Range: 5-30.");
-            configCompanionStationedDefendRange = config.Bind("Companions.Behavior", "StationedDefendRange", 14f,
-                "Aggro radius (in meters) around a stationed/patrol NPC's post within which it engages hostile enemies. " +
-                "Range: 4-40.");
-            configCompanionStationedLeashRange = config.Bind("Companions.Behavior", "StationedLeashRange", 24f,
-                "Distance (in meters) from its post past which a stationed/patrol NPC gives up pursuit and returns to guard. " +
-                "Keep this larger than StationedDefendRange. Range: 6-60.");
-            configCompanionStationedCombatHold = config.Bind("Companions.Behavior", "StationedCombatHold", 10f,
-                "How long (in seconds) a stationed/patrol NPC stays engaged/alert after the last threat clears before " +
-                "resuming patrol/idle. Range: 0-60.");
+            configCompanionIdleWanderRadius = config.Bind("Companions.Behavior", "IdleWanderRadius", 20f, new BepInEx.Configuration.ConfigDescription("Default radius (in meters) that companions will wander from their home position when in Stay mode. " +
+                "Range: 5-100. Individual NPCs can override this via their ZDO settings.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
+            configCompanionReturnHomeRadius = config.Bind("Companions.Behavior", "ReturnHomeRadius", 25f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) beyond which companions will automatically return to their home position. " +
+                "This is the single source of truth for all return-home logic. Range: 10-100.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 500f)));
+            configCompanionChestSearchRadius = config.Bind("Companions.Behavior", "ChestSearchRadius", 50f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) to search for chests when companions operate smelters, kilns, or deposit items. " +
+                "Range: 5-100.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
+            configCompanionStayModeWorkRadius = config.Bind("Companions.Behavior", "StayModeWorkRadius", 50f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) that staying companions search for work opportunities (smelters, fires, resources, etc.). " +
+                "Range: 10-100.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
+            configChestAutoSortRadius = config.Bind("Companions.Behavior", "ChestAutoSortRadius", 10f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) for auto-sorting items across multiple chests when interacting with a single chest. " +
+                "Range: 5-30.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 100f)));
+            configCompanionStationedDefendRange = config.Bind("Companions.Behavior", "StationedDefendRange", 14f, new BepInEx.Configuration.ConfigDescription("Aggro radius (in meters) around a stationed/patrol NPC's post within which it engages hostile enemies. " +
+                "Range: 4-40.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 100f)));
+            configCompanionStationedLeashRange = config.Bind("Companions.Behavior", "StationedLeashRange", 24f, new BepInEx.Configuration.ConfigDescription("Distance (in meters) from its post past which a stationed/patrol NPC gives up pursuit and returns to guard. " +
+                "Keep this larger than StationedDefendRange. Range: 6-60.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
+            configCompanionStationedCombatHold = config.Bind("Companions.Behavior", "StationedCombatHold", 10f, new BepInEx.Configuration.ConfigDescription("How long (in seconds) a stationed/patrol NPC stays engaged/alert after the last threat clears before " +
+                "resuming patrol/idle. Range: 0-60.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 120f)));
 
             // ────── Companion Persistence (Synced) ──────
             // True (default): companions live in the world like vanilla tames. Logout
@@ -422,26 +411,24 @@ namespace FiresRPGmaker.Managers
                 "hidden; each NPC's TextSize/TextHeight tune the label exactly like kg's). Hide = no overhead " +
                 "display at all. Applies live, no restart needed. [Synced with Server]");
 
-            configDialogueBgOpacity = config.Bind("UI.Dialogue", "DialogueBackgroundOpacity", 1.0f,
-                "Background opacity of the NPC dialogue panel (0.1 = nearly transparent, 1.0 = solid). " +
-                "Per-player visual preference; applies the next time a dialogue opens.");
-            configInfoBgOpacity = config.Bind("UI.Dialogue", "InfoBackgroundOpacity", 1.0f,
-                "Background opacity of the Info NPC panel (0.1 = nearly transparent, 1.0 = solid). " +
-                "Per-player visual preference; applies the next time the panel opens.");
+            configDialogueBgOpacity = config.Bind("UI", "DialogueBackgroundOpacity", 1.0f, new BepInEx.Configuration.ConfigDescription("Background opacity of the NPC dialogue panel (0.1 = nearly transparent, 1.0 = solid). " +
+                "Per-player visual preference; applies the next time a dialogue opens.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 1f)));
+            configInfoBgOpacity = config.Bind("UI", "InfoBackgroundOpacity", 1.0f, new BepInEx.Configuration.ConfigDescription("Background opacity of the Info NPC panel (0.1 = nearly transparent, 1.0 = solid). " +
+                "Per-player visual preference; applies the next time the panel opens.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 1f)));
 
             // ────── UI Fonts ──────
             // Font options appear as dropdowns in config managers
-            configUIPrimaryFont = config.Bind("UI.Fonts", "PrimaryFont", UIFontOption.Valheim_AveriaSans,
+            configUIPrimaryFont = config.Bind("UI", "PrimaryFont", UIFontOption.Valheim_AveriaSans,
                 "Primary font used for headers, titles, and main UI text.\n" +
                 "Valheim_AveriaSans = Clean sans-serif (default)\n" +
                 "Valheim_Prstartk = Retro 80s pixel-style\n" +
                 "Valheim_AveriaSerif = Elegant serif font\n" +
                 "Valheim_Norse = Viking runic decorative\n" +
                 "Valheim_Rune = Runic symbols");
-            configUIDecorativeFont = config.Bind("UI.Fonts", "DecorativeFont", UIFontOption.Valheim_Norse,
+            configUIDecorativeFont = config.Bind("UI", "DecorativeFont", UIFontOption.Valheim_Norse,
                 "Decorative font used for quest titles, section headers, and Viking-themed text.\n" +
                 "Valheim_Norse = Viking runic decorative (default)");
-            configUIBodyFont = config.Bind("UI.Fonts", "BodyFont", UIFontOption.Valheim_AveriaSerif,
+            configUIBodyFont = config.Bind("UI", "BodyFont", UIFontOption.Valheim_AveriaSerif,
                 "Body font used for descriptions, buttons, and general readable text.\n" +
                 "Valheim_AveriaSerif = Elegant serif font (default)");
 
@@ -451,18 +438,18 @@ namespace FiresRPGmaker.Managers
             configBlockAllGlobalKeys = config.Bind("Progression.Keys", "BlockAllGlobalKeys", true,
                 "Block all boss keys from the global list (redirected to private keys instead). [Synced with Server]");
             configBlockedGlobalKeys = config.Bind("Progression.Keys", "BlockedGlobalKeys", "",
-                "Comma-separated list of specific global keys to block (when BlockAllGlobalKeys is false). [Synced with Server]");
+                "NOT keyboard keys: comma-separated Valheim progress flags (global keys such as defeated_eikthyr) to block (when BlockAllGlobalKeys is false). [Synced with Server]");
             configAllowedGlobalKeys = config.Bind("Progression.Keys", "AllowedGlobalKeys", "",
-                "Comma-separated list of global keys to allow through (when BlockAllGlobalKeys is true). [Synced with Server]");
+                "NOT keyboard keys: comma-separated Valheim progress flags (global keys such as defeated_eikthyr) to allow through (when BlockAllGlobalKeys is true). [Synced with Server]");
             configEnforcedGlobalKeys = config.Bind("Progression.Keys", "EnforcedGlobalKeys", "",
-                "Comma-separated list of global keys to always add on server startup. [Synced with Server]");
+                "NOT keyboard keys: comma-separated Valheim progress flags (global keys such as defeated_eikthyr) to always add on server startup. [Synced with Server]");
             configBlockedPrivateKeys = config.Bind("Progression.Keys", "BlockedPrivateKeys", "",
-                "Comma-separated list of private keys that players cannot receive. [Synced with Server]");
+                "NOT keyboard keys: comma-separated private progress flags (per-player keys such as defeated_eikthyr) that players cannot receive. [Synced with Server]");
             configAllowedPrivateKeys = config.Bind("Progression.Keys", "AllowedPrivateKeys", "",
-                "Comma-separated list of private keys allowed (if set, all others are blocked). [Synced with Server]");
+                "NOT keyboard keys: comma-separated private progress flags (per-player keys such as defeated_eikthyr) allowed (if set, all others are blocked). [Synced with Server]");
             configEnforcedPrivateKeys = config.Bind("Progression.Keys", "EnforcedPrivateKeys", "",
-                "Comma-separated list of private keys to always give players on login. [Synced with Server]");
-            configUsePrivateRaids = config.Bind("Progression.Raids", "UsePrivateRaids", true,
+                "NOT keyboard keys: comma-separated private progress flags (per-player keys such as defeated_eikthyr) to always give players on login. [Synced with Server]");
+            configUsePrivateRaids = config.Bind("Progression.Keys", "UsePrivateRaids", true,
                 "Use per-player private keys for raid events instead of global server keys. [Synced with Server]");
             configAdminBypassProgression = config.Bind("Progression.Locking", "AdminBypass", true,
                 "Allow admins to bypass all progression locks. [Synced with Server]");
@@ -475,35 +462,35 @@ namespace FiresRPGmaker.Managers
             configLockEquipment = config.Bind("Progression.Locking", "LockEquipment", false,
                 "Lock equipping items behind a required key. OFF by default — only cheat items are blocked. [Synced with Server]");
             configLockEquipmentKey = config.Bind("Progression.Locking", "LockEquipmentKey", "",
-                "Key name required to equip items (global, private, custom player, or EWP key). Only used when LockEquipment is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to equip items (global, private, custom player, or EWP key). Only used when LockEquipment is true. [Synced with Server]");
             configLockCrafting = config.Bind("Progression.Locking", "LockCrafting", false,
                 "Lock crafting behind a required key. OFF by default. [Synced with Server]");
             configLockCraftingKey = config.Bind("Progression.Locking", "LockCraftingKey", "",
-                "Key name required to craft items. Only used when LockCrafting is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to craft items. Only used when LockCrafting is true. [Synced with Server]");
             configLockBuilding = config.Bind("Progression.Locking", "LockBuilding", false,
                 "Lock building behind a required key. OFF by default. [Synced with Server]");
             configLockBuildingKey = config.Bind("Progression.Locking", "LockBuildingKey", "",
-                "Key name required to build. Only used when LockBuilding is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to build. Only used when LockBuilding is true. [Synced with Server]");
             configLockCooking = config.Bind("Progression.Locking", "LockCooking", false,
                 "Lock cooking behind a required key. OFF by default. [Synced with Server]");
             configLockCookingKey = config.Bind("Progression.Locking", "LockCookingKey", "",
-                "Key name required to cook. Only used when LockCooking is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to cook. Only used when LockCooking is true. [Synced with Server]");
             configLockEating = config.Bind("Progression.Locking", "LockEating", false,
                 "Lock eating behind a required key. OFF by default. [Synced with Server]");
             configLockEatingKey = config.Bind("Progression.Locking", "LockEatingKey", "",
-                "Key name required to eat. Only used when LockEating is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to eat. Only used when LockEating is true. [Synced with Server]");
             configLockTaming = config.Bind("Progression.Locking", "LockTaming", false,
                 "Lock taming creatures behind a required key. OFF by default. [Synced with Server]");
             configLockTamingKey = config.Bind("Progression.Locking", "LockTamingKey", "",
-                "Key name required to tame. Only used when LockTaming is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to tame. Only used when LockTaming is true. [Synced with Server]");
             configLockGuardianPower = config.Bind("Progression.Locking", "LockGuardianPower", false,
                 "Lock guardian power usage behind a required key. OFF by default. [Synced with Server]");
             configLockGuardianPowerKey = config.Bind("Progression.Locking", "LockGuardianPowerKey", "",
-                "Key name required to use guardian powers. Only used when LockGuardianPower is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to use guardian powers. Only used when LockGuardianPower is true. [Synced with Server]");
             configLockBossSummons = config.Bind("Progression.Locking", "LockBossSummons", false,
                 "Lock boss summoning behind a required key. OFF by default. [Synced with Server]");
             configLockBossSummonsKey = config.Bind("Progression.Locking", "LockBossSummonsKey", "",
-                "Key name required to summon bosses. Only used when LockBossSummons is true. [Synced with Server]");
+                "NOT a keyboard key: the progress flag (a Valheim global key such as defeated_eikthyr, a private key, a custom player key or an EWP key) required to summon bosses. Only used when LockBossSummons is true. [Synced with Server]");
 
             ApplyProgressionConfig();
 
@@ -529,7 +516,27 @@ namespace FiresRPGmaker.Managers
             }
 
             ValidateConfigs();
+            RemoveRetiredEntries(config);
+            ConfigMoves.Apply(config);   // 0.0.571: merged sections keep their values
             SetupConfigWatcher(config);
+        }
+
+        // 0.0.570 (Fire 10-13, Tools\CONFIG_AUDIT_20261013.md): entries this mod no longer binds stay in the .cfg forever and read like live
+        // settings - the [Guilds] block and [Hotkeys] GuildScreenKey (guilds moved to FiresGuilds, which owns G now). Removed once, logged.
+        // Pure dead keys: nothing reads them, so there is nothing to migrate.
+        private static void RemoveRetiredEntries(ConfigFile config)
+        {
+            try
+            {
+                var orphans = HarmonyLib.AccessTools.Property(typeof(ConfigFile), "OrphanedEntries")?.GetValue(config, null) as Dictionary<ConfigDefinition, string>;
+                if (orphans == null) return;
+                var dead = orphans.Keys.Where(d => d.Section == "Guilds" || (d.Section == "Hotkeys" && d.Key == "GuildScreenKey")).ToList();
+                if (dead.Count == 0) return;
+                foreach (var d in dead) orphans.Remove(d);
+                config.Save();
+                Debug.Log($"[FiresRPGmaker] config: removed {dead.Count} retired entr{(dead.Count == 1 ? "y" : "ies")} (guilds moved to FiresGuilds): {string.Join(", ", dead.Select(d => $"[{d.Section}] {d.Key}").ToArray())}");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] config: retired-entry cleanup skipped: {ex.Message}"); }
         }
 
         private void SetupConfigWatcher(ConfigFile config)

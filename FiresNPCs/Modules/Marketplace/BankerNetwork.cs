@@ -41,9 +41,49 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static bool _registered;
         private static ZRoutedRpc _registeredOn;
 
-        // Server-side interest clock: ownerId → last UtcTicks we accrued interest for them. In-memory only;
-        // a server restart just resets the clock (at most the un-applied partial minute is lost).
+        // Server-side interest clock: ownerId → last UtcTicks we accrued interest for them.
+        // 0.0.558 (lead/Fire: weekly interest never paid on a server that restarts daily): persisted per world in
+        // BepInEx/config/FiresRPGmaker/Bankers/interest_clock_<world>.txt ("ownerId<TAB>ticks" lines; not a .cfg, so the
+        // config push never ships it to clients). Loaded on first use, written after every change.
         private static readonly Dictionary<string, long> _lastInterest = new Dictionary<string, long>();
+        private static string _clockWorld;
+
+        private static string ClockPath(string world) =>
+            System.IO.Path.Combine(BepInEx.Paths.ConfigPath, "FiresRPGmaker", "Bankers", "interest_clock_" + string.Join("_", (world ?? "world").Split(System.IO.Path.GetInvalidFileNameChars())) + ".txt");
+
+        private static void EnsureClockLoaded()
+        {
+            string world = ZNet.instance != null ? ZNet.instance.GetWorldName() : null;
+            if (string.IsNullOrEmpty(world) || world == _clockWorld) return;
+            _clockWorld = world;
+            _lastInterest.Clear();
+            try
+            {
+                string path = ClockPath(world);
+                if (!System.IO.File.Exists(path)) return;
+                foreach (var line in System.IO.File.ReadAllLines(path))
+                {
+                    var p = line.Split('\t');
+                    if (p.Length == 2 && long.TryParse(p[1], out long t)) _lastInterest[p[0]] = t;
+                }
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Banker] interest clock loaded: {_lastInterest.Count} owner(s) for world '{world}'");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[Banker] interest clock load failed: {ex.Message}"); }
+        }
+
+        private static void SaveClock()
+        {
+            if (string.IsNullOrEmpty(_clockWorld)) return;
+            try
+            {
+                string path = ClockPath(_clockWorld);
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                var sb = new System.Text.StringBuilder();
+                foreach (var kv in _lastInterest) sb.Append(kv.Key).Append('\t').Append(kv.Value).Append('\n');
+                System.IO.File.WriteAllText(path, sb.ToString());
+            }
+            catch (Exception ex) { Debug.LogWarning($"[Banker] interest clock save failed: {ex.Message}"); }
+        }
 
         // ── Registration (idempotent; mirrors GuildSyncManager instance-tracking) ─────────────────────────
         public static void Initialize()
@@ -188,16 +228,20 @@ namespace FiresRPGmaker.Modules.Marketplace
             var p = BankerProfileManager.GetProfile(profile);
             if (p == null || p.InterestPerMinute <= 0f) return;
 
+            EnsureClockLoaded();
             long now = DateTime.UtcNow.Ticks;
             if (!_lastInterest.TryGetValue(ownerId, out long last))
             {
                 _lastInterest[ownerId] = now; // first view — start the clock, no retroactive interest
+                SaveClock();
                 return;
             }
-            long ticksPerMin = TimeSpan.TicksPerMinute;
+            // 0.0.557: whole PERIODS (the profile's interestperiod), not whole minutes; the remainder carries over.
+            long ticksPerMin = p.PeriodTicks;
             long wholeMinutes = (now - last) / ticksPerMin;
             if (wholeMinutes < 1) return;
             _lastInterest[ownerId] = last + wholeMinutes * ticksPerMin; // keep the remainder, don't snap to now
+            SaveClock();
 
             float vipMult = VipManager.BankerInterestMultiplier(VipManager.IsVip(ownerId, playerName));
             var items = BankRepository.GetItems(ownerId);

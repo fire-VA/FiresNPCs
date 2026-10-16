@@ -90,7 +90,8 @@ namespace FiresRPGmaker.Managers
             "Mail",
             "LeaderboardAchievements",
             "Factions",
-            "UILayouts"
+            "UILayouts",
+            "PatrolRoutes"   // 0.0.505: admin patrol-route saves (Core 0.2.308 push) reload + rebroadcast
         };
 
         /// <summary>
@@ -185,6 +186,7 @@ namespace FiresRPGmaker.Managers
             }
 
             _instance = new ServerConfigFileWatcher();
+            if (FiresRPGmaker.Instance != null) FiresRPGmaker.Instance.StartCoroutine(MainThreadPump());
             _instance.SetupWatchers();
             _instance._isInitialized = true;
             
@@ -203,25 +205,49 @@ namespace FiresRPGmaker.Managers
             }
         }
 
+        // Watcher events arrive on a thread-pool thread; they only enqueue, and this main-thread coroutine runs them.
+        private static readonly System.Collections.Concurrent.ConcurrentQueue<Action> _mainThreadQueue = new System.Collections.Concurrent.ConcurrentQueue<Action>();
+
+        private static IEnumerator MainThreadPump()
+        {
+            while (true)
+            {
+                while (_mainThreadQueue.TryDequeue(out var work))
+                {
+                    try { work(); }
+                    catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] config watcher work failed: {ex.Message}"); }
+                }
+                yield return null;
+            }
+        }
+
         private void SetupWatchers()
         {
             try
             {
                 Directory.CreateDirectory(BaseConfigDir);
 
+                // Every watched folder is still created: ManifestDiffSync and the admin file pull enumerate these
+                // directories directly, so they have to exist whether or not anything ever changes in them.
                 foreach (var folder in WatchedFolders)
                 {
-                    string folderPath = FiresCore.Storage.FiresConfigPaths.GroupedPath(folder);
-                    
-                    try
-                    {
-                        Directory.CreateDirectory(folderPath);
-                        CreateWatcher(folder, folderPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[FiresRPGmaker] Failed to create watcher for {folder}: {ex.Message}");
-                    }
+                    try { Directory.CreateDirectory(FiresCore.Storage.FiresConfigPaths.GroupedPath(folder)); }
+                    catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Failed to create {folder}: {ex.Message}"); }
+                }
+
+                // One recursive watcher over the grouped root replaces the seventeen this used to open. They were
+                // seventeen siblings of a single parent, and each one cost a ReadDirectoryChangesW handle, a thread
+                // and a 64 KB buffer inside Core's FileWatchHub. Events route back to the same folder names by path,
+                // so OnFileEvent and the ManifestDiffSync namespaces built from those names do not move.
+                List<string> unrouted = VerifyRoutes();
+                CreateWatcher(RootWatcherKey, FiresCore.Storage.FiresConfigPaths.Root, "*.*");
+
+                // A folder the router cannot reach keeps a watcher of its own. Silently not watching one is how a
+                // config folder stops syncing while still looking healthy, so it falls back rather than vanishes.
+                foreach (string folder in unrouted)
+                {
+                    try { CreateWatcher(folder, FiresCore.Storage.FiresConfigPaths.GroupedPath(folder), FilterFor(folder)); }
+                    catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Failed to create watcher for {folder}: {ex.Message}"); }
                 }
             }
             catch (Exception ex)
@@ -230,21 +256,118 @@ namespace FiresRPGmaker.Managers
             }
         }
 
-        private void CreateWatcher(string folderName, string folderPath)
+        private const string RootWatcherKey = "<grouped root>";
+
+        // Round-trips every watched folder through the router: a probe file in that folder must come back named as
+        // that folder. Returns the ones that do not, which then get their own watcher. This is the check that a
+        // rename, or a change to GroupedPath's table, cannot quietly drop a folder out of config sync.
+        private static List<string> VerifyRoutes()
         {
-            if (_watchers.ContainsKey(folderName))
+            var unrouted = new List<string>();
+            foreach (var folder in WatchedFolders)
             {
-                var existing = _watchers[folderName];
-                if (existing != null)
+                string resolved = null;
+                try
                 {
-                    existing.Dispose();
+                    string probe = Path.Combine(FiresCore.Storage.FiresConfigPaths.GroupedPath(folder),
+                                                "__routecheck" + ExtensionFor(folder));
+                    resolved = ResolveWatchedFolder(probe);
                 }
-                _watchers.Remove(folderName);
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] Route check for {folder} threw: {ex.Message}");
+                }
+
+                if (string.Equals(resolved, folder, StringComparison.Ordinal)) continue;
+                unrouted.Add(folder);
+                Debug.LogWarning($"[FiresRPGmaker] Watched folder {folder} does not route back through the grouped " +
+                                 $"root (got {resolved ?? "nothing"}); giving it its own watcher so it keeps syncing.");
             }
 
-            string filter = (folderName.Equals("SavedNPCs", StringComparison.OrdinalIgnoreCase)
-                          || folderName.Equals("UILayouts", StringComparison.OrdinalIgnoreCase))
-                          ? "*.json" : "*.cfg";
+            if (unrouted.Count == 0 && FiresLogger.VerboseEnabled)
+                FiresLogger.LogVerbose($"[FiresRPGmaker] All {WatchedFolders.Length} watched folders route through one watcher.");
+            return unrouted;
+        }
+
+        private sealed class Route
+        {
+            public string Prefix;
+            public string Folder;
+            public string Extension;
+        }
+
+        private static List<Route> _routes;
+
+        private static string ExtensionFor(string folder) =>
+            folder.Equals("SavedNPCs", StringComparison.OrdinalIgnoreCase)
+            || folder.Equals("UILayouts", StringComparison.OrdinalIgnoreCase) ? ".json" : ".cfg";
+
+        private static string FilterFor(string folder) => "*" + ExtensionFor(folder);
+
+        private static string FullPath(string path) =>
+            Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        // Longest prefix first, so the innermost watched folder owns a file if the layout ever nests them.
+        private static List<Route> Routes()
+        {
+            if (_routes != null) return _routes;
+            var routes = new List<Route>();
+            string root;
+            try { root = FullPath(FiresCore.Storage.FiresConfigPaths.Root); }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FiresRPGmaker] Could not resolve the grouped config root: {ex.Message}");
+                _routes = routes;
+                return _routes;
+            }
+
+            foreach (var folder in WatchedFolders)
+            {
+                try
+                {
+                    string path = FullPath(FiresCore.Storage.FiresConfigPaths.GroupedPath(folder));
+                    if (path.Length <= root.Length || !path.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
+                    routes.Add(new Route
+                    {
+                        Prefix = path + Path.DirectorySeparatorChar,
+                        Folder = folder,
+                        Extension = ExtensionFor(folder),
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] Could not resolve the path for {folder}: {ex.Message}");
+                }
+            }
+            routes.Sort((a, b) => b.Prefix.Length.CompareTo(a.Prefix.Length));
+            _routes = routes;
+            return _routes;
+        }
+
+        // The folder whose watcher would have fired for this file, or null when the old per-folder set would have
+        // ignored it. The extension check reproduces the old filters exactly: a .json under a .cfg folder never
+        // raised an event before and must not now.
+        public static string ResolveWatchedFolder(string fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath)) return null;
+            string path;
+            try { path = Path.GetFullPath(fullPath); }
+            catch { return null; }
+
+            foreach (Route route in Routes())
+                if (path.StartsWith(route.Prefix, StringComparison.OrdinalIgnoreCase))
+                    return path.EndsWith(route.Extension, StringComparison.OrdinalIgnoreCase) ? route.Folder : null;
+            return null;
+        }
+
+        private void CreateWatcher(string key, string folderPath, string filter)
+        {
+            if (_watchers.TryGetValue(key, out var existing))
+            {
+                if (existing != null) existing.Dispose();
+                _watchers.Remove(key);
+            }
+
             var watcher = new FileSystemWatcher
             {
                 Path = folderPath,
@@ -254,16 +377,25 @@ namespace FiresRPGmaker.Managers
                 EnableRaisingEvents = true
             };
 
-            watcher.Changed += (s, e) => OnFileEvent(folderName, e.FullPath, e.ChangeType);
-            watcher.Created += (s, e) => OnFileEvent(folderName, e.FullPath, e.ChangeType);
-            watcher.Deleted += (s, e) => OnFileEvent(folderName, e.FullPath, e.ChangeType);
-            watcher.Renamed += (s, e) => OnFileEvent(folderName, e.FullPath, WatcherChangeTypes.Changed);
-            watcher.Error += (s, e) => Debug.LogWarning($"[FiresRPGmaker] FileWatcher error in {folderName}: {e.GetException()?.Message}");
+            watcher.Changed += (s, e) => OnRoutedFileEvent(key, e.FullPath, e.ChangeType);
+            watcher.Created += (s, e) => OnRoutedFileEvent(key, e.FullPath, e.ChangeType);
+            watcher.Deleted += (s, e) => OnRoutedFileEvent(key, e.FullPath, e.ChangeType);
+            watcher.Renamed += (s, e) => OnRoutedFileEvent(key, e.FullPath, WatcherChangeTypes.Changed);
+            watcher.Error += (s, e) => Debug.LogWarning($"[FiresRPGmaker] FileWatcher error in {key}: {e.GetException()?.Message}");
 
-            _watchers[folderName] = watcher;
-            
+            _watchers[key] = watcher;
+
             if (FiresLogger.VerboseEnabled)
-                FiresLogger.LogVerbose($"[FiresRPGmaker] Created file watcher for {folderName} at {folderPath}");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] Created file watcher for {key} at {folderPath}");
+        }
+
+        // The root watcher sees the whole grouped tree, so the folder name comes from the path. A path no watched
+        // folder claims - Debug, Presets, World, Classes - is dropped here, exactly as the old filters dropped it.
+        private void OnRoutedFileEvent(string key, string fullPath, WatcherChangeTypes changeType)
+        {
+            string folder = key == RootWatcherKey ? ResolveWatchedFolder(fullPath) : key;
+            if (folder == null) return;
+            OnFileEvent(folder, fullPath, changeType);
         }
 
         private void OnFileEvent(string folderName, string fullPath, WatcherChangeTypes changeType)
@@ -294,7 +426,10 @@ namespace FiresRPGmaker.Managers
                 // Use coroutine for debounced processing
                 if (FiresRPGmaker.Instance != null)
                 {
-                    FiresRPGmaker.Instance.StartCoroutine(ProcessFileChangeDelayed(folderName, fullPath, fileName, changeType));
+                    // 0.0.534: this runs on the FileSystemWatcher's thread. Starting a coroutine here touched Unity from a
+                    // background thread, which intermittently froze the dedi's main thread (round 15, 06:29: MAIN THREAD
+                    // SILENT 2000+ s right after a territory push). Queue it; the main-thread pump starts it.
+                    _mainThreadQueue.Enqueue(() => FiresRPGmaker.Instance?.StartCoroutine(ProcessFileChangeDelayed(folderName, fullPath, fileName, changeType)));
                 }
             }
             catch (Exception ex)
@@ -494,6 +629,12 @@ namespace FiresRPGmaker.Managers
                         {
                             QuestManager.Instance.LoadQuestDatabase();
                             Debug.Log($"[FiresRPGmaker] Reloaded quest database; count={QuestManager.Instance.GetAllQuests().Count}");
+                            // Every ready peer; diff-sync skips the admin who pushed it, whose DB already matches.
+                            var peers = ZNet.instance?.GetPeers();
+                            if (peers != null)
+                                foreach (var peer in peers)
+                                    if (peer != null && peer.IsReady())
+                                        QuestManager.Instance.BroadcastQuestDatabaseToPeer(peer.m_uid);
                         }
                         break;
 
@@ -566,6 +707,10 @@ namespace FiresRPGmaker.Managers
                         global::FiresRPGmaker.Modules.Marketplace.AchievementProfileManager.ReloadAll();
                         global::FiresRPGmaker.Modules.Marketplace.LeaderboardProfileManager.ReloadAll();
                         break;
+                    case "patrolroutes":   // 0.0.505
+                        FiresCore.Npc.Patrol.PatrolRouteManager.Reset();
+                        FiresCore.Npc.Patrol.PatrolRouteManager.Initialize();
+                        break;
                 }
             }
             catch (Exception ex)
@@ -602,14 +747,10 @@ namespace FiresRPGmaker.Managers
                 {
                     if (peer == null || !peer.IsReady()) continue;
 
-                    // Skip the sender if this was an admin-pushed config
-                    if (excludeSender > 0 && peer.m_uid == excludeSender)
-                    {
-                        skippedCount++;
-                        if (FiresLogger.VerboseEnabled)
-                            FiresLogger.LogVerbose($"[FiresRPGmaker] Skipping {folderName}/{fileName} broadcast to sender {peer.m_uid}");
-                        continue;
-                    }
+                    // 0.0.532: the pushing admin gets the file too. A pure client reads only its in-memory store, never its own
+                    // disk, so skipping the sender meant an admin never saw their own pushed dialogue / quest / profile edit
+                    // until a reconnect. (Subfolder pushes only worked because the exclusion key's slashes didn't match.)
+                    if (excludeSender > 0 && peer.m_uid == excludeSender) skippedCount++; // counted for the log line, still sent
 
                     try
                     {
@@ -622,7 +763,7 @@ namespace FiresRPGmaker.Managers
                     }
                 }
 
-                string skipMsg = skippedCount > 0 ? $" (skipped {skippedCount} sender)" : "";
+                string skipMsg = skippedCount > 0 ? $" (incl. the pushing admin)" : "";
                 Debug.Log($"[FiresRPGmaker] Broadcasted {folderName}/{fileName} to {successCount} clients{skipMsg}");
             }
             catch (Exception ex)
@@ -716,23 +857,8 @@ namespace FiresRPGmaker.Managers
                         TerritorySyncedState.ScheduleDebouncedReload();
                         break;
 
-                    case "quests":
-                        // Broadcast updated quest database to all clients (excluding sender if applicable)
-                        if (QuestManager.Instance != null)
-                        {
-                            var peers = ZNet.instance?.GetPeers();
-                            if (peers != null)
-                            {
-                                foreach (var peer in peers)
-                                {
-                                    if (peer == null || !peer.IsReady()) continue;
-                                    // Skip the sender who pushed the config
-                                    if (excludeSender > 0 && peer.m_uid == excludeSender) continue;
-                                    QuestManager.Instance.BroadcastQuestDatabaseToPeer(peer.m_uid);
-                                }
-                            }
-                        }
-                        break;
+                    // "quests": the quest DB broadcast runs in ExecuteReload, after the debounced reload. Here it serialised
+                    // the DB from BEFORE the change and diff-sync then saw every peer as current, so new quests never left.
 
                     case "savednpcs":
                         // SavedNPCs uses its own dedicated RPC broadcast.

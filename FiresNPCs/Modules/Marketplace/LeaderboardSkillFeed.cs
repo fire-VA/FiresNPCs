@@ -63,13 +63,16 @@ namespace FiresRPGmaker.Modules.Marketplace
                 if (string.IsNullOrEmpty(ownerKey)) return;
 
                 int n = pkg.ReadInt();
+                var levels = new List<KeyValuePair<string, int>>(n);
                 for (int i = 0; i < n; i++)
                 {
                     string skill = pkg.ReadString();
                     int level = pkg.ReadInt();
                     if (!string.IsNullOrEmpty(skill))
-                        LeaderboardBridge.SetSkillLevel(ownerKey, playerName, skill, level);
+                        levels.Add(new KeyValuePair<string, int>(skill, level));
                 }
+                // One vault write for the batch (Core 0.2.115+), not one per skill.
+                LeaderboardBridge.SetSkillLevels(ownerKey, playerName, levels);
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] RPC_RecordSkill failed: {ex.Message}"); }
         }

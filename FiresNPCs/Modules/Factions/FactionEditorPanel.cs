@@ -29,6 +29,12 @@ namespace FiresRPGmaker.Modules.Factions
             if (_instance._open) _instance.Close(); else _instance.OpenInternal(null);
         }
 
+        /// <summary>Closes the window when open (GUIManager.CloseAllPanels: Esc hook + closenpcui).</summary>
+        public static void CloseIfOpen()
+        {
+            if (IsOpen) _instance.Close();
+        }
+
         public static void Open(string factionId)
         {
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) return;
@@ -66,7 +72,8 @@ namespace FiresRPGmaker.Modules.Factions
         private void Update()
         {
             if (!_open) return;
-            if (UnityEngine.Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+            // Escape is owned by the central Menu.Show hook (GUIManager.CloseAllPanels): self-closing here ran a
+            // frame early and let vanilla's pause menu through (round 21).
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             // Gate game hotkeys while any IMGUI text control is focused, so typing doesn't leak to the game.
@@ -79,6 +86,7 @@ namespace FiresRPGmaker.Modules.Factions
             _open = true;
             InputBlock.Block(true);
             LoadFor(factionId ?? FirstId());
+            FiresCore.Logging.FiresLogger.LogDebug($"[faction] editor opened ({(_selectedId ?? "no faction")})");
         }
 
         private void Close()

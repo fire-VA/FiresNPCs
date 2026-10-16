@@ -34,6 +34,8 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
     {
         private ZNetView _nview;
         private Quaternion _placementRotation;
+        private const float OwnerInitWait = 3f;   // 0.0.587: how long the owning client waits for a server first-init before doing it
+        private Vector3 _awakePosition;   // 0.0.509
         private string _creationStack;
 
         private void Awake()
@@ -58,7 +60,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             {
                 var zdo = _nview.GetZDO();
                 if (zdo != null)
-                    _placementRotation = zdo.GetRotation();
+                    { _placementRotation = zdo.GetRotation(); _awakePosition = zdo.GetPosition(); }   // 0.0.509: the spawn spot, before anyone can possess it
             }
 
             // CRITICAL: Disable all components that fight to control rotation/position.
@@ -98,8 +100,29 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             StartCoroutine(DelayedInit());
         }
 
+        // 0.0.589 (Round B, the lead: placement -> anchor stored took ~15 s on a dedi): the client's 10 s npc_initialized poll below
+        // is a RELOG guard. A body this client has JUST placed has no other machine that will set the flag, so it skips the poll.
+        internal static float s_localPlaceAt = -100f;
+        private const float JustPlacedWindow = 3f;
+
+        [HarmonyLib.HarmonyPatch(typeof(Player), "PlacePiece")]
+        internal static class MarkLocalPlacement
+        {
+            [HarmonyLib.HarmonyPostfix]
+            private static void Mark(Player __instance) { if (__instance == Player.m_localPlayer) s_localPlaceAt = Time.realtimeSinceStartup; }
+        }
+
+        private bool JustPlacedByMe(ZDO z)
+        {
+            if (z == null || !z.IsOwner() || z.GetBool("npc_initialized", false)) return false;
+            if (Time.realtimeSinceStartup - s_localPlaceAt < JustPlacedWindow) return true;
+            long me = Game.instance != null && Game.instance.GetPlayerProfile() != null ? Game.instance.GetPlayerProfile().GetPlayerID() : 0L;
+            return me != 0L && z.GetLong(ZDOVars.s_creator, 0L) == me && string.IsNullOrEmpty(z.GetString("npc_name_override", ""));
+        }
+
         private IEnumerator DelayedInit()
         {
+            float initStart = Time.realtimeSinceStartup;   // 0.0.589: timings in the FRESH / FIRST-INIT lines
             // Wait for ZNetScene and networking to be ready
             while (ZNetScene.instance == null)
                 yield return null;
@@ -124,7 +147,12 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // re-logging client never reads a stale ZDO and silently skips the restore path.
             {
                 bool isServerLocal = ZNet.instance != null && ZNet.instance.IsServer();
-                if (!isServerLocal)
+                bool justPlaced = !isServerLocal && _nview != null && _nview.IsValid() && JustPlacedByMe(_nview.GetZDO());
+                if (justPlaced)
+                {
+                    Debug.Log($"[StaticNpc] {_nview.GetZDO().m_uid} was just placed by this client: the relog poll is skipped");   // 0.0.589
+                }
+                else if (!isServerLocal)
                 {
                     // Initial pause to let the first ZDO batch arrive
                     yield return new WaitForSeconds(1f);
@@ -198,16 +226,22 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 // still empty until a later coroutine loads the ZDO ~1.5s on, so without this the NPC arms no
                 // weapon AND is left KINEMATIC (can't walk → dragged). Loading here makes both reads see the
                 // real data immediately. The ZDO is intact (server-owned; static NPCs skip the logout-destroy).
+                yield return WaitOutPossession(zdo);   // 0.0.509: never set up (and re-anchor) a body a player is driving
                 GetComponent<NpcController>()?.LoadFromZDO();
                 EnsureCompanionNpcComponents(zdo);
                 // Organic migration: a pre-anchor body that loads on the server gets its anchor here.
-                if (isServer) EnsureAnchorForBody(zdo, organicMigration: true);
+                // 0.0.585: also on the owning client (it asks the server; see EnsureAnchorForBody), so a body placed on a dedicated
+                // server before 0.0.585 - or one whose reply was lost - gets its anchor on its next owned load.
+                Debug.Log($"[StaticNpc] init path RESTORE on {(isServer ? "server" : "client")} for {zdo.m_uid}: owner {zdo.IsOwner()}, anchor guid '{zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")}'");   // 0.0.586
+                if (isServer || zdo.IsOwner()) EnsureAnchorForBody(zdo, organicMigration: isServer);
                 StartCoroutine(RestoreAppearanceFromZDO(zdo));
                 // Organic template-icon backfill (client): once the body is dressed, capture the
                 // hammer icon for pre-icon templates. Cheap no-op when the icon already exists.
                 if (!isServer) StartCoroutine(BackfillIconWhenDressed());
                 yield break;
             }
+
+            yield return WaitOutPossession(zdo);   // 0.0.509
 
             // CRITICAL: Always set up the companion NPC component stack on EVERY machine
             // (client and server). Without this, clients never get CompanionNpcModule,
@@ -219,8 +253,30 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // the ZDO (may be partial on brand-new placement - server will write it shortly).
             if (!isServer)
             {
-                StartCoroutine(RestoreAppearanceFromZDO(zdo));
-                yield break;
+                // 0.0.586 (R-BARS-A: 0.0.585's request never fired): a FRESH body on a client left here before ever reaching
+                // EnsureAnchorForBody. On a dedicated server nothing else instantiates it ("server will write it shortly" never
+                // happens), so the owning client asks the server for its anchor.
+                Debug.Log($"[StaticNpc] init path FRESH on client for {zdo.m_uid}: owner {zdo.IsOwner()}, anchor guid '{zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")}' (+{Time.realtimeSinceStartup - initStart:F1} s after Start)");
+                // 0.0.587 (the lead: one authority per body): on a dedicated server nothing else ever runs first-init, so the OWNER
+                // does, after OwnerInitWait s. Whoever sets npc_initialized first wins: a server / listen host that initialized it
+                // meanwhile shows up here as npc_initialized=true, and this client steps aside.
+                bool ownerInits = false;
+                if (zdo.IsOwner())
+                {
+                    yield return new WaitForSeconds(OwnerInitWait);
+                    if (_nview == null || !_nview.IsValid()) yield break;
+                    if (zdo.GetBool("npc_initialized", false))
+                        Debug.Log($"[StaticNpc] first-init for {zdo.m_uid} already done by another machine: this client steps aside");
+                    else if (zdo.IsOwner()) ownerInits = true;
+                }
+                if (!ownerInits)
+                {
+                    if (zdo.IsOwner()) EnsureAnchorForBody(zdo);
+                    StartCoroutine(RestoreAppearanceFromZDO(zdo));
+                    yield break;
+                }
+                Debug.Log($"[StaticNpc] FIRST-INIT on the owning client for {zdo.m_uid} (no server instance after {OwnerInitWait:0} s: dedicated server; +{Time.realtimeSinceStartup - initStart:F1} s after Start)");
+                // falls through into the shared first-init below; its last step (EnsureAnchorForBody) asks the server for the anchor
             }
 
             // [persist] SMOKING-GUN log: a body reaches here ONLY when npc_initialized read FALSE. For a
@@ -336,8 +392,19 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
         {
             try
             {
-                if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
-                if (bodyZdo == null) return;
+                if (ZNet.instance == null || bodyZdo == null) return;
+                if (!ZNet.instance.IsServer())
+                {
+                    // 0.0.585: off-server (a client on a dedicated server, where the server never instantiates this body) the OWNER
+                    // asks the server to mint it. Was a silent return, so dedi-placed static NPCs never got an anchor.
+                    if (bodyZdo.IsOwner() && string.IsNullOrEmpty(bodyZdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")))
+                    {
+                        Vector3 askPos = bodyZdo.GetVec3("npc_placed_anchor", transform.position);
+                        TryProbeSurface(askPos, out askPos);
+                        StaticNpcAnchorRpc.Request(bodyZdo, askPos, _placementRotation);
+                    }
+                    return;
+                }
                 string existingGuid = bodyZdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "");
                 if (!string.IsNullOrEmpty(existingGuid))
                 {
@@ -457,6 +524,43 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
         /// This method configures the runtime instance so it behaves like a companion that
         /// was stationed via Shift+P, with the sole restriction that it cannot be unstated.
         /// </summary>
+        // 0.0.509 (the lead 18:3x, possession_test 3/4: "walked 9.4 m off its anchor; Core: walked in 0.0 s"): the anchor a static
+        // NPC is stationed at is where it was PLACED: npc_placed_anchor (written once at placement), else npc_stationed_pos, else
+        // the spot the body was spawned at (read in Awake, before anyone could possess it). Never the live body's position.
+        private Vector3 PlacedAnchor(ZDO zdo)
+        {
+            Vector3 fallback = _awakePosition != Vector3.zero ? _awakePosition : transform.position;
+            if (zdo == null) return fallback;
+            return zdo.GetVec3("npc_placed_anchor", zdo.GetVec3("npc_stationed_pos", fallback));
+        }
+
+        // A player can possess the body before this setup runs (it waits for networking and the ZDO). Setting up then would
+        // re-anchor it where the player walked it and freeze it under them. So: give Core's module the PLACED anchor now (its
+        // release walks the body home to it; the body stays where the player has it), and run the setup only once the
+        // possession has ended and the walk home is done (back within 1.5 m, or 20 s).
+        private IEnumerator WaitOutPossession(ZDO zdo)
+        {
+            if (!FiresCore.Npc.CompanionPossession.IsPossessed(_nview)) yield break;
+            Vector3 anchor = PlacedAnchor(zdo);
+            var module = GetComponent<CompanionNpcModule>();
+            if (module != null)
+            {
+                Vector3 bodyAt = transform.position;
+                var rb = GetComponent<Rigidbody>();
+                module.isStationedAsNpc = true;
+                module.isStaticPlacement = true;
+                module.SetStationedPositionDirect(anchor, _placementRotation);   // sets the anchor (and moves the transform: put back below)
+                transform.position = bodyAt;
+                if (rb != null) rb.position = bodyAt;
+            }
+            FiresCore.Logging.FiresLogger.LogDebug($"[StaticNpcInitializer] '{gameObject.name}' is possessed: setup waits; anchor {anchor} (placed), body at {transform.position}");
+            while (FiresCore.Npc.CompanionPossession.IsPossessed(_nview)) yield return null;
+            float until = Time.time + 20f;
+            while (Time.time < until && Vector2.Distance(new Vector2(transform.position.x, transform.position.z), new Vector2(anchor.x, anchor.z)) > 1.5f)
+                yield return null;
+            FiresCore.Logging.FiresLogger.LogDebug($"[StaticNpcInitializer] '{gameObject.name}' possession over: {Vector2.Distance(new Vector2(transform.position.x, transform.position.z), new Vector2(anchor.x, anchor.z)):0.0} m from its anchor, setup runs");
+        }
+
         private void EnsureCompanionNpcComponents(ZDO zdo)
         {
             // --- CompanionController: mark as tamed so idle behaviors treat it like a companion ---
@@ -519,7 +623,13 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // Use _placementRotation captured in Awake() from the ZDO - transform.rotation
             // cannot be trusted since Character/AI systems may have overwritten it.
             npcModule.isStationedAsNpc = true;
-            npcModule.SetStationedPositionDirect(transform.position, _placementRotation);
+            // 0.0.509: a STATIC fixture is stationed at its PLACED anchor, never the live body (a possessed body walked 9 m and
+            // became its own anchor). A wanderer / patrol NPC keeps the live spot as before: the placed anchor would teleport it
+            // home from mid-route on every load.
+            bool fixtureNow = !npcModule.allowIdleWandering
+                              && GetComponent<FiresCore.Npc.Patrol.PatrolAssignment>()?.HasRoute != true
+                              && (npcCtrl == null || string.IsNullOrEmpty(npcCtrl.patrolRouteName));
+            npcModule.SetStationedPositionDirect(fixtureNow ? PlacedAnchor(zdo) : transform.position, _placementRotation);
             npcModule.ApplyStationedState();
 
             // Re-enable Humanoid so the NPC can animate and be interacted with.
@@ -675,7 +785,15 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 character != null && character.m_aiSkipTarget,
                 companionAI != null && companionAI.enabled,
                 mai != null && mai.enabled));
+
+            // 0.0.567 ([generator] 10-10, Fire's ai-guard warnings on Sigyn/Fulla): tell Core's ai-guard the stage is applied,
+            // so it judges the AI from here on rather than the prefab's still-on AI at load. By reflection until Core 0.2.390
+            // is the minimum; an older Core keeps its 15 s window.
+            if (npcModule != null) s_markStaticStageApplied?.Invoke(npcModule, null);
         }
+
+        private static readonly System.Reflection.MethodInfo s_markStaticStageApplied =
+            typeof(CompanionNpcModule).GetMethod("MarkStaticStageApplied", System.Type.EmptyTypes);
 
         /// <summary>
         /// Re-resolves and re-applies the body stage after an admin config change (idle-wander toggle or

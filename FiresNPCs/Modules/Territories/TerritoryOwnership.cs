@@ -121,6 +121,12 @@ namespace FiresRPGmaker.Modules.Territories
                         Debug.LogWarning($"[Territory] {ownerId} tried to acquire '{territoryName}' (not ForSale) — denied");
                         return;
                     }
+                    // A plot sells once (ForSale=<coins>, 10-08); admins can still add owners from the admin editor.
+                    if (!isAdmin && _owners.TryGetValue(territoryName, out var current) && current.Count > 0 && !current.Contains(ownerId))
+                    {
+                        Debug.LogWarning($"[Territory] {ownerId} tried to buy '{territoryName}', already owned — denied");
+                        return;
+                    }
                     if (!_owners.TryGetValue(territoryName, out var set)) { set = new HashSet<string>(); _owners[territoryName] = set; }
                     set.Add(ownerId);
                     Debug.Log($"[Territory] granted '{territoryName}' to {ownerId}");
@@ -138,6 +144,33 @@ namespace FiresRPGmaker.Modules.Territories
                 BroadcastSync();
             }
             catch (Exception ex) { Debug.LogWarning($"[Territory] grant error: {ex.Message}"); }
+        }
+
+        // ── admin edits (0.0.510, TerritoryAdminEdit: the server, after its admin check) ─────────────────────────────
+        public static IReadOnlyCollection<string> OwnersOf(string territoryName)
+            => !string.IsNullOrEmpty(territoryName) && _owners.TryGetValue(territoryName, out var set) ? (IReadOnlyCollection<string>)set : Array.Empty<string>();
+
+        internal static int AdminRename(string oldName, string newName)
+        {
+            if (!_owners.TryGetValue(oldName, out var set)) return 0;
+            _owners.Remove(oldName);
+            if (!_owners.TryGetValue(newName, out var into)) { into = new HashSet<string>(); _owners[newName] = into; }
+            into.UnionWith(set);
+            SaveSidecar(); BroadcastSync();
+            return set.Count;
+        }
+
+        internal static void AdminClear(string name)
+        {
+            _owners.Remove(name);
+            SaveSidecar(); BroadcastSync();
+        }
+
+        internal static void AdminAdd(string name, string steamId)
+        {
+            if (!_owners.TryGetValue(name, out var set)) { set = new HashSet<string>(); _owners[name] = set; }
+            set.Add(steamId);
+            SaveSidecar(); BroadcastSync();
         }
 
         // ── sync ────────────────────────────────────────────────────────────────

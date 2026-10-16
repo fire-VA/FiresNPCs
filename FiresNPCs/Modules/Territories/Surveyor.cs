@@ -74,6 +74,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             try
             {
+                if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[Surveyor]")) return;   // 0.0.504
                 if (Player.m_localPlayer == null)
                 {
                     args.Context.AddString("[Surveyor] No local player");
@@ -232,6 +233,7 @@ namespace FiresRPGmaker.Modules.Territories
                 lines.Add("ALL");
 
                 File.WriteAllLines(_filePath, lines);
+                TerritoryFileSync.Saved(_filePath);   // 0.0.504: each marked node reaches the server on a dedi client
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Marked node {_count}");
             }
             catch (Exception ex)

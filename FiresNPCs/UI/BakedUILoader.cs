@@ -23,7 +23,7 @@ namespace FiresRPGmaker.UI
                 var tables = LoadTables(name);
                 if (tables.nodePaths == null) return null;
 
-                var root = UnityEngine.Object.Instantiate(prefab, parent);
+                var root = UnityEngine.Object.Instantiate(prefab, parent); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(root);   // 0.0.614
                 BindGenerated(generatedType, root, tables.nodePaths, tables.tags, tables.tagLists);
                 Debug.Log($"[BakedUILoader] '{name}' loaded from baked prefab ({tables.nodePaths.Count} nodes)");
                 return root;

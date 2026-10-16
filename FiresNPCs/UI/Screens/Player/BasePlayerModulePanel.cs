@@ -24,7 +24,25 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         // Static "any panel open" registry — read by GUIManager.IsCustomPanelOpen so the existing
         // PlayerInputPatches block movement/camera/M-key while one of these panels is on screen.
         private static int _openCount;
-        public static bool AnyOpen => _openCount > 0;
+        // 0.0.634 ([seasons]' ui_tour: Esc/pause stayed blocked after the NPC book): the counter only drops in Close(), so a panel
+        // hidden any other way (its book page closed, its canvas deactivated or destroyed) left it > 0 and GUIManager.IsCustomPanelOpen
+        // true for good, so Menu_Update_MutexPostfix shut every pause menu. Judge by what is really on screen; heal the counter.
+        public static bool AnyOpen
+        {
+            get
+            {
+                if (_openCount <= 0) return false;
+                for (int i = _openInstances.Count - 1; i >= 0; i--)
+                {
+                    var p = _openInstances[i];
+                    if (p != null && p._panelGo != null && p._panelGo.activeInHierarchy) return true;
+                }
+                Debug.LogWarning($"[FiresRPGmaker] [Panels] {_openCount} module panel(s) counted open but none is on screen; counter reset (pause menu unblocked)");
+                _openCount = 0; _openInstances.Clear();
+                foreach (var p in UnityEngine.Object.FindObjectsOfType<BasePlayerModulePanel>()) if (p != null) p._opened = false;
+                return false;
+            }
+        }
         // Live open instances so GUIManager.CloseAllPanels (fired from the Menu.Show Escape hook) can close
         // them — these panels don't self-close on Escape anymore, the central hook owns it.
         private static readonly System.Collections.Generic.List<BasePlayerModulePanel> _openInstances = new System.Collections.Generic.List<BasePlayerModulePanel>();
@@ -52,6 +70,14 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         /// CloseButton) are bound/wired. Panels bind their own named children + clone row templates here.</summary>
         protected virtual void BindPrefab(GameObject panelRoot) { }
 
+        /// <summary>0.0.564: the builders bake "✕" (U+2715), which the game font lacks (renders as an empty box). Swap to "×" (U+00D7, in AveriaSans) at runtime.</summary>
+        public static void FixCloseGlyph(Component close)
+        {
+            if (close == null) return;
+            foreach (var t in close.GetComponentsInChildren<TMPro.TextMeshProUGUI>(true))
+                if (t != null && t.text != null && t.text.Contains("✕")) t.text = t.text.Replace("✕", "×");
+        }
+
         // Programmatic content builder — only used by panels that DON'T set PrefabName. Converted
         // panels (load-from-prefab) leave this empty and do their wiring in BindPrefab instead.
         protected virtual void BuildContent(RectTransform contentArea) { }
@@ -63,6 +89,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_subtitleText != null)
                 _subtitleText.text = npcDisplayName + "  -  Profile: " + (string.IsNullOrEmpty(profileName) ? "<none>" : profileName);
             OnOpen(profileName, npcDisplayName);
+            if (_canvasGo != null) _canvasGo.SetActive(true);
             _panelGo.SetActive(true);
             if (!_opened)
             {
@@ -80,6 +107,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         public void Close()
         {
             if (_panelGo != null) _panelGo.SetActive(false);
+            // Hide the whole canvas too: a closed panel must not leave an active (empty) root canvas behind (round 21).
+            if (_canvasGo != null) _canvasGo.SetActive(false);
             if (_opened)
             {
                 _opened = false;
@@ -138,7 +167,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
 
             BuildCanvas();
-            _panelGo = Object.Instantiate(prefab, _canvasGo.transform);
+            _panelGo = Object.Instantiate(prefab, _canvasGo.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panelGo);   // 0.0.614
             _panelGo.name = PanelTitle + "Panel";
             _panelGo.SetActive(false);
 
@@ -146,6 +175,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _subtitleText = FindTmp(root, "SubtitleText");
             var close = FindBtn(root, "CloseButton");
             if (close != null) { close.onClick.RemoveAllListeners(); close.onClick.AddListener(Close); }
+            FixCloseGlyph(close);   // 0.0.564
 
             try { BindPrefab(_panelGo); }
             catch (System.Exception ex) { Debug.LogError("[" + PanelTitle + "Panel] BindPrefab threw — panel may be partially wired: " + ex); }

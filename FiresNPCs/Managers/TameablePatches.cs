@@ -32,24 +32,39 @@ namespace FiresRPGmaker.Modules.Vault
             }
         }
 
+        // Vanilla GetName = Localize(m_character ? m_character.m_name : tamed name from the ZDO, else m_piece.m_name). It threw on
+        // the dedi (R86, Selective ON): a server-side tame can have m_character unset, and then m_piece (null on a creature) is
+        // read, or Localization.instance is null. The same name is worked out here with every reference checked, and vanilla
+        // never runs, so GetName cannot throw.
+        private static readonly AccessTools.FieldRef<Tameable, Character> s_character = AccessTools.FieldRefAccess<Tameable, Character>("m_character");
+        private static readonly AccessTools.FieldRef<Tameable, ZNetView> s_nview = AccessTools.FieldRefAccess<Tameable, ZNetView>("m_nview");
+        private static readonly AccessTools.FieldRef<Tameable, Piece> s_piece = AccessTools.FieldRefAccess<Tameable, Piece>("m_piece");
+
         [HarmonyPatch(typeof(Tameable), "GetName")]
         [HarmonyPrefix]
         private static bool Tameable_GetName_Safe(Tameable __instance, ref string __result)
         {
+            string name = string.Empty;
             try
             {
-                if (__instance == null || __instance.GetComponent<Character>() == null)
+                if (__instance == null) { __result = string.Empty; return false; }
+                var character = s_character(__instance);
+                if (character == null) character = __instance.GetComponent<Character>();
+                var piece = s_piece(__instance);
+                string fallback = piece != null ? piece.m_name : string.Empty;
+                if (character != null) name = character.m_name ?? string.Empty;
+                else
                 {
-                    __result = string.Empty;
-                    return false;
+                    var nview = s_nview(__instance);
+                    name = nview != null && nview.IsValid() ? nview.GetZDO().GetString(ZDOVars.s_tamedName, fallback) : fallback;
                 }
-                return true; // proceed to original
+                __result = Localization.instance != null ? Localization.instance.Localize(name) : name;
             }
             catch
             {
-                __result = string.Empty;
-                return false;
+                __result = name ?? string.Empty;
             }
+            return false;
         }
 
         [HarmonyPatch(typeof(Tameable), "GetHoverName")]

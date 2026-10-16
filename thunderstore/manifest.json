@@ -1,9 +1,10 @@
 {
-    "name":  "FiresNPCs",
-    "version_number":  "0.0.471",
+    "name":  "FiresRPGmaker",
+    "version_number":  "0.0.659",
     "website_url":  "https://github.com/fire-VA/FiresNPCs",
     "description":  "Part of the Fires mod family for Valheim.",
     "dependencies":  [
-                         "denikson-BepInExPack_Valheim-5.4.2202"
+                         "denikson-BepInExPack_Valheim-5.4.2350",
+                         "VerdantsAscent-FiresUnifiedCore-0.2.580"
                      ]
 }

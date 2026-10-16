@@ -55,8 +55,10 @@ if (_instance == this)
   if (Player.m_localPlayer == null)
      return false;
 
-  // Don't process if we're in a menu or chat is open
-    if (Menu.IsVisible())
+  // Don't process if we're in a menu. The open quest book itself makes Menu.IsVisible() read true (it registers with
+  // ModUiRegistry), which swallowed the second press, so J opened the book but never closed it (10-08, rpg_ui_test spec).
+  // While the book is open, its own key always reaches it.
+    if (Menu.IsVisible() && !global::FiresRPGmaker.UI.Books.QuestBookJournal.IsOpen)
          return false;
 
           // Don't process if chat is focused

@@ -80,6 +80,7 @@ namespace FiresRPGmaker.UI
         public string equipLeftHand;
         public string equipRightBack;
         public string equipLeftBack;
+        public string equipPet;   // 0.0.559: cosmetic pet item/creature ("" none); owner writes "fires_pet" via NpcPetSlot
 
         // Full serialized ItemData (base64) for the hand weapons, so a static NPC fights with the EXACT item
         // the player equipped (quality/upgrades/crafter/customData/worldLevel) — not a quality-1 prefab clone.
@@ -124,6 +125,12 @@ namespace FiresRPGmaker.UI
         /// for NPCs that will have their visual hierarchy replaced.
         /// </summary>
         internal bool HasPendingModelOverride { get; private set; }
+
+        // SavedNpcManager keys live NPCs by placement id; registering here is what lets an incoming
+        // NpcDataUpdate find its target without a scene-wide FindObjectsByType per RPC.
+        private void OnEnable() => SavedNpcManager.RegisterLiveNpc(this);
+
+        private void OnDisable() => SavedNpcManager.UnregisterLiveNpc(this);
 
         private void Awake()
      {
@@ -248,12 +255,48 @@ namespace FiresRPGmaker.UI
 private void Update()
         {
       CheckPlayerProximity();
+            WatchPatrolKey();
 
         if (_isFollowing && _followTarget != null)
    {
        UpdateFollowBehavior();
             }
    }
+
+        // 0.0.632 (R-1015SF8 route_walk): the route key can change on the ZDO after this controller loaded it (an admin client's
+        // SetPatrolKey RPC lands on the server, then syncs back), and nothing re-read it, so the PatrolAssignment stayed empty.
+        // Once a second, adopt a changed key. A missing key never clears a route.
+        private float _patrolKeyTimer;
+        private string _lastZdoRouteKey;
+        private void WatchPatrolKey()
+        {
+            _patrolKeyTimer += Time.deltaTime;
+            if (_patrolKeyTimer < 1f) return;
+            _patrolKeyTimer = 0f;
+            if (_nview == null || !_nview.IsValid()) return;
+            var zdo = _nview.GetZDO();
+            if (zdo == null) return;
+            const string Missing = "<no key>";
+            string key = zdo.GetString("npc_patrol_route", Missing);
+            if (key == Missing) return;
+            // 0.0.634 (R-1015E: the route reverted to '' a second after the server applied it, and the client's watcher wiped its
+            // just-assigned local route before the server's key arrived): the server, as owner, re-asserts the route an admin last
+            // assigned instead of adopting a stale write; everyone else adopts only a CHANGE of the ZDO value, never "differs from mine".
+            if (ZNet.instance != null && ZNet.instance.IsServer() && _nview.IsOwner() && PatrolRouteSync.TryGetServerAssigned(zdo.m_uid, out var assigned, out var aPreset) && key != assigned)
+            {
+                zdo.Set("npc_patrol_route", assigned); zdo.Set("npc_patrol_preset", aPreset);
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogWarning($"[Patrol] {GetDisplayName()}: the ZDO route reverted to '{key}' after the admin assigned '{assigned}'; restored it");
+                key = assigned;
+            }
+            if (_lastZdoRouteKey == null) { _lastZdoRouteKey = key; if (key == (patrolRouteName ?? "")) return; }
+            else if (key == _lastZdoRouteKey) return;
+            _lastZdoRouteKey = key;
+            if (key == (patrolRouteName ?? "")) return;
+            patrolRouteName = key;
+            patrolSpeedPreset = zdo.GetString("npc_patrol_preset", patrolSpeedPreset ?? "");
+            ApplyRouteChange();
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Patrol] {GetDisplayName()} adopted route '{key}' from its ZDO (owner here={_nview.IsOwner()})");
+        }
 
         /// <summary>
       /// Checks if the local player is within proximity range and triggers greet/bye animations.
@@ -548,6 +591,20 @@ if (_isFollowing && _followTarget == player)
         /// normal companion physics, so no freeze/gravity flips are needed — PatrolBehavior just walks it.
         /// Runs on every machine from LoadFromZDO; the patrol movement itself runs on the owner.
         /// </summary>
+        /// <summary>
+        /// 0.0.633 (R-1015D route_walk: Patrol active on the dedi, "moved 0.0 m"): a route assigned AFTER spawn left the body in its
+        /// fixture stage (Rigidbody FreezeAll, AI off), which SyncPatrolAssignment never undoes. Re-resolve the body stage too, the
+        /// same call the book's Apply path makes. Use this for every live route change; LoadFromZDO (spawn) keeps SyncPatrolAssignment.
+        /// </summary>
+        public void ApplyRouteChange()
+        {
+            SyncPatrolAssignment();
+            try { GetComponent<global::FiresRPGmaker.Modules.Companions.NpcMode.StaticNpcInitializer>()?.ReapplyBodyStage(); }
+            catch (System.Exception ex) { Debug.LogWarning("[NpcController] ReapplyBodyStage after a route change: " + ex.Message); }
+            var rb = GetComponent<Rigidbody>();
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Patrol] {GetDisplayName()} route '{patrolRouteName}' applied, body constraints now {(rb != null ? rb.constraints.ToString() : "no Rigidbody")}");
+        }
+
         public void SyncPatrolAssignment()
         {
             var pa = GetComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
@@ -607,11 +664,13 @@ if (_isFollowing && _followTarget == player)
    bool isAdmin = ZNet.instance?.IsServer() == true ||
             FiresRPGmaker.Instance?.configSync?.IsAdmin == true;
 
-            bool shiftHeld = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            // alt: vanilla's own modifier for this Interact (its AltPlace binding, Shift by default; rebinds and gamepad follow).
+            bool shiftHeld = alt || ZInput.GetKey(KeyCode.LeftShift, false) || ZInput.GetKey(KeyCode.RightShift, false);
 
        // Admin Shift: open the config book (the old flat NpcMainPanelController is retired).
             if (isAdmin && shiftHeld)
    {
+                Debug.Log($"[Interact] NpcController.Interact (admin, shift, alt {alt}) -> NpcBookController.ShowForNpc for '{GetDisplayName()}'");   // 0.0.648: the real Shift+E path, for the FDT interact test
                 NpcBookController.ShowForNpc(this);
     return true;
    }

@@ -229,6 +229,31 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _pageNumberText.text = (_page + 1) + " / " + _maxPage;
 
             _statusText.text = rows.Count + " listing(s)  -  Tab: " + _currentTab + "  -  Cat: " + _category;
+            UpdateBuyArea(rows.Count);
+        }
+
+        // 0.0.558 redesign (Fire-approved mockup): the BuyArea strip names the selected listing and its button opens the same
+        // confirm step a row click does; PagerText repeats the page in the footer. Absent on old prefabs → no-ops.
+        private void UpdateBuyArea(int total)
+        {
+            var root = _listingContent != null ? _listingContent.root : null;
+            if (root == null) return;
+            var pager = FindTmp(root, "PagerText");
+            if (pager != null) pager.text = "Page " + (_page + 1) + " / " + _maxPage + "  ·  " + total + " listing(s)";
+            var buyText = FindTmp(root, "BuyText");
+            var buyBtn = FindBtn(root, "BuyButton");
+            var l = _selected;
+            if (buyText != null)
+                buyText.text = l == null ? "Select a listing to see it here."
+                    : "<b>" + l.ItemPrefab + "</b> × " + l.Count + (string.IsNullOrEmpty(l.SellerName) ? "" : " from " + l.SellerName) + "  ·  " + l.Price + " " + l.Currency;
+            if (buyBtn != null)
+            {
+                buyBtn.interactable = l != null;
+                var lbl = buyBtn.GetComponentInChildren<TMP_Text>(true);
+                if (lbl != null) lbl.text = l == null ? "Buy" : (_currentTab == Tab.MyListings ? "Cancel listing" : _currentTab == Tab.Sell ? "Sell" : "Buy for " + l.Price);
+                buyBtn.onClick.RemoveAllListeners();
+                buyBtn.onClick.AddListener(() => { if (_selected != null) ShowConfirmPanelFor(_selected); });
+            }
         }
 
         private void HighlightTab(Button btn, bool active)
@@ -253,7 +278,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (btn != null) { btn.onClick.RemoveAllListeners(); btn.onClick.AddListener(() => { _selected = l; ShowConfirmPanelFor(l); Refresh(); }); }
 
             float fs = RowFontSize;
-            string itemLabel = l.Quality > 1 ? l.ItemPrefab + " <color=#e0c060>★" + l.Quality + "</color>" : l.ItemPrefab;
+            string itemLabel = l.Quality > 1 ? l.ItemPrefab + " <color=#e0c060>*" + l.Quality + "</color>" : l.ItemPrefab;
             if (l.DurabilityPercent < 100) itemLabel += " <color=#c07050>" + l.DurabilityPercent + "%</color>";
             SetCell(rowGo, "ItemLabel",   itemLabel, fs);
             SetCell(rowGo, "QtyLabel",    l.Count.ToString(), fs);
@@ -304,7 +329,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
             // On My Listings an admin also sees everyone else's rows — a non-owned row is an admin
             // REMOVE (server hard-deletes, nothing granted), own rows stay a Cancel (goods returned).
-            bool ownListing = Player.m_localPlayer != null && l.SellerId == Player.m_localPlayer.GetPlayerID();
+            bool ownListing = Player.m_localPlayer != null && l.SellerId == global::FiresRPGmaker.Modules.Marketplace.MarketplaceListingManager.LocalSellerKey(); // 0.0.532: platform key, as the server files it
             _confirmActionLabel.text = _currentTab switch
             {
                 Tab.MyListings => ownListing ? "Cancel" : "Remove",

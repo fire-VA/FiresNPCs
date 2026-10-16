@@ -7,7 +7,6 @@ using FiresRPGmaker.Modules.Progression;
 using FiresRPGmaker.Modules.Quest;
 using FiresRPGmaker.Modules.Vault;
 using FiresRPGmaker.Modules.Marketplace;
-using FiresRPGmaker.Modules.Guilds;
 
 namespace FiresRPGmaker.Modules.Dialogues
 {
@@ -39,6 +38,16 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// Evaluates all condition groups for an option.
         /// Groups are AND'd together; conditions within a group are OR'd.
         /// </summary>
+        // 0.0.532 (Fire 10-08): conditions fail CLOSED. An unknown type, a missing or unreadable value, an unsupported
+        // check, or one that throws used to PASS, so a single typo un-gated the option. Each distinct problem is
+        // logged once, naming the condition line, and the option stays locked.
+        private static readonly HashSet<string> s_warnedConditions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static ConditionResult Malformed(string line, string problem)
+        {
+            if (s_warnedConditions.Add(problem + "|" + line))
+                Debug.LogWarning($"[DialogueConditionEngine] Condition '{line}': {problem}; the option stays locked.");
+            return ConditionResult.Fail("Requirements not met.");
+        }
         public static bool EvaluateAll(List<string[]> conditionGroups, out string reason)
         {
             reason = string.Empty;
@@ -113,8 +122,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[DialogueConditionEngine] Error evaluating '{condition}': {ex.Message}");
-                return ConditionResult.Pass();
+                return Malformed(condition, "the check threw: " + ex.Message);
             }
         }
 
@@ -171,6 +179,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 case "maxeitrmore": return CheckStat(player.GetMaxEitr(), parts, true, "Max Eitr");
                 case "maxeitrless": return CheckStat(player.GetMaxEitr(), parts, false, "Max Eitr");
                 case "none": return ConditionResult.Pass();
+                case "unreadabledialoguepart": return ConditionResult.Fail("Requirements not met."); // DialogueCodex.LockUnreadable warned at load
                 // ── KG-parity conditions added 2026-06-08 ──
                 case "hasachievement":              return CheckHasAchievement(parts, false);
                 case "nothasachievement":           return CheckHasAchievement(parts, true);
@@ -203,8 +212,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 case "hasanyfaction":               return CheckHasAnyFaction(false);
                 case "nothasanyfaction":            return CheckHasAnyFaction(true);
                 default:
-                    Debug.LogWarning($"[DialogueConditionEngine] Unknown condition type: {typeName}");
-                    return ConditionResult.Pass();
+                    return Malformed(string.Join(",", parts), $"unknown condition type '{typeName}'");
             }
         }
 
@@ -225,7 +233,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckHasAchievement(string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string achId = parts[1].Trim();
             try
             {
@@ -245,7 +253,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckHasAchievementScore(string[] parts, bool invert)
         {
-            if (parts.Length < 2 || !int.TryParse(parts[1].Trim(), out int needed)) return ConditionResult.Pass();
+            if (parts.Length < 2 || !int.TryParse(parts[1].Trim(), out int needed)) return Malformed(string.Join(",", parts), "needs a whole number");
             try
             {
                 string playerName = Player.m_localPlayer?.GetPlayerName() ?? "Local";
@@ -258,7 +266,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 bool ok = total >= needed;
                 return ok != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Need {needed} achievement score (have {total})");
             }
-            catch { return ConditionResult.Pass(); }
+            catch (Exception ex) { return Malformed(string.Join(",", parts), "the check threw: " + ex.Message); }
         }
 
         private static ConditionResult CheckHasGuild(Player player, string[] parts, bool invert)
@@ -268,12 +276,12 @@ namespace FiresRPGmaker.Modules.Dialogues
                 bool hasGuild = FiresCore.Bridge.GuildBridge.LocalGuildName() != null;
                 return hasGuild != invert ? ConditionResult.Pass() : ConditionResult.Fail(invert ? "Must not be in a guild" : "Must be in a guild");
             }
-            catch { return ConditionResult.Pass(); }
+            catch (Exception ex) { return Malformed(string.Join(",", parts), "the check threw: " + ex.Message); }
         }
 
         private static ConditionResult CheckHasGuildWithName(Player player, string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string target = parts[1].Trim();
             try
             {
@@ -281,21 +289,20 @@ namespace FiresRPGmaker.Modules.Dialogues
                 bool match = guildName != null && string.Equals(guildName, target, StringComparison.OrdinalIgnoreCase);
                 return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Need to be in guild '{target}'");
             }
-            catch { return ConditionResult.Pass(); }
+            catch (Exception ex) { return Malformed(string.Join(",", parts), "the check threw: " + ex.Message); }
         }
 
         private static ConditionResult CheckGuildLevel(Player player, string[] parts, bool more)
         {
-            // Guild leveling not implemented yet — pass through as no-op so dialogue isn't blocked.
-            // Wire up GuildData.Level + revisit this once the Guilds mod gains the leveling system.
-            return ConditionResult.Pass();
+            // Guild levels don't exist (FiresGuilds has none); 0.0.532 fails closed instead of passing.
+            return Malformed(string.Join(",", parts), "guild levels aren't supported");
         }
 
         private static ConditionResult CheckGuildHasAchievement(Player player, string[] parts, bool invert)
         {
             // Guild-level achievements not yet ported (KG had GuildAchievement_DataTypes). Pass through
             // as no-op so dialogue isn't blocked; revisit when the guild-achievement module lands.
-            return invert ? ConditionResult.Pass() : ConditionResult.Pass();
+            return invert ? ConditionResult.Pass() : Malformed(string.Join(",", parts), "guild achievements aren't supported");
         }
 
         private static ConditionResult CheckIsVIP(Player player, bool invert)
@@ -314,7 +321,8 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckNpcModelEquals(string[] parts, bool invert)
         {
-            if (parts.Length < 2 || string.IsNullOrEmpty(CurrentNpcModel)) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
+            if (string.IsNullOrEmpty(CurrentNpcModel)) return ConditionResult.Pass();
             string target = parts[1].Trim();
             bool match = string.Equals(CurrentNpcModel, target, StringComparison.OrdinalIgnoreCase);
             return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"NPC model must {(invert ? "not " : "")}be '{target}'");
@@ -322,7 +330,8 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckNpcNameEquals(string[] parts, bool invert)
         {
-            if (parts.Length < 2 || string.IsNullOrEmpty(CurrentNpcName)) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
+            if (string.IsNullOrEmpty(CurrentNpcName)) return ConditionResult.Pass();
             string target = parts[1].Trim();
             bool match = string.Equals(CurrentNpcName, target, StringComparison.OrdinalIgnoreCase);
             return match != invert ? ConditionResult.Pass() : ConditionResult.Fail($"NPC name must {(invert ? "not " : "")}be '{target}'");
@@ -330,7 +339,8 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckCustomDataKeys(Player player, string[] parts, bool requireAll, bool invert)
         {
-            if (parts.Length < 2 || player == null) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
+            if (player == null) return ConditionResult.Fail("No local player");
 
             // MP semantics first (drop-in): parts[1] names a CustomSpawnData blob whose entries are
             // compared against the player's ZDO; parts[2] is the failure reason shown to the player.
@@ -347,7 +357,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             var keys = new List<string>();
             for (int i = 1; i < parts.Length; i++)
                 keys.AddRange(parts[i].Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries));
-            if (keys.Count == 0) return ConditionResult.Pass();
+            if (keys.Count == 0) return Malformed(string.Join(",", parts), "needs at least one key");
 
             int hits = 0;
             foreach (var k in keys)
@@ -361,7 +371,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckModInstalled(string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string guid = parts[1].Trim();
             bool installed = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(guid);
             return installed != invert ? ConditionResult.Pass() : ConditionResult.Fail($"Mod {(invert ? "must not be" : "required")}: {guid}");
@@ -369,7 +379,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckHasFaction(string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string want = parts[1].Trim();
             string have = global::FiresRPGmaker.Modules.Factions.FactionMembership.LocalFactionId();
             bool match = have != null && string.Equals(have, want, StringComparison.OrdinalIgnoreCase);
@@ -389,9 +399,10 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static ConditionResult CheckIronGateStat(string[] parts, bool more)
         {
             // Vanilla IronGate stats are tracked on the active PlayerProfile.m_playerStats dictionary.
-            if (parts.Length < 3 || Game.instance == null) return ConditionResult.Pass();
+            if (parts.Length < 3) return Malformed(string.Join(",", parts), "needs a stat name and a number");
+            if (Game.instance == null) return ConditionResult.Fail("No game");
             string statKey = parts[1].Trim();
-            if (!int.TryParse(parts[2].Trim(), out int threshold)) return ConditionResult.Pass();
+            if (!int.TryParse(parts[2].Trim(), out int threshold)) return Malformed(string.Join(",", parts), "needs a whole number");
             int value = 0;
             try
             {
@@ -421,9 +432,9 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckHasItem(Player player, string[] parts, bool invert)
         {
-            if (parts.Length < 3) return ConditionResult.Pass();
+            if (parts.Length < 3) return Malformed(string.Join(",", parts), "needs two values");
             string prefabName = parts[1].Trim();
-            if (!int.TryParse(parts[2].Trim(), out int requiredAmount)) return ConditionResult.Pass();
+            if (!int.TryParse(parts[2].Trim(), out int requiredAmount)) return Malformed(string.Join(",", parts), "needs a whole number");
             int level = parts.Length > 3 && int.TryParse(parts[3].Trim(), out int l) ? l : 0;
 
             string displayName = prefabName;
@@ -464,11 +475,11 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckHasQuest(Player player, string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string questId = parts[1].Trim();
             long playerId = player.GetPlayerID();
             var qm = QuestManager.Instance;
-            if (qm == null) return ConditionResult.Pass();
+            if (qm == null) return ConditionResult.Fail("Quests aren't loaded yet");
 
             bool hasQuest = qm.HasQuest(playerId, questId);
             if (invert)
@@ -478,11 +489,11 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckQuestFinished(Player player, string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string questId = parts[1].Trim();
             long playerId = player.GetPlayerID();
             var qm = QuestManager.Instance;
-            if (qm == null) return ConditionResult.Pass();
+            if (qm == null) return ConditionResult.Fail("Quests aren't loaded yet");
 
             bool completed = qm.HasCompletedQuest(playerId, questId);
             if (invert)
@@ -492,21 +503,21 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckQuestProgress(Player player, string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string questId = parts[1].Trim();
             long playerId = player.GetPlayerID();
             var qm = QuestManager.Instance;
-            if (qm == null) return ConditionResult.Pass();
+            if (qm == null) return ConditionResult.Fail("Quests aren't loaded yet");
 
             bool hasQuest = qm.HasQuest(playerId, questId);
             if (!hasQuest) return invert ? ConditionResult.Pass() : ConditionResult.Fail($"Quest not active: {questId}");
 
             // Check if all targets are met for the quest
             var def = qm.GetQuestDefinition(questId);
-            if (def == null) return ConditionResult.Pass();
+            if (def == null) return Malformed(string.Join(",", parts), "unknown quest");
 
             var vaultData = VaultOfKnowledge.Instance?.GetPlayerData(playerId);
-            if (vaultData == null) return ConditionResult.Pass();
+            if (vaultData == null) return ConditionResult.Fail("No quest data yet");
 
             var activeEntry = vaultData.ActiveQuests?.FirstOrDefault(q =>
                 string.Equals(q.QuestId, questId, StringComparison.OrdinalIgnoreCase));
@@ -532,7 +543,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckGlobalKey(string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string key = parts[1].Trim();
             bool has = ZoneSystem.instance != null && ZoneSystem.instance.GetGlobalKey(key);
             if (invert)
@@ -542,7 +553,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckPlayerKey(Player player, string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string key = parts[1].Trim();
             // Check Valheim's unique keys AND our private keys
             bool has = player.HaveUniqueKey(key) || PrivateKeyManager.HasPrivateKey(key);
@@ -553,9 +564,9 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckSkill(Player player, string[] parts, bool moreOrEqual)
         {
-            if (parts.Length < 3) return ConditionResult.Pass();
+            if (parts.Length < 3) return Malformed(string.Join(",", parts), "needs two values");
             string skillName = parts[1].Trim();
-            if (!int.TryParse(parts[2].Trim(), out int level)) return ConditionResult.Pass();
+            if (!int.TryParse(parts[2].Trim(), out int level)) return Malformed(string.Join(",", parts), "needs a whole number");
 
             float playerLevel = GetSkillLevel(player, skillName);
             string locSkill = Localization.instance.Localize("$skill_" + skillName.ToLowerInvariant());
@@ -584,7 +595,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckBuff(Player player, string[] parts, bool invert)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string buffName = parts[1].Trim();
             bool has = player.GetSEMan().HaveStatusEffect(buffName.GetStableHashCode());
 
@@ -602,9 +613,9 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckCustomPlayerKey(Player player, string[] parts, bool moreOrEqual)
         {
-            if (parts.Length < 3) return ConditionResult.Pass();
+            if (parts.Length < 3) return Malformed(string.Join(",", parts), "needs two values");
             string key = parts[1].Trim();
-            if (!int.TryParse(parts[2].Trim(), out int threshold)) return ConditionResult.Pass();
+            if (!int.TryParse(parts[2].Trim(), out int threshold)) return Malformed(string.Join(",", parts), "needs a whole number");
 
             int current = 0;
             var nview = player.GetComponent<ZNetView>();
@@ -625,9 +636,9 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckStat(float currentValue, string[] parts, bool moreOrEqual, string statName)
         {
-            if (parts.Length < 2) return ConditionResult.Pass();
+            if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             if (!float.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float threshold))
-                return ConditionResult.Pass();
+                return Malformed(string.Join(",", parts), "needs a number");
 
             if (moreOrEqual)
                 return currentValue >= threshold

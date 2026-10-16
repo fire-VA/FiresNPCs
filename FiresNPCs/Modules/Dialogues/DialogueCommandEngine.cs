@@ -654,28 +654,38 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (parts.Length < 2) return;
             string clipName = parts[1].Trim();
 
+            if (npcView == null && Player.m_localPlayer == null) return;
+            Vector3 pos = npcView != null ? npcView.transform.position : Player.m_localPlayer.transform.position;
+
             try
             {
                 // Try to find the effect prefab in ZNetScene (e.g., "sfx_greydwarf_idle")
-                var prefab = ZNetScene.instance != null ? ZNetScene.instance.GetPrefab(clipName) : null;
+                var prefab = ResolvePrefab(clipName);
                 if (prefab != null)
                 {
-                    Vector3 pos = npcView != null ? npcView.transform.position : Player.m_localPlayer.transform.position;
                     UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
                     return;
                 }
 
-                // Fallback: try playing on the NPC's AudioSource directly
-                if (npcView != null)
-                {
-                    var audioSource = npcView.GetComponentInChildren<AudioSource>();
-                    if (audioSource != null)
-                    {
-                        var clip = Resources.Load<AudioClip>(clipName);
-                        if (clip != null)
-                            audioSource.PlayOneShot(clip);
-                    }
-                }
+                // Bare clip name. Custom mp3s win, then the shared cached scan. This was
+                // Resources.Load<AudioClip>, which only sees a Resources folder - Valheim ships none, so
+                // every plain clip name resolved to null and the command silently did nothing.
+                AudioClip clip;
+                if (!FiresCore.Audio.FiresCustomAudioStore.Clips.TryGetValue(clipName, out clip) || clip == null)
+                    clip = global::FiresRPGmaker.NpcFashion.NpcFashionManager.ResolveClipCached(clipName);
+
+                // ResolveClipCached warns once per name and caches the miss, so no warning here.
+                if (clip == null) return;
+
+                // NpcFashionComponent only creates an AudioSource when PeriodicSound or InteractSound is
+                // set, so an NPC that only uses this command has none - play positionally instead.
+                var audioSource = npcView != null ? npcView.GetComponentInChildren<AudioSource>() : null;
+                if (audioSource != null)
+                    audioSource.PlayOneShot(clip);
+                else
+                    AudioSource.PlayClipAtPoint(clip, pos);
+
+                global::FiresRPGmaker.FiresLogger.LogVerbose($"[DialogueCommandEngine] PlaySound '{clipName}' -> {clip.name}");
             }
             catch (Exception ex)
             {

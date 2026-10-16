@@ -62,7 +62,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 sb.Append("Of ").Append(achievementsTotal).Append(" great deeds, ")
                   .Append(name).Append(" accomplished <b>").Append(achievementsEarned).Append("</b>. ");
 
-            // closing — score-flavoured send-off to the halls.
+            // closing - score-flavoured send-off to the halls.
             int score = player != null ? player.Score : 0;
             sb.Append('\n').Append(ClosingLine(name, score));
 
@@ -82,20 +82,20 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         private static string DeathLine(string name, int deaths)
         {
-            if (deaths <= 0) return $"In all their days {name} never once fell — a saga the skalds will doubt.";
+            if (deaths <= 0) return $"In all their days {name} never once fell - a saga the skalds will doubt.";
             if (deaths == 1) return $"{name} tasted Hel's cold but once, and rose again.";
             if (deaths <= 5) return $"Felled {deaths} times, {name} clawed back from the mists each time.";
             if (deaths <= 20) return $"{deaths} deaths could not keep {name} from the fight.";
-            return $"Hel knew {name} well — {deaths} times they crossed her threshold, and {deaths} times returned.";
+            return $"Hel knew {name} well - {deaths} times they crossed her threshold, and {deaths} times returned.";
         }
 
         private static string MonsterLine(int monsters)
         {
-            if (monsters <= 0) return "No beast's blood stained their blade — a quiet life by the longhouse fire.";
+            if (monsters <= 0) return "No beast's blood stained their blade - a quiet life by the longhouse fire.";
             if (monsters < 50) return $"They laid low {monsters} foul creatures of the wild.";
-            if (monsters < 500) return $"By their hand fell {monsters} beasts — greylings, draugr, and worse.";
+            if (monsters < 500) return $"By their hand fell {monsters} beasts - greylings, draugr, and worse.";
             if (monsters < 2000) return $"A slayer of {monsters} monsters; the forests grew quiet at their step.";
-            return $"{monsters} creatures met their end on this Viking's steel — a tally worthy of Valhalla itself.";
+            return $"{monsters} creatures met their end on this Viking's steel - a tally worthy of Valhalla itself.";
         }
 
         private static string PvpLine(int pvp)
@@ -110,7 +110,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             if (pct < 1f) return "They roamed little, content to defend their own hearth.";
             if (pct < 10f) return $"They charted {pct:0.#}% of these lands.";
             if (pct < 40f) return $"A wanderer who mapped {pct:0.#}% of the realm.";
-            return $"Far and wide they sailed — {pct:0.#}% of the world bowed to their gaze.";
+            return $"Far and wide they sailed - {pct:0.#}% of the world bowed to their gaze.";
         }
 
         private static string ClosingLine(string name, int score)

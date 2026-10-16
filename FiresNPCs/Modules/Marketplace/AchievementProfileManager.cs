@@ -80,8 +80,15 @@ namespace FiresRPGmaker.Modules.Marketplace
             // server/host reads + seeds its folder as before.
             if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
             {
+                // Seed when the folder is missing OR holds no profile: the rig dedi's folder existed but was empty since
+                // 10-01, so nothing was ever seeded and every client's leaderboard read "Achievements 0 / 0" (Fire 10-08).
                 var folder = GetProfileFolder();
-                if (!Directory.Exists(folder))
+                bool empty = !Directory.Exists(folder);
+                if (!empty)
+                {
+                    try { empty = !Directory.EnumerateFiles(folder, "*.cfg").Any(); } catch { }
+                }
+                if (empty)
                 {
                     try { Directory.CreateDirectory(folder); } catch { }
                     WriteExampleProfile(folder);

@@ -182,6 +182,23 @@ namespace FiresRPGmaker.UI.Screens
         private TMP_Text _confirmText;
         private Action _pendingTradeAction;
 
+        // Item popup - a second way to trade: click the item name, pick Buy or Sell, set the amount and see
+        // the total and your gold before/after, instead of the Buy/Sell price columns.
+        private GameObject _popupRoot;
+        private TradePair _popupPair;
+        private bool _popupIsBuy;
+        private int _popupAmount = 1;
+        private TextMeshProUGUI _popupTitle, _popupUnit, _popupTotal, _popupGold, _popupNote;
+        private Image _popupIcon;
+        private Button _popupBuyBtn, _popupSellBtn, _popupConfirmBtn;
+        private TMP_InputField _popupAmountInput;
+        private static readonly Color POPUP_PAPER = new Color(0.95f, 0.88f, 0.72f, 1f);
+        private static readonly Color POPUP_PAY   = new Color(0.96f, 0.58f, 0.46f, 1f);
+        private static readonly Color POPUP_GET   = new Color(0.64f, 0.88f, 0.56f, 1f);
+        private static readonly Color POPUP_NOTE  = new Color(0.98f, 0.45f, 0.35f, 1f);
+        private static readonly Color POPUP_DIM   = new Color(0.62f, 0.62f, 0.62f, 0.85f);
+
+
         // Cached book sprite (loaded once from disk, shared across opens).
         private static Sprite _bookSprite;
 
@@ -249,6 +266,7 @@ namespace FiresRPGmaker.UI.Screens
         public void Hide()
         {
             if (_panelRoot != null) _panelRoot.SetActive(false);
+            CloseTradePopup();
             NpcHoverHudSuppressor.Clear();
             _currentNpc = null; _currentProfile = null;
             GUIManager.BlockInput(false);
@@ -361,7 +379,8 @@ namespace FiresRPGmaker.UI.Screens
             prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
             prt.pivot = new Vector2(0.5f, 0.5f);
             prt.sizeDelta = new Vector2(PANEL_W, PANEL_H);
-            panel.AddComponent<TraderDragHandler>();
+            // 0.0.655 (UI audit): Core's live panel moves / resizes / saves the trader book by the clear 30 px band above the book (no own TraderDragHandler)
+            global::FiresRPGmaker.UI.CoreUiBridge.RegisterLivePanel("FiresRPGmaker:Trader", "rpgmaker.trader", prt, global::FiresRPGmaker.UI.CoreUiBridge.HeaderStrip(prt, 30f), "Trader", "FiresRPGmaker");
 
             // Book artwork at the bottom of the panel.
             var bookGo = new GameObject("BookBackground", typeof(RectTransform), typeof(Image));
@@ -822,13 +841,13 @@ namespace FiresRPGmaker.UI.Screens
 
             var displayItem = pair.DisplayItem;
             ResolveItemInfo(displayItem.PrefabName, out string displayName, out Sprite icon);
-            if (displayItem.Level > 0) displayName += $" ★{displayItem.Level - 1}";
+            if (displayItem.Level > 0) displayName += $" *{displayItem.Level - 1}";
             string itemLabel = displayItem.Amount > 1 ? $"{displayItem.Amount} {displayName}" : displayName;
             int ownedCount = CountPlayerItems(displayItem.PrefabName, displayItem.Level);
 
             // ── Left page ──
             AddIconCell(_iconsContent, icon);
-            var ownedTmp = AddItemCellWithOwned(_itemContent, itemLabel, ownedCount);
+            var ownedTmp = AddItemCellWithOwned(_itemContent, pair, itemLabel, ownedCount);
 
             // ── Right page — BUY column ──
             (TextMeshProUGUI text, Image bg, Button btn) buyRefs;
@@ -927,11 +946,21 @@ namespace FiresRPGmaker.UI.Screens
         }
 
         /// <summary>Items column cell — name + "(owned-N)" suffix in the same TMP via rich text.</summary>
-        private TextMeshProUGUI AddItemCellWithOwned(RectTransform parent, string itemLabel, int ownedCount)
+        private TextMeshProUGUI AddItemCellWithOwned(RectTransform parent, TradePair pair, string itemLabel, int ownedCount)
         {
             if (parent == null) return null;
             var row = CreateRow(parent, "ItemRow");
-            var tmp = row.AddComponent<TextMeshProUGUI>();
+            var hit = row.AddComponent<Image>();
+            hit.color = new Color(0f, 0f, 0f, 0f);
+            var btn = row.AddComponent<Button>();
+            btn.targetGraphic = hit;
+            btn.transition = Selectable.Transition.None;
+            var captured = pair;
+            btn.onClick.AddListener(() => ShowTradePopup(captured));
+            var txtGo = new GameObject("Label", typeof(RectTransform));
+            txtGo.transform.SetParent(row.transform, false);
+            Stretch((RectTransform)txtGo.transform);
+            var tmp = txtGo.AddComponent<TextMeshProUGUI>();
             tmp.richText = true;
             tmp.text = FormatItemWithOwned(itemLabel, ownedCount);
             tmp.fontSize = FONT_SIZE;
@@ -1108,7 +1137,7 @@ namespace FiresRPGmaker.UI.Screens
                 if (refs.ownedText == null) continue;
                 var displayItem = pair.DisplayItem;
                 ResolveItemInfo(displayItem.PrefabName, out string displayName, out _);
-                if (displayItem.Level > 0) displayName += $" ★{displayItem.Level - 1}";
+                if (displayItem.Level > 0) displayName += $" *{displayItem.Level - 1}";
                 string itemLabel = displayItem.Amount > 1 ? $"{displayItem.Amount} {displayName}" : displayName;
                 int owned = CountPlayerItems(displayItem.PrefabName, displayItem.Level);
                 refs.ownedText.text = FormatItemWithOwned(itemLabel, owned);
@@ -1122,6 +1151,9 @@ namespace FiresRPGmaker.UI.Screens
         private bool CanAffordTrade(TradeEntry trade, int multiplier)
         {
             if (trade == null || trade.Stock == 0) return false;
+            // 0.0.532: a limited stock caps the quantity too. The row Buy/Sell buttons came here with Stock 5 and
+            // quantity 100 and went through; only the popup checked it.
+            if (trade.Stock > 0 && multiplier > trade.Stock) return false;
             foreach (var cost in trade.CostItems)
                 if (CountPlayerItems(cost.PrefabName, cost.Level) < cost.Amount * multiplier) return false;
             // SELL-side gate: trader needs enough gold in its pool to pay out the reward currency.
@@ -1143,6 +1175,8 @@ namespace FiresRPGmaker.UI.Screens
             var trade = isBuy ? pair.BuyTrade : pair.SellTrade;
             if (trade == null) return;
             int qty = _tradeAmounts.TryGetValue(pair, out int q) ? q : 1;
+            if (trade.Stock > 0 && qty > trade.Stock)
+            { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Only {trade.Stock} in stock!"); return; }
             if (!CanAffordTrade(trade, qty))
             { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Not enough items!"); return; }
 
@@ -1208,13 +1242,17 @@ namespace FiresRPGmaker.UI.Screens
             {
                 int quality = Mathf.Max(1, level);
                 var inv = player.GetInventory();
+                int added = 0, dropped = 0;
                 for (int i = 0; i < amount; i++)
                 {
                     var data = itemDrop.m_itemData.Clone();
                     data.m_quality = quality; data.m_stack = 1;
-                    if (!inv.AddItem(data))
-                        ItemDrop.DropItem(data, 1, player.transform.position + player.transform.forward + Vector3.up, Quaternion.identity);
+                    data.m_dropPrefab = prefab;   // 0.0.545: a clone off the prefab has no drop prefab; vanilla needs it to stack/save the item
+                    if (inv.AddItem(data)) added++;
+                    else { ItemDrop.DropItem(data, 1, player.transform.position + player.transform.forward + Vector3.up, Quaternion.identity); dropped++; }
                 }
+                // 0.0.545 ([visual]'s economy sell: the trader's gold went down, the player's Coins didn't go up): one evidence line per give.
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Trader] gave {prefabName} x{amount} (q{quality}): {added} into the inventory, {dropped} dropped at the feet; inventory now holds {CountPlayerItems(prefabName)}");
                 return;
             }
             var character = prefab.GetComponent<Character>();
@@ -1285,6 +1323,167 @@ namespace FiresRPGmaker.UI.Screens
 
         #endregion
 
+        #region Item Popup
+
+        private void ShowTradePopup(TradePair pair)
+        {
+            if (pair == null || pair.DisplayItem == null || (pair.BuyTrade == null && pair.SellTrade == null)) return;
+            EnsureTradePopup();
+            _popupPair = pair;
+            _popupIsBuy = pair.BuyTrade != null;
+            _popupAmount = Mathf.Max(1, _tradeAmounts.TryGetValue(pair, out int q) ? q : _modifier);
+            ResolveItemInfo(pair.DisplayItem.PrefabName, out string name, out Sprite icon);
+            if (pair.DisplayItem.Level > 0) name += $" *{pair.DisplayItem.Level - 1}";
+            _popupTitle.text = name;
+            _popupIcon.sprite = icon;
+            _popupIcon.enabled = icon != null;
+            _popupIcon.preserveAspect = true;
+            _popupAmountInput.SetTextWithoutNotify(_popupAmount.ToString());
+            _popupRoot.transform.SetAsLastSibling();
+            _popupRoot.SetActive(true);
+            RefreshTradePopup();
+        }
+
+        private void CloseTradePopup()
+        {
+            if (_popupRoot != null) _popupRoot.SetActive(false);
+            _popupPair = null;
+        }
+
+        private bool IsTradePopupOpen => _popupRoot != null && _popupRoot.activeSelf;
+
+        private void SetPopupAmount(int amount, bool fromInput = false)
+        {
+            _popupAmount = Mathf.Clamp(amount, 1, 9999);
+            if (!fromInput && _popupAmountInput != null) _popupAmountInput.SetTextWithoutNotify(_popupAmount.ToString());
+            RefreshTradePopup();
+        }
+
+        private void RefreshTradePopup()
+        {
+            var pair = _popupPair;
+            if (pair == null || _popupRoot == null) return;
+            if (_popupIsBuy && pair.BuyTrade == null) _popupIsBuy = false;
+            if (!_popupIsBuy && pair.SellTrade == null) _popupIsBuy = true;
+            var trade = _popupIsBuy ? pair.BuyTrade : pair.SellTrade;
+            if (trade == null) return;
+
+            _popupBuyBtn.interactable = pair.BuyTrade != null;
+            _popupSellBtn.interactable = pair.SellTrade != null;
+            TintPopupButton(_popupBuyBtn, _popupIsBuy);
+            TintPopupButton(_popupSellBtn, !_popupIsBuy);
+
+            int n = _popupAmount;
+            ResolveItemInfo(pair.DisplayItem.PrefabName, out string name, out _);
+            int items = pair.DisplayItem.Amount * n;
+            var currency = _popupIsBuy ? trade.CostItems.FirstOrDefault(IsCurrencyStack) : trade.RewardItems.FirstOrDefault(IsCurrencyStack);
+            int gold = currency != null ? currency.Amount * n : 0;
+            int have = CountPlayerItems("Coins", 0);
+
+            _popupUnit.text = _popupIsBuy
+                ? $"Each: {DescribeSide(trade.CostItems, 1)} for {pair.DisplayItem.Amount} {name}"
+                : $"Each: {pair.DisplayItem.Amount} {name} for {DescribeSide(trade.RewardItems, 1)}";
+            _popupTotal.text = _popupIsBuy
+                ? $"You pay {DescribeSide(trade.CostItems, n)} and get {items} {name}"
+                : $"You give {items} {name} and get {DescribeSide(trade.RewardItems, n)}";
+            _popupTotal.color = _popupIsBuy ? POPUP_PAY : POPUP_GET;
+            int after = _popupIsBuy ? have - gold : have + gold;
+            _popupGold.text = $"Your gold: {have:N0}  ->  {after:N0}";
+
+            string note = "";
+            if (trade.Stock == 0) note = "Sold out";
+            else if (trade.Stock > 0 && n > trade.Stock) note = $"Only {trade.Stock} in stock";
+            else if (!CanAffordTrade(trade, n)) note = ExplainShortfall(trade, n, gold, have);
+            _popupNote.text = note;
+            _popupConfirmBtn.interactable = note.Length == 0;
+        }
+
+        private string ExplainShortfall(TradeEntry trade, int n, int gold, int have)
+        {
+            foreach (var cost in trade.CostItems)
+            {
+                if (CountPlayerItems(cost.PrefabName, cost.Level) >= cost.Amount * n) continue;
+                if (IsCurrencyStack(cost)) return $"Not enough gold ({have:N0} of {gold:N0})";
+                ResolveItemInfo(cost.PrefabName, out string costName, out _);
+                return $"Not enough {costName}";
+            }
+            return "The trader cannot pay that much";
+        }
+
+        private string DescribeSide(List<TradeItemStack> items, int multiplier)
+        {
+            var parts = new List<string>();
+            foreach (var item in items)
+            {
+                int amt = item.Amount * multiplier;
+                if (IsCurrencyStack(item)) parts.Add($"{amt:N0} gold");
+                else
+                {
+                    ResolveItemInfo(item.PrefabName, out string itemName, out _);
+                    parts.Add($"{amt} {itemName}");
+                }
+            }
+            return parts.Count == 0 ? "nothing" : string.Join(" + ", parts);
+        }
+
+        private static void TintPopupButton(Button button, bool selected)
+        {
+            var img = button != null ? button.targetGraphic as Image : null;
+            if (img != null) img.color = selected ? Color.white : POPUP_DIM;
+        }
+
+        private void ConfirmTradePopup()
+        {
+            var pair = _popupPair;
+            if (pair == null) return;
+            bool isBuy = _popupIsBuy;
+            var trade = isBuy ? pair.BuyTrade : pair.SellTrade;
+            if (trade == null) return;
+            int n = _popupAmount;
+            _tradeAmounts[pair] = n;
+            if (_rowRefs.TryGetValue(pair, out var refs) && refs.qtyInput != null) refs.qtyInput.SetTextWithoutNotify(n.ToString());
+            OnAmountChanged(pair, n);
+            CloseTradePopup();
+            ExecuteTrade(pair, isBuy);
+        }
+
+        private void EnsureTradePopup()
+        {
+            if (_popupRoot != null) return;
+            _popupRoot = FiresCore.UI.UIBuilderHelper.CreateFullPanel(_panelRoot.transform, "TradeItemPopup", new Color(0f, 0f, 0f, 0.5f));
+            var box = FiresCore.UI.UIBuilderHelper.CreatePanel(_popupRoot.transform, "Box", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Color(0.18f, 0.12f, 0.08f, 0.97f));
+            var boxRect = (RectTransform)box.transform;
+            boxRect.sizeDelta = new Vector2(460f, 340f);
+            boxRect.anchoredPosition = Vector2.zero;
+
+            _popupIcon = FiresCore.UI.UIBuilderHelper.CreateImage(box.transform, "Icon", new Vector2(0.04f, 0.80f), new Vector2(0.15f, 0.96f), Color.white);
+            _popupTitle = FiresCore.UI.UIBuilderHelper.CreateLabel(box.transform, "Title", "", 20f, POPUP_PAPER, new Vector2(0.18f, 0.80f), new Vector2(0.96f, 0.96f), TextAlignmentOptions.MidlineLeft);
+            _popupTitle.fontStyle = FontStyles.Bold;
+
+            _popupBuyBtn = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(box.transform, "Buy", new Vector2(0.06f, 0.64f), new Vector2(0.48f, 0.76f), () => { _popupIsBuy = true; RefreshTradePopup(); });
+            _popupSellBtn = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(box.transform, "Sell", new Vector2(0.52f, 0.64f), new Vector2(0.94f, 0.76f), () => { _popupIsBuy = false; RefreshTradePopup(); });
+
+            FiresCore.UI.UIBuilderHelper.CreateLabel(box.transform, "AmountLabel", "Amount", 16f, POPUP_PAPER, new Vector2(0.06f, 0.50f), new Vector2(0.28f, 0.61f), TextAlignmentOptions.MidlineLeft);
+            FiresCore.UI.UIBuilderHelper.CreateParchmentButton(box.transform, "-", new Vector2(0.30f, 0.49f), new Vector2(0.42f, 0.62f), () => SetPopupAmount(_popupAmount - 1));
+            _popupAmountInput = FiresCore.UI.UIBuilderHelper.CreateInputField(box.transform, "AmountInput", "1", new Vector2(0.44f, 0.49f), new Vector2(0.66f, 0.62f), 16);
+            _popupAmountInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+            _popupAmountInput.characterLimit = 4;
+            _popupAmountInput.onValueChanged.AddListener(v => { if (int.TryParse(v, out int parsed)) SetPopupAmount(parsed, fromInput: true); });
+            FiresCore.UI.UIBuilderHelper.CreateParchmentButton(box.transform, "+", new Vector2(0.68f, 0.49f), new Vector2(0.80f, 0.62f), () => SetPopupAmount(_popupAmount + 1));
+
+            _popupUnit = FiresCore.UI.UIBuilderHelper.CreateLabel(box.transform, "Unit", "", 15f, POPUP_PAPER, new Vector2(0.06f, 0.39f), new Vector2(0.94f, 0.48f), TextAlignmentOptions.MidlineLeft);
+            _popupTotal = FiresCore.UI.UIBuilderHelper.CreateLabel(box.transform, "Total", "", 17f, POPUP_PAPER, new Vector2(0.06f, 0.29f), new Vector2(0.94f, 0.39f), TextAlignmentOptions.MidlineLeft);
+            _popupTotal.fontStyle = FontStyles.Bold;
+            _popupGold = FiresCore.UI.UIBuilderHelper.CreateLabel(box.transform, "Gold", "", 15f, POPUP_PAPER, new Vector2(0.06f, 0.20f), new Vector2(0.94f, 0.29f), TextAlignmentOptions.MidlineLeft);
+            _popupNote = FiresCore.UI.UIBuilderHelper.CreateLabel(box.transform, "Note", "", 14f, POPUP_NOTE, new Vector2(0.06f, 0.12f), new Vector2(0.94f, 0.20f), TextAlignmentOptions.MidlineLeft);
+
+            _popupConfirmBtn = FiresCore.UI.UIBuilderHelper.CreateParchmentButton(box.transform, "Confirm", new Vector2(0.30f, 0.02f), new Vector2(0.60f, 0.11f), ConfirmTradePopup);
+            FiresCore.UI.UIBuilderHelper.CreateParchmentButton(box.transform, "Cancel", new Vector2(0.64f, 0.02f), new Vector2(0.94f, 0.11f), CloseTradePopup);
+            foreach (var tmp in box.GetComponentsInChildren<TMP_Text>(true)) ApplyFont(tmp);
+        }
+
+        #endregion
+
         #region Confirm Dialog
 
         private void ShowTradeConfirmation(TradePair pair, bool isBuy)
@@ -1292,6 +1491,8 @@ namespace FiresRPGmaker.UI.Screens
             var trade = isBuy ? pair.BuyTrade : pair.SellTrade;
             if (trade == null) return;
             int qty = _tradeAmounts.TryGetValue(pair, out int q) ? q : 1;
+            if (trade.Stock > 0 && qty > trade.Stock)
+            { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Only {trade.Stock} in stock!"); return; }
             if (!CanAffordTrade(trade, qty))
             { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Not enough items!"); return; }
 
