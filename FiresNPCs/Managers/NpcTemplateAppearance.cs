@@ -134,7 +134,7 @@ namespace FiresRPGmaker.Managers
                     var npcController = clone.GetComponent<global::FiresRPGmaker.UI.NpcController>();
                     if (npcController != null)
                         NpcFashion.NpcFashionManager.ApplyFashionJsonToNpc(record.FashionJson, npcController);
-                    Debug.Log($"[NpcTemplateAppearance] dressed '{clone.name}' via legacy FashionJson (no LookJson — re-save the NPC to capture its full look)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplateAppearance] dressed '{clone.name}' via legacy FashionJson (no LookJson — re-save the NPC to capture its full look)");
                 }
                 else
                 {
@@ -199,7 +199,7 @@ namespace FiresRPGmaker.Managers
                 int binds = mesh != null && mesh.bindposes != null ? mesh.bindposes.Length : 0;
                 bool compatible = FiresCore.Npc.NpcBodyMeshGuard.IsAssignable(mesh, body);
                 if (compatible) body.sharedMesh = mesh;
-                Debug.Log($"[NpcTemplateAppearance] female mesh '{(mesh != null ? mesh.name : "null")}' on '{clone.name}': " +
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplateAppearance] female mesh '{(mesh != null ? mesh.name : "null")}' on '{clone.name}': " +
                           $"rendererBones={bones} meshBindposes={binds} → {(compatible ? "assigned" : "SKIPPED (no skinnable candidate — native mesh kept)")}");
                 CopyTexture(bodyMat, model.m_baseMaterial, "_MainTex");
                 CopyTexture(bodyMat, model.m_baseMaterial, "_SkinBumpMap");
@@ -235,7 +235,7 @@ namespace FiresRPGmaker.Managers
             TintNewRenderers(clone, () => FiresCore.Bridge.NpcFashionBridge.ApplyHair(clone, look.Hair, null), hairColor);
             TintNewRenderers(clone, () => FiresCore.Bridge.NpcFashionBridge.ApplyBeard(clone, look.Beard, null), hairColor);
 
-            Debug.Log($"[NpcTemplateAppearance] dressed '{clone.name}' from look (model={look.ModelIndex} hair={look.Hair} " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplateAppearance] dressed '{clone.name}' from look (model={look.ModelIndex} hair={look.Hair} " +
                       $"chest={look.Chest} legs={look.Legs} helmet={look.Helmet})");
         }
 
@@ -310,7 +310,7 @@ namespace FiresRPGmaker.Managers
             }
             catch (Exception ex)
             {
-                Debug.Log($"[NpcTemplateAppearance] hair/beard tint step skipped: {ex.Message}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplateAppearance] hair/beard tint step skipped: {ex.Message}");
             }
         }
 
@@ -369,7 +369,7 @@ namespace FiresRPGmaker.Managers
             try
             {
                 var sprite = FiresCore.UI.NpcPhotoManager.MakeSprite(dressedClone);
-                Debug.Log($"[NpcTemplateAppearance] icon render for '{dressedClone.name}': {(sprite != null ? "OK" : "NULL (photo manager declined)")}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplateAppearance] icon render for '{dressedClone.name}': {(sprite != null ? "OK" : "NULL (photo manager declined)")}");
                 return sprite;
             }
             catch (Exception ex)

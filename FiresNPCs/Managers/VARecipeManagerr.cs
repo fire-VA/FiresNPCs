@@ -24,14 +24,14 @@ namespace FiresRPGmaker.Managers
 
             if (ZNetScene.instance == null || FiresRPGmaker.piecePrefabs.Count == 0)
             {
-                Debug.Log($"{FiresRPGmaker.PluginName}: Cannot update piece requirements - ZNetScene or piece list not ready.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Cannot update piece requirements - ZNetScene or piece list not ready.");
                 return;
             }
 
 
             if (ZNetScene.instance == null || FiresRPGmaker.piecePrefabs.Count == 0)
             {
-                Debug.Log($"{FiresRPGmaker.PluginName}: Cannot update piece requirements - ZNetScene or piece list not ready.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Cannot update piece requirements - ZNetScene or piece list not ready.");
                 return;
             }
 
@@ -102,12 +102,12 @@ namespace FiresRPGmaker.Managers
                 if (ConfigManager.Instance.configVerboseLogging.Value)
                 {
                     string reqList = string.Join(" | ", gatedRequirements.Select(r => $"{r.m_resItem.m_itemData.m_shared.m_name} x{r.m_amount}"));
-                    Debug.Log($"{FiresRPGmaker.PluginName}: Applied recipe to {pieceName}: {reqList}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Applied recipe to {pieceName}: {reqList}");
                 }
             }
 
             if (anyApplied && ConfigManager.Instance.configVerboseLogging.Value)
-                Debug.Log($"{FiresRPGmaker.PluginName}: Piece recipe update complete.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Piece recipe update complete.");
         }
 
         /// <summary>

@@ -241,6 +241,7 @@ namespace FiresRPGmaker.UI.Screens
             Instance._currentProfile = profile;
             Instance.PopulateUI(npc.GetDisplayName());
             Instance._panelRoot.SetActive(true);
+            Instance.RegisterLivePanelWhenSized();
             GUIManager.BlockInput(true);
             Cursor.visible = true; Cursor.lockState = CursorLockMode.None;
         }
@@ -259,8 +260,86 @@ namespace FiresRPGmaker.UI.Screens
             Instance._currentProfile = profile;
             Instance.PopulateUI(displayName);
             Instance._panelRoot.SetActive(true);
+            Instance.RegisterLivePanelWhenSized();
             GUIManager.BlockInput(true);
             Cursor.visible = true; Cursor.lockState = CursorLockMode.None;
+        }
+
+        // Core's live-panel
+        // registration takes the panel's spot as its default; it now runs once, a frame after the first show, when this overlay canvas has its
+        // real screen size. One Debug line with the canvas size and the panel's drawn rect proves where the default landed.
+        // . Kit look
+        // only: there the book art is a plain plate (FiresKitBookSkin Role.Plate, no painted row lines to keep aligned), so the panel can be cut to
+        // its content. The header strip (search + x1..x100, at y HEADER_STRIP_Y) comes down to just above the shop-name / gold overlay
+        // (OVERLAY_Y), the plate and the panel become the content box + padding, and every child shifts so the panel stays centred on it.
+        // The classic parchment keeps its full art. Once, before Core records the default; one Debug line with the numbers.
+        private bool _contentFitted;
+        private void FitToContentInKit(RectTransform prt)
+        {
+            if (_contentFitted || prt == null) return;
+            var book = prt.Find("BookBackground") as RectTransform;
+            var img = book != null ? book.GetComponent<Image>() : null;
+            if (img == null || (img.sprite != null && img.sprite == _bookSprite)) return;   // classic art still on: keep the full book
+            _contentFitted = true;
+            const float pad = 24f, stripGap = 56f;
+            float stripTarget = OVERLAY_Y + stripGap + 30f;           // the strip's centre, just above the overlay row
+            float lift = HEADER_STRIP_Y - 30f - stripTarget;            // how far the top-row elements come down
+            int moved = 0;
+            foreach (Transform c in prt)
+            {
+                var r = c as RectTransform;
+                if (r == null || r == book || r.anchorMin != r.anchorMax || r.anchorMin != new Vector2(0.5f, 0.5f)) continue;   // centre-anchored only
+                if (r.anchoredPosition.y > OVERLAY_Y + 120f) { r.anchoredPosition -= new Vector2(0f, lift); moved++; }
+            }
+            float left = COL_X_ICONS - COL_W_ICONS * 0.5f - pad, right = COL_X_RESTOCK + COL_W_RESTOCK * 0.5f + pad;
+            float top = stripTarget + 30f + pad, bottom = BODY_CENTER_Y - BODY_HEIGHT * 0.5f - pad;
+            float w = right - left, h = top - bottom;
+            var centre = new Vector2((left + right) * 0.5f, (top + bottom) * 0.5f);
+            foreach (Transform c in prt)
+            {
+                var r = c as RectTransform;
+                if (r == null || r.anchorMin != r.anchorMax || r.anchorMin != new Vector2(0.5f, 0.5f)) continue;
+                r.anchoredPosition -= centre;
+            }
+            book.sizeDelta = new Vector2(w, h); book.anchoredPosition = Vector2.zero;
+            prt.sizeDelta = new Vector2(w, h);
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TraderUI] fitted to its content (kit look): {w:0}x{h:0} (was {PANEL_W:0}x{PANEL_H:0}); {moved} top-row element(s) moved down {lift:0}");
+        }
+
+        private bool _livePanelRegistered, _livePanelPending;
+        private void RegisterLivePanelWhenSized()
+        {
+            if (_livePanelRegistered || _livePanelPending || !isActiveAndEnabled) return;
+            _livePanelPending = true;
+            StartCoroutine(RegisterNextFrame());
+        }
+        private System.Collections.IEnumerator RegisterNextFrame()
+        {
+            yield return null;
+            _livePanelPending = false;
+            if (_livePanelRegistered || _panelRoot == null) yield break;
+            _livePanelRegistered = true;
+            var prt = (RectTransform)_panelRoot.transform;
+            Canvas.ForceUpdateCanvases();
+            // "I don't think the trader panel is need to be so large. There's a lot of dead space"; 's line: drawn
+            // (607,-21)-(2477,1810) on 3440x1440, i.e. taller than the screen): the DEFAULT size fits the screen - a uniform scale so the book
+            // is at most 85 % of the canvas height and 90 % of its width. Core records it as the default; the player's corner resize and
+            // saved size win from then on.
+            FitToContentInKit(prt);
+            var canvasRt = _standaloneCanvas != null ? (RectTransform)_standaloneCanvas.transform : null;
+            if (canvasRt != null && canvasRt.rect.height > 1f)
+            {
+                float fit = Mathf.Min(1f, 0.85f * canvasRt.rect.height / Mathf.Max(1f, prt.rect.height), 0.9f * canvasRt.rect.width / Mathf.Max(1f, prt.rect.width));   // of its (content-fitted) size
+                prt.localScale = new Vector3(fit, fit, 1f);
+            }
+            global::FiresRPGmaker.UI.CoreUiBridge.RegisterLivePanel("FiresRPGmaker:Trader", "rpgmaker.trader", prt, global::FiresRPGmaker.UI.CoreUiBridge.HeaderStrip(prt, 30f), "Trader", "FiresRPGmaker");
+            try
+            {
+                var c = new Vector3[4]; prt.GetWorldCorners(c);
+                var crt = _standaloneCanvas != null ? (RectTransform)_standaloneCanvas.transform : null;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TraderUI] live panel registered a frame after the first show: canvas {(crt != null ? crt.rect.size.ToString() : "?")} on {Screen.width}x{Screen.height}, panel drawn ({c[0].x:0},{c[0].y:0})-({c[2].x:0},{c[2].y:0})");
+            }
+            catch { }
         }
 
         public void Hide()
@@ -379,8 +458,9 @@ namespace FiresRPGmaker.UI.Screens
             prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
             prt.pivot = new Vector2(0.5f, 0.5f);
             prt.sizeDelta = new Vector2(PANEL_W, PANEL_H);
-            // 0.0.655 (UI audit): Core's live panel moves / resizes / saves the trader book by the clear 30 px band above the book (no own TraderDragHandler)
-            global::FiresRPGmaker.UI.CoreUiBridge.RegisterLivePanel("FiresRPGmaker:Trader", "rpgmaker.trader", prt, global::FiresRPGmaker.UI.CoreUiBridge.HeaderStrip(prt, 30f), "Trader", "FiresRPGmaker");
+            // (UI audit): Core's live panel moves / resizes / saves the trader book by the clear 30 px band above the book (no own TraderDragHandler)
+            // registered on its first SHOW, one frame later (RegisterLivePanelWhenSized) -
+            // registering here, in the frame this overlay canvas is created, gave Core's dock a default spot measured in a canvas not yet sized to the screen.
 
             // Book artwork at the bottom of the panel.
             var bookGo = new GameObject("BookBackground", typeof(RectTransform), typeof(Image));
@@ -1151,7 +1231,7 @@ namespace FiresRPGmaker.UI.Screens
         private bool CanAffordTrade(TradeEntry trade, int multiplier)
         {
             if (trade == null || trade.Stock == 0) return false;
-            // 0.0.532: a limited stock caps the quantity too. The row Buy/Sell buttons came here with Stock 5 and
+            // a limited stock caps the quantity too. The row Buy/Sell buttons came here with Stock 5 and
             // quantity 100 and went through; only the popup checked it.
             if (trade.Stock > 0 && multiplier > trade.Stock) return false;
             foreach (var cost in trade.CostItems)
@@ -1247,11 +1327,11 @@ namespace FiresRPGmaker.UI.Screens
                 {
                     var data = itemDrop.m_itemData.Clone();
                     data.m_quality = quality; data.m_stack = 1;
-                    data.m_dropPrefab = prefab;   // 0.0.545: a clone off the prefab has no drop prefab; vanilla needs it to stack/save the item
+                    data.m_dropPrefab = prefab;   // a clone off the prefab has no drop prefab; vanilla needs it to stack/save the item
                     if (inv.AddItem(data)) added++;
                     else { ItemDrop.DropItem(data, 1, player.transform.position + player.transform.forward + Vector3.up, Quaternion.identity); dropped++; }
                 }
-                // 0.0.545 ([visual]'s economy sell: the trader's gold went down, the player's Coins didn't go up): one evidence line per give.
+                // ([visual]'s economy sell: the trader's gold went down, the player's Coins didn't go up): one evidence line per give.
                 global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Trader] gave {prefabName} x{amount} (q{quality}): {added} into the inventory, {dropped} dropped at the feet; inventory now holds {CountPlayerItems(prefabName)}");
                 return;
             }
@@ -1363,6 +1443,16 @@ namespace FiresRPGmaker.UI.Screens
         {
             var pair = _popupPair;
             if (pair == null || _popupRoot == null) return;
+            // Core's CreateInputField writes in parchment INK
+            // (dark) for a parchment field, and the Kit skin then turns the trader's fields dark - dark on dark. The amount text and caret
+            // take the kit's light text colour, applied here (after the skin), every refresh.
+            if (_popupAmountInput != null)
+            {
+                var light = FiresCore.UI.Shell.Kit.FiresTokens.Text;
+                if (_popupAmountInput.textComponent != null) _popupAmountInput.textComponent.color = light;
+                _popupAmountInput.caretColor = light;
+                if (_popupAmountInput.placeholder is TMPro.TMP_Text ph) ph.color = new Color(light.r, light.g, light.b, 0.5f);
+            }
             if (_popupIsBuy && pair.BuyTrade == null) _popupIsBuy = false;
             if (!_popupIsBuy && pair.SellTrade == null) _popupIsBuy = true;
             var trade = _popupIsBuy ? pair.BuyTrade : pair.SellTrade;

@@ -65,7 +65,7 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         public static string Generate(string profile, System.Action<string> log)
         {
-            void Say(string s) { (log ?? (l => Debug.Log("[gen_achievements] " + l)))(s); }
+            void Say(string s) { (log ?? (l => global::FiresRPGmaker.FiresLogger.LogDebug("[gen_achievements] " + l)))(s); }
             if (ZNetScene.instance == null || ObjectDB.instance == null || Player.m_localPlayer == null)
                 return "Load into a world first — the probe reads the live ZNetScene + player.";
             profile = string.IsNullOrWhiteSpace(profile) ? "server" : profile.Trim().ToLowerInvariant();

@@ -64,7 +64,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             if (!string.IsNullOrEmpty(resolvedUrl))
                 url = resolvedUrl;
 
-            Debug.Log($"[ChatMedia] Downloading: {url}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatMedia] Downloading: {url}");
 
             // ── First download attempt ──
             byte[] data = null;
@@ -94,7 +94,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
                 string fallbackUrl = BuildFallbackUrl(url);
                 if (!string.IsNullOrEmpty(fallbackUrl) && fallbackUrl != url)
                 {
-                    Debug.Log($"[ChatMedia] Retrying with fallback: {fallbackUrl}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatMedia] Retrying with fallback: {fallbackUrl}");
                     using (var retry = UnityWebRequest.Get(fallbackUrl))
                     {
                         retry.timeout = 15;
@@ -107,7 +107,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
                             data = retry.downloadHandler.data;
                             success = data != null && data.Length > 0 && data.Length <= MaxDownloadBytes;
                             if (success)
-                                Debug.Log($"[ChatMedia] Fallback succeeded: {fallbackUrl}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatMedia] Fallback succeeded: {fallbackUrl}");
                         }
                         else
                         {
@@ -446,7 +446,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
                         if (htmlSrcMatch.Success)
                         {
                             string src = htmlSrcMatch.Groups[1].Value.Replace("\\u002F", "/").Replace("\\/", "/");
-                            Debug.Log($"[ChatMedia] Tenor oEmbed html src: {src}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatMedia] Tenor oEmbed html src: {src}");
                             callback(src);
                             yield break;
                         }
@@ -457,7 +457,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
                         if (thumbMatch.Success)
                         {
                             string thumb = thumbMatch.Groups[1].Value.Replace("\\u002F", "/").Replace("\\/", "/");
-                            Debug.Log($"[ChatMedia] Tenor oEmbed thumbnail: {thumb}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatMedia] Tenor oEmbed thumbnail: {thumb}");
                             callback(thumb);
                             yield break;
                         }
@@ -481,7 +481,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             if (!string.IsNullOrEmpty(gifId))
             {
                 string directUrl = $"https://media.tenor.com/images/{gifId}/tenor.gif";
-                Debug.Log($"[ChatMedia] Tenor fallback from ID: {directUrl}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatMedia] Tenor fallback from ID: {directUrl}");
                 callback(directUrl);
                 yield break;
             }

@@ -10,6 +10,7 @@ namespace FiresRPGmaker.Modules.Fanorona
     public static class FanoronaAI
     {
         private const int Win = 100000;
+        private const int MaxPly = 40;   // hard search-depth ceiling (chains don't consume depth)
 
         public static bool FindBest(FanoronaGame g, int depth, System.Random rng, out FanMove best)
         {
@@ -40,8 +41,8 @@ namespace FiresRPGmaker.Modules.Fanorona
 
             var moves = g.LegalMoves();
             if (moves.Count == 0) return -Win + ply;   // no move = loss
-            if (depth <= 0 && ply < 40) return Eval(g);
-            if (ply >= 40) return Eval(g);
+            if (depth <= 0 && ply < MaxPly) return Eval(g);
+            if (ply >= MaxPly) return Eval(g);
 
             Order(g, moves);
             foreach (var m in moves)

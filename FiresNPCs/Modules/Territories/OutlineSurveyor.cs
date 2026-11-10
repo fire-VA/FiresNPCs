@@ -10,26 +10,26 @@ namespace FiresRPGmaker.Modules.Territories
 {
     /// <summary>
     /// Outline surveyor: lets an admin walk the perimeter of an area and auto-fill it with circle territories.
-  /// 
+  ///
  /// Command Format: startoutline Name[,R,G,B,flags]
-    /// 
+    ///
     /// Parameters (comma-separated):
     ///   Name  - Territory name (required)
     ///   R,G,B - Color values 0-255 (optional, default: 0,255,0 green)
     ///   flags - Territory flags separated by | (optional, default: None)
-    /// 
+    ///
     /// Examples:
     ///   startoutline VillageArea
     ///   startoutline SafeZone,0,255,0
  ///   startoutline ProtectedRegion,0,255,0,NoMonsters|NoBuild
     ///   startoutline FastZone,0,0,255,MoveSpeedMultiplier=1.5|InfiniteStamina
-    /// 
+    ///
     /// Usage:
     ///   1. Run: startoutline MyArea,R,G,B,flags
     ///   2. Walk the perimeter of the area you want to fill
     /// 3. Return near your starting point
     ///   4. Run: stopoutline
-    /// 
+    ///
     /// The system auto-fills the enclosed polygon with 15m radius circles on a 15m grid.
   /// Output: Config/FiresRPGmaker/Territories/outlines/&lt;Name&gt;.cfg
     /// </summary>
@@ -62,19 +62,19 @@ namespace FiresRPGmaker.Modules.Territories
      "    startoutline VillageArea\n" +
         "    startoutline SafeZone,0,255,0\n" +
          "    startoutline ProtectedRegion,0,255,0,NoMonsters|NoBuild",
-      StartCommand);
+      StartCommand, isCheat: true);
 
   new Terminal.ConsoleCommand("stopoutline",
          "Stop outline recording and generate filled territories.\n" +
            "  Requires at least 3 points to form a valid area.",
-    StopCommand);
+    StopCommand, isCheat: true);
         }
 
         private static void StartCommand(Terminal.ConsoleEventArgs args)
  {
         try
      {
-         if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[Outline]")) return;   // 0.0.504
+         if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[Outline]")) return;
          if (Player.m_localPlayer == null)
         {
          args.Context.AddString("[Outline] No local player");
@@ -114,7 +114,7 @@ _flags = string.IsNullOrWhiteSpace(flags) ? "None" : flags.Trim();
  args.Context.AddString($"[Outline]   Color: RGB({_colorR},{_colorG},{_colorB})");
                 args.Context.AddString($"[Outline]   Flags: {_flags}");
           args.Context.AddString($"[Outline]   Walk the perimeter, then run 'stopoutline'");
-        
+
           MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Outline '{_name}' started - walk the perimeter");
             }
             catch (Exception ex)
@@ -167,13 +167,13 @@ _active = false;
                 }
 
             File.WriteAllLines(filePath, lines);
-            TerritoryFileSync.Saved(filePath);   // 0.0.504: on a dedi client, the server gets the outline
+            TerritoryFileSync.Saved(filePath);   // On a dedi client, the server gets the outline
 
  args.Context.AddString($"[Outline] Saved outline '{_name}'");
              args.Context.AddString($"[Outline]   Points walked: {_points.Count}");
      args.Context.AddString($"[Outline]   Territories created: {circles.Count}");
      args.Context.AddString($"[Outline]   File: {filePath}");
-       
+
            MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Outline '{_name}' saved ({circles.Count} territories)");
 
             // Reload territories

@@ -55,7 +55,7 @@ namespace FiresRPGmaker.NpcFashion
         public string PeriodicSound;
         public string PeriodicSoundTime;
         public string LookAtPlayer; // "true" or "false" - whether NPC looks at nearby players
-        public string Pet; // 0.0.559: cosmetic pet item or creature ("" = none)
+        public string Pet; // Cosmetic pet item or creature ("" = none)
     }
 
     // Predefined color options for hair/beard
@@ -329,9 +329,9 @@ return ColorPresets["(none)"];
                 var data = JsonConvert.DeserializeObject<NPCFashionData>(json);
                 if (data == null) return;
 
-                Debug.Log($"[NpcFashionManager] Applying fashion JSON to NPC {npc.name}");
-                Debug.Log($"[NpcFashionManager] Hair: {data.HairItem}, Beard: {data.BeardItem}");
-                Debug.Log($"[NpcFashionManager] PeriodicAnim: {data.PeriodicAnimation}, Time: {data.PeriodicAnimationTime}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Applying fashion JSON to NPC {npc.name}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Hair: {data.HairItem}, Beard: {data.BeardItem}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] PeriodicAnim: {data.PeriodicAnimation}, Time: {data.PeriodicAnimationTime}");
 
                 // kg parity: any item value may be a space-separated random list ("SwordIron AxeIron") —
                 // pick one at apply time (NPC_Fashion.ApplyRandom). Resolve once, use for equip + comp.
@@ -434,10 +434,10 @@ return ColorPresets["(none)"];
      ApplyModelScale(npc, comp.ModelScale);
 
       // Configure look-at behavior using Valheim's LookAt component
-   bool lookAtPlayer = !string.IsNullOrEmpty(data.LookAtPlayer) && 
+   bool lookAtPlayer = !string.IsNullOrEmpty(data.LookAtPlayer) &&
    data.LookAtPlayer.Equals("true", StringComparison.OrdinalIgnoreCase);
     comp.LookAtPlayer = lookAtPlayer;
-                // 0.0.559: the cosmetic pet rides in the fashion JSON (null = an older JSON, leave the pet alone)
+                // The cosmetic pet rides in the fashion JSON (null = an older JSON, leave the pet alone)
                 if (data.Pet != null)
                 {
                     npc.equipPet = data.Pet;
@@ -495,7 +495,7 @@ return ColorPresets["(none)"];
                         if (typeName.Contains("LookAt") || typeName.Contains("Billboard") || typeName.Contains("FaceCamera"))
                         {
                             comp.enabled = false;
-                            Debug.Log($"[NpcFashionManager] Disabled {typeName} on {light.gameObject.name} to suppress rotation errors");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Disabled {typeName} on {light.gameObject.name} to suppress rotation errors");
                         }
                     }
                 }
@@ -514,7 +514,7 @@ return ColorPresets["(none)"];
                                    typeName.Contains("LookRotation"))
                             {
                                 mono.enabled = false;
-                                Debug.Log($"[NpcFashionManager] Disabled {typeName} on {mono.gameObject.name}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Disabled {typeName} on {mono.gameObject.name}");
                             }
                         }
                     }
@@ -561,7 +561,7 @@ return ColorPresets["(none)"];
                     }
                 }
 
-                Debug.Log($"[NpcFashionManager] Initialized prefab cache: {_hairPrefabCache.Count} hair, {_beardPrefabCache.Count} beard (Customization items only)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Initialized prefab cache: {_hairPrefabCache.Count} hair, {_beardPrefabCache.Count} beard (Customization items only)");
             }
             catch (Exception ex)
             {
@@ -653,10 +653,10 @@ return ColorPresets["(none)"];
                 // A migrated NPC that renders bald usually lands HERE with an empty value. Log it ungated so
                 // "called with no hair" is distinguishable from "called with a hair that failed to resolve"
                 // (the latter warns from FindCustomizationPrefab). Together they pinpoint where hair is lost.
-                Debug.Log($"[NpcFashionManager][hair] '{go.name}' ApplyHairToNpc got empty/none hair ('{hairItem ?? "<null>"}') — leaving bald");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager][hair] '{go.name}' ApplyHairToNpc got empty/none hair ('{hairItem ?? "<null>"}') — leaving bald");
                 if (HasAnyAppliedHair(go))
                 {
-                    Debug.Log($"[NpcFashionManager] Clearing hair ('{hairItem}' selected)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Clearing hair ('{hairItem}' selected)");
                     ClearHairFromNpc(go);
                 }
                 return;
@@ -669,7 +669,7 @@ return ColorPresets["(none)"];
             try
             {
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[NpcFashionManager] ApplyHairToNpc called for '{hairItem}' on {go.name} | colorOverride={(hairColor ?? "<null>")}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] ApplyHairToNpc called for '{hairItem}' on {go.name} | colorOverride={(hairColor ?? "<null>")}");
 
                 InitializePrefabCache();
                 ClearHairFromNpc(go);
@@ -683,7 +683,7 @@ return ColorPresets["(none)"];
                 }
 
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[NpcFashionManager] Found hair prefab: {hairPrefab.name}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Found hair prefab: {hairPrefab.name}");
 
                 Transform visual = go.transform.Find("Visual") ?? go.transform;
 
@@ -691,7 +691,7 @@ return ColorPresets["(none)"];
                 {
                     StampAppliedTag(visual, $"NPC_Hair_{hairItem}", hairItem, hairColor);
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[NpcFashionManager] Successfully applied hair '{hairItem}' as skinned mesh to {go.name}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Successfully applied hair '{hairItem}' as skinned mesh to {go.name}");
                     return;
                 }
 
@@ -827,7 +827,7 @@ return ColorPresets["(none)"];
             EnableRenderers(hairGO);
             hairGO.SetActive(true);
 
-            Debug.Log($"[NpcFashionManager] Attached hair '{hairItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Attached hair '{hairItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
             LogAttachEvidence(visual, hairGO, hairItem, "rigid (helmet joint)");
         }
 
@@ -853,7 +853,7 @@ return ColorPresets["(none)"];
             {
                 if (HasAnyAppliedBeard(go))
                 {
-                    Debug.Log($"[NpcFashionManager] Clearing beard ('{beardItem}' selected)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Clearing beard ('{beardItem}' selected)");
                     ClearBeardFromNpc(go);
                 }
                 return;
@@ -866,7 +866,7 @@ return ColorPresets["(none)"];
             try
             {
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[NpcFashionManager] ApplyBeardToNpc called for '{beardItem}' on {go.name}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] ApplyBeardToNpc called for '{beardItem}' on {go.name}");
 
                 InitializePrefabCache();
                 ClearBeardFromNpc(go);
@@ -880,7 +880,7 @@ return ColorPresets["(none)"];
                 }
 
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[NpcFashionManager] Found beard prefab: {beardPrefab.name}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Found beard prefab: {beardPrefab.name}");
 
                 Transform visual = go.transform.Find("Visual") ?? go.transform;
 
@@ -888,7 +888,7 @@ return ColorPresets["(none)"];
                 {
                     StampAppliedTag(visual, $"NPC_Beard_{beardItem}", beardItem, beardColor);
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[NpcFashionManager] Successfully applied beard '{beardItem}' as skinned mesh to {go.name}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Successfully applied beard '{beardItem}' as skinned mesh to {go.name}");
                     return;
                 }
 
@@ -952,7 +952,7 @@ return ColorPresets["(none)"];
             EnableRenderers(beardGO);
             beardGO.SetActive(true);
 
-            Debug.Log($"[NpcFashionManager] Attached beard '{beardItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Attached beard '{beardItem}' to {ownerName} joint '{helmetJoint.name}' (rigid)");
             LogAttachEvidence(visual, beardGO, beardItem, "rigid (helmet joint)");
         }
 
@@ -967,10 +967,22 @@ return ColorPresets["(none)"];
             if (npcVE?.VisEquipment?.m_bodyModel != null)
             {
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[NpcFashionManager] GetBodyModel: found via NpcVisEquipment on {npcVE.gameObject.name}, bodyModel={npcVE.VisEquipment.m_bodyModel.gameObject.name}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] GetBodyModel: found via NpcVisEquipment on {npcVE.gameObject.name}, bodyModel={npcVE.VisEquipment.m_bodyModel.gameObject.name}");
                 return npcVE.VisEquipment.m_bodyModel;
             }
-            Debug.LogWarning($"[NpcFashionManager] GetBodyModel: NOT FOUND for visualRoot={visualRoot.name} - color will only be applied to hair mesh material");
+            // 0.0.841 ([lead] log sweep 11-07, "GetBodyModel: NOT FOUND for visualRoot=Visual" while the Dressing preview rebuilt):
+            // a body with no FiresCore NpcVisEquipment (Core's mannequin preview clone, a bare piece clone) still has vanilla's
+            // VisEquipment and its m_bodyModel - the same body mesh - so use that before giving up.
+            var ve = visualRoot.GetComponentInParent<VisEquipment>() ?? visualRoot.GetComponentInChildren<VisEquipment>(true);
+            if (ve != null && ve.m_bodyModel != null)
+            {
+                if (FiresLogger.VerboseEnabled)
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] GetBodyModel: vanilla VisEquipment body on {ve.gameObject.name} (no NpcVisEquipment), bodyModel={ve.m_bodyModel.gameObject.name}");
+                return ve.m_bodyModel;
+            }
+            // the full path names which object this is (live NPC, preview clone, ...) so the next one is provable
+            Transform t = visualRoot; string path = t.name; for (int i = 0; i < 6 && t.parent != null; i++) { t = t.parent; path = t.name + "/" + path; }
+            Debug.LogWarning($"[NpcFashionManager] GetBodyModel: NOT FOUND for {path} (NpcVisEquipment {(npcVE != null ? "present, no body" : "absent")}, vanilla VisEquipment {(ve != null ? "present, no m_bodyModel" : "absent")}) - color will only be applied to hair mesh material");
             return null;
         }
 
@@ -989,7 +1001,7 @@ return ColorPresets["(none)"];
             // so HasProperty always returns false. Valheim's own VisEquipment.UpdateColors() calls
             // mat.SetColor("_HairColor", color) unconditionally with no HasProperty guard.
             if (FiresLogger.VerboseEnabled)
-                Debug.Log($"[NpcFashionManager] ApplyHairColorToMeshAndBody: color={color}, bodyModel={(bodyModel != null ? bodyModel.gameObject.name : "<null>")}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] ApplyHairColorToMeshAndBody: color={color}, bodyModel={(bodyModel != null ? bodyModel.gameObject.name : "<null>")}");
 
             // Step 1 - hair/beard mesh materials (mirrors VisEquipment.UpdateColors())
             foreach (var smr in meshRenderers)
@@ -1073,7 +1085,7 @@ return ColorPresets["(none)"];
             if (attachChild == null)
             {
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[NpcFashionManager] No attach_skin/SMR found in {itemName}, trying fallback");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] No attach_skin/SMR found in {itemName}, trying fallback");
                 return false;
             }
 
@@ -1125,7 +1137,7 @@ return ColorPresets["(none)"];
                 if (clothsOnClone.Length > 0)
                 {
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[NpcFashionManager] Stripping {clothsOnClone.Length} Cloth component(s) from cloned {itemName} before bone re-bind");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Stripping {clothsOnClone.Length} Cloth component(s) from cloned {itemName} before bone re-bind");
                     foreach (var cloth in clothsOnClone)
                     {
                         if (cloth == null) continue;
@@ -1167,7 +1179,7 @@ return ColorPresets["(none)"];
                         }
                         if (countMismatch || ratio < 0.33f || ratio > 3f)
                         {
-                            Debug.Log($"[NpcFashionManager] '{itemName}' skeleton incompatible with the player rig ("
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] '{itemName}' skeleton incompatible with the player rig ("
                                 + (countMismatch
                                     ? $"bindposes={(poses?.Length ?? 0)} vs bones={bodyBoneCount}"
                                     : $"skin-scale x{ratio:F1}")
@@ -1219,7 +1231,7 @@ return ColorPresets["(none)"];
                 // VisEquipment.SetupCloth (Initialize, DisableAutoBuild, its cloth colliders, ReplaceTransform onto the
                 // character's bones by name, BuildAndRun). 1.0 hair and beards simulate with MagicaCloth2; without this
                 // the cloth kept driving the mesh from the clone's own unanimated bone copies, so the hair floated off
-                // the head and ignored every attack (Fire, 2026-09-29, Sigrid).
+                // the head and ignored every attack.
                 string clothSetup = SetupClothLikeVanilla(visualRoot, clonedGO);
 
                 // --- 5. Replace the hair mesh's material with an instanced copy of the ---
@@ -1240,7 +1252,7 @@ return ColorPresets["(none)"];
                         // Instance it only so per-NPC _SkinColor tint can't bleed across shared prefabs.
                         if (smr.sharedMaterial != null) smr.material = new Material(smr.sharedMaterial);
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[NpcFashionManager] Instanced hair's own material for {smr.name}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Instanced hair's own material for {smr.name}");
                     }
                 }
 
@@ -1266,7 +1278,7 @@ return ColorPresets["(none)"];
 
                 int totalBones = bodyModel?.bones?.Length ?? smrs[0]?.bones?.Length ?? 0;
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[NpcFashionManager] Applied {itemName} as skinned mesh (bones: {bonesFound}/{totalBones})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Applied {itemName} as skinned mesh (bones: {bonesFound}/{totalBones})");
                 LogAttachEvidence(visualRoot, clonedGO, itemName, $"skinned (bones {bonesFound}/{totalBones}, {clothSetup})");
                 return true;
             }
@@ -1321,9 +1333,9 @@ return ColorPresets["(none)"];
                 string offset = head != null && renderer != null
                     ? head.InverseTransformPoint(renderer.bounds.center).ToString("F2") : "-";
                 string path = item.transform.parent != null ? item.transform.parent.name : "-";
-                Debug.Log($"[NpcFashionManager][attach] '{itemName}' on '{(npc != null ? npc.name : "?")}': {how}, parent '{path}', {under}, "
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager][attach] '{itemName}' on '{(npc != null ? npc.name : "?")}': {how}, parent '{path}', {under}, "
                           + $"localPos {item.transform.localPosition:F2}, bounds centre in the head's frame {offset}");
-                // 0.0.581: the body's render state right after the attach (R4 invisible-body hunt).
+                // The body's render state right after the attach, to diagnose invisible bodies.
                 NpcBodyProbe.Log(visualRoot, "after attach '" + itemName + "'");
             }
             catch (Exception ex)
@@ -1500,7 +1512,7 @@ return ColorPresets["(none)"];
             if (visual != null)
             {
                 visual.localScale = Vector3.one * scale;
-                Debug.Log($"[NpcFashionManager] Applied model scale {scale} to Visual of NPC {npc.name}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Applied model scale {scale} to Visual of NPC {npc.name}");
             }
             else
             {
@@ -1529,18 +1541,18 @@ return ColorPresets["(none)"];
       {
    // Find or add the LookAt component
   var lookAt = npc.GetComponentInChildren<LookAt>(true);
-       
+
     if (enabled)
     {
         if (lookAt == null)
 {
         // Add LookAt component to the NPC
      // It should be on the Visual or a child that has the head bone
-         // 0.0.546 ([visual]'s a7: head never followed): vanilla LookAt drives the head from OnAnimatorIK, which Unity calls
+         // Vanilla LookAt drives the head from OnAnimatorIK, which Unity calls
          // only on the Animator's own GameObject. The swapped/cloned model's Animator sits below "Visual", so put it there.
          Transform visual = npc.GetComponentInChildren<Animator>(true)?.transform ?? npc.transform;
    lookAt = visual.gameObject.AddComponent<LookAt>();
-       Debug.Log($"[NpcFashionManager] Added LookAt component to NPC {npc.name}");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Added LookAt component to NPC {npc.name}");
      }
     lookAt.enabled = true;
   }
@@ -1604,7 +1616,7 @@ return ColorPresets["(none)"];
                 }
                 if (changed) renderer.materials = mats;
             }
-            Debug.Log($"[NpcFashionManager] ApplyColorToRenderers: {obj.name} color={color} renderers={renderers.Length}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] ApplyColorToRenderers: {obj.name} color={color} renderers={renderers.Length}");
         }
 
         /// <summary>
@@ -1768,7 +1780,7 @@ string objName = renderer.gameObject.name.ToLowerInvariant();
       }
           }
 
-       Debug.Log($"[NpcFashionManager] Applied skin color to {appliedCount} materials on NPC {npc.name}");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Applied skin color to {appliedCount} materials on NPC {npc.name}");
             }
           catch (Exception ex)
         {
@@ -1806,23 +1818,23 @@ string objName = renderer.gameObject.name.ToLowerInvariant();
 
       // Check for eye-related material names or properties
 bool isEyeMaterial = matName.Contains("eye") || objName.Contains("eye");
-            
+
               if (isEyeMaterial)
              {
-  Debug.Log($"[NpcFashionManager] Found potential eye material: {mat.name} on {renderer.gameObject.name}");
-  
+  global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Found potential eye material: {mat.name} on {renderer.gameObject.name}");
+
            // Try various eye color properties
                 if (mat.HasProperty("_Color"))
     {
   mat.SetColor("_Color", eyeColor);
             appliedCount++;
-   Debug.Log($"[NpcFashionManager] Set _Color on {mat.name}");
+   global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Set _Color on {mat.name}");
    }
        if (mat.HasProperty("_EyeColor"))
      {
            mat.SetColor("_EyeColor", eyeColor);
          appliedCount++;
-           Debug.Log($"[NpcFashionManager] Set _EyeColor on {mat.name}");
+           global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Set _EyeColor on {mat.name}");
            }
          if (mat.HasProperty("_EmissionColor"))
   {
@@ -1831,11 +1843,11 @@ bool isEyeMaterial = matName.Contains("eye") || objName.Contains("eye");
     {
   mat.SetColor("_EmissionColor", eyeColor * 0.5f);
         mat.EnableKeyword("_EMISSION");
-    Debug.Log($"[NpcFashionManager] Set _EmissionColor on {mat.name}");
+    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Set _EmissionColor on {mat.name}");
             }
       }
          }
-   
+
               // Also check the second material slot on body models (index 1 is often for details)
          // In Valheim, materials[1] on the body is the hair material which uses _SkinColor for tinting
           }
@@ -1843,11 +1855,11 @@ bool isEyeMaterial = matName.Contains("eye") || objName.Contains("eye");
 
    if (appliedCount > 0)
     {
-         Debug.Log($"[NpcFashionManager] Applied eye color to {appliedCount} materials on NPC {npc.name}");
+         global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Applied eye color to {appliedCount} materials on NPC {npc.name}");
           }
        else
                 {
-                 Debug.Log($"[NpcFashionManager] No eye materials found on NPC {npc.name} - eye color not applied (this is normal for most Valheim models)");
+                 global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] No eye materials found on NPC {npc.name} - eye color not applied (this is normal for most Valheim models)");
       }
     }
             catch (Exception ex)
@@ -1887,7 +1899,7 @@ bool isEyeMaterial = matName.Contains("eye") || objName.Contains("eye");
                     if (child.name == "dev_smoke")
                     {
                         UnityEngine.Object.Destroy(child.gameObject);
-                        Debug.Log($"[NpcFashionManager] Removed dev_smoke effect from player model");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionManager] Removed dev_smoke effect from player model");
                         break; // There's typically only one
                     }
                 }
@@ -2036,7 +2048,7 @@ private const float LookAtAngle = 90f;  // View cone angle (90 degrees = 45 on e
      {
          // Get ZNetView for ownership check
     _znv = GetComponentInParent<ZNetView>();
-            Debug.Log($"[NpcFashionComponent] Apply() called on {gameObject.name}, ZNetView: {(_znv != null ? "found" : "null")}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] Apply() called on {gameObject.name}, ZNetView: {(_znv != null ? "found" : "null")}");
 
             // Find ZSyncAnimation first (Valheim's networked animation system)
       _zanim = GetComponent<ZSyncAnimation>();
@@ -2048,11 +2060,11 @@ private const float LookAtAngle = 90f;  // View cone angle (90 degrees = 45 on e
        // Log what we found
       if (_zanim != null)
   {
-         Debug.Log($"[NpcFashionComponent] Found existing ZSyncAnimation on: {_zanim.gameObject.name}");
+         global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] Found existing ZSyncAnimation on: {_zanim.gameObject.name}");
          }
         else
          {
-      Debug.Log($"[NpcFashionComponent] No ZSyncAnimation found, will use direct Animator control");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] No ZSyncAnimation found, will use direct Animator control");
 
    // Find the animator directly
        _animator = GetComponent<Animator>();
@@ -2063,7 +2075,7 @@ private const float LookAtAngle = 90f;  // View cone angle (90 degrees = 45 on e
 
   if (_animator != null)
 {
-  Debug.Log($"[NpcFashionComponent] Found Animator on: {_animator.gameObject.name}");
+  global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] Found Animator on: {_animator.gameObject.name}");
      }
   else
     {
@@ -2086,14 +2098,14 @@ _audioSource = gameObject.AddComponent<AudioSource>();
      _audioSource.spatialBlend = 1f;
  _audioSource.maxDistance = 20f;
   _audioSource.volume = 0.5f;
-       Debug.Log($"[NpcFashionComponent] Created AudioSource for periodic sounds");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] Created AudioSource for periodic sounds");
             }
 
    // Find or create LookAt component for look-at-player behavior
           if (LookAtPlayer)
         {
     _lookAt = GetComponentInChildren<LookAt>(true);
-      // 0.0.546: a LookAt that isn't on the Animator's GameObject never gets OnAnimatorIK (NPCs placed before this build carry one on "Visual").
+      // A LookAt that isn't on the Animator's GameObject never gets OnAnimatorIK (NPCs placed before this build carry one on "Visual").
       var animGo = GetComponentInChildren<Animator>(true)?.gameObject;
       if (_lookAt != null && animGo != null && _lookAt.gameObject != animGo) { Destroy(_lookAt); _lookAt = null; }
       if (_lookAt == null)
@@ -2102,7 +2114,7 @@ _audioSource = gameObject.AddComponent<AudioSource>();
     Transform visual = animGo != null ? animGo.transform : transform;
          _lookAt = visual.gameObject.AddComponent<LookAt>();
          global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[NpcFashionComponent] LookAt on '{visual.name}' (animator {(animGo != null ? "found" : "missing")})");
-      Debug.Log($"[NpcFashionComponent] Added LookAt component for player tracking");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] Added LookAt component for player tracking");
      }
 }
 
@@ -2124,7 +2136,7 @@ _audioSource = gameObject.AddComponent<AudioSource>();
                 catch (Exception ex) { Debug.LogWarning("[NpcFashionComponent] crafting anim failed: " + ex.Message); }
             }
 
-            Debug.Log($"[NpcFashionComponent] Apply() complete - " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] Apply() complete - " +
     $"ZSyncAnim: {(_zanim != null ? _zanim.gameObject.name : "null")}, " +
         $"Animator: {(_animator != null ? _animator.gameObject.name : "null")}, " +
                 $"PeriodicAnim: '{PeriodicAnimation}', Time: {PeriodicAnimationTime}, " +
@@ -2269,7 +2281,7 @@ if (_periodicSoundTimer >= PeriodicSoundTime)
                 {
                     _animator.SetTrigger(param);
                 }
-                Debug.Log($"[NpcFashionComponent] Emote '{animName}' -> '{param}' (looping={looping}, rawBool={rawBool})");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcFashionComponent] Emote '{animName}' -> '{param}' (looping={looping}, rawBool={rawBool})");
             }
             catch (Exception ex)
             {

@@ -208,7 +208,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 }
 
                 if (migrated > 0)
-                    Debug.Log($"[StaticNpcRespawnManager] migrated {migrated} placement record(s) to NPC anchors");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcRespawnManager] migrated {migrated} placement record(s) to NPC anchors");
             }
             catch (Exception ex)
             {
@@ -263,7 +263,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             entry.DeadlineUtcTicks = DateTime.UtcNow.AddSeconds(delay).Ticks;
             _pending.Add(entry);
             Save();
-            Debug.Log($"[StaticNpcRespawnManager] Scheduled '{entry.NameOverride}' respawn at {entry.Position} (deadline +{delay:F0}s, persisted)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcRespawnManager] Scheduled '{entry.NameOverride}' respawn at {entry.Position} (deadline +{delay:F0}s, persisted)");
         }
 
         // ── respawn ───────────────────────────────────────────────────────────
@@ -327,7 +327,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 if (!string.IsNullOrEmpty(e.PatrolRouteName)) npc.SyncPatrolAssignment();
             }
 
-            Debug.Log($"[StaticNpcRespawnManager] Respawned '{e.NameOverride}' at {e.Position}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcRespawnManager] Respawned '{e.NameOverride}' at {e.Position}");
             // Mark this placement cell as just-spawned so the reconciler won't duplicate it during the ~1s
             // window before isStaticPlacement is set (covers both reconciler-at-home and death-at-checkpoint).
             Vector3 anchorPos = (e.HomeX == 0f && e.HomeY == 0f && e.HomeZ == 0f) ? e.Position : e.HomePosition;
@@ -480,7 +480,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             CancelForAnchor(anchor);
             if (_placementsDirty) SavePlacements();
             if (_tombstonesDirty) SaveTombstones();
-            Debug.Log($"[StaticNpcRespawnManager] Tombstoned + removed {stale.Count} placement entr(ies) at {anchor} (admin delete/move)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcRespawnManager] Tombstoned + removed {stale.Count} placement entr(ies) at {anchor} (admin delete/move)");
         }
 
         public bool IsTombstoned(Vector3 anchor)
@@ -700,7 +700,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 {
                     var list = JsonConvert.DeserializeObject<List<PendingEntry>>(File.ReadAllText(path));
                     if (list != null) _pending.AddRange(list);
-                    Debug.Log($"[StaticNpcRespawnManager] Loaded {_pending.Count} pending respawn(s) for world {uid}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcRespawnManager] Loaded {_pending.Count} pending respawn(s) for world {uid}");
                 }
             }
             catch (Exception ex) { Debug.LogError($"[StaticNpcRespawnManager] load failed: {ex.Message}"); }
@@ -713,7 +713,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 {
                     var dict = JsonConvert.DeserializeObject<Dictionary<string, PendingEntry>>(File.ReadAllText(pp));
                     if (dict != null) foreach (var kv in dict) _placements[kv.Key] = kv.Value;
-                    Debug.Log($"[StaticNpcRespawnManager] Loaded {_placements.Count} placement record(s) for world {uid}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcRespawnManager] Loaded {_placements.Count} placement record(s) for world {uid}");
                 }
             }
             catch (Exception ex) { Debug.LogError($"[StaticNpcRespawnManager] placements load failed: {ex.Message}"); }

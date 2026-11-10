@@ -78,8 +78,13 @@ namespace FiresRPGmaker.Modules.PlayersTag
         {
             private static void Postfix()
             {
-                try { ZRoutedRpc.instance?.Register<ZPackage>(SetRpc, OnSetRpc); } catch { }
+                // re-register RPCs per connection: by instance (one pattern for every module), never twice on one
+                if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(s_regOn)) return;
+                s_regOn = ZRoutedRpc.instance;
+                int n = global::FiresRPGmaker.Managers.RpcRegistration.Try("PlayerTag", SetRpc, () => ZRoutedRpc.instance.Register<ZPackage>(SetRpc, OnSetRpc));
+                global::FiresRPGmaker.Managers.RpcRegistration.Logged("PlayerTag", n);
             }
+            private static ZRoutedRpc s_regOn;   // re-register RPCs per connection
         }
 
         private static void OnSetRpc(long sender, ZPackage pkg)
@@ -103,7 +108,8 @@ namespace FiresRPGmaker.Modules.PlayersTag
                 return;
             }
 
-            // Client: this is the forwarded "set your tag" — apply if it's for me.
+            // Client: this is the forwarded "set your tag" — only the server's (admin-checked) forward counts.
+            if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer(SetRpc, sender); return; }
             var p = Player.m_localPlayer;
             if (p != null && string.Equals(p.GetPlayerName(), playerName, StringComparison.OrdinalIgnoreCase))
                 SetLocal(tag);

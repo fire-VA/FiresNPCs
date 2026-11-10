@@ -14,8 +14,8 @@ namespace FiresRPGmaker.Modules.Territories
     {
         private static string _lastForcedEnv;
         private static bool _windForced;
-    private static bool _snowForced;
-   private static float? _origSnowAmount;
+
+
    private static float? _origSnowHeight;
 
       private static readonly HashSet<string> _paintedTerritoryHeightmaps = new();
@@ -31,7 +31,7 @@ namespace FiresRPGmaker.Modules.Territories
         private static bool _hasAnyForceBiomeTerritories = false;
         private static bool _hasAnyCustomPaintTerritories = false;
         private static bool _hasAnySnowMaskOnlyTerritories = false;
-        
+
         // Snow mask tracking - separate from biome forcing
         private static readonly Dictionary<Heightmap, float> _snowMaskedHeightmaps = new();
         private static float _snowMaskBoundsMinX = float.MaxValue;
@@ -78,6 +78,46 @@ namespace FiresRPGmaker.Modules.Territories
  {
             _currentTerritoriesVersion++;
             _cachedSnowMaskTerritories = null;
+            // The ForceBiome cache was only rebuilt from the Heightmap.Regenerate postfix; on a join the territories arrive AFTER the ground
+            // around the player is built, so nothing rebuilt it (every ForceBiome patch fast-exits on _hasAnyForceBiomeTerritories) until a
+            // re-save regenerated the heightmaps. It is rebuilt here, at once, whenever the territory list changes (sync received, ledger load /
+            // edit, API boxes).
+            try { EnsureTerritoryCacheValid(); }
+            catch (Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[Territory] ForceBiome cache rebuild failed: " + ex.Message); }
+            try { s_biomeCacheValid = false; } catch { }
+            RefreshDeepGround();
+        }
+
+        // 0.0.774 ([seasons] for Fire's deep snow): FAT colours ground Deep North where Core's SnowField.DeepGroundAt is true, which
+        // includes Winter / ForceBiome territories (TerritorySnowFeed). A territory made, edited or removed at runtime kept its old ground
+        // colour until the chunks rebuilt: tell Core to drop its base cache, then FAT to re-colour, both by name (an older Core / FAT =
+        // no-op). Without Core's InvalidateBaseCache its cache catches up within 10 s, so FAT is asked again 10 s later.
+        private static System.Reflection.MethodInfo s_coreInvalidate, s_fatRefresh;
+        private static bool s_deepLooked;
+        private static void RefreshDeepGround()
+        {
+            try
+            {
+                if (!s_deepLooked)
+                {
+                    s_deepLooked = true;
+                    s_coreInvalidate = AccessTools.TypeByName("FiresCore.Snow.SnowField")?.GetMethod("InvalidateBaseCache", BindingFlags.Public | BindingFlags.Static, null, Type.EmptyTypes, null);
+                    // 0.0.808: FAT is optional, so it is found without HarmonyX's "Could not find type" warning
+                    s_fatRefresh = global::FiresRPGmaker.Utilities.QuietTypes.Find("VerdantsAscent.FatApi")?.GetMethod("RefreshBiomeOverrides", BindingFlags.Public | BindingFlags.Static, null, Type.EmptyTypes, null);
+                }
+                if (s_fatRefresh == null) return;
+                s_coreInvalidate?.Invoke(null, null);
+                s_fatRefresh.Invoke(null, null);
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] deep ground refresh: Core base cache {(s_coreInvalidate != null ? "dropped" : "not found (FAT asked again in 10 s)")}, FAT re-colour asked");
+                if (s_coreInvalidate == null && ZNetScene.instance != null) ZNetScene.instance.StartCoroutine(RefreshFatLater());
+            }
+            catch (Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[Territory] deep ground refresh failed: " + ex.Message); }
+        }
+
+        private static IEnumerator RefreshFatLater()
+        {
+            yield return new WaitForSeconds(10f);
+            try { s_fatRefresh?.Invoke(null, null); } catch { }
         }
 
     private static void EnsureReflectionCached()
@@ -186,7 +226,7 @@ _forceEnvField.SetValue(EnvMan.instance, string.Empty);
         {
             if (ZNet.instance != null && ZNet.instance.IsServer())
           return TerritoryLedger.Territories;
-      return TerritorySyncedState.ClientTerritories;
+      return TerritoryApi.WithExternal(TerritorySyncedState.ClientTerritories); // API boxes on clients
         }
 
         /// <summary>
@@ -198,6 +238,7 @@ _forceEnvField.SetValue(EnvMan.instance, string.Empty);
     return;
 
         _territoryCacheVersion = _currentTerritoriesVersion;
+        ProbeCacheBuiltAt = Time.realtimeSinceStartup;   // diagnostic
   _hasAnyForceBiomeTerritories = false;
   _hasAnyCustomPaintTerritories = false;
 
@@ -215,7 +256,7 @@ _forceEnvField.SetValue(EnvMan.instance, string.Empty);
             }
 
             var biomeList = new List<ForceBiomeTerritoryData>(territories.Count);
-            
+
             // Reset snow mask bounds
             _snowMaskBoundsMinX = float.MaxValue;
             _snowMaskBoundsMaxX = float.MinValue;
@@ -232,10 +273,10 @@ _forceEnvField.SetValue(EnvMan.instance, string.Empty);
           // Check if this territory forces a biome (any biome, not just snow)
       bool hasSnowMask = terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.SnowMask);
        bool hasForceBiome = terr.Flags.HasFlag(TerritoryFlags.ForceBiome) && terr.OverridenBiome != 0;
-    
+
     // SnowMask without ForceBiome = visual only (no biome changes at all)
     bool isSnowMaskOnly = hasSnowMask && !hasForceBiome;
-    
+
     // Track snow mask only territories separately - they don't force biomes
     if (isSnowMaskOnly)
     {
@@ -248,7 +289,7 @@ _forceEnvField.SetValue(EnvMan.instance, string.Empty);
         // Don't add to biome list - SnowMask only applies visual effects, not biome changes
         continue;
     }
-    
+
     // Only actual ForceBiome territories go in the biome list
     if (!hasForceBiome) continue;
 
@@ -279,7 +320,12 @@ Territory = terr,
       if (data.MaxZ > _forceBiomeBoundsMaxZ) _forceBiomeBoundsMaxZ = data.MaxZ;
     }
 
+            // FAT asks ForcedSectorAt from terrain threads, which may only READ the sector table: build every sector here
+            foreach (var d in biomeList)
+                if (!d.IsSnowMaskOnly && d.Territory != null) { ForcedSector(d.ForcedBiome); ForcedSector(d.ForcedBiome, d.Territory.OverridenAltBiome); }
             _cachedForceBiomeTerritories = biomeList.ToArray();
+            try { TerritoryBiomeBlend.Rebuild(biomeList.Select(x => x.Territory)); } catch (Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[BiomeBlend] rebuild failed: " + ex.Message); }
+            if (TerritoryBiomeBlend.SuperFlatHooked) global::FiresRPGmaker.FiresLogger.LogDebug($"[Territory] superflat content area registered: {biomeList.Count} forced territor{(biomeList.Count == 1 ? "y" : "ies")}");
      }
 
         private static bool IsDedicatedServer()
@@ -322,6 +368,7 @@ case Heightmap.Biome.Mountain:
       if (terr == null) return (Vector2.zero, Vector2.zero);
 
   float minX, maxX, minZ, maxZ;
+            if (terr.Shape == TerritoryShape.Polygon && terr.IsPolygon) return (terr.PolyMin, terr.PolyMax);
    switch (terr.Shape)
        {
          case TerritoryShape.Rectangle:
@@ -364,7 +411,13 @@ return;
          float cz = refPos.z;
  float radius = 2f;
 
-      if (terr.Shape == TerritoryShape.Rectangle)
+      if (terr.Shape == TerritoryShape.Polygon && terr.IsPolygon)   // Centre of its bounds, radius = half the bounds diagonal
+      {
+          var pc = terr.Center2D(); cx = pc.x; cz = pc.y;
+          var ps = terr.PolyMax - terr.PolyMin;
+          radius = Mathf.Max(2f, ps.magnitude * 0.5f);
+      }
+      else       if (terr.Shape == TerritoryShape.Rectangle)
           {
       float x0 = terr.X != null && terr.X.Length > 0 ? terr.X[0] : 0f;
         float x1 = terr.X != null && terr.X.Length > 1 ? x0 + terr.X[1] : x0; // X[1] is the width
@@ -388,6 +441,8 @@ return;
              }
 
                 var center = new Vector3(cx, refPos.y, cz);
+                // 0.0.772 (halo ring): vanilla TerrainModifier paints the heightmap at a world-Y; a ring floor is FAT's voxel terrain, so it stands down there
+                if (global::FiresRPGmaker.Utilities.RingUp.OnRing(center)) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] '{terr.Name}' ground paint skipped: on a halo ring (FAT voxel floor, no heightmap)"); return; }
      try { Heightmap.GetHeight(center, out var h); center.y = h; } catch { }
 
        var paint = TerrainModifier.PaintType.Reset;
@@ -422,11 +477,11 @@ return;
     if (_paintedTerritoryHeightmaps.Contains(key))
          continue;
 
-                    // Fire 10-08: paint untouched ground too, through vanilla's own GetAndCreateTerrainCompiler (what the
-                    // hoe and the cultivator use), but only once the zone is fully loaded. ZNetScene.IsAreaReady is the
-                    // check vanilla's teleport waits on: the zone is loaded and every object in it has spawned, so the
-                    // area's existing terrain compiler is already found and never duplicated. Before, only ground that
-                    // had been edited already got painted (an existing TerrainComp at the territory centre).
+                    //  paint untouched ground too, through vanilla's own GetAndCreateTerrainCompiler (what the hoe and
+                    // the cultivator use), but only once the zone is fully loaded. ZNetScene.IsAreaReady is the check
+                    // vanilla's teleport waits on: the zone is loaded and every object in it has spawned, so the area's
+                    // existing terrain compiler is already found and never duplicated. Before, only ground that had been
+                    // edited already got painted (an existing TerrainComp at the territory centre).
                     if (ZNetScene.instance == null || !ZNetScene.instance.IsAreaReady(hm.transform.position))
                     {
                         allPainted = false;
@@ -537,12 +592,6 @@ return;
   player.m_swimSpeed = _baseSwimSpeed;
             }
             RestoreForcedPvp(player);
-    if (_snowForced)
-        {
- Shader.SetGlobalFloat("_GlobalSnowAmount", _origSnowAmount ?? 0f);
-  Shader.SetGlobalFloat("_SnowAmount", _origSnowAmount ?? 0f);
-      _snowForced = false;
-      }
     // Clear forced environment - let vanilla smoothly transition back
    if (_lastForcedEnv != null && EnvMan.instance != null)
           {
@@ -644,35 +693,8 @@ return;
                 }
       }
 
-          // Snow mask
-  bool needsSnowShader = Current.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.SnowMask);
-         if (!needsSnowShader && Current.Flags.HasFlag(TerritoryFlags.ForceBiome) && Current.OverridenBiome != 0)
-needsSnowShader = BiomeRequiresSnowShader((Heightmap.Biome)Current.OverridenBiome);
-
-     if (needsSnowShader)
-            {
- if (!_origSnowAmount.HasValue)
-      try { _origSnowAmount = Shader.GetGlobalFloat("_GlobalSnowAmount"); } catch { _origSnowAmount = 0f; }
-      
-      // Set snow amount to max
-      Shader.SetGlobalFloat("_GlobalSnowAmount", 1f);
-        Shader.SetGlobalFloat("_SnowAmount", 1f);
-        
-        // The piece snow shader uses _AddSnow property which is based on world height
-        // We need to set it globally to force snow on all pieces regardless of Y position
-        // _AddSnow is typically calculated from world Y position vs a threshold
-        Shader.SetGlobalFloat("_AddSnow", 1f);
-        
-       _snowForced = true;
- }
-        else if (_snowForced)
-      {
-      Shader.SetGlobalFloat("_GlobalSnowAmount", _origSnowAmount ?? 0f);
-      Shader.SetGlobalFloat("_SnowAmount", _origSnowAmount ?? 0f);
-      Shader.SetGlobalFloat("_AddSnow", 0f);
-          
-  _snowForced = false;
-      }
+          // 0.0.770: the snow-mask shader globals (_GlobalSnowAmount / _SnowAmount / _AddSnow) were read by no vanilla 1.0 shader;
+          // removed. Snow on Winter / snow-ForceBiome territories now comes from Core's SnowField (TerritorySnowFeed).
 
        // Periodic effects
             var interval = Current.PeriodicHealInterval > 0f ? Current.PeriodicHealInterval : 1f;
@@ -681,7 +703,7 @@ needsSnowShader = BiomeRequiresSnowShader((Heightmap.Biome)Current.OverridenBiom
     if (Current.Flags.HasFlag(TerritoryFlags.PeriodicDamage) && !IsPermitted(Current, player))
    {
                  var hit = new HitData();
-hit.m_damage.m_damage = Current.PeriodicDamageValue > 0 ? Current.PeriodicDamageValue : 5f; // 0.0.533: plain damage; as fire it became a slow burn (round 13: 0.2 hp in 4 s)
+hit.m_damage.m_damage = Current.PeriodicDamageValue > 0 ? Current.PeriodicDamageValue : 5f; // Plain damage; as fire it became a slow burn
                     player.Damage(hit);
         }
        if (Current.Flags.HasFlag(TerritoryFlags.PeriodicHealALL))
@@ -749,16 +771,17 @@ hit.m_damage.m_damage = Current.PeriodicDamageValue > 0 ? Current.PeriodicDamage
             var pos = player.transform.position;
      float ground = pos.y;
   try { Heightmap.GetHeight(pos, out ground); } catch { }
+            bool iceRing = global::FiresRPGmaker.Utilities.RingUp.OnRing(pos, out Vector3 iceUp);   // 0.0.772: a ring has no sea or heightmap ice; only ice rocks count, found along -up
             float waterLevel = ZoneSystem.instance != null ? ZoneSystem.instance.m_waterLevel : 30f;
             float depth = waterLevel - ground;
-         bool shallowWater = player.InWater() && depth <= 4f && depth >= -1f;
-   bool nearSeaIce = ground >= 28f && ground <= 32f && !player.IsSwimming();
-      bool groundIce = player.IsOnGround() && !player.InWater() && !player.IsSwimming() && ground < 32f && Mathf.PerlinNoise(pos.x * 0.05f, pos.z * 0.05f) > 0.35f;
+         bool shallowWater = !iceRing && player.InWater() && depth <= 4f && depth >= -1f;
+   bool nearSeaIce = !iceRing && ground >= 28f && ground <= 32f && !player.IsSwimming();
+      bool groundIce = !iceRing && player.IsOnGround() && !player.InWater() && !player.IsSwimming() && ground < 32f && Mathf.PerlinNoise(pos.x * 0.05f, pos.z * 0.05f) > 0.35f;
 
 bool onIceRock = false;
   if (player.IsOnGround())
    {
-   if (Physics.Raycast(pos + Vector3.up * 0.5f, Vector3.down, out var hit, 3f, ~0, QueryTriggerInteraction.Ignore))
+   if (Physics.Raycast(pos + iceUp * 0.5f, -iceUp, out var hit, 3f, ~0, QueryTriggerInteraction.Ignore))
    {
     var hitName = hit.collider != null ? hit.collider.gameObject.name : string.Empty;
    if (!string.IsNullOrEmpty(hitName) && IcePrefabs.Any(n => hitName.StartsWith(n, StringComparison.OrdinalIgnoreCase)))
@@ -883,12 +906,12 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
         {
             // CRITICAL: Guard against null instance - can happen during early world loading
             // or when other mods (like BetterContinents) modify the patch chain
-            if (__instance == null) return;
-            
+            if (__instance == null || FatOwnsBiome) return;   // FAT answers the heightmap's biome through ForcedSectorAt
+
             // CRITICAL: Skip during world generation - ZNet.instance is null or game not ready
             // This is when BetterContinents is processing and we must not interfere
             if (ZNet.instance == null) return;
-            
+
             // CRITICAL: Guard against uninitialized Heightmap - BetterContinents accesses m_cornerBiomes
             // which can be null during world generation. Check if the heightmap is properly initialized.
             // This prevents NullReferenceException in the Harmony patch chain.
@@ -902,10 +925,10 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
                 }
                 catch { return; }
             }
-            
+
             // Fast exit if no territories are configured
             if (!_hasAnyForceBiomeTerritories && !_hasAnySnowMaskOnlyTerritories) return;
-            
+
             try
             {
                 var terr = GetTerritory(point);
@@ -917,7 +940,7 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
                     __result = (Heightmap.Biome)terr.OverridenBiome;
                     return;
                 }
-                
+
                 // NOTE: SnowMask WITHOUT ForceBiome does NOT change the biome here.
                 // This preserves the original weather and biome display name.
                 // Snow visuals are handled separately:
@@ -930,30 +953,159 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
             }
         }
 
-        // Valheim 1.0 changed EnvMan.GetBiome to return BiomeSector - a CLASS wrapping the
-        // Heightmap.Biome enum plus alt-biome data - instead of the enum itself. GetBiome hands back
-        // either a shared BiomeSector.Empty* static or WorldGenerator's cached sector for that
-        // position, so writing __result.Biome would mutate state the whole session shares. Return a
-        // separate instance instead, cached per biome because this runs every frame.
-        private static readonly System.Collections.Generic.Dictionary<Heightmap.Biome, BiomeSector> _forcedSectors
-            = new System.Collections.Generic.Dictionary<Heightmap.Biome, BiomeSector>();
+        // Valheim 1.0 changed EnvMan.GetBiome to return BiomeSector - a CLASS wrapping the Heightmap.Biome enum plus alt-biome data -
+        // instead of the enum itself. GetBiome hands back either a shared BiomeSector.Empty* static or WorldGenerator's cached sector
+        // for that position, so writing __result.Biome would mutate state the whole session shares. Return a separate instance instead,
+        // cached per biome because this runs every frame. One sector per (biome, alt name); an alt is added as the sector's
+        // modifier, as vanilla's own alt-biome sectors carry it (AltBiomes list) - weather, spawns, vegetation and the sector name
+        // ("Heath") follow it
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(Heightmap.Biome, string), BiomeSector> _forcedSectors
+            = new System.Collections.Concurrent.ConcurrentDictionary<(Heightmap.Biome, string), BiomeSector>();
 
-        private static BiomeSector ForcedSector(Heightmap.Biome biome)
+        /// <summary>True once FAT answers the world's biome and sector through <see cref="ForcedSectorAt"/>
+        /// (FatApi.AddBiomeSectorOverride, FAT 0.2.1008+); RPGmaker's own generator patches then step aside.</summary>
+        internal static volatile bool FatOwnsBiome;
+
+        // A forced sector whose alt biome was not loaded yet (AltBiomeList fills during startup); rebuilt on the main thread.
+        private static bool s_altSectorPending;
+
+        /// <summary>Main thread only: builds the plain and the alt sector of every cached ForceBiome territory.</summary>
+        private static void RebuildForcedSectors()
         {
-            if (!_forcedSectors.TryGetValue(biome, out var sector))
+            s_altSectorPending = false;
+            var cache = _cachedForceBiomeTerritories;
+            if (cache == null) return;
+            foreach (var d in cache)
+                if (!d.IsSnowMaskOnly && d.Territory != null) { ForcedSector(d.ForcedBiome); ForcedSector(d.ForcedBiome, d.Territory.OverridenAltBiome); }
+        }
+
+        /// <summary>The forced sector (with its alt biome) at a world point, or null outside every ForceBiome territory.
+        /// FAT's biome authority calls this from terrain threads: it reads only the synced cache and the sector table
+        /// built on the main thread, never GetBiome / GetBiomeSector, and returns one shared sector per biome + alt.</summary>
+        internal static BiomeSector ForcedSectorAt(float wx, float wz)
+        {
+            if (BypassForceBiome) return null;   // the height blend and regen dry runs ask for the world's own biome
+            var cache = _cachedForceBiomeTerritories;
+            if (cache == null || cache.Length == 0) return null;
+            if (wx < _forceBiomeBoundsMinX || wx > _forceBiomeBoundsMaxX || wz < _forceBiomeBoundsMinZ || wz > _forceBiomeBoundsMaxZ) return null;
+            var pos = new Vector2(wx, wz);
+            for (int i = 0; i < cache.Length; i++)
+            {
+                ref var data = ref cache[i];
+                if (data.IsSnowMaskOnly || wx < data.MinX || wx > data.MaxX || wz < data.MinZ || wz > data.MaxZ) continue;
+                var t = data.Territory;
+                try
+                {
+                    if (t != null && t.IsInside2D(pos))
+                    {
+                        if (_forcedSectors.TryGetValue((data.ForcedBiome, t.OverridenAltBiome ?? string.Empty), out var s)) return s;
+                        return _forcedSectors.TryGetValue((data.ForcedBiome, string.Empty), out var plain) ? plain : null;   // alt not loaded (yet)
+                    }
+                }
+                catch { }
+            }
+            return null;
+        }
+        private static BiomeSector ForcedSector(Heightmap.Biome biome, string alt = null)
+        {
+            var key = (biome, alt ?? string.Empty);
+            if (!_forcedSectors.TryGetValue(key, out var sector))
             {
                 sector = new BiomeSector(null, biome);
-                _forcedSectors[biome] = sector;
+                var a = string.IsNullOrEmpty(alt) ? null : TerritoryBiomes.FindAlt(alt);
+                if (a != null)
+                {
+                    try { sector.AddModifier(a); }
+                    catch (Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] alt biome '{alt}' not added to the forced {biome} sector: {ex.Message}"); }
+                }
+                // an alt not loaded yet must not be cached without it: the next main-thread call builds it again
+                if (!string.IsNullOrEmpty(alt) && a == null) { s_altSectorPending = true; return sector; }
+                _forcedSectors[key] = sector;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] forced sector built: {biome}{(a != null ? " + alt '" + a.m_name + "'" : "")} ({SafeName(sector)})");
             }
             return sector;
         }
+        /// <summary>ForceBiome territories must grow their full biome on the superflat too (FAT 0.2.1000
+        /// FatApi.AddSuperFlatContentArea): true inside a ForceBiome territory. Reads only the synced ForceBiome cache (same on every peer),
+        /// never GetBiome / GetBiomeSector; thread-safe (the cache array is swapped whole).</summary>
+        internal static int ForceBiomeAreaCount() { var c = _cachedForceBiomeTerritories; return c == null ? 0 : c.Length; }   // territory_tools_test
 
-        // 0.0.579: the camera-territory cache for EnvMan_GetBiome_Postfix (see there).
+        internal static bool InsideForceBiomeArea(float wx, float wz)
+        {
+            var cache = _cachedForceBiomeTerritories;
+            if (cache == null || cache.Length == 0) return false;
+            if (wx < _forceBiomeBoundsMinX || wx > _forceBiomeBoundsMaxX || wz < _forceBiomeBoundsMinZ || wz > _forceBiomeBoundsMaxZ) return false;
+            for (int i = 0; i < cache.Length; i++)
+            {
+                var d = cache[i];
+                if (d.IsSnowMaskOnly || wx < d.MinX || wx > d.MaxX || wz < d.MinZ || wz > d.MaxZ) continue;
+                try { if (d.Territory != null && d.Territory.IsInside2D(wx, wz)) return true; } catch { }
+            }
+            return false;
+        }
+
+        /// <summary>Set (per thread) while TerritoryBiomeBlend asks the generator for the ORIGINAL biome at a point.</summary>
+        [ThreadStatic] internal static bool BypassForceBiome;
+
+        private static string SafeName(BiomeSector s) { try { return s.GetName(false); } catch { return "?"; } }
+
+        // The generator's sector (what zone generation, spawns and locations ask) is the forced one inside a ForceBiome area
+        [HarmonyPatch(typeof(WorldGenerator), nameof(WorldGenerator.GetBiomeSector), typeof(float), typeof(float), typeof(bool))]
+        [HarmonyPostfix]
+        [HarmonyPriority(Priority.Last)]
+        private static void WorldGenerator_GetBiomeSector_Postfix(float wx, float wy, ref BiomeSector __result)
+        {
+            if (BypassForceBiome || FatOwnsBiome) return;
+            if (ZNet.instance == null || !_hasAnyForceBiomeTerritories) return;
+            var cache = _cachedForceBiomeTerritories;
+            if (cache == null || cache.Length == 0) return;
+            if (wx < _forceBiomeBoundsMinX || wx > _forceBiomeBoundsMaxX || wy < _forceBiomeBoundsMinZ || wy > _forceBiomeBoundsMaxZ) return;
+            var pos = new Vector2(wx, wy);
+            for (int i = 0; i < cache.Length; i++)
+            {
+                ref var data = ref cache[i];
+                if (data.IsSnowMaskOnly || wx < data.MinX || wx > data.MaxX || wy < data.MinZ || wy > data.MaxZ) continue;
+                try
+                {
+                    if (data.Territory != null && data.Territory.IsInside2D(pos))
+                    {
+                        __result = ForcedSector(data.ForcedBiome, data.Territory.OverridenAltBiome);
+                        return;
+                    }
+                }
+                catch { }
+            }
+        }
+        // The camera-territory cache for EnvMan_GetBiome_Postfix (see there).
         private static bool s_biomeCacheValid;
         private static Vector3 s_biomeCachePos;
         private static float s_biomeCacheTime, s_biomeNextReport;
         private static Territory s_biomeCacheTerr;
         private static int s_biomeHits, s_biomeMisses;
+
+        // ( inside 'territory2' (ForceBiome=Plains) the ground and weather were Plains but the plate and the minimap pill still said
+        // "Swamp"): the player's biome - what Core's plate / data pill and vanilla's own biome checks read - reports the forced biome
+        // too. Per player position; the territory lookup is the indexed one.
+        private static bool s_playerBiomeLogged;
+        [HarmonyPatch(typeof(Player), nameof(Player.GetCurrentBiome))]
+        [HarmonyPostfix]
+        private static void Player_GetCurrentBiome_Postfix(Player __instance, ref Heightmap.Biome __result)
+        {
+            if (!_hasAnyForceBiomeTerritories || __instance == null || FatOwnsBiome) return;   // with FAT, vanilla's own lookups already answer through FAT (paint circles win there)
+            try
+            {
+                var terr = GetTerritory(__instance.transform.position);
+                if (terr == null || !terr.Flags.HasFlag(TerritoryFlags.ForceBiome) || terr.OverridenBiome == 0) return;
+                var forced = (Heightmap.Biome)terr.OverridenBiome;
+                if (!s_playerBiomeLogged && forced != __result)
+                {
+                    s_playerBiomeLogged = true;
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] player biome: '{terr.Name}' forces {forced} (the world says {__result}) - the plate / pill show {forced}");
+                }
+                __result = forced;
+            }
+            catch { }
+        }
 
         [HarmonyPatch(typeof(EnvMan), "GetBiome")]
         [HarmonyPostfix]
@@ -961,17 +1113,21 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
         {
             // CRITICAL: Guard against null instance - can happen during early initialization
             if (__instance == null) return;
-            
+
+            // With FAT, EnvMan's sector comes from GetBiomeSector, which FAT answers (paint circles win over territories), so this
+            // never answers differently from FAT. It only finishes the sectors whose alt was not loaded at the last cache rebuild.
+            if (FatOwnsBiome) { if (s_altSectorPending) RebuildForcedSectors(); return; }
+
             // Fast exit if no territories are configured to force biomes
             if (!_hasAnyForceBiomeTerritories) return;
-            
+
             try
             {
                 var cam = Utils.GetMainCamera();
                 if (cam == null) return;
 
-                // 0.0.579 (ITTO R4: 49 lookups/s, 26 us each): the camera's territory is reused while the camera moved < 1 m
-                // and < 0.25 s passed. A forced biome can switch up to 0.25 s later at a border; nothing else changes.
+                // ITTO R4: 49 lookups/s, 26 us each: the camera's territory is reused while the camera moved < 1 m and <
+                // 0.25 s passed. A forced biome can switch up to 0.25 s later at a border; nothing else changes.
                 Vector3 camPos = cam.transform.position;
                 float t = Time.time;
                 Territory terr;
@@ -995,25 +1151,10 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
                 if (terr == null) terr = Current;
                 if (terr == null) return;
 
-                // NOTE: SnowMask only sets shader globals for visual snow on objects
-                // It does NOT change the biome result - weather/environment stays as original biome
-                if (terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.SnowMask))
-                {
-                    // Only set snow shader globals - don't change biome
-                    Shader.SetGlobalFloat("_GlobalSnowAmount", 1f);
-                    Shader.SetGlobalFloat("_SnowAmount", 1f);
-                    // Don't return - let ForceBiome handling run if applicable
-                }
-
+                // 0.0.770: the _GlobalSnowAmount / _SnowAmount globals set here were read by no vanilla 1.0 shader (dead); dynamic
+                // snow now comes from Core's SnowField (this mod feeds it Winter / snow-ForceBiome territories, TerritorySnowFeed).
                 if (terr.Flags.HasFlag(TerritoryFlags.ForceBiome) && terr.OverridenBiome != 0)
-                {
-                    __result = ForcedSector((Heightmap.Biome)terr.OverridenBiome);
-                    if (BiomeRequiresSnowShader((Heightmap.Biome)terr.OverridenBiome))
-                    {
-                        Shader.SetGlobalFloat("_GlobalSnowAmount", 1f);
-                        Shader.SetGlobalFloat("_SnowAmount", 1f);
-                    }
-                }
+                    __result = ForcedSector((Heightmap.Biome)terr.OverridenBiome, terr.OverridenAltBiome);   // alt
             }
             catch
             {
@@ -1026,14 +1167,15 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
         [HarmonyPriority(Priority.Last)] // Run AFTER BetterContinents
         private static void WorldGenerator_GetBiome_Postfix(WorldGenerator __instance, float wx, float wy, ref Heightmap.Biome __result)
         {
+            if (BypassForceBiome || FatOwnsBiome) return;   // The height blend asks for the original biome; FAT answers through ForcedSectorAt
             // CRITICAL: Guard against null instance - can happen during early world loading
             // BetterContinents heavily patches WorldGenerator, so we must be defensive
             if (__instance == null) return;
-            
+
             // CRITICAL: Skip during world generation when ZNet isn't ready
             // This is when BetterContinents is processing heightmaps/biomes and we must not interfere
             if (ZNet.instance == null) return;
-            
+
             // Fast exit - this is called VERY frequently during terrain generation
             if (!_hasAnyForceBiomeTerritories) return;
 
@@ -1050,7 +1192,7 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
             for (int i = 0; i < cache.Length; i++)
             {
                 ref var data = ref cache[i];
-                
+
                 // IMPORTANT: Skip SnowMask-only territories here!
                 // WorldGenerator.GetBiome affects terrain HEIGHT generation.
                 // We want SnowMask to be visual-only, so we skip it here but include it
@@ -1061,7 +1203,7 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
                 // Per-territory AABB check
                 if (wx < data.MinX || wx > data.MaxX || wy < data.MinZ || wy > data.MaxZ)
                     continue;
-                
+
                 try
                 {
                     if (data.Territory != null && data.Territory.IsInside2D(pos))
@@ -1088,8 +1230,9 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
         {
          // Ultra-fast exits first - no method calls
     if (__instance == null) return;
+            s_regenCalls++;   // counter
             if (_isDedicatedServerChecked && _isDedicatedServer) return;
-            
+
             // CRITICAL: Skip during world generation when ZNet isn't ready
             // This is when BetterContinents is processing heightmaps and we must not interfere
             if (ZNet.instance == null) return;
@@ -1126,6 +1269,11 @@ if (!_origAngularDrag.HasValue) _origAngularDrag = rb.angularDamping;
       hmMaxZ < _forceBiomeBoundsMinZ || hmMinZ > _forceBiomeBoundsMaxZ)
              return;
 
+            // Time everything past the bounds reject, on every return path
+            s_regenInside++;
+            long rgT0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            try
+            {
          // Only NOW do we need reflection - this heightmap actually overlaps territory bounds
             EnsureReflectionCached();
             if (_cornerBiomesField == null) return;
@@ -1180,13 +1328,34 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
          _cornerBiomesField.SetValue(__instance, cornerBiomes);
       if (_rebuildRenderMeshMethod != null)
           {
-             try { _rebuildRenderMeshMethod.Invoke(__instance, null); }
+             try { _rebuildRenderMeshMethod.Invoke(__instance, null); s_regenRebuilds++; }
             catch { }
          }
    }
             }
   catch { }
+            }
+            finally
+            {
+                s_regenTicks += System.Diagnostics.Stopwatch.GetTimestamp() - rgT0;
+                RegenReport();
+            }
   }
+
+        // Once a minute, and only in a minute where the postfix did work inside ForceBiome bounds, one Info line (perf
+        // laps run at Info). Evidence for the Regenerate hitches; no behaviour change.
+        private static int s_regenCalls, s_regenInside, s_regenRebuilds;
+        private static long s_regenTicks;
+        private static float s_regenNextReport;
+        private static void RegenReport()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (s_regenNextReport <= 0f) { s_regenNextReport = now + 60f; return; }
+            if (now < s_regenNextReport) return;
+            double ms = s_regenTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[Territory] Regenerate postfix last minute: {s_regenCalls} call(s), {s_regenInside} inside ForceBiome bounds, {s_regenRebuilds} extra RebuildRenderMesh, {ms:0.0} ms in the postfix ({(s_regenInside > 0 ? ms / s_regenInside : 0):0.00} ms per inside call)");
+            s_regenCalls = s_regenInside = s_regenRebuilds = 0; s_regenTicks = 0; s_regenNextReport = now + 60f;
+        }
 
   /// <summary>
         /// Gets the forced biome at a world point, or Biome.None if not inside any ForceBiome territory.
@@ -1210,7 +1379,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
             for (int i = 0; i < cache.Length; i++)
             {
                 ref var data = ref cache[i];
-                
+
                 // CRITICAL: Null check for territory - can be null if territory was removed
                 if (data.Territory == null)
                     continue;
@@ -1231,7 +1400,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
 
             return Heightmap.Biome.None;
         }
-        
+
         /// <summary>
         /// Checks if a world point is inside a SnowMask-only territory.
         /// Returns true if point should have visual snow applied via shaders.
@@ -1239,23 +1408,23 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
         private static bool IsInSnowMaskTerritory(float worldX, float worldZ)
         {
             if (!_hasAnySnowMaskOnlyTerritories) return false;
-            
+
             // Fast exit: point is outside global snow mask bounds
             if (worldX < _snowMaskBoundsMinX || worldX > _snowMaskBoundsMaxX ||
                 worldZ < _snowMaskBoundsMinZ || worldZ > _snowMaskBoundsMaxZ)
                 return false;
-            
+
             var territories = GetCurrentTerritories();
             if (territories == null) return false;
-            
+
             var pos = new Vector2(worldX, worldZ);
-            
+
             foreach (var terr in territories)
             {
                 if (terr == null) continue;
                 if (!terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.SnowMask)) continue;
                 if (terr.Flags.HasFlag(TerritoryFlags.ForceBiome) && terr.OverridenBiome != 0) continue; // This is ForceBiome, not SnowMask-only
-                
+
                 try
                 {
                     if (terr.IsInside2D(pos))
@@ -1263,25 +1432,25 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                 }
                 catch { continue; }
             }
-            
+
             return false;
         }
-        
+
         // Cached SnowMask territory data for fast lookups in RebuildRenderMesh
         private static SnowMaskTerritoryData[] _cachedSnowMaskTerritories = null;
-        
-        
+
+
         private struct SnowMaskTerritoryData
         {
             public Territory Territory;
             public float MinX, MaxX, MinZ, MaxZ;
         }
-        
+
         /// <summary>
         /// Patch Heightmap.RebuildRenderMesh to apply per-vertex snow colors for SnowMask territories.
         /// This is the KG Marketplace approach - it sets vertex colors directly on the render mesh,
         /// giving precise per-vertex control over snow appearance without modifying biomes.
-        /// 
+        ///
         /// Key benefits:
         /// - Snow follows exact territory boundaries (not chunk corners)
         /// - Original terrain textures are preserved outside snow areas
@@ -1298,10 +1467,10 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
             if (_isDedicatedServerChecked && _isDedicatedServer) return;
             if (ZNet.instance == null) return;
             if (!_hasAnySnowMaskOnlyTerritories) return;
-            
+
             // Ensure reflection is cached
             EnsureReflectionCached();
-            
+
             // Skip distant LOD heightmaps (use reflection since m_isDistantLod is private)
             if (_isDistantLodField != null)
             {
@@ -1312,7 +1481,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                 }
                 catch { return; }
             }
-            
+
             // Check if render mesh exists (use reflection since m_renderMesh is private)
             Mesh renderMesh = null;
             if (_renderMeshField != null)
@@ -1325,7 +1494,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                 catch { return; }
             }
             else return;
-            
+
             // Get the static temp colors list (use reflection since s_tempColors is private static)
             List<Color32> tempColors = null;
             if (_tempColorsField != null)
@@ -1338,32 +1507,32 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                 catch { return; }
             }
             else return;
-            
+
             // Build/update cached snow mask territories if needed
             EnsureSnowMaskCacheValid();
-            
+
             var snowCache = _cachedSnowMaskTerritories;
             if (snowCache == null || snowCache.Length == 0) return;
-            
+
             // Get heightmap bounds
             var hmPos = __instance.transform.position;
             float scale = __instance.m_scale;
             int width = __instance.m_width;
             float halfSize = width * scale * 0.5f;
-            
+
             // Calculate world position of heightmap origin (bottom-left corner)
             Vector3 origin = hmPos - new Vector3(halfSize, 0f, halfSize);
-            
+
             // Fast bounds check against all snow mask territories
             float hmMinX = hmPos.x - halfSize;
             float hmMaxX = hmPos.x + halfSize;
             float hmMinZ = hmPos.z - halfSize;
             float hmMaxZ = hmPos.z + halfSize;
-            
+
             if (hmMaxX < _snowMaskBoundsMinX || hmMinX > _snowMaskBoundsMaxX ||
                 hmMaxZ < _snowMaskBoundsMinZ || hmMinZ > _snowMaskBoundsMaxZ)
                 return;
-            
+
             // Check if ANY snow mask territory overlaps this heightmap
             bool hasOverlap = false;
             for (int i = 0; i < snowCache.Length; i++)
@@ -1377,16 +1546,16 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                 }
             }
             if (!hasOverlap) return;
-            
+
             try
             {
                 // Get vertex count - should be (width+1) * (width+1)
                 int num = width + 1;
                 bool anySnowApplied = false;
-                
+
                 // Clear and reuse the static temp colors list (same as vanilla)
                 tempColors.Clear();
-                
+
                 // Iterate through each vertex position
                 for (int z = 0; z < num; z++)
                 {
@@ -1395,18 +1564,18 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                         // Calculate world position for this vertex
                         float worldX = origin.x + x * scale;
                         float worldZ = origin.z + z * scale;
-                        
+
                         // Check if this vertex is inside any snow mask territory
                         bool inSnowMask = false;
                         for (int i = 0; i < snowCache.Length; i++)
                         {
                             ref var data = ref snowCache[i];
-                            
+
                             // Fast AABB check first
                             if (worldX < data.MinX || worldX > data.MaxX ||
                                 worldZ < data.MinZ || worldZ > data.MaxZ)
                                 continue;
-                            
+
                             // Detailed territory check
                             if (data.Territory != null)
                             {
@@ -1421,7 +1590,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                                 catch { }
                             }
                         }
-                        
+
                         if (inSnowMask)
                         {
                             // Apply Mountain biome color (triggers snow texture in shader)
@@ -1437,7 +1606,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                         }
                     }
                 }
-                
+
                 // Only update the mesh if we actually applied snow
                 if (anySnowApplied)
                 {
@@ -1450,7 +1619,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                 Debug.LogWarning($"[FiresRPGmaker] Error applying snow mask to heightmap: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Ensures the snow mask territory cache is up to date.
         /// </summary>
@@ -1458,29 +1627,29 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
         {
             // Reuse the same version tracking as ForceBiome cache
             // Both are invalidated together via InvalidateSnowTerritoryCache()
-            
+
             if (!_hasAnySnowMaskOnlyTerritories)
             {
                 _cachedSnowMaskTerritories = null;
                 return;
             }
-            
+
             var territories = GetCurrentTerritories();
             if (territories == null || territories.Count == 0)
             {
                 _cachedSnowMaskTerritories = null;
                 return;
             }
-            
+
             var snowList = new List<SnowMaskTerritoryData>();
-            
+
             foreach (var terr in territories)
             {
                 if (terr == null) continue;
                 if (!terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.SnowMask)) continue;
                 // Skip if this is a ForceBiome territory - those are handled by the corner biome system
                 if (terr.Flags.HasFlag(TerritoryFlags.ForceBiome) && terr.OverridenBiome != 0) continue;
-                
+
                 var bounds = GetTerritoryBounds(terr);
                 snowList.Add(new SnowMaskTerritoryData
                 {
@@ -1491,7 +1660,7 @@ if (biome1 != Heightmap.Biome.None && cornerBiomes[1] != biome1)
                     MaxZ = bounds.max.y
                 });
             }
-            
+
             _cachedSnowMaskTerritories = snowList.ToArray();
         }
     }

@@ -41,7 +41,7 @@ namespace FiresRPGmaker
                         args.Context.AddString("[mail_reset] reloaded mail profiles — re-open the Mail UI to see fresh attachments.");
                     }
                     catch (Exception ex) { args.Context.AddString("[mail_reset] threw: " + ex.Message); }
-                });
+                }, isCheat: true);
 
             new Terminal.ConsoleCommand("firesrpg_test",
                 "subcommand-driven parity test surface — run 'firesrpg_test help' for the full list",
@@ -82,7 +82,7 @@ namespace FiresRPGmaker
                     "help", "sanity", "quest_progress", "quest_reward", "quest_accept", "quest_complete",
                     "quest_list", "lifecycle", "api", "territory_flag", "marketplace",
                     "factions", "admin", "panels"
-                });
+                }, isCheat: true);
         }
 
         // ─── help ─────────────────────────────────────────────────────────

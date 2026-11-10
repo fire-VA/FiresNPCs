@@ -25,7 +25,7 @@ namespace FiresRPGmaker.Modules.Territories
     internal static partial class TerritoryRuntime
     {
         public static Territory Current { get; private set; }
-        // 0.0.579: cached accessor for the tool check in Player_UpdatePlacement_Prefix (was AccessTools.Field(...).GetValue per call).
+        // Cached accessor for the tool check in Player_UpdatePlacement_Prefix (was AccessTools.Field(...).GetValue per call).
         private static readonly AccessTools.FieldRef<Humanoid, ItemDrop.ItemData> s_rightItem = AccessTools.FieldRefAccess<Humanoid, ItemDrop.ItemData>("m_rightItem");
         private static Territory _last;
         private static float _tick;
@@ -44,7 +44,8 @@ namespace FiresRPGmaker.Modules.Territories
         private static SE_Stats _iceStatus;
         private static readonly int IceStatusHash = "DeepNorth_IceSlip".GetStableHashCode();
 
-        private static bool IsPermitted(Territory t, Player player)
+        // Internal so TerritoryAccess.IsAllowed reuses it.
+        internal static bool IsPermitted(Territory t, Player player)
         {
             if (t == null || player == null) return true;
             if (AdminBypass(player)) return true;
@@ -92,10 +93,14 @@ namespace FiresRPGmaker.Modules.Territories
             // GiveTerritory / RemoveTerritory dialogue commands.
             try
             {
-                if (TerritoryOwnership.IsOwner(t.Name, global::FiresRPGmaker.Modules.Dialogues.EwpDataBridge.GetLocalSteamId()))
+                // The CHECKED player's Steam ID (was always the local one, so a check about another player answered
+                // for whoever ran it); identical for the local player.
+                if (TerritoryOwnership.IsOwner(t.Name, TerritoryAccess.SteamIdOf(player)))
                     return true;
             }
             catch { }
+            // The owners' party / guild, when the territory allows them.
+            if (TerritoryAccess.PartyOrGuildGrants(t, player)) return true;
             return false;
         }
 
@@ -174,7 +179,7 @@ namespace FiresRPGmaker.Modules.Territories
         private static readonly HashSet<int> _paintedTerritories = new();
         private static readonly HashSet<int> _mapRevealedTerritories = new();
         private static readonly Dictionary<long, bool> _adminBypassOverrides = new();
-        private static bool _adminBypassRpcRegistered;
+        private static ZRoutedRpc _adminBypassRpcOn;   // re-register RPCs per connection
         private static bool _lastBypassSent;
         private static bool _lastBypassSentInitialized;
         private static long _lastBypassPlayerId;
@@ -183,8 +188,10 @@ namespace FiresRPGmaker.Modules.Territories
 
         private static void EnsureAdminBypassRpc()
         {
-            if (_adminBypassRpcRegistered) return;
-            if (ZRoutedRpc.instance == null) return;
+            // re-register RPCs per connection: by instance; the bool was never reset, so after a rejoin the
+            // AdminBypass preference packet had no handler. Also bound from ZNet.Awake (TerritoryRuntime.Spawners).
+            if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(_adminBypassRpcOn)) return;
+            _adminBypassRpcOn = ZRoutedRpc.instance;
 
             // Server handler: record per-player preference
             ZRoutedRpc.instance.Register<long, bool>("FiresRPGmaker_Territory_AdminBypass", (sender, playerId, enabled) =>
@@ -205,7 +212,7 @@ namespace FiresRPGmaker.Modules.Territories
                  catch { }
              });
 
-            _adminBypassRpcRegistered = true;
+            global::FiresRPGmaker.Managers.RpcRegistration.Logged("TerritoryAdminBypass", 1);
         }
 
         private static void HookAdminBypassConfig()
@@ -231,12 +238,25 @@ namespace FiresRPGmaker.Modules.Territories
             if (!force && _lastBypassSentInitialized && desired == _lastBypassSent) return;
             try
             {
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_Territory_AdminBypass", player.GetPlayerID(), desired);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Territory_AdminBypass"), "FiresRPGmaker_Territory_AdminBypass", player.GetPlayerID(), desired);   // client->server RPCs target the server
                 _lastBypassSent = desired;
                 _lastBypassSentInitialized = true;
                 _lastBypassPlayerId = pid;
             }
             catch { }
+        }
+
+        /// <summary>A companion must not pick up loot inside a NoInteractItems zone: Core 0.2.680's
+        /// CompanionPickupGate asks this before a companion takes a drop. Blocked when the drop lies in a NoInteractItems territory
+        /// and the companion's owner may not bypass it there; owner 0 (unknown) counts as a non-member.</summary>
+        internal static bool CompanionPickupBlocked(Vector3 pos, long ownerId)
+        {
+            var terr = GetTerritory(pos);
+            if (terr == null || !terr.Flags.HasFlag(TerritoryFlags.NoInteractItems)) return false;
+            if (ownerId == 0) return true;
+            Player owner = null;
+            foreach (var p in Player.GetAllPlayers()) if (p != null && p.GetPlayerID() == ownerId) { owner = p; break; }
+            return owner == null || !HasRestrictionBypass(terr, owner);
         }
 
         private static bool HasRestrictionBypass(Territory terr, Player player)
@@ -248,6 +268,8 @@ namespace FiresRPGmaker.Modules.Territories
 
         // Public wrappers for cross-file patch callers (see TerritoryRuntime.MissingFlagPatches.cs).
         public static bool HasRestrictionBypassPublic(Territory terr, Player player) => HasRestrictionBypass(terr, player);
+        // The admin bypass alone, for TerritoryAccess's raid verdict.
+        internal static bool AdminBypassPublic(Player player) => AdminBypass(player);
         public static Territory GetTerritory(Vector3 pos) => GetTerritoryInternal(pos);
 
         private static void ApplyMoveSpeedMultiplier(Player player)
@@ -288,7 +310,7 @@ namespace FiresRPGmaker.Modules.Territories
         }
         private static Territory GetTerritory(Player player) => player == null ? null : GetTerritoryInternal(player.transform.position);
 
-        // ── Vedr season / weather while inside (0.0.533, Fire 10-08) ──────────────────────────────────────────────────
+        // ── Vedr season / weather while inside ──────────────────────────────────────────────────
         // ForceSeason / ForceVedrWeather go through Vedr's public API (Vedr.VedrApi, API 7+), found by name: no hard
         // reference. Client-local only (Vedr refuses on a dedicated server); players outside keep the world season.
         // One owner tag per territory UID; Clear on exit falls back to the next active override, then the world.
@@ -315,8 +337,8 @@ namespace FiresRPGmaker.Modules.Territories
             catch (Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] Vedr {method} failed: {ex.Message}"); }
         }
 
-        // The tag currently applied. Cleared on exit, logout and world unload (lead 10-08: never rely on Vedr resetting);
-        // a territory removed while inside drops Current on the next tick, which comes through ApplyVedr as an exit.
+        // The tag currently applied. Cleared on exit, logout and world unload; a territory removed while inside drops
+        // Current on the next tick, which comes through ApplyVedr as an exit.
         private static string s_vedrActiveTag;
 
         private static void ClearVedrActive()
@@ -449,12 +471,6 @@ namespace FiresRPGmaker.Modules.Territories
             Surveyor.Tick(__instance);
             OutlineSurveyor.Tick(__instance);
             ApplyTerritoryEffects(__instance);
-
-            // queue removal: no pending queue processing
-            // if (isServer)
-            // {
-            // TickPendingEntries();
-            // }
         }
 
         private static readonly string[] IcePrefabs = new[] { "ice_rock1", "ice1" };
@@ -472,6 +488,7 @@ namespace FiresRPGmaker.Modules.Territories
 
             var pos = player.transform.position;
             if (!IsInDeepNorthOceanBand(pos)) return;
+            if (global::FiresRPGmaker.Utilities.RingUp.OnRing(pos)) return;   // 0.0.772: a halo ring has no ocean; world-water ice would float in the air
 
             float waterLevel = ZoneSystem.instance != null ? ZoneSystem.instance.m_waterLevel : 30f;
             float ground = pos.y;
@@ -575,6 +592,7 @@ namespace FiresRPGmaker.Modules.Territories
                 if (nview == null || !nview.IsValid() || !nview.IsOwner()) return;
                 var pos = __instance.transform.position;
                 if (!IsInDeepNorthOceanBand(pos)) return;
+                if (global::FiresRPGmaker.Utilities.RingUp.OnRing(pos)) return;   // 0.0.772: a halo ring has no ocean; world-water ice would float in the air
                 if (UnityEngine.Random.value > 0.2f) return;
 
                 var availablePrefabs = IcePrefabs
@@ -659,6 +677,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             var terr = __instance != null ? GetTerritory(__instance.transform.position) : Current;
             if (terr == null) return true;
+            if (TerritoryAccess.RaidBlocks(terr, Player.m_localPlayer, "item stand")) return false;
             if (terr.Flags.HasFlag(TerritoryFlags.NoInteractItemStands) && !HasRestrictionBypass(terr, Player.m_localPlayer))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Item stands blocked in this territory");
@@ -687,6 +706,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             var terr = __instance != null ? GetTerritory(__instance.transform.position) : Current;
             if (terr == null) return true;
+            if (TerritoryAccess.RaidBlocks(terr, Player.m_localPlayer, "portal")) return false;
             if (terr.Flags.HasFlag(TerritoryFlags.NoInteractPortals) && !HasRestrictionBypass(terr, Player.m_localPlayer))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Portal use blocked in this territory");
@@ -715,6 +735,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             var terr = __instance != null ? GetTerritory(__instance.transform.position) : Current;
             if (terr == null) return true;
+            if (TerritoryAccess.RaidBlocks(terr, Player.m_localPlayer, "open container")) return false;
             if (terr.Flags.HasFlag(TerritoryFlags.NoInteractChests) && !HasRestrictionBypass(terr, Player.m_localPlayer))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Chests blocked in this territory");
@@ -729,6 +750,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             var terr = __instance != null ? GetTerritory(__instance.transform.position) : Current;
             if (terr == null) return true;
+            if (TerritoryAccess.RaidBlocks(terr, Player.m_localPlayer, "take-all")) return false;
             if (terr.Flags.HasFlag(TerritoryFlags.NoInteractChests) && !HasRestrictionBypass(terr, Player.m_localPlayer))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Chests blocked in this territory");
@@ -743,6 +765,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             var terr = __instance != null ? GetTerritory(__instance.transform.position) : Current;
             if (terr == null) return true;
+            if (TerritoryAccess.RaidBlocks(terr, Player.m_localPlayer, "door")) return false;
             if (terr.Flags.HasFlag(TerritoryFlags.NoInteractDoors) && !HasRestrictionBypass(terr, Player.m_localPlayer))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Doors blocked in this territory");
@@ -835,9 +858,9 @@ namespace FiresRPGmaker.Modules.Territories
             if (__instance == null || __instance != Player.m_localPlayer) return true;
             if (!takeInput) return true;
 
-            // 0.0.579 (ITTO R4: 2.15 ms/s, a territory lookup every frame): the block only matters on a click with a tool, so the
-            // cheap click test runs first; the territory is the local player's tracked Current (refreshed at 5 Hz / every 1 m)
-            // instead of a fresh lookup; the held item comes through a cached field ref instead of reflection each call.
+            // ITTO R4: 2.15 ms/s, a territory lookup every frame: the block only matters on a click with a tool, so the cheap
+            // click test runs first; the territory is the local player's tracked Current (refreshed at 5 Hz / every 1 m) instead
+            // of a fresh lookup; the held item comes through a cached field ref instead of reflection each call.
             bool leftClick = ZInput.GetButton("Attack") || ZInput.GetButtonDown("Attack");
             bool rightClick = ZInput.GetButton("Block") || ZInput.GetButtonDown("Block") || ZInput.GetButton("AltPlace") || ZInput.GetButtonDown("AltPlace");
             if (!leftClick && !rightClick) return true;
@@ -922,6 +945,8 @@ namespace FiresRPGmaker.Modules.Territories
             return true;
         }
 
+        private static readonly HashSet<string> _dropLogged = new HashSet<string>();
+
         [HarmonyPatch(typeof(CharacterDrop), nameof(CharacterDrop.GenerateDropList))]
         [HarmonyPostfix]
         private static void DropMultiplier_Postfix(CharacterDrop __instance, ref List<KeyValuePair<GameObject, int>> __result)
@@ -929,10 +954,17 @@ namespace FiresRPGmaker.Modules.Territories
             if (__result == null || __result.Count == 0) return;
             var terr = __instance != null ? GetTerritory(__instance.transform.position) : null;
             if (terr == null) return;
-            if (!terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.DropMultiplier)) return;
+            // MP-2b drop_multiplier: x3 gave x1.00 and the code path looks right: one line per territory the first time, saying whether
+            // the multiplier ran and, if not, why - so the next round names the cause instead of a ratio
+            if (!terr.AdditionalFlags.HasFlag(AdditionalTerritoryFlags.DropMultiplier))
+            {
+                if (terr.DropMultiplier > 1f && _dropLogged.Add(terr.Name + "|noflag")) global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] [Territories] DropMultiplier {terr.DropMultiplier:0.##} in '{terr.Name}' NOT applied to {__instance.name}: the DropMultiplier flag is not set on it");
+                return;
+            }
 
             float mul = terr.DropMultiplier > 0f ? terr.DropMultiplier : 1f;
-            if (Mathf.Approximately(mul, 1f)) return;
+            if (Mathf.Approximately(mul, 1f)) { if (_dropLogged.Add(terr.Name + "|one")) global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] [Territories] DropMultiplier in '{terr.Name}' reads {terr.DropMultiplier:0.##}: x1, nothing to do"); return; }
+            if (_dropLogged.Add(terr.Name + "|on")) global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] [Territories] DropMultiplier x{mul:0.##} in '{terr.Name}' applied to {__instance.name}'s drop list ({__result.Count} entr(ies))");
 
             for (int i = 0; i < __result.Count; i++)
             {
@@ -1048,7 +1080,7 @@ namespace FiresRPGmaker.Modules.Territories
             return true;
         }
 
-        // NoItemLoss (Fire 10-08): a death inside keeps the whole inventory and leaves no tombstone. Vanilla's
+        // NoItemLoss: a death inside keeps the whole inventory and leaves no tombstone. Vanilla's
         // DeathKeepInventory world modifier does exactly this: Player.CreateTombStone returns before it unequips or
         // moves anything. Skills are kept as well (OnPlayerDeathPrefix marks the death protected). Before, the flag
         // only kept skills; its patch sat on CreateDeathEffects and never touched the grave.
@@ -1093,9 +1125,9 @@ namespace FiresRPGmaker.Modules.Territories
             bool sameName = !string.IsNullOrEmpty(newName) && string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase);
             if (ZNet.instance == null || ZNet.instance.IsServer() || player == Player.m_localPlayer)
             {
-                // 0.0.499: disk-to-disk hops inside one named territory (a road) are routine: Debug, not Info
+                // disk-to-disk hops inside one named territory (a road) are routine: Debug, not Info
                 if (sameName) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"Territory hop for {player.GetPlayerName()} inside '{newName}' (UID {oldUID} -> {newUID})");
-                else Debug.Log($"[FiresRPGmaker] Territory change for {player.GetPlayerName()} name '{oldName}' -> '{newName}' (UID {oldUID} -> {newUID})");
+                else global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Territory change for {player.GetPlayerName()} name '{oldName}' -> '{newName}' (UID {oldUID} -> {newUID})");
             }
             if (player == Player.m_localPlayer) TerritoryEntryBanner.NoteChange(oldName, newName);
             if (player == Player.m_localPlayer) ApplyVedr(oldTerritory, newTerritory);
@@ -1105,8 +1137,8 @@ namespace FiresRPGmaker.Modules.Territories
                 TerritoryEntryReporter.SendEntryToServer(newTerritory, player);
             }
 
-            // Entry announcement in Valheim's native location-discovery style (braided plaque) — enter only,
-            // local player only. Leaving shows nothing (kg parity). The banner shows once per territory NAME (0.0.499).
+            // Entry announcement in Valheim's native location-discovery style (braided plaque) — enter only, local
+            // player only. Leaving shows nothing (kg parity). The banner shows once per territory NAME.
             if (newTerritory != null && player == Player.m_localPlayer)
             {
                 TerritoryEntryBanner.Show(newName);

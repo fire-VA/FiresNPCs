@@ -20,7 +20,7 @@ namespace FiresRPGmaker.UI.QuestJournal
     /// </summary>
     public static class RuntimeSpriteSync
     {
-        private static bool _rpcsRegistered;
+        private static ZRoutedRpc _rpcsRegisteredOn;   // (re-register RPCs per connection)
         private static bool _syncRequested;
         private static bool _syncComplete;
         private static DateTime _lastSyncRequestTime;
@@ -170,19 +170,19 @@ namespace FiresRPGmaker.UI.QuestJournal
         /// </summary>
         public static void ResetForLogout()
         {
-            _rpcsRegistered = false;
+            _rpcsRegisteredOn = null;   // (re-register RPCs per connection)
             _syncRequested = false;
             _syncComplete = false;
             _pendingImages.Clear();
             _activeSendCoroutine = null;
             _spriteScopeChecked = false;
-            Debug.Log("[RuntimeSpriteSync] State reset for logout");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[RuntimeSpriteSync] State reset for logout");
         }
 
         private static void EnsureRpcsRegistered()
         {
-            if (_rpcsRegistered) return;
-            if (ZRoutedRpc.instance == null) return;
+            // (re-register RPCs per connection): by instance, so a connection that skipped Game.Logout still rebinds
+            if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(_rpcsRegisteredOn)) return;
 
             try
             {
@@ -192,8 +192,9 @@ namespace FiresRPGmaker.UI.QuestJournal
                 ZRoutedRpc.instance.Register<ZPackage>(RpcServerNeedsList, RPC_ServerNeedsList);
                 ZRoutedRpc.instance.Register<ZPackage>(RpcPushSprite, RPC_PushSprite);
                 ZRoutedRpc.instance.Register<ZPackage>(RpcPushSpriteChunk, RPC_PushSpriteChunk);
-                _rpcsRegistered = true;
-                Debug.Log("[RuntimeSpriteSync] RPCs registered");
+                _rpcsRegisteredOn = ZRoutedRpc.instance;
+                global::FiresRPGmaker.Managers.RpcRegistration.Logged("RuntimeSpriteSync", 6);
+                global::FiresRPGmaker.FiresLogger.LogDebug("[RuntimeSpriteSync] RPCs registered");
             }
             catch (Exception ex)
             {
@@ -231,8 +232,8 @@ namespace FiresRPGmaker.UI.QuestJournal
           // Build manifest of what we already have
         var pkg = new ZPackage();
     WriteClientManifest(pkg);
-     ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcRequestSprites, pkg);
-          Debug.Log("[RuntimeSpriteSync] Requested sprite sync from server");
+     ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcRequestSprites), RpcRequestSprites, pkg);   // (client->server RPCs target the server)
+          global::FiresRPGmaker.FiresLogger.LogDebug("[RuntimeSpriteSync] Requested sprite sync from server");
             }
             catch (Exception ex)
         {
@@ -350,7 +351,7 @@ namespace FiresRPGmaker.UI.QuestJournal
 
                 if (filesToSend.Count > 0)
                 {
-                    Debug.Log($"[RuntimeSpriteSync] Queuing {filesToSend.Count} sprites to send to peer {sender} ({skippedCount} unchanged)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Queuing {filesToSend.Count} sprites to send to peer {sender} ({skippedCount} unchanged)");
 
                     // Start a throttled coroutine to drip-feed files to the client
                     if (FiresRPGmaker.Instance != null)
@@ -361,11 +362,11 @@ namespace FiresRPGmaker.UI.QuestJournal
                 }
                 else if (skippedCount > 0)
                 {
-                    Debug.Log($"[RuntimeSpriteSync] All {skippedCount} sprites already up-to-date on peer {sender}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] All {skippedCount} sprites already up-to-date on peer {sender}");
                 }
                 else
                 {
-                    Debug.Log("[RuntimeSpriteSync] No syncable sprite files found on server");
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[RuntimeSpriteSync] No syncable sprite files found on server");
                 }
 
                 // Bidirectional: tell the client which files the server is missing
@@ -374,7 +375,7 @@ namespace FiresRPGmaker.UI.QuestJournal
                 foreach (var kv in clientHashes)
                 {
                     string clientFile = kv.Key;
-                    if (!IsRequiredForSync(clientFile)) continue;
+                    if (!IsRequiredForSync(clientFile) || !ValidateFileName(clientFile)) continue;
 
                     string serverPath = ResolveTargetPath(clientFile);
                     if (!File.Exists(serverPath))
@@ -395,7 +396,7 @@ namespace FiresRPGmaker.UI.QuestJournal
                     foreach (var name in serverNeeds)
                         needsPkg.Write(name);
                     ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcServerNeedsList, needsPkg);
-                    Debug.Log($"[RuntimeSpriteSync] Told peer {sender} that server needs {serverNeeds.Count} file(s)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Told peer {sender} that server needs {serverNeeds.Count} file(s)");
                 }
             }
             catch (Exception ex)
@@ -445,7 +446,7 @@ namespace FiresRPGmaker.UI.QuestJournal
                 }
             }
 
-            Debug.Log($"[RuntimeSpriteSync] Throttled send complete: {sentCount}/{files.Count} sprites to peer {target}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Throttled send complete: {sentCount}/{files.Count} sprites to peer {target}");
         }
 
         /// <summary>
@@ -456,7 +457,9 @@ namespace FiresRPGmaker.UI.QuestJournal
         {
             try
             {
+                if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("ServerNeedsList", sender); return; }
                 int count = pkg.ReadInt();
+                if (count > MaxNeedsListEntries) { Debug.LogWarning($"[RuntimeSpriteSync] server needs list refused: {count} entries"); return; }
                 if (count <= 0) return;
 
                 var neededFiles = new List<string>();
@@ -467,11 +470,11 @@ namespace FiresRPGmaker.UI.QuestJournal
                 bool isAdmin = FiresRPGmaker.Instance?.configSync?.IsAdmin ?? false;
                 if (!isAdmin)
                 {
-                    Debug.Log($"[RuntimeSpriteSync] Server needs {count} file(s) but we're not admin - skipping push");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Server needs {count} file(s) but we're not admin - skipping push");
                     return;
                 }
 
-                Debug.Log($"[RuntimeSpriteSync] Server needs {count} file(s) - auto-pushing as admin (staggered)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Server needs {count} file(s) - auto-pushing as admin (staggered)");
                 if (FiresRPGmaker.Instance != null)
                     FiresRPGmaker.Instance.StartCoroutine(StaggeredAutoPush(neededFiles));
                 else
@@ -498,6 +501,7 @@ namespace FiresRPGmaker.UI.QuestJournal
 
                 try
                 {
+                    if (!ValidateFileName(prefixedName)) continue;   // the server names the file: only our sprite folders, never any other path
                     string localPath = ResolveTargetPath(prefixedName);
                     if (!File.Exists(localPath))
                     {
@@ -531,7 +535,7 @@ namespace FiresRPGmaker.UI.QuestJournal
                 yield return new WaitForSeconds(0.5f);
             }
 
-            Debug.Log($"[RuntimeSpriteSync] Auto-pushed {pushed}/{total} file(s) to server (staggered)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Auto-pushed {pushed}/{total} file(s) to server (staggered)");
         }
 
     /// <summary>
@@ -566,7 +570,7 @@ var pkg = new ZPackage();
               pkg.Write(dataToSend);
               // Size-gated dispatch (refuses >480 KB payloads before Steam asserts).
               SafeRoutedRpc.InvokeSafe(target, RpcReceiveSprite, pkg);
-           Debug.Log($"[RuntimeSpriteSync] Sent sprite {fileName} ({totalSize} bytes, compressed={isCompressed})");
+           global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Sent sprite {fileName} ({totalSize} bytes, compressed={isCompressed})");
         }
               else
                 {
@@ -593,7 +597,7 @@ var pkg = new ZPackage();
                             pkg.Write(slice);
                         });
                     MainThreadDispatcher.StartRoutine(routine);
-                    Debug.Log($"[RuntimeSpriteSync] Queued paced send for sprite {fileName} in {totalChunks} chunks ({totalSize} bytes total, compressed={isCompressed})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Queued paced send for sprite {fileName} in {totalChunks} chunks ({totalSize} bytes total, compressed={isCompressed})");
      }
      }
             catch (Exception ex)
@@ -614,7 +618,8 @@ var pkg = new ZPackage();
             int totalSize = pkg.ReadInt();
       byte[] data = pkg.ReadByteArray();
 
-      if (!ValidateFileName(fileName)) return;
+      if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("ReceiveSprite", sender); return; }
+      if (!ValidateFileName(fileName) || data == null || data.Length > MaxSpriteBytes) return;
 
       // Decompress if needed
                 byte[] fileData = isCompressed ? DecompressBytes(data) : data;
@@ -647,7 +652,8 @@ var pkg = new ZPackage();
                 int chunkLength = pkg.ReadInt();
    byte[] chunkData = pkg.ReadByteArray();
 
-     if (!ValidateFileName(fileName)) return;
+     if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("ReceiveSpriteChunk", sender); return; }
+     if (!ValidateFileName(fileName) || !ChunkFits(fileName, totalSize, totalChunks, chunkIndex, chunkLength, chunkData)) return;
 
      // Get or create pending image data
         if (!_pendingImages.TryGetValue(fileName, out var pending))
@@ -684,7 +690,7 @@ var pkg = new ZPackage();
  }
 
        SaveSpriteFile(fileName, fileData);
-           Debug.Log($"[RuntimeSpriteSync] Assembled sprite {fileName} from {pending.TotalChunks} chunks");
+           global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Assembled sprite {fileName} from {pending.TotalChunks} chunks");
   }
             }
             catch (Exception ex)
@@ -698,43 +704,45 @@ var pkg = new ZPackage();
         /// </summary>
     private static bool ValidateFileName(string fileName)
         {
-      if (string.IsNullOrEmpty(fileName))
-             {
-        Debug.LogWarning("[RuntimeSpriteSync] Received sprite with empty filename");
-    return false;
-          }
-
-     // Allow our known prefixes, but strip them for further validation
-     string baseName = fileName;
-     if (baseName.StartsWith("UIAssets_Sprites/")) baseName = baseName.Substring("UIAssets_Sprites/".Length);
-     else if (baseName.StartsWith("UIAssets_Captured/")) baseName = baseName.Substring("UIAssets_Captured/".Length);
-
-   // Strip any path components from the base name
-   baseName = Path.GetFileName(baseName);
-         if (baseName.Contains(".."))
-             {
-        Debug.LogWarning($"[RuntimeSpriteSync] Invalid filename rejected: {fileName}");
-              return false;
-             }
-
-  // Validate extension
-        string ext = Path.GetExtension(fileName).ToLowerInvariant();
-        bool validExt = false;
-    foreach (var supportedExt in SupportedExtensions)
-         {
-           if (ext == supportedExt)
-   {
-        validExt = true;
-   break;
- }
+            if (string.IsNullOrEmpty(fileName) || fileName.Length > MaxSpriteNameLength)
+            {
+                Debug.LogWarning("[RuntimeSpriteSync] sprite name rejected: empty or too long");
+                return false;
             }
-          if (!validExt)
-    {
- Debug.LogWarning($"[RuntimeSpriteSync] Unsupported file extension rejected: {fileName}");
-           return false;
-       }
+            // One of our prefixes (or none), then a bare file name: no folders, no "..", no drive or stream, a safe character set
+            string baseName = fileName;
+            if (baseName.StartsWith("UIAssets_Sprites/", StringComparison.Ordinal)) baseName = baseName.Substring("UIAssets_Sprites/".Length);
+            else if (baseName.StartsWith("UIAssets_Captured/", StringComparison.Ordinal)) baseName = baseName.Substring("UIAssets_Captured/".Length);
+            if (!SafeSpriteName.IsMatch(baseName) || baseName.Contains(".."))
+            {
+                Debug.LogWarning($"[RuntimeSpriteSync] sprite name rejected: {fileName}");
+                return false;
+            }
+            string ext = Path.GetExtension(baseName).ToLowerInvariant();
+            if (Array.IndexOf(SupportedExtensions, ext) < 0)
+            {
+                Debug.LogWarning($"[RuntimeSpriteSync] unsupported sprite extension rejected: {fileName}");
+                return false;
+            }
+            return true;
+        }
 
-       return true;
+        // Sprite transfers: a fixed name shape and size caps, so no peer can write elsewhere or exhaust memory
+        private const int MaxSpriteNameLength = 160;
+        private const int MaxNeedsListEntries = 512;
+        private const int MaxSpriteBytes = 8 * 1024 * 1024;
+        private static readonly System.Text.RegularExpressions.Regex SafeSpriteName =
+            new System.Text.RegularExpressions.Regex(@"^[A-Za-z0-9_\-. ]{1,128}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>A chunk header that fits the caps: total size, chunk count and this chunk's slice all in range.</summary>
+        private static bool ChunkFits(string fileName, int totalSize, int totalChunks, int chunkIndex, int chunkLength, byte[] chunkData)
+        {
+            int maxChunks = MaxSpriteBytes / ChunkSize + 1;
+            bool ok = totalSize > 0 && totalSize <= MaxSpriteBytes && totalChunks > 0 && totalChunks <= maxChunks
+                && chunkIndex >= 0 && chunkIndex < totalChunks && chunkData != null && chunkLength >= 0 && chunkLength <= chunkData.Length
+                && (long)chunkIndex * ChunkSize + chunkLength <= totalSize;
+            if (!ok) Debug.LogWarning($"[RuntimeSpriteSync] sprite chunk rejected for {fileName}: size {totalSize}, chunk {chunkIndex}/{totalChunks}, length {chunkLength}");
+            return ok;
         }
 
         /// <summary>
@@ -750,7 +758,7 @@ var pkg = new ZPackage();
       if (!string.IsNullOrEmpty(dir))
           Directory.CreateDirectory(dir);
          File.WriteAllBytes(fullPath, fileData);
-        Debug.Log($"[RuntimeSpriteSync] Saved sprite: {fileName} ({fileData.Length} bytes) -> {fullPath}");
+        global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Saved sprite: {fileName} ({fileData.Length} bytes) -> {fullPath}");
 
    // Clear the sprite cache so the new image is used
                  ClearCachedSprite(fileName);
@@ -832,7 +840,7 @@ UnityEngine.Object.Destroy(cache[fullPath]);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(marker));
                 File.WriteAllText(marker, key);
-                Debug.Log($"[RuntimeSpriteSync] Server changed ({prev ?? "none"} -> {key}); cleared synced sprite cache to prevent cross-server bleed.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Server changed ({prev ?? "none"} -> {key}); cleared synced sprite cache to prevent cross-server bleed.");
             }
             catch (Exception ex)
             {
@@ -912,9 +920,19 @@ catch
             {
               using var inputMs = new MemoryStream(input);
                 using var ds = new DeflateStream(inputMs, CompressionMode.Decompress);
-           using var output = new MemoryStream();
-        ds.CopyTo(output);
-      return output.ToArray();
+                using var output = new MemoryStream();
+                var buffer = new byte[81920];
+                int read;
+                while ((read = ds.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    if (output.Length + read > MaxSpriteBytes)
+                    {
+                        Debug.LogWarning($"[RuntimeSpriteSync] sprite refused: it unpacks to more than {MaxSpriteBytes / (1024 * 1024)} MB");
+                        return null;
+                    }
+                    output.Write(buffer, 0, read);
+                }
+                return output.ToArray();
             }
    catch
     {
@@ -1098,13 +1116,14 @@ catch
             try
             {
                 if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+                if (!FiresCore.Sync.AdminSyncing.IsAdmin(sender)) { Debug.LogWarning($"[RuntimeSpriteSync] sprite push refused: peer {sender} is not an admin"); return; }
 
                 string fileName = pkg.ReadString();
                 bool isCompressed = pkg.ReadBool();
                 int totalSize = pkg.ReadInt();
                 byte[] data = pkg.ReadByteArray();
 
-                if (!ValidateFileName(fileName)) return;
+                if (!ValidateFileName(fileName) || data == null || data.Length > MaxSpriteBytes) return;
 
                 byte[] fileData = isCompressed ? DecompressBytes(data) : data;
                 if (fileData == null || fileData.Length == 0)
@@ -1114,7 +1133,7 @@ catch
                 }
 
                 SaveSpriteFile(fileName, fileData);
-                Debug.Log($"[RuntimeSpriteSync] Received pushed sprite from peer {sender}: {fileName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Received pushed sprite from peer {sender}: {fileName}");
 
                 // Broadcast to all connected clients (except the sender)
                 string savedPath = ResolveTargetPath(fileName);
@@ -1135,6 +1154,7 @@ catch
             try
             {
                 if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+                if (!FiresCore.Sync.AdminSyncing.IsAdmin(sender)) { Debug.LogWarning($"[RuntimeSpriteSync] sprite push refused: peer {sender} is not an admin"); return; }
 
                 string fileName = pkg.ReadString();
                 bool isCompressed = pkg.ReadBool();
@@ -1144,7 +1164,7 @@ catch
                 int chunkLength = pkg.ReadInt();
                 byte[] chunkData = pkg.ReadByteArray();
 
-                if (!ValidateFileName(fileName)) return;
+                if (!ValidateFileName(fileName) || !ChunkFits(fileName, totalSize, totalChunks, chunkIndex, chunkLength, chunkData)) return;
 
                 string key = $"push_{sender}_{fileName}";
                 if (!_pendingImages.TryGetValue(key, out var pending))
@@ -1178,7 +1198,7 @@ catch
                     }
 
                     SaveSpriteFile(fileName, fileData);
-                    Debug.Log($"[RuntimeSpriteSync] Assembled pushed sprite from peer {sender}: {fileName} ({totalChunks} chunks)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Assembled pushed sprite from peer {sender}: {fileName} ({totalChunks} chunks)");
 
                     string savedPath = ResolveTargetPath(fileName);
                     BroadcastSpriteToAllClients(fileName, savedPath, sender);
@@ -1212,7 +1232,7 @@ catch
                     SendSpriteToClient(peerUid, fileName, filePath);
                 }
 
-                Debug.Log($"[RuntimeSpriteSync] Broadcast sprite {fileName} to {peers.Count} client(s)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[RuntimeSpriteSync] Broadcast sprite {fileName} to {peers.Count} client(s)");
             }
             catch (Exception ex)
             {
@@ -1225,12 +1245,12 @@ catch
 
     /// <summary>
     /// Harmony patches that manage RuntimeSpriteSync lifecycle across login/logout.
-    /// 
+    ///
     /// Problem: RuntimeSpriteSync.Init() is called once from WaitForZNetReady() which
     /// only runs on first plugin load. On logout-to-main-menu and re-login, the static
     /// _rpcsRegistered flag stays true but ZRoutedRpc.instance was destroyed, so all
     /// RPC registrations are dead. _syncRequested also stays true, blocking re-sync.
-    /// 
+    ///
     /// Solution:
     /// - Game.Logout: Reset all static state so RPCs re-register on next login.
     /// - Player.OnSpawned: Re-register RPCs and request sprite sync from server.
@@ -1246,7 +1266,7 @@ catch
             RuntimeSpriteSync.ResetForLogout();
             global::FiresRPGmaker.Modules.Sounds.NpcSoundSync.ResetForLogout();
             global::FiresRPGmaker.UI.PatrolRouteSync.ResetForLogout();
-            global::FiresRPGmaker.UI.NpcBookController.VaPlayerPanel(false);   // 0.0.549: never leave the VA player panel hidden after a logout
+            global::FiresRPGmaker.UI.NpcBookController.VaPlayerPanel(false);   // never leave the VA player panel hidden after a logout
         }
 
         [HarmonyPatch(typeof(Player), "OnSpawned")]

@@ -57,6 +57,7 @@ namespace FiresRPGmaker.UI.Books
             }
             _img.texture = view.Texture;
             _canvas.SetActive(true);
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(_canvas.GetComponent<BookViewEsc>(), "BookView", _img.rectTransform);   // Core's live panel
             try { FiresCore.UI.InputBlock.Block(true); } catch { }
         }
 

@@ -232,7 +232,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             UpdateBuyArea(rows.Count);
         }
 
-        // 0.0.558 redesign (Fire-approved mockup): the BuyArea strip names the selected listing and its button opens the same
+        // the BuyArea strip names the selected listing and its button opens the same
         // confirm step a row click does; PagerText repeats the page in the footer. Absent on old prefabs → no-ops.
         private void UpdateBuyArea(int total)
         {
@@ -329,7 +329,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
             // On My Listings an admin also sees everyone else's rows — a non-owned row is an admin
             // REMOVE (server hard-deletes, nothing granted), own rows stay a Cancel (goods returned).
-            bool ownListing = Player.m_localPlayer != null && l.SellerId == global::FiresRPGmaker.Modules.Marketplace.MarketplaceListingManager.LocalSellerKey(); // 0.0.532: platform key, as the server files it
+            bool ownListing = Player.m_localPlayer != null && l.SellerId == global::FiresRPGmaker.Modules.Marketplace.MarketplaceListingManager.LocalSellerKey(); // platform key, as the server files it
             _confirmActionLabel.text = _currentTab switch
             {
                 Tab.MyListings => ownListing ? "Cancel" : "Remove",
@@ -402,17 +402,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 _selected = null; HideConfirmPanel();
                 return;
             }
-            // Tab.Buy — consume the currency up front; the server grants the item on success or refunds the
-            // currency if the listing was already gone/changed.
+            // Tab.Buy — bank first: the server charges the buyer's bank; if the bank can't cover it, the server asks this
+            // client to pay from the bag (MarketplaceNetwork's PayFromBag reply), so nothing leaves the bag up front.
             {
                 var player = Player.m_localPlayer; if (player == null) { _statusText.text = "No active player."; return; }
-                var inv = player.GetInventory();
                 int totalCost = qty * l.Price;
                 if (qty <= 0 || qty > l.Count) { _statusText.text = "Quantity must be 1.." + l.Count + "."; return; }
-                int held = CountInInventory(inv, l.Currency);
-                if (held < totalCost) { _statusText.text = "Need " + totalCost + " " + l.Currency + " (have " + held + ")."; return; }
-                if (!ConsumeFromInventory(inv, l.Currency, totalCost)) { _statusText.text = "Failed to consume currency."; return; }
-                MarketplaceNetwork.RequestBuy(l.Id, qty, l.Currency, totalCost);
+                MarketplaceNetwork.RequestBuyBankFirst(l.Id, qty, l.Currency, totalCost);
                 _statusText.text = "Buying…";
                 _selected = null; HideConfirmPanel();
             }

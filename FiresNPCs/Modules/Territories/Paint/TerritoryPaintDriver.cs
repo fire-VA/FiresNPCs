@@ -57,8 +57,20 @@ namespace FiresRPGmaker.Modules.Territories.Paint
                 if (!_striking)
                 {
                     _striking = true;
-                    _stroke.Clear(); ClearMarkers();    // a new draw replaces any prior pending shape
-                    TerritoryPaintPalette.ClearEdit();  // drawing a new shape exits edit-an-existing mode
+                    // A pending FLOOD outline is continued, from whichever end is nearer the cursor (reversed when that is its first point);
+                    // every other brush still starts a new shape.
+                    bool cont = Brush.Type == TerritoryPaintType.FloodFill && _stroke.Count > 0;
+                    if (cont)
+                    {
+                        if (MapPaintMath.CursorToWorld(out var w0) && Vector3.Distance(w0, _stroke[0]) < Vector3.Distance(w0, _stroke[_stroke.Count - 1]))
+                            _stroke.Reverse();
+                        Hud($"Continuing the outline ({_stroke.Count} points so far)");
+                    }
+                    else
+                    {
+                        _stroke.Clear(); ClearMarkers();    // a new draw replaces any prior pending shape
+                        TerritoryPaintPalette.ClearEdit();  // drawing a new shape exits edit-an-existing mode
+                    }
                 }
                 if (MapPaintMath.CursorToWorld(out var w) &&
                     (_stroke.Count == 0 || Vector3.Distance(_stroke[_stroke.Count - 1], w) >= SampleDist))
@@ -69,9 +81,16 @@ namespace FiresRPGmaker.Modules.Territories.Paint
                 _striking = false;
                 // Don't auto-commit — the drawn stroke stays as a PENDING shape (preview remains) until the admin
                 // hits Save on the palette (or Clear to discard).
-                if (_stroke.Count > 0) Hud("Shape drawn — hit Save on the panel to confirm (Clear to discard)");
+                if (_stroke.Count > 0)
+                    Hud(Brush.Type == TerritoryPaintType.FloodFill
+                        ? "Outline kept - move the map, Shift+Alt+drag again to keep drawing; Fill (or Enter) to finish, Clear to discard"
+                        : "Shape drawn — hit Save on the panel to confirm (Clear to discard)");
             }
 
+            // Enter finishes a pending flood outline (the same as the palette's Fill / Save)
+            if (!_striking && _stroke.Count >= 3 && Brush.Type == TerritoryPaintType.FloodFill
+                && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && !TerritoryPaintPalette.IsTypingInPanel())
+                CommitPendingInternal();
             if (Input.GetKeyDown(KeyCode.Escape) && (_striking || _stroke.Count > 0)) Cancel();
             UpdatePreview();
         }
@@ -91,9 +110,19 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             Hud(had ? "Cleared the drawn shape" : "Nothing to clear");
         }
 
+        // A NEW drawing whose name already exists asks first (the palette's popup); Overwrite / Save as new come back here with the
+        // answer
+        internal static bool OverwriteConfirmed;
+        /// <summary>The one rule the save path uses (and territory_tools_test checks): a new drawing under a name in use asks first.</summary>
+        internal static bool MustAskBeforeSaving(string name) => !OverwriteConfirmed && TerritoryAdminEdit.AreaCount((name ?? "").Trim()) > 0;
         private void CommitPendingInternal()
         {
             if (_stroke.Count == 0) { Hud("Nothing drawn — Shift+Alt+drag a shape on the map first"); return; }
+            string nm = (Brush.Name ?? "").Trim();
+            if (nm.Length == 0) { Hud("Give the territory a name first"); return; }
+            if (MustAskBeforeSaving(nm)) { TerritoryPaintPalette.AskOverwrite(nm); return; }
+            bool overwrite = OverwriteConfirmed; OverwriteConfirmed = false;
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[Territory] save '{nm}': {(overwrite ? "overwrite confirmed" : "new")}");
             try
             {
                 switch (Brush.Type)
@@ -122,6 +151,9 @@ namespace FiresRPGmaker.Modules.Territories.Paint
             catch (System.Exception ex) { Debug.LogWarning("[TerritoryPaint] commit failed: " + ex.Message); }
             _stroke.Clear();
             ClearMarkers();
+            // The next drawing gets a fresh unique name
+            Brush.Name = TerritoryPaintPalette.UniqueName("territory");
+            TerritoryPaintPalette.PushBrushToUi();
         }
 
         // Circle/square: drag from the center outward; radius = distance from first to last sampled point
@@ -173,14 +205,46 @@ namespace FiresRPGmaker.Modules.Territories.Paint
 
         private void ClearMarkers() { foreach (var m in _markers) if (m != null) Destroy(m); _markers.Clear(); }
 
+        // FAT's Biome panel owns Shift+Alt on the map while it is open, so that stroke must not become a pending territory too. Absent on an older FAT.
+        // 0.0.840: FatBiomeMapTool.PanelOpen is a static PROPERTY (`internal static bool PanelOpen => s_open && MapOpen();`), so look up its getter;
+        // the old AccessTools.Field lookup always missed and warned on every load.
+        private static System.Reflection.MethodInfo s_fatPanelGetter; private static bool s_fatLooked, s_fatWasOpen;
+        private static bool FatBiomePanelOpen()
+        {
+            if (!s_fatLooked)
+            {
+                s_fatLooked = true;
+                // 0.0.845 ([classes-ui] 11-08, Fire's BlueHills perf stack without FAT): a quiet lookup. AccessTools.TypeByName logged a
+                // HarmonyX Warning "Could not find type named ..." whenever FAT is not installed; asm.GetType(name, false) never logs.
+                System.Type t = null; bool fatLoaded = false;
+                foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name == "FiresAdminTerrain") fatLoaded = true;
+                    t = asm.GetType("VerdantsAscent.Terrain.Zones.FatBiomeMapTool", false);
+                    if (t != null) break;
+                }
+                var p = t?.GetProperty("PanelOpen", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                s_fatPanelGetter = p != null && p.PropertyType == typeof(bool) ? p.GetGetMethod(true) : null;
+                global::FiresRPGmaker.FiresLogger.LogInfo($"[TerritoryPaint] FAT biome panel flag: {(s_fatPanelGetter != null ? "found (FatBiomeMapTool.PanelOpen property): Shift+Alt with that panel open stays FAT's" : fatLoaded || t != null ? "not on this FAT: territory drawing keeps Shift+Alt" : "FiresAdminTerrain not installed: territory drawing keeps Shift+Alt")}");
+            }
+            bool open = false;
+            if (s_fatPanelGetter != null)
+            {
+                try { open = (bool)s_fatPanelGetter.Invoke(null, null); }
+                catch (System.Exception e) { s_fatPanelGetter = null; global::FiresRPGmaker.FiresLogger.LogWarning($"[TerritoryPaint] FAT biome panel flag read failed, ignoring it from now on: {e.GetBaseException().Message}"); }
+            }
+            if (open != s_fatWasOpen) { s_fatWasOpen = open; global::FiresRPGmaker.FiresLogger.LogDebug($"[TerritoryPaint] FAT biome panel {(open ? "open: territory drawing off" : "closed: territory drawing on")}"); }
+            return open;
+        }
+
         private static bool ShiftAltHeld()
-            => (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+            => !FatBiomePanelOpen() && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
             && (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt));
 
         private static bool IsLocalAdmin() => FiresCore.Sync.AdminSyncing.IsLocalAdmin();
 
-        // 0.0.510 (Fire 10-06): the palette's "Edit territory" button arms a pick: the next right-click on the open map
-        // loads the territory under the cursor (no Shift+Alt needed). Escape or closing the map cancels.
+        // The palette's "Edit territory" button arms a pick: the next right-click on the open map loads the territory
+        // under the cursor (no Shift+Alt needed). Escape or closing the map cancels.
         public static bool PickMode { get; private set; }
 
         public static void BeginPick()

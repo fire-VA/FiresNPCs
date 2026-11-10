@@ -42,7 +42,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static ZRoutedRpc _registeredOn;
 
         // Server-side interest clock: ownerId → last UtcTicks we accrued interest for them.
-        // 0.0.558 (lead/Fire: weekly interest never paid on a server that restarts daily): persisted per world in
+        // Persisted per world (so weekly interest still pays on a server that restarts daily) in
         // BepInEx/config/FiresRPGmaker/Bankers/interest_clock_<world>.txt ("ownerId<TAB>ticks" lines; not a .cfg, so the
         // config push never ships it to clients). Loaded on first use, written after every change.
         private static readonly Dictionary<string, long> _lastInterest = new Dictionary<string, long>();
@@ -130,7 +130,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             wrapped.Write(playerId);
             wrapped.Write(local != null ? (local.GetPlayerName() ?? "") : "");
             wrapped.Write(inner.GetArray());
-            ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcReq, wrapped);
+            ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcReq), RpcReq, wrapped);
         }
 
         // ── Server handler ────────────────────────────────────────────────────────────────────────────────
@@ -144,7 +144,8 @@ namespace FiresRPGmaker.Modules.Marketplace
             try
             {
                 long playerId    = pkg.ReadLong();
-                string playerName = pkg.ReadString();
+                pkg.ReadString();   // client-sent name: ignored (spoofable); the name comes from the sender's peer
+                string playerName = EconomySenderGuard.SenderName(senderId);
                 var inner = new ZPackage(pkg.ReadByteArray());
 
                 var op = (Op)inner.ReadByte();
@@ -181,8 +182,19 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static void ServerDeposit(long senderId, string ownerId, string profile, string currency, int amount)
         {
             if (amount <= 0 || string.IsNullOrEmpty(currency)) return;
+            // Security (audit 10-23): only a currency the banker profile actually accepts can be credited, and
+            // never past its configured cap (no more "unknown currency, 1M default" path). The client removes the
+            // coins from its own inventory before sending; Valheim gives the server no view of that inventory, so
+            // the amount itself stays client-reported and is bounded by the cap. A refused deposit refunds the
+            // client's own consumed amount locally (no server value is created by a refusal).
+            var bp = BankerProfileManager.GetProfile(profile);
+            if (bp == null || !bp.CurrencyLimits.TryGetValue(currency, out int limit) || limit <= 0)
+            {
+                Debug.LogWarning($"{LogPrefix} Deposit refused for sender {senderId}: currency '{currency}' not accepted by profile '{profile}'");
+                ReplyOne(senderId, currency, CurrentBalance(ownerId, currency.GetStableHashCode()), deposited: 0, withdrawn: 0, refunded: amount);
+                return;
+            }
             int hash = currency.GetStableHashCode();
-            int limit = LimitFor(profile, currency);
             int current = CurrentBalance(ownerId, hash);
             int room = Mathf.Max(0, limit - current);
             int banked = Mathf.Min(amount, room);
@@ -213,15 +225,6 @@ namespace FiresRPGmaker.Modules.Marketplace
             return items.TryGetValue(hash, out int v) ? v : 0;
         }
 
-        private static int LimitFor(string profile, string currency)
-        {
-            var p = BankerProfileManager.GetProfile(profile);
-            if (p != null && p.CurrencyLimits.TryGetValue(currency, out int lim)) return lim;
-            // Currency not in this profile (or profile missing) — allow but bounded, matching the loader's
-            // bare-currency default so an unknown-to-us currency still round-trips instead of vanishing.
-            return 1_000_000;
-        }
-
         // Accrue whole-minute interest since we last touched this owner, at the viewed profile's rate.
         private static void AccrueInterest(string ownerId, string playerName, string profile)
         {
@@ -236,7 +239,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 SaveClock();
                 return;
             }
-            // 0.0.557: whole PERIODS (the profile's interestperiod), not whole minutes; the remainder carries over.
+            // Whole PERIODS (the profile's interestperiod), not whole minutes; the remainder carries over.
             long ticksPerMin = p.PeriodTicks;
             long wholeMinutes = (now - last) / ticksPerMin;
             if (wholeMinutes < 1) return;
@@ -299,6 +302,9 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static void RPC_BankRes(long senderId, ZPackage pkg)
         {
             if (pkg == null) return;
+            // Only the server may answer (BalanceOne grants items on withdraw/refund); any peer can route to us.
+            if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(senderId))
+            { Debug.LogWarning($"{LogPrefix} BankRes ignored: sender {senderId} is not the server"); return; }
             try
             {
                 var res = (Res)pkg.ReadByte();

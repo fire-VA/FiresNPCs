@@ -92,7 +92,7 @@ namespace FiresRPGmaker.Modules.Factions
             }
             _seenWrite = NewestWrite();
             if (_factions.Count > 0)
-                Debug.Log($"[FactionManager] loaded {_factions.Count} faction(s): {string.Join(", ", _factions.Keys)}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FactionManager] loaded {_factions.Count} faction(s): {string.Join(", ", _factions.Keys)}");
         }
 
         // Whitelist checks: an item is faction-gated only if SOME faction lists it; then the local
@@ -257,7 +257,7 @@ namespace FiresRPGmaker.Modules.Factions
                 File.WriteAllText(Path.Combine(folder, safe + ".yml"), content);
                 Reload();
                 global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Factions", safe + ".yml", content);
-                Debug.Log($"[FactionManager] Saved faction '{f.Id}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FactionManager] Saved faction '{f.Id}'");
             }
             catch (Exception ex) { Debug.LogError("[FactionManager] SaveFaction failed: " + ex.Message); }
         }
@@ -273,7 +273,7 @@ namespace FiresRPGmaker.Modules.Factions
                 Reload();
                 // Push an empty body so clients' copy parses to nothing → the faction drops on their next reload.
                 global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Factions", safe + ".yml", "");
-                Debug.Log($"[FactionManager] Deleted faction '{id}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FactionManager] Deleted faction '{id}'");
             }
             catch (Exception ex) { Debug.LogError("[FactionManager] DeleteFaction failed: " + ex.Message); }
         }

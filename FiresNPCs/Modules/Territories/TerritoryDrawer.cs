@@ -11,16 +11,16 @@ namespace FiresRPGmaker.Modules.Territories
 {
     /// <summary>
     /// Territory drawer: lets an admin create single territories at their current position via console commands.
-    /// 
+    ///
     /// Command Format: drawterritory Name,Shape,Radius,R,G,B[,flags]
-    /// 
+    ///
     /// Parameters (comma-separated):
     ///   Name   - Territory name (no spaces, use underscores)
     ///   Shape  - Circle, Square, or Rectangle
     ///   Radius - Single number for Circle/Square, or Width:Height for Rectangle
     ///   R,G,B  - Color values (0-255)
   ///   flags  - Optional: Territory flags separated by | (e.g., NoMonsters|NoBuild)
-    /// 
+    ///
     /// Examples:
     ///   drawterritory SafeZone,Circle,50,0,255,0,NoMonsters|NoBuild
     ///   drawterritory Arena,Square,100,255,0,0,PvpOnly|NoDeathPenalty
@@ -51,13 +51,13 @@ namespace FiresRPGmaker.Modules.Territories
   "    drawterritory SafeZone,Circle,50,0,255,0,NoMonsters|NoBuild\n" +
        "    drawterritory Arena,Square,100,255,0,0,PvpOnly\n" +
             "    drawterritory Track,Rectangle,200:50,0,0,255,MoveSpeedMultiplier=2.0",
-     DrawCommand);
+     DrawCommand, isCheat: true);
 
          new Terminal.ConsoleCommand("removeterritory",
            "Remove a drawn territory by name.\n" +
      "  Format: removeterritory Name\n" +
     "  Example: removeterritory SafeZone",
-         RemoveCommand);
+         RemoveCommand, isCheat: true);
 
          new Terminal.ConsoleCommand("listdrawnterritories",
     "List all drawn territories.",
@@ -68,7 +68,7 @@ namespace FiresRPGmaker.Modules.Territories
   {
    try
             {
-     if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[TerritoryDrawer]")) return;   // 0.0.504
+     if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[TerritoryDrawer]")) return;
      if (Player.m_localPlayer == null)
       {
            args.Context.AddString("[TerritoryDrawer] No local player");
@@ -108,7 +108,7 @@ namespace FiresRPGmaker.Modules.Territories
           case TerritoryShape.Rectangle:
        // For rectangle: minX,minZ,width,depth, centred on the player. Every reader (Territory.IsInside2D, the sync
        // bounds, the map overlay) takes X[1]/Y[1] as the SIZE; writing the far corner here made the area wrong away
-       // from (0,0) and empty at negative coordinates (rpg_territory_test spec, 10-08).
+       // from (0,0) and empty at negative coordinates (rpg_territory_test spec).
                int halfW = parsed.Radius / 2;
                int halfH = parsed.Height / 2;
         lines.Add($"{x - halfW},{z - halfH},{parsed.Radius},{parsed.Height}");
@@ -125,7 +125,7 @@ namespace FiresRPGmaker.Modules.Territories
    lines.Add("ALL");
 
  File.WriteAllLines(filePath, lines);
- TerritoryFileSync.Saved(filePath);   // 0.0.504: on a dedi client, the server gets it (one source of truth)
+ TerritoryFileSync.Saved(filePath);   // On a dedi client, the server gets it (one source of truth)
 
     args.Context.AddString($"[TerritoryDrawer] Created territory '{parsed.Name}' at ({x},{z})");
     args.Context.AddString($"[TerritoryDrawer]   Shape: {parsed.Shape}, Size: {parsed.Radius}" +
@@ -157,7 +157,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             try
             {
-                if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[TerritoryDrawer]")) return;   // 0.0.504
+                if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[TerritoryDrawer]")) return;
      var name = ExtractArguments(args.FullLine, "removeterritory");
                 if (string.IsNullOrWhiteSpace(name))
      {
@@ -176,7 +176,7 @@ namespace FiresRPGmaker.Modules.Territories
     }
 
         File.Delete(filePath);
-        TerritoryFileSync.Deleted(filePath);   // 0.0.504: on a dedi client, the server deletes its copy too
+        TerritoryFileSync.Deleted(filePath);   // On a dedi client, the server deletes its copy too
                 args.Context.AddString($"[TerritoryDrawer] Removed territory '{name}'");
        MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Territory '{name}' removed");
 

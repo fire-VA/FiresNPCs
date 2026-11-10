@@ -81,7 +81,7 @@ namespace FiresRPGmaker.UI.Patches
                 if (dressingRoom != null && dressingRoom.IsVisible && !string.IsNullOrEmpty(_pendingPrefabName))
                 {
                     dressingRoom.OnItemDropped(_pendingSlot, _pendingPrefabName);
-                    Debug.Log($"[InventoryGuiPatches] Applied pending dressing room drop: {_pendingPrefabName} to {_pendingSlot}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[InventoryGuiPatches] Applied pending dressing room drop: {_pendingPrefabName} to {_pendingSlot}");
                 }
 
                 _pendingPrefabName = null;
@@ -153,6 +153,7 @@ namespace FiresRPGmaker.UI.Patches
                 return true;
 
             // Check if item is valid for this slot
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] drop rule: {dragItem.m_shared.m_name} ({dragItem.m_shared.m_itemType}) on {slot.SlotType} -> {(dressingRoom.IsValidItemForSlot(slot.SlotType, dragItem) ? "fits" : "refused")}");
             if (!dressingRoom.IsValidItemForSlot(slot.SlotType, dragItem))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "This item doesn't fit in that slot");
@@ -172,7 +173,7 @@ namespace FiresRPGmaker.UI.Patches
                 return true;
             }
 
-            Debug.Log($"[InventoryGuiPatches] Dropping {prefabName} on dressing room slot {slot.SlotType}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[InventoryGuiPatches] Dropping {prefabName} on dressing room slot {slot.SlotType}");
 
             // Remove from inventory
             if (sourceInventory != null)
@@ -211,7 +212,7 @@ namespace FiresRPGmaker.UI.Patches
         {
             if (__exception is System.NullReferenceException)
             {
-                Debug.Log("[InventoryGuiPatches] Suppressed NRE in OnSelectedItem");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[InventoryGuiPatches] Suppressed NRE in OnSelectedItem");
                 return null;
             }
             return __exception;
@@ -257,6 +258,7 @@ namespace FiresRPGmaker.UI.Patches
             if (slot == null)
                 return true;
 
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] drop rule: {dragItem.m_shared.m_name} ({dragItem.m_shared.m_itemType}) on {slot.SlotType} -> {(dressingRoom.IsValidItemForSlot(slot.SlotType, dragItem) ? "fits" : "refused")}");
             if (!dressingRoom.IsValidItemForSlot(slot.SlotType, dragItem))
             {
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "This item doesn't fit in that slot");
@@ -272,7 +274,7 @@ namespace FiresRPGmaker.UI.Patches
             var dragInvField = typeof(InventoryGui).GetField("m_dragInventory", BindingFlags.NonPublic | BindingFlags.Instance);
             var sourceInventory = dragInvField?.GetValue(__instance) as Inventory;
 
-            Debug.Log($"[InventoryGuiPatches] OnDropOutside - dropping {prefabName} on dressing room slot {slot.SlotType}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[InventoryGuiPatches] OnDropOutside - dropping {prefabName} on dressing room slot {slot.SlotType}");
 
             if (sourceInventory != null && sourceInventory.ContainsItem(dragItem))
                 sourceInventory.RemoveItem(dragItem);

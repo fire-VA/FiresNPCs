@@ -115,13 +115,13 @@ namespace FiresRPGmaker.Managers
             if (IsServer)
             {
                 LoadAllProfiles();
-                Debug.Log($"[TraderProfileManager] Server loaded {_profiles.Count} trader profiles");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[TraderProfileManager] Server loaded {_profiles.Count} trader profiles");
             }
             else
             {
                 // Client also loads local files - server data overrides via ApplyServerData
                 LoadAllProfiles();
-                Debug.Log($"[TraderProfileManager] Client loaded {_profiles.Count} local trader profiles");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[TraderProfileManager] Client loaded {_profiles.Count} local trader profiles");
             }
 
             // Drop-in: layer Marketplace's own Trader configs (config/Marketplace/Configs/Traders) on top when present.
@@ -155,7 +155,7 @@ namespace FiresRPGmaker.Managers
             if (string.IsNullOrEmpty(fileContent)) return;
             var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             ParseProfileLines(lines, fileName);
-            Debug.Log($"[TraderProfileManager] Applied server data {fileName}; profiles={_profiles.Count}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[TraderProfileManager] Applied server data {fileName}; profiles={_profiles.Count}");
         }
 
         /// <summary>
@@ -179,7 +179,7 @@ namespace FiresRPGmaker.Managers
             {
                 Directory.CreateDirectory(TraderProfilesFolder);
                 CreateExampleProfile();
-                Debug.Log($"[TraderProfileManager] Created Traders folder at {TraderProfilesFolder}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[TraderProfileManager] Created Traders folder at {TraderProfilesFolder}");
             }
         }
 
@@ -241,7 +241,7 @@ namespace FiresRPGmaker.Managers
                 }
             }
             if (profileCount > 0)
-                Debug.Log($"[TraderProfileManager] Marketplace drop-in: loaded {profileCount} trader profiles ({tradeCount} trades) from {folder}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[TraderProfileManager] Marketplace drop-in: loaded {profileCount} trader profiles ({tradeCount} trades) from {folder}");
         }
 
         // ── Editing (admin Trader config screen) ─────────────────────────────────
@@ -305,7 +305,7 @@ namespace FiresRPGmaker.Managers
                 File.WriteAllText(file, content);
                 Reset();
                 Initialize();
-                Debug.Log($"[TraderProfileManager] Saved trader profile '{name}' -> {file}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[TraderProfileManager] Saved trader profile '{name}' -> {file}");
             }
             catch (Exception ex)
             {
@@ -409,15 +409,6 @@ namespace FiresRPGmaker.Managers
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Parses a Key=Value token (e.g. "Stock=25" or "Restock=600").
-        /// </summary>
-        private static void ParseKeyValue(string token, ref int stock, ref int restock)
-        {
-            int dummyMaxGold = -1, dummyGoldRestock = 0;
-            ParseHeaderKeyValue(token, ref stock, ref restock, ref dummyMaxGold, ref dummyGoldRestock);
         }
 
         /// <summary>Header variant — also recognises <c>MaxGold=</c> and <c>GoldRestock=</c>, which only

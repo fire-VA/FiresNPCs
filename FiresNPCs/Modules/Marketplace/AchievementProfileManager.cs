@@ -80,8 +80,8 @@ namespace FiresRPGmaker.Modules.Marketplace
             // server/host reads + seeds its folder as before.
             if (!global::FiresRPGmaker.Managers.FiresConfigFiles.UseStore)
             {
-                // Seed when the folder is missing OR holds no profile: the rig dedi's folder existed but was empty since
-                // 10-01, so nothing was ever seeded and every client's leaderboard read "Achievements 0 / 0" (Fire 10-08).
+                // Seed when the folder is missing OR holds no profile: an existing but empty folder would otherwise
+                // never be seeded and every client's leaderboard would read "Achievements 0 / 0".
                 var folder = GetProfileFolder();
                 bool empty = !Directory.Exists(folder);
                 if (!empty)
@@ -99,7 +99,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 try { LoadOne(kv.Key, kv.Value); }
                 catch (System.Exception ex) { Debug.LogError("[AchievementProfileManager] " + kv.Key + ": " + ex.Message); }
             }
-            Debug.Log("[AchievementProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
+            global::FiresRPGmaker.FiresLogger.LogDebug("[AchievementProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
                       + " achievement(s) across " + _byProfile.Count + " profile(s)");
         }
 

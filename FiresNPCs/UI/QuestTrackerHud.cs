@@ -113,17 +113,19 @@ namespace FiresRPGmaker.UI
             // Position: auto-stack directly under the group HUD (following its dynamic height) until the player
             // drags the tracker — then honour their saved spot. Skip auto-positioning while the pause menu is
             // open so a live drag isn't fought by the poll.
-            // 0.0.655 (UI audit): Core places the tracker - its minimap column when present, else the HUD dock; the own drag + saved
+            // Core places the tracker - its minimap column when present, else the HUD dock; the own drag + saved
             // [Quest tracker] position are retired.
             if (!Menu.IsVisible())
             {
-                // 0.0.595 ([generator] Core 0.2.502): in Core's minimap column (order 20, under the territory box at 10) Core places us;
+                // in Core's minimap column (order 20, under the territory box at 10) Core places us;
                 // our root (pivot top-right) is sized to the visible panel so Core sees a real box. Without the column: as before.
                 var vis = _collapsed ? (_bookChip != null ? _bookChip.transform as RectTransform : null) : _panelRect;
                 if (vis != null && (_root.sizeDelta - vis.rect.size).sqrMagnitude > 0.25f) _root.sizeDelta = vis.rect.size;
                 bool column = global::FiresRPGmaker.Modules.Territories.MinimapColumn.Register("FiresRPGmaker.QuestTracker", _root, 20)
                               && global::FiresRPGmaker.Modules.Territories.MinimapColumn.Active;
-                if (!column && !_hudDocked) _hudDocked = CoreUiBridge.RegisterHud("rpgmaker.questtracker", _root, "Quest tracker", "FiresRPGmaker");
+                // ALWAYS a live Core HUD element (LiveEdit, the tracker root as drag handle). In the
+                // minimap column Core places it; a drag takes it out of the column, layout Reset puts it back (Core arbitrates).
+                if (!_hudDocked) _hudDocked = CoreUiBridge.RegisterHud("rpgmaker.questtracker", _root, "Quest tracker", "FiresRPGmaker", liveEdit: true, dragHandle: _root);
                 if (!column && !_hudDocked) AutoPositionBelowTerritory();
             }
 
@@ -206,7 +208,7 @@ namespace FiresRPGmaker.UI
             _root.gameObject.SetActive(false);
         }
 
-        private bool _hudDocked;   // 0.0.655
+        private bool _hudDocked;
         private void SavePosition(Vector2 pos)
         {
             var cfg = ConfigManager.Instance;
@@ -227,7 +229,7 @@ namespace FiresRPGmaker.UI
             if (terr != null && terr.gameObject.activeInHierarchy) anchor = terr;
             else
             {
-                // 0.0.594: under Core's round-minimap info plate when it is shown (override ON), else under the minimap
+                // under Core's round-minimap info plate when it is shown (override ON), else under the minimap
                 anchor = global::FiresRPGmaker.Modules.Territories.TerritoryHudOverlay.MinimapPlate();
                 var mm = Minimap.instance;
                 if (anchor == null && mm != null && mm.m_smallRoot != null) anchor = mm.m_smallRoot.transform as RectTransform;
@@ -253,11 +255,11 @@ namespace FiresRPGmaker.UI
             _panelRect.sizeDelta = new Vector2(BoxWidth, 60f);
 
             var bg = panelGo.GetComponent<Image>();
-            bg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(10, PanelFill, GoldBorder, 2);   // 0.0.594: radius 10 like the territory box + Core's minimap plate
+            bg.sprite = FiresCore.UI.FiresRoundedSkin.RoundedSprite(10, PanelFill, GoldBorder, 2);   // radius 10 like the territory box + Core's minimap plate
             bg.type = Image.Type.Sliced;
             bg.raycastTarget = false;
 
-            // 0.0.655 (UI audit): no own DraggableHud - Core (minimap column / HUD dock) moves the tracker
+            // no own DraggableHud - Core (minimap column / HUD dock) moves the tracker
 
             var vlg = panelGo.AddComponent<VerticalLayoutGroup>();
             vlg.padding = new RectOffset(0, 0, 0, 8);
@@ -578,15 +580,26 @@ namespace FiresRPGmaker.UI
             return t;
         }
 
+        // 0.0.793: resolved ONCE and cached, null included; LegacyRuntime.ttf first (Unity 6 throws on "Arial.ttf"), as TerritoryHudOverlay 0.0.792.
+        private static bool _fontResolved;
+        private static Font _fontCached;
         private static Font ResolveFont(global::Hud hud)
         {
+            if (_fontResolved) return _fontCached;
+            _fontResolved = true;
             try
             {
                 var t = hud.GetComponentsInChildren<Text>(true)?.FirstOrDefault(x => x != null && x.font != null);
-                if (t != null) return t.font;
+                if (t != null) return _fontCached = t.font;
             }
             catch { }
-            return Resources.GetBuiltinResource<Font>("Arial.ttf");
+            foreach (var name in new[] { "LegacyRuntime.ttf", "Arial.ttf" })
+            {
+                try { _fontCached = Resources.GetBuiltinResource<Font>(name); } catch { _fontCached = null; }
+                if (_fontCached != null) break;
+            }
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[QuestTracker] font resolved once: {(_fontCached != null ? _fontCached.name : "none (Text keeps its default)")}");
+            return _fontCached;
         }
     }
 }

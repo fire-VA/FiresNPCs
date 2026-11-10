@@ -34,13 +34,13 @@ namespace FiresRPGmaker.Modules.Progression
                 string key = name.ToLower();
                 if (PrivateKeyManager.ShouldBlockGlobalKey(key))
                 {
-                    Debug.Log($"[Progression] Blocking global key '{key}' - redirecting to private keys");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[Progression] Blocking global key '{key}' - redirecting to private keys");
                     return false; // prevent global key from being set
                 }
                 return true;
             }
 
-            // 0.0.572 (Fire 10-13): credit goes to the players within 100 m of the BOSS, decided by the server, so it
+            // Credit goes to the players within 100 m of the BOSS, decided by the server, so it
             // works when the dedicated server owns the boss. Outside a death (an admin's 'setkey') the key is centred
             // on the local player, the one who typed it; a dedicated server has none, so it grants nothing then.
             static void Postfix(string name)
@@ -167,7 +167,7 @@ namespace FiresRPGmaker.Modules.Progression
                 if (__instance != Player.m_localPlayer) return;
                 if (!IsInMainScene()) return;
 
-                Debug.Log("[Progression] Loading private keys for player");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[Progression] Loading private keys for player");
                 PrivateKeyManager.LoadFromPlayer(__instance);
                 PrivateKeyManager.RegisterRPCs();
                 Dialogues.EwpDataBridge.RegisterRPCs();
@@ -193,7 +193,7 @@ namespace FiresRPGmaker.Modules.Progression
             {
                 if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
 
-                Debug.Log("[Progression] Server init: cleaning global keys and registering RPCs");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[Progression] Server init: cleaning global keys and registering RPCs");
 
                 var cfg = ProgressionConfig.Instance;
                 if (cfg == null) return;

@@ -57,7 +57,7 @@ namespace FiresRPGmaker.Modules.Fanorona
             t = Blank();
             t.Board[FanoronaGame.Pt(0, 0)] = 1;     // W a1 (strong)
             t.Board[FanoronaGame.Pt(2, 0)] = 2;     // approach target via b1
-            t.Board[FanoronaGame.Pt(1, 2)] = 2;     // second capture available after landing b1 (diag b1? b1 weak) — use vertical: b3 above b1? b1→b2 approach b3
+            t.Board[FanoronaGame.Pt(1, 2)] = 2;     // b3: a second capture (b1→b2 approaches it) after landing on b1
             t.Board[FanoronaGame.Pt(8, 4)] = 2;
             var first = Find(t.LegalMoves(), approach: true);
             t.Apply(first);

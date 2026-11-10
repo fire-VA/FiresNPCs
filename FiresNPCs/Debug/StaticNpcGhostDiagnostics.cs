@@ -13,6 +13,10 @@ namespace FiresRPGmaker.Diagnostics
     /// </summary>
     internal static class StaticNpcGhostDiagnostics
     {
+        // 0.0.784: diagnostics OFF by default (perf watch: the GetSelectedPiece postfix ran 567 calls/s, ~1.1 ms/s). Set the environment
+        // variable FIRES_GHOSTDIAG=1 before launch to patch these dump hooks again.
+        internal static readonly bool Enabled = System.Environment.GetEnvironmentVariable("FIRES_GHOSTDIAG") == "1";
+
         private static bool Interesting(string name)
             => name != null && (name.StartsWith("StaticNpc") || name.StartsWith("FiresNpcTpl_")
                              || name.StartsWith("CompanionNpc") || name.StartsWith("BaseNpc"));
@@ -49,6 +53,7 @@ namespace FiresRPGmaker.Diagnostics
         [HarmonyPatch(typeof(Player), "SetupPlacementGhost")]
         private static class Player_SetupPlacementGhost_Dump
         {
+            private static bool Prepare() => Enabled;
             private static void Postfix(Player __instance)
             {
                 try
@@ -66,6 +71,7 @@ namespace FiresRPGmaker.Diagnostics
         [HarmonyPatch(typeof(PieceTable), nameof(PieceTable.GetSelectedPiece))]
         private static class PieceTable_GetSelectedPiece_Dump
         {
+            private static bool Prepare() => Enabled;
             private static string _last;
             private static void Postfix(Piece __result)
             {

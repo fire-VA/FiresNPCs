@@ -17,6 +17,9 @@ namespace FiresRPGmaker
 
         public static void LogVerbose(string message) => Log.Verbose(message);
 
+        /// <summary>Fire 11-03: recurring and proof lines. Real BepInEx Debug, through Core's engine; default players see warnings and errors.</summary>
+        public static void LogDebug(string message) => Log.Debug(message);
+
         public static void LogWarning(string message) => Log.Warning(message);
 
         public static void LogError(string message) => Log.Error(message);

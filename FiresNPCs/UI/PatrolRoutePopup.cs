@@ -37,7 +37,7 @@ namespace FiresRPGmaker.UI
         private string _selectedRoute;
 
         // Scrollable route list — driven by the raw mouse wheel, because the open InventoryGui swallows Unity's
-        // event system (so a ScrollRect drag wouldn't fire); the same reason every click is a manual hit-test.
+        // event system; the same reason every click is a manual hit-test.
         private RectTransform _scrollViewport;
         private RectTransform _scrollContent;
         private float _scrollOffset;
@@ -113,7 +113,7 @@ namespace FiresRPGmaker.UI
             act.Invoke();
         }
 
-        internal void Close()   // 0.0.613: firesnpcs_test closes it
+        internal void Close()   // firesnpcs_test closes it
         {
             _open = false;
             if (_canvasGo != null) Destroy(_canvasGo);
@@ -170,6 +170,7 @@ namespace FiresRPGmaker.UI
             _content.offsetMin = _content.offsetMax = Vector2.zero;
 
             _open = true;
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(this, "PatrolRoute", prect);   // Core's live panel
         }
 
         // ── states ──────────────────────────────────────────────────────────
@@ -181,18 +182,21 @@ namespace FiresRPGmaker.UI
             if (hasRoute)
             {
                 string presetLabel = string.IsNullOrEmpty(_npc.patrolSpeedPreset) ? "Default (flat walk)" : _npc.patrolSpeedPreset;
-                SetStatus($"Current route: {_npc.patrolRouteName}  ·  speed: {presetLabel}");
+                var replay = PatrolReplayStore.Get(_npc.patrolRouteName);   // an exact replay plays at its recorded pace
+                SetStatus(replay != null
+                    ? $"Current route: {_npc.patrolRouteName}  ·  exact replay ({replay.Summary()})"
+                    : $"Current route: {_npc.patrolRouteName}  ·  speed: {presetLabel}");
                 bool showing = PatrolRouteVisualizer.IsShowing(_npc.patrolRouteName);
                 AddButton(showing ? "Hide Route Lines" : "Visualize Route",
                     new Vector2(0.12f, 0.68f), new Vector2(0.88f, 0.80f), OnToggleVisualize);
                 AddButton("Speed Presets…", new Vector2(0.12f, 0.54f), new Vector2(0.49f, 0.66f), OnEditSpeeds);
-                AddButton("View on map", new Vector2(0.51f, 0.54f), new Vector2(0.88f, 0.66f), OnViewOnMap);   // 0.0.605: edit it top-down
+                AddButton("View on map", new Vector2(0.51f, 0.54f), new Vector2(0.88f, 0.66f), OnViewOnMap);   // edit it top-down
                 AddButton("Change Route / Preset", new Vector2(0.12f, 0.40f), new Vector2(0.88f, 0.52f), RebuildPicker);
                 AddButton("Clear Route", new Vector2(0.12f, 0.26f), new Vector2(0.88f, 0.38f), OnClear);
             }
             else
             {
-                // 0.0.605 (Fire 10-15, the approved patrol_popup mock): "Copy player movement" (the recorder) / "Draw on map" (the
+                // "Copy player movement" (the recorder) / "Draw on map" (the
                 // top-down editor) / "Use existing" (a saved route).
                 SetStatus("How do you want to make the route?");
                 AddButton("Copy player movement  (walk it, it records)", new Vector2(0.06f, 0.62f), new Vector2(0.49f, 0.80f), OnSetNew);
@@ -204,7 +208,7 @@ namespace FiresRPGmaker.UI
             FiresCore.UI.FiresPopupTheme.Reskin(_panelGo);
         }
 
-        // 0.0.605: the top-down map editor (FiresRPGmaker.UI.Screens.Patrol.PatrolMapView); this popup closes while it is open.
+        // the top-down map editor (FiresRPGmaker.UI.Screens.Patrol.PatrolMapView); this popup closes while it is open.
         private void OnDrawOnMap() { var npc = _npc; Close(); global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.Open(npc, null); }
         private void OnViewOnMap() { var npc = _npc; string route = npc != null ? npc.patrolRouteName : null; Close(); global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.Open(npc, route); }
 
@@ -249,8 +253,9 @@ namespace FiresRPGmaker.UI
             {
                 string routeName = _routeNames[i];
                 bool selected = routeName == _selectedRoute;
+                string shown = PatrolReplayStore.IsReplay(routeName) ? routeName + "   [exact replay]" : routeName;
                 var btn = UIBuilderHelper.CreateParchmentButton(_scrollContent,
-                    selected ? "» " + routeName : routeName, Vector2.zero, Vector2.one, null);
+                    selected ? "» " + shown : shown, Vector2.zero, Vector2.one, null);
                 var rt = btn.GetComponent<RectTransform>();
                 rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
                 float top = -i * (rowPx + gapPx);
@@ -316,6 +321,8 @@ namespace FiresRPGmaker.UI
                 SetStatus("Select a route first.");
                 return;
             }
+            // an exact replay keeps its recorded pace, so there is no speed preset to pick.
+            if (PatrolReplayStore.IsReplay(_selectedRoute)) { AssignWithPreset(""); return; }
             BuildPresetPick();
         }
 

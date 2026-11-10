@@ -49,11 +49,48 @@ namespace FiresRPGmaker.Modules.Territories
         public static class WearNTear_Damage_Patch
         {
             [HarmonyPrefix]
-            private static bool Prefix(WearNTear __instance)
+            private static bool Prefix(WearNTear __instance, HitData hit)
             {
                 if (__instance == null) return true;
                 var t = TerritoryRuntime.GetTerritory(__instance.transform.position);
-                return t == null || !t.Flags.HasFlag(TerritoryFlags.NoBuildDamage);
+                if (t == null) return true;
+                if (t.Flags.HasFlag(TerritoryFlags.NoBuildDamage)) return false;
+                // The ATTACKER's machine: a hit by a not-allowed player is never sent (message to the local attacker).
+                // The piece owner re-checks in RPC_Damage below.
+                return !TerritoryAccess.RaidBlocksHit(t, hit, "damage");
+            }
+        }
+
+        /// <summary>The piece OWNER's machine (usually the server) is the
+        /// authority: WearNTear.RPC_Damage applies the hit only on the ZDO owner, so a hit whose attacker is a
+        /// not-allowed Player (melee, arrows, spells, bombs, player-operated siege, fire the player started) is dropped
+        /// there even when the attacker's client skipped its own check. No player attacker (monsters, environment,
+        /// lava, lightning) = applied as before.</summary>
+        [HarmonyPatch(typeof(WearNTear), "RPC_Damage")]
+        public static class WearNTear_RPC_Damage_RaidPatch
+        {
+            [HarmonyPrefix]
+            private static bool Prefix(WearNTear __instance, HitData hit)
+            {
+                if (__instance == null || hit == null) return true;
+                var t = TerritoryRuntime.GetTerritory(__instance.transform.position);
+                return t == null || !TerritoryAccess.RaidBlocksHit(t, hit, "damage");
+            }
+        }
+
+        /// <summary>Beds had no territory patch; raid / offline protection
+        /// blocks a not-allowed player from using (claiming / sleeping in) a bed inside.</summary>
+        [HarmonyPatch(typeof(Bed), nameof(Bed.Interact))]
+        public static class Bed_Interact_RaidPatch
+        {
+            [HarmonyPrefix]
+            private static bool Prefix(Bed __instance, Humanoid human, ref bool __result)
+            {
+                if (__instance == null) return true;
+                var t = TerritoryRuntime.GetTerritory(__instance.transform.position);
+                if (t == null || !TerritoryAccess.RaidBlocks(t, human as Player, "bed")) return true;
+                __result = false;
+                return false;
             }
         }
 
@@ -73,8 +110,8 @@ namespace FiresRPGmaker.Modules.Territories
 
         /// <summary>MonstersAddStars — when a monster awakens inside a MonstersAddStars territory,
         /// upgrade its level (1-3 stars). Marks the ZDO so respawned chunks don't double-buff.</summary>
-        // 0.0.536: Humanoid.Start overrides Character.Start WITHOUT calling base (vanilla 1.0), so a Character.Start
-        // postfix never ran for humanoid creatures (Boar, Greydwarf, Troll ...): round 18 monsters_add_stars, level 1.
+        // Humanoid.Start overrides Character.Start WITHOUT calling base (vanilla 1.0), so a Character.Start postfix
+        // never ran for humanoid creatures (Boar, Greydwarf, Troll ...): round 18 monsters_add_stars, level 1.
         [HarmonyPatch(typeof(Humanoid), "Start")]
         public static class Humanoid_Start_AddStars_Patch
         {
@@ -105,7 +142,7 @@ namespace FiresRPGmaker.Modules.Territories
 
         // MoveSpeedMultiplier: TerritoryRuntime.ApplyMoveSpeedMultiplier scales walk/run/swim speed. The run/jog factor
         // postfixes that were here multiplied by ExponentialValue, which is the colour GRADIENT exponent (default 1), so
-        // a gradient territory with this flag ran at speed x multiplier x exponent. Removed 0.0.530.
+        // a gradient territory with this flag ran at speed x multiplier x exponent. Removed.
 
         // ─── TIER 2: closing loopholes (flag was advertised but trivially bypassed) ───
 
@@ -119,6 +156,7 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 if (__instance == null) return true;
                 var t = TerritoryRuntime.GetTerritory(__instance.transform.position);
+                if (t != null && TerritoryAccess.RaidBlocks(t, Player.m_localPlayer, "remove")) return false;
                 if (t == null || !t.Flags.HasFlag(TerritoryFlags.NoBuild)) return true;
                 if (TerritoryRuntime.HasRestrictionBypassPublic(t, Player.m_localPlayer)) return true;
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Removing structures not allowed here");
@@ -143,19 +181,33 @@ namespace FiresRPGmaker.Modules.Territories
             }
         }
 
-        /// <summary>NoDeathPenalty — Player.HardDeath returns false (skips skill loss + grave).</summary>
+        /// <summary>NoDeathPenalty — Player.HardDeath returns false (skips skill loss + grave), ONLY while Player.OnDeath runs.
+        /// 0.0.791 (Fire 10-28: "no skill drain is just constantly flashing"): the prefix used to answer false on every call, and
+        /// Player.UpdateStats asks !HardDeath() every frame to add the SoftDeath ("No skill drain") status when it is missing, so
+        /// inside the territory the icon was re-added each frame with its time already run out, expired and came back = blinking.
+        /// Scoped to the death itself, a protected death still drains nothing and shows vanilla's own 10-minute icon once.</summary>
         [HarmonyPatch(typeof(Player), nameof(Player.HardDeath))]
         public static class Player_HardDeath_Patch
         {
+            internal static bool InOnDeath;
+
             [HarmonyPrefix]
             private static bool Prefix(Player __instance, ref bool __result)
             {
-                if (__instance != Player.m_localPlayer) return true;
+                if (!InOnDeath || __instance != Player.m_localPlayer) return true;
                 var t = TerritoryRuntime.Current;
                 if (t == null || !t.Flags.HasFlag(TerritoryFlags.NoDeathPenalty)) return true;
                 __result = false;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] NoDeathPenalty: death in '{t.Name}' counts as a soft death (no skill drain)");
                 return false;
             }
+        }
+
+        [HarmonyPatch(typeof(Player), nameof(Player.OnDeath))]
+        public static class Player_OnDeath_HardDeathScope
+        {
+            [HarmonyPrefix] private static void Prefix() => Player_HardDeath_Patch.InOnDeath = true;
+            [HarmonyFinalizer] private static void Finalizer() => Player_HardDeath_Patch.InOnDeath = false;
         }
 
         /// <summary>NoInteractItemStands on ARMOR STANDS (KG patches both ItemStand and ArmorStand).</summary>
@@ -167,6 +219,7 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 if (__instance == null) return true;
                 var t = TerritoryRuntime.GetTerritory(__instance.transform.position);
+                if (t != null && TerritoryAccess.RaidBlocks(t, user as Player, "armor stand")) return false;
                 if (t == null || !t.Flags.HasFlag(TerritoryFlags.NoInteractItemStands)) return true;
                 if (TerritoryRuntime.HasRestrictionBypassPublic(t, user as Player)) return true;
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Armor stands locked here");
@@ -244,7 +297,7 @@ namespace FiresRPGmaker.Modules.Territories
                 return !covered;
             }
 
-            // Evidence for rpg_territory_test (0.0.532): at most once a minute per zone.
+            // Evidence for rpg_territory_test: at most once a minute per zone.
             private static readonly System.Collections.Generic.Dictionary<string, float> s_lastSkipLog = new System.Collections.Generic.Dictionary<string, float>();
             private static void LogSkip(Vector3 centre)
             {

@@ -61,6 +61,9 @@ namespace FiresRPGmaker.Modules.Marketplace
             }
         }
 
+        private static readonly Color MarkerColor = new Color(0.15f, 0.55f, 0.95f, 0.85f);
+        private const float MarkerFontSize = 14f;
+
         /// <summary>Ensures the marker exists on <paramref name="slotGo"/> and is active. Cheap repeat-call:
         /// reuses the existing child if present, only constructs the badge on first stamp.</summary>
         private static void EnsureMarker(GameObject slotGo)
@@ -77,7 +80,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             rt.anchorMax = new Vector2(1f, 1f);
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
             var img = go.GetComponent<Image>();
-            img.color = new Color(0.15f, 0.55f, 0.95f, 0.85f);
+            img.color = MarkerColor;
             img.raycastTarget = false;
 
             var textGo = new GameObject("T", typeof(RectTransform));
@@ -92,7 +95,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             t.fontStyle = FontStyles.Bold;
             t.raycastTarget = false;
             // Font size scales with slot — InventoryGrid slot is ~64px so 14f reads clearly at the corner.
-            t.fontSize = 14f;
+            t.fontSize = MarkerFontSize;
             FiresCore.UI.UIBuilderHelper.ApplyValheimFont(t);
         }
     }

@@ -21,6 +21,7 @@ namespace FiresRPGmaker.Modules.TableGames
         internal static float TargetDist;
         private static int _mask;
         private static readonly RaycastHit[] _hits = new RaycastHit[24];
+        private const float MaxRayDistance = 90f;
 
         private static bool UiBusy()
         {
@@ -45,7 +46,7 @@ namespace FiresRPGmaker.Modules.TableGames
                 _mask = LayerMask.GetMask("Default", "static_solid", "Default_small", "piece", "piece_nonsolid",
                     "terrain", "vehicle", "character", "character_net");
 
-            int n = Physics.RaycastNonAlloc(cam.transform.position, cam.transform.forward, _hits, 90f, _mask);
+            int n = Physics.RaycastNonAlloc(cam.transform.position, cam.transform.forward, _hits, MaxRayDistance, _mask);
             int first = -1;
             float firstDist = float.MaxValue;
             for (int i = 0; i < n; i++)
@@ -55,7 +56,7 @@ namespace FiresRPGmaker.Modules.TableGames
                 if (col.GetComponentInParent<Player>() == player) continue;   // the camera ray clips the local body
                 if (_hits[i].distance < firstDist) { firstDist = _hits[i].distance; first = i; }
             }
-            // 0.0.565 (FDT 582 long_range "no popup at 20 m"): say what the ray hit when E is pressed and nothing engages.
+            // Say what the ray hit when E is pressed and nothing engages.
             bool usePressed = ZInput.GetButtonDown("Use") || ZInput.GetButtonDown("JoyUse");
             if (first < 0) { if (usePressed) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[LongRange] E: the ray hit nothing within 90 m ({n} non-solid/own hit(s))"); return; }
 
@@ -70,7 +71,7 @@ namespace FiresRPGmaker.Modules.TableGames
             TargetDist = dist;
 
             if ((ZInput.GetButtonDown("Use") || ZInput.GetButtonDown("JoyUse")) && !player.InAttack() && !player.InDodge()
-                && !FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
+                && !FiresCore.Input.FiresInputBlock.IsTyping()) // typing gate
             {
                 var interactable = lri.GetComponentInParent<Interactable>();
                 bool used = interactable != null && interactable.Interact(player, false, false);
@@ -93,6 +94,7 @@ namespace FiresRPGmaker.Modules.TableGames
     [HarmonyPatch(typeof(Hud), "UpdateCrosshair")]
     internal static class LongRange_Hud_Crosshair_Patch
     {
+        private const float ShowDistanceBeyond = 8f;   // metres; closer targets need no distance hint
         private static void Postfix(Hud __instance, Player player)
         {
             var t = LongRangeInteractDriver.Target;
@@ -102,7 +104,7 @@ namespace FiresRPGmaker.Modules.TableGames
             var hoverable = t.GetComponentInParent<Hoverable>();
             if (hoverable == null) return;
             string txt = hoverable.GetHoverText();
-            if (LongRangeInteractDriver.TargetDist > 8f)
+            if (LongRangeInteractDriver.TargetDist > ShowDistanceBeyond)
                 txt += "\n<color=#9a9a9a>" + Mathf.RoundToInt(LongRangeInteractDriver.TargetDist) + " m</color>";
             __instance.m_hoverName.text = txt;
             if (__instance.m_crosshair != null) __instance.m_crosshair.color = Color.yellow;

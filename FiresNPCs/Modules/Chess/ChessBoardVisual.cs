@@ -138,7 +138,7 @@ namespace FiresRPGmaker.Modules.Chess
                 if (t == null) continue;
                 used.Add(t);
                 t.gameObject.SetActive(true);
-                // Fire 10-13: a soft scrape as the piece is dragged across the board, for everyone watching; one per move
+                // A soft scrape as the piece is dragged across the board, for everyone watching; one per move
                 // (castling slides two pieces), and not on the first Apply (a resumed game) or a bulk resync.
                 if (_appliedOnce && slid++ == 0 && remaining.Count <= 2) ChessBreakFx.Slide(t.position);
                 StartCoroutine(Slide(t, SquarePos(w.sq, t)));

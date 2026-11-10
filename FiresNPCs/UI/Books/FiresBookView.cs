@@ -135,7 +135,7 @@ namespace FiresRPGmaker.UI.Books
                 Destroy(tex);
                 if (png != null) File.WriteAllBytes(Path.Combine(captureDir, $"capture_{idx}.png"), png);
                 File.WriteAllText(Path.Combine(captureDir, $"state_{idx}.txt"), StateString(idx));
-                Debug.Log($"[FiresBookView] captured #{idx} -> {captureDir}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresBookView] captured #{idx} -> {captureDir}");
             }
             catch (Exception e) { Debug.LogWarning("[FiresBookView] capture failed: " + e.Message); }
         }
@@ -255,7 +255,7 @@ namespace FiresRPGmaker.UI.Books
                     if (haveLive && m.shader != live) m.shader = live;
                     // Matte + always-dry so the leather/parchment albedo reads instead of blowing out under the
                     // bright sky reflection (FiresPiece is a wet/PBR piece shader).
-                    // 0.0.562 ([worldgen] baked Norse cover): a material with a baked metallic map keeps its own
+                    // a material with a baked metallic map keeps its own
                     // metallic/gloss and a white _Color (the albedo is final), so metal corners and the clasp stay bright.
                     bool baked = (m.HasProperty("_MetallicTex") && m.GetTexture("_MetallicTex") != null) || (m.HasProperty("_MetallicGlossMap") && m.GetTexture("_MetallicGlossMap") != null);   // FiresPiece: _MetallicTex
                     if (!baked && m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0f);
@@ -270,12 +270,12 @@ namespace FiresRPGmaker.UI.Books
                         bool isLeather = !isParchment && (nm.Contains("leather") || nm.Contains("cover") || nm.Contains("hide") || nm.Contains("bind") || nm.Contains("spine"));
                         m.SetColor("_Color", isLeather ? LeatherTint : MatTint);
                     }
-                    Debug.Log($"[FiresBookView][mat] {r.name}/{m.name} tex={(m.mainTexture != null ? m.mainTexture.name : "none")} baked={baked}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresBookView][mat] {r.name}/{m.name} tex={(m.mainTexture != null ? m.mainTexture.name : "none")} baked={baked}");
                     log.AppendLine($"  {r.name}/{m.name}: {before} supported={beforeSup} -> {(m.shader != null ? m.shader.name : "null")} supported={(m.shader != null && m.shader.isSupported)}");
                 }
             }
             _lastShaderLog = log.ToString();
-            if (DebugCapture) Debug.Log("[FiresBookView] shader fix:\n" + log);
+            if (DebugCapture) global::FiresRPGmaker.FiresLogger.LogDebug("[FiresBookView] shader fix:\n" + log);
         }
 
         private GameObject _light;

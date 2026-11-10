@@ -10,12 +10,12 @@ namespace FiresRPGmaker
 {
     /// <summary>
     /// Debug utility to dump all loaded prefab IDs and their localization names to a text file.
-    /// 
+    ///
     /// USAGE:
     ///   1. Open console (~)
     ///   2. Type: dumpprefabs [filter]
     ///   3. File is saved to BepInEx/config/FiresRPGmaker/Debug/PrefabLocalizationDump.txt
-    /// 
+    ///
     /// Output format per line:
     ///   PrefabName: $localization_key -> Localized Name
     /// </summary>
@@ -43,7 +43,7 @@ namespace FiresRPGmaker
                         Debug.LogError($"[DebugPrefabDumper] dumpprefabs exception: {ex}");
                         args.Context.AddString($"[FiresRPGmaker] dumpprefabs error: {ex.Message}");
                     }
-                });
+                }, isCheat: true);
 
             new Terminal.ConsoleCommand("dumpitems",
                 "Dumps all prefabs with a valid ItemDrop component to a text file. Usage: dumpitems [filter]",
@@ -61,10 +61,10 @@ namespace FiresRPGmaker
                         Debug.LogError($"[DebugPrefabDumper] dumpitems exception: {ex}");
                         args.Context.AddString($"[FiresRPGmaker] dumpitems error: {ex.Message}");
                     }
-                });
+                }, isCheat: true);
 
             _registered = true;
-            Debug.Log("[DebugPrefabDumper] Console commands registered: dumpprefabs, dumpitems");
+            // Debug.Log("[DebugPrefabDumper] Console commands registered: dumpprefabs, dumpitems");
         }
 
         private static void DumpPrefabLocalizations(Terminal.ConsoleEventArgs args, string filter)

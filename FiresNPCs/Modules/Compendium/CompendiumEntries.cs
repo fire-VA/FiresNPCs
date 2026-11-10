@@ -9,7 +9,7 @@ namespace FiresRPGmaker.Modules.Compendium
     public static class CompendiumEntries
     {
         #region Basics Entries
-        
+
         public static void RegisterBasicsEntries()
         {
             // Welcome / Overview
@@ -37,7 +37,7 @@ Your companions will:
 
 Check the other compendium entries to learn more about each system."
             });
-            
+
             // Controls
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -71,7 +71,7 @@ Toggle it with the [GroupHud] ShowGroupHud config option.
 • <color=green>Follow</color> - Stay close and assist
 • <color=yellow>Stay</color> - Hold current location"
             });
-            
+
             // Leveling System
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -106,7 +106,7 @@ Each level increases base stats:
 
 Higher level companions are significantly more powerful!"
             });
-            
+
             // Equipment
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -140,7 +140,7 @@ Your companion's archetype is determined by their equipped weapon:
 Higher quality equipment provides better stats.
 Upgrade your companion's gear as you progress!"
             });
-            
+
             // Idle Behaviors
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -170,7 +170,7 @@ Companions will:
 <color=yellow>Base Helpers:</color>
 Leave companions at your base in Guard mode to have them help with chores while you're away!"
             });
-            
+
             // NPC Mode
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -205,11 +205,11 @@ Great for:
 • Roleplay characters"
             });
         }
-        
+
         #endregion
-        
+
         #region Archetype Entries
-        
+
         public static void RegisterArchetypeEntries()
         {
             // Archetype Overview
@@ -243,7 +243,7 @@ Each companion develops a unique archetype based on their equipment.
 <color=yellow>Hybrid Classes:</color>
 At level 25, companions can develop a sub-archetype, creating unique hybrid classes with special abilities!"
             });
-            
+
             // Tank
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -283,7 +283,7 @@ Guardians excel at:
 <color=yellow>Best Paired With:</color>
 Clerics (for sustain), Rangers/Mages (protect them)"
             });
-            
+
             // Paladin
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -322,7 +322,7 @@ Paladins provide:
 <color=yellow>Best Paired With:</color>
 Any composition - very versatile!"
             });
-            
+
             // Berserker
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -363,7 +363,7 @@ Berserkers excel at:
 <color=yellow>Best Paired With:</color>
 Guardians (to take aggro), Clerics (to sustain)"
             });
-            
+
             // Rogue
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -405,7 +405,7 @@ Rogues excel at:
 <color=yellow>Best Paired With:</color>
 Guardians (to distract), other DPS (burst windows)"
             });
-            
+
             // Ranger
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -446,7 +446,7 @@ Rangers excel at:
 <color=yellow>Best Paired With:</color>
 Guardians (to hold aggro), any melee"
             });
-            
+
             // Mage
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -487,7 +487,7 @@ Mages excel at:
 <color=yellow>Best Paired With:</color>
 Guardians (essential protection), Clerics"
             });
-            
+
             // Healer
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -530,7 +530,7 @@ Clerics excel at:
 <color=yellow>Best Paired With:</color>
 Guardians (heal target), Berserkers (sustain)"
             });
-            
+
             // Monk
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -574,11 +574,11 @@ Monks excel at:
 Any - very self-sufficient"
             });
         }
-        
+
         #endregion
-        
+
         #region Hybrid Entries
-        
+
         public static void RegisterHybridEntries()
         {
             // Hybrid System Overview
@@ -618,7 +618,7 @@ The sub-archetype is based on:
 
 Each hybrid has a unique special ability!"
             });
-            
+
             // Register some key hybrid entries
             // Tank Hybrids
             CompendiumManager.RegisterEntry(new CompendiumEntry
@@ -646,7 +646,7 @@ Cooldown: 90 seconds
 <color=yellow>Playstyle:</color>
 Crusaders excel at protecting groups while providing steady healing. Position them at the front line where their aura can benefit melee allies."
             });
-            
+
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
                 Key = "hybrid_tank_berserker",
@@ -672,7 +672,7 @@ Cooldown: 45 seconds
 <color=yellow>Playstyle:</color>
 Juggernauts thrive in prolonged fights. They deal more damage than typical guardians while maintaining strong survivability."
             });
-            
+
             // Berserker Hybrids
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -699,7 +699,7 @@ Cooldown: 30 seconds
 <color=yellow>Playstyle:</color>
 Reapers are glass cannons that excel at burst damage. Keep them healed and they'll devastate enemies."
             });
-            
+
             // Mage Hybrids
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -726,11 +726,11 @@ Cooldown: 30 seconds
 Storm Callers excel at AoE damage. Position them where they can hit multiple enemies with their chain attacks."
             });
         }
-        
+
         #endregion
-        
+
         #region Ability Entries
-        
+
         public static void RegisterAbilityEntries()
         {
             // Ability System Overview
@@ -755,7 +755,7 @@ Companions unlock powerful abilities as they level up.
 <color=yellow>Ability Usage:</color>
 Companions use abilities automatically based on:
 • Combat situation
-• Cooldown availability  
+• Cooldown availability
 • Target priority
 • Health/resource status
 
@@ -764,7 +764,7 @@ Some abilities can combine with other companions' abilities for powerful synergy
 
 Check individual archetype entries for specific ability lists."
             });
-            
+
             // Synergy System
             CompendiumManager.RegisterEntry(new CompendiumEntry
             {
@@ -795,8 +795,8 @@ Consider your party composition:
 • Watch for synergy visual effects!"
             });
         }
-        
+
         #endregion
-        
+
     }
 }

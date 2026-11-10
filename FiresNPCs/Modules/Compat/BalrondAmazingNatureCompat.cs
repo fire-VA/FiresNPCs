@@ -23,7 +23,7 @@ namespace FiresRPGmaker
     ///    Location.Awake_Postfix strips those components from any location that is not
     ///    a dungeon or boss arena - the only vanilla locations that legitimately carry them.
     /// </summary>
-    [HarmonyPatch]   // 0.0.502: without the class attribute PatchAll skipped the Location.Awake strip (Check-HarmonyClassAttributes)
+    [HarmonyPatch]   // without the class attribute PatchAll skipped the Location.Awake strip (Check-HarmonyClassAttributes)
     public static class BalrondAmazingNatureCompat
     {
         private const string BalrondGUID = "balrond.astafaraios.BalrondAmazingNature";
@@ -46,9 +46,9 @@ namespace FiresRPGmaker
             {
                 _balrondLoaded = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(BalrondGUID);
                 if (_balrondLoaded)
-                    Debug.Log("[BalrondCompat] Balrond Amazing Nature detected - location-strip patch ENABLED");
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[BalrondCompat] Balrond Amazing Nature detected - location-strip patch ENABLED");
                 else
-                    Debug.Log("[BalrondCompat] Balrond Amazing Nature not detected - all compat patches disabled");
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[BalrondCompat] Balrond Amazing Nature not detected - all compat patches disabled");
             }
             catch (Exception ex)
             {
@@ -142,7 +142,7 @@ namespace FiresRPGmaker
                         if (ez != null)
                             UnityEngine.Object.Destroy(ez);
                     }
-                    Debug.Log($"[BalrondCompat] Stripped {envZones.Length} EnvZone(s) from location '{prefab}'");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[BalrondCompat] Stripped {envZones.Length} EnvZone(s) from location '{prefab}'");
                 }
 
                 // Strip every MusicLocation in the hierarchy.
@@ -154,7 +154,7 @@ namespace FiresRPGmaker
                         if (ml != null)
                             UnityEngine.Object.Destroy(ml);
                     }
-                    Debug.Log($"[BalrondCompat] Stripped {musicLocs.Length} MusicLocation(s) from location '{prefab}'");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[BalrondCompat] Stripped {musicLocs.Length} MusicLocation(s) from location '{prefab}'");
                 }
             }
             catch (Exception ex)
@@ -250,7 +250,7 @@ namespace FiresRPGmaker
                 }
 
                 if (TryUnpatchBalrondPrefix(harmony, target, out string owner))
-                    Debug.Log($"[BalrondCompat] Removed Balrond's AddKnownLocationName prefix ({owner})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[BalrondCompat] Removed Balrond's AddKnownLocationName prefix ({owner})");
             }
             catch (Exception ex)
             {
@@ -270,7 +270,7 @@ namespace FiresRPGmaker
                 }
 
                 if (TryUnpatchBalrondPostfix(harmony, target, out string owner))
-                    Debug.Log($"[BalrondCompat] Removed Balrond's Player.UpdateStats postfix ({owner}) - fixes SE_SitHeal message spam");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[BalrondCompat] Removed Balrond's Player.UpdateStats postfix ({owner}) - fixes SE_SitHeal message spam");
             }
             catch (Exception ex)
             {
@@ -290,7 +290,7 @@ namespace FiresRPGmaker
                 }
 
                 if (TryUnpatchBalrondPostfix(harmony, target, out string owner))
-                    Debug.Log($"[BalrondCompat] Removed Balrond's Player.UpdateEnvStatusEffects postfix ({owner}) - fixes env status message spam");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[BalrondCompat] Removed Balrond's Player.UpdateEnvStatusEffects postfix ({owner}) - fixes env status message spam");
             }
             catch (Exception ex)
             {

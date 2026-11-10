@@ -15,6 +15,29 @@ namespace FiresRPGmaker.Modules.Territories
     [HarmonyPatch]
     internal static class TerritoryMapOverlay
     {
+        // ── Polygon rows are filled by even-odd crossings, one pass over the edges per row ──
+        private static readonly List<float> s_polyCross = new List<float>(16);
+        private static void PolyRowCrossings(Territory t, float worldY, int num, float num2, float pixelSize)
+        {
+            s_polyCross.Clear();
+            int n = t.X.Length;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                float yi = t.Y[i], yj = t.Y[j];
+                if ((yi > worldY) == (yj > worldY)) continue;
+                float wx = t.X[i] + (worldY - yi) * (t.X[j] - t.X[i]) / (yj - yi);
+                s_polyCross.Add((wx + num2) / pixelSize + num);
+            }
+            s_polyCross.Sort();
+        }
+        private static bool PolyPixelInside(int x)
+        {
+            float px = x + 0.5f;
+            int left = 0;
+            for (int k = 0; k < s_polyCross.Count && s_polyCross[k] < px; k++) left++;
+            return (left & 1) == 1;
+        }
+
         // The overlay keeps its own copy of the untouched minimap so each pass can rebuild from it, plus a scratch
         // copy it paints into. Compact mode stores those in the textures' own formats: the map as Color32 (the map
         // texture is RGB24, so this is exact) and the height as raw RHalf bits, converted only for the handful of
@@ -71,6 +94,16 @@ namespace FiresRPGmaker.Modules.Territories
         // Map pixel as the paint code wants it (float Color), whichever buffer is live.
         private static Color ReadScratchMap(int idx) => _scratchMap32 != null ? (Color)_scratchMap32[idx] : _scratchMap[idx];
 
+        // The forced biome of an area (0 = none), and vanilla's map colour for a biome (Minimap.GetPixelColor, by reflection)
+        private static int ForcedMapBiome(Territory t) => t != null && t.Flags.HasFlag(TerritoryFlags.ForceBiome) ? t.OverridenBiome : 0;
+        private static MethodInfo s_pixelColor; private static bool s_pixelColorLooked;
+        private static Color BiomeMapColor(int biome)
+        {
+            if (!s_pixelColorLooked) { s_pixelColorLooked = true; s_pixelColor = AccessTools.Method(typeof(Minimap), "GetPixelColor", new[] { typeof(Heightmap.Biome) }); }
+            try { if (s_pixelColor != null) return (Color)s_pixelColor.Invoke(s_pixelColor.IsStatic ? null : Minimap.instance, new object[] { (Heightmap.Biome)biome }); } catch { }
+            return Color.white;
+        }
+
         private static void WriteScratchMap(int idx, Color value)
         {
             if (_scratchMap32 != null) _scratchMap32[idx] = value;
@@ -101,21 +134,39 @@ namespace FiresRPGmaker.Modules.Territories
             _overlayDirty = true;
 
             if (!_baseTexturesCaptured && Minimap.instance != null && TryCaptureBaseTextures())
-                Debug.Log("[FiresRPGmaker] Base textures captured on territory change");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Base textures captured on territory change");
 
             ScheduleApply();
         }
 
+        /// <summary>Add-only, for another mod that recolours the map (Vedr's seasons): RPGM paints territories into m_mapTexture from its own base copy,
+        /// so each mod's upload would overwrite the other. Give the new map here instead of uploading it. Copied; the Deep North band goes back on and
+        /// territories repaint and upload, at most once a frame. Height is untouched. False: nothing taken (overlay off, no map, wrong size), so upload it yourself.</summary>
+        public static bool SetBaseMap(Color32[] pixels)
+        {
+            if (pixels == null || !OverlayEnabled || Minimap.instance == null) return false;
+            if (!_baseTexturesCaptured && !TryCaptureBaseTextures()) return false;
+            if (pixels.Length != BasePixelCount()) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] SetBaseMap refused: {pixels.Length} pixels, base has {BasePixelCount()}"); return false; }
+            if (_baseMap32 != null) System.Array.Copy(pixels, _baseMap32, pixels.Length);
+            else for (int i = 0; i < pixels.Length; i++) _baseMap[i] = pixels[i];
+            _baseBandBaked = false;
+            _appliedSignature = 0L;
+            _overlayDirty = true;
+            ScheduleApply();
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] SetBaseMap: {pixels.Length} pixels taken");
+            return true;
+        }
+
         public static void ForceRedraw()
         {
-            Debug.Log("[FiresRPGmaker] TerritoryMapOverlay.ForceRedraw called");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] TerritoryMapOverlay.ForceRedraw called");
             _overlayDirty = true;
             _appliedSignature = 0L;
             var sw = Stopwatch.StartNew();
             MaybeApplyOverlay();
             RebuildVisualizers();
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay.ForceRedraw completed in {sw.ElapsedMilliseconds}ms");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] TerritoryMapOverlay.ForceRedraw completed in {sw.ElapsedMilliseconds}ms");
         }
 
         private static void ScheduleApply()
@@ -129,7 +180,7 @@ namespace FiresRPGmaker.Modules.Territories
                 MaybeApplyOverlay();
                 RebuildVisualizers();
                 sw.Stop();
-                Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay.OnTerritoriesChanged completed in {sw.ElapsedMilliseconds}ms");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] TerritoryMapOverlay.OnTerritoriesChanged completed in {sw.ElapsedMilliseconds}ms");
             });
         }
 
@@ -147,13 +198,13 @@ namespace FiresRPGmaker.Modules.Territories
             if (ZNet.instance != null && !ZNet.instance.IsServer()
                 && !TerritorySyncedState.HasReceivedThisSession)
             {
-                Debug.Log("[FiresRPGmaker] MaybeApplyOverlay deferred - awaiting server territory confirmation");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] MaybeApplyOverlay deferred - awaiting server territory confirmation");
                 return;
             }
    var mm = Minimap.instance;
        if (mm == null)
             {
-   Debug.Log("[FiresRPGmaker] MaybeApplyOverlay skipped - Minimap.instance is null");
+   global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] MaybeApplyOverlay skipped - Minimap.instance is null");
    return;
      }
             var modeField = AccessTools.Field(typeof(Minimap), "m_mode");
@@ -169,7 +220,7 @@ namespace FiresRPGmaker.Modules.Territories
       {
           yield return new WaitForSeconds(2f);
             if (!OverlayEnabled) yield break;
-            Debug.Log("[FiresRPGmaker] Attempting delayed texture capture...");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Attempting delayed texture capture...");
         if (TryCaptureBaseTextures())
         {
   _overlayDirty = true;
@@ -182,43 +233,65 @@ namespace FiresRPGmaker.Modules.Territories
          }
         }
 
+        // 0.0.806 ([ghost], Fire 10-31 "spread between frames and budgeted"; "drew 505 territories in 209ms" in one frame): with
+        // [Territories] Spread map overlay paint ON the same pass runs as a Core FrameBudgetScheduler coroutine that paints territory rows
+        // for up to SpreadStepMs per frame, then uploads the textures once at the end (the old overlay stays until then). OFF (default) =
+        // the same enumerator run to the end in this frame, i.e. exactly the old pass. A change arriving mid-pass repaints after it.
+        private const double SpreadStepMs = 2.0;
+        private static bool SpreadPaint => ConfigManager.Instance?.configSpreadMapOverlayPaint?.Value ?? false;
+        private static bool s_spreadRunning, s_changedDuringSpread;
+
         private static void ApplyOverlay()
         {
+            if (s_spreadRunning) { s_changedDuringSpread = true; return; }   // the running pass repaints when it ends
+            if (!SpreadPaint) { var e = ApplyOverlayCo(false); while (e.MoveNext()) { } return; }
+            s_spreadRunning = true; s_changedDuringSpread = false;
+            FiresCore.Async.FrameBudgetScheduler.ScheduleCoroutine(FiresCore.Async.WorkPriority.Normal, ApplyOverlayCo(true), () =>
+            {
+                s_spreadRunning = false;
+                if (s_changedDuringSpread) { s_changedDuringSpread = false; _overlayDirty = true; ScheduleApply(); }
+            });
+        }
+
+        private static IEnumerator ApplyOverlayCo(bool spread)
+        {
             var sw = Stopwatch.StartNew();
+            var step = Stopwatch.StartNew();
+            double worstStep = 0; int steps = 1;
             if (!OverlayEnabled)
             {
                 _overlayDirty = false;
-                return;
+                yield break;
             }
             var mm = Minimap.instance;
             if (mm == null)
             {
-                Debug.Log("[FiresRPGmaker] ApplyOverlay skipped - Minimap.instance is null");
-                return;
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] ApplyOverlay skipped - Minimap.instance is null");
+                yield break;
             }
             // Flipping CompactMapOverlayBuffers takes effect on the next pass: the base copy is re-taken in the
             // other form and the old buffers are dropped, so an A/B comparison needs no relog.
             if (_baseTexturesCaptured && (_capturedCompact != CompactBuffers || _capturedDeepNorth != DeepNorthOverlayEnabled))
             {
-                Debug.Log($"[FiresRPGmaker] Map overlay re-capturing base textures (buffers {(CompactBuffers ? "compact" : "legacy")}, deep north {(DeepNorthOverlayEnabled ? "on" : "off")})");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Map overlay re-capturing base textures (buffers {(CompactBuffers ? "compact" : "legacy")}, deep north {(DeepNorthOverlayEnabled ? "on" : "off")})");
                 ReleaseBuffers();
                 _baseTexturesCaptured = false;
             }
             if (BasePixelCount() == 0)
             {
-                Debug.Log("[FiresRPGmaker] ApplyOverlay skipped - no base map captured, attempting to capture...");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] ApplyOverlay skipped - no base map captured, attempting to capture...");
                 if (TryCaptureBaseTextures())
                 {
-                    Debug.Log("[FiresRPGmaker] Successfully captured base textures in ApplyOverlay");
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Successfully captured base textures in ApplyOverlay");
                 }
                 else
                 {
-                    return;
+                    yield break;
                 }
             }
             if (!_overlayDirty)
             {
-                return;
+                yield break;
             }
 
             var territories = GetTerritories();
@@ -230,7 +303,7 @@ namespace FiresRPGmaker.Modules.Territories
             if (mapTex == null)
             {
                 Debug.LogWarning("[FiresRPGmaker] ApplyOverlay skipped - m_mapTexture is null");
-                return;
+                yield break;
             }
 
             float pixelSize = GetFloat(mm, "m_pixelSize");
@@ -246,7 +319,7 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 _overlayDirty = false;
                 global::FiresRPGmaker.FiresLogger.LogVerbose("[FiresRPGmaker] Territory overlay unchanged - skipped repaint");
-                return;
+                yield break;
             }
 
             if (DeepNorthOverlayEnabled && !_baseBandBaked)
@@ -319,7 +392,7 @@ namespace FiresRPGmaker.Modules.Territories
             }
 
         int drawnCount = 0;
-        foreach (var terr in territories.Where(t => t.DrawOnMap()).OrderBy(t => t.Priority))
+        foreach (var terr in territories.Where(t => t.DrawOnMap() || ForcedMapBiome(t) != 0).OrderBy(t => t.Priority).ToList())   // Undrawn ForceBiome areas (their biome colour); 0.0.806: a snapshot, so a spread pass never enumerates a list that changed
         {
             drawnCount++;
             int startY, endY;
@@ -328,6 +401,10 @@ namespace FiresRPGmaker.Modules.Territories
                 case TerritoryShape.Rectangle:
                     startY = Mathf.RoundToInt((terr.Y[0] + num2) / pixelSize + num);
                     endY = Mathf.RoundToInt((terr.Y[0] + terr.Y[1] + num2) / pixelSize + num);
+                    break;
+                case TerritoryShape.Polygon when terr.IsPolygon:
+                    startY = Mathf.RoundToInt((terr.PolyMin.y + num2) / pixelSize + num);
+                    endY = Mathf.RoundToInt((terr.PolyMax.y + num2) / pixelSize + num);
                     break;
                 default:
                     startY = Mathf.RoundToInt((terr.Y[0] - terr.Radius + num2) / pixelSize + num);
@@ -352,6 +429,12 @@ namespace FiresRPGmaker.Modules.Territories
                         startX = Mathf.RoundToInt((terr.X[0] - terr.Radius + num2) / pixelSize + num);
                         endX = Mathf.RoundToInt((terr.X[0] + terr.Radius + num2) / pixelSize + num);
                         break;
+                    case TerritoryShape.Polygon when terr.IsPolygon:
+                        // The row's even-odd crossings (pixel x, sorted); a pixel is drawn when an odd number lie left of it
+                        startX = Mathf.RoundToInt((terr.PolyMin.x + num2) / pixelSize + num);
+                        endX = Mathf.RoundToInt((terr.PolyMax.x + num2) / pixelSize + num);
+                        PolyRowCrossings(terr, (y - num) * pixelSize - num2, num, num2, pixelSize);
+                        break;
                     case TerritoryShape.Circle:
                     default:
                         float halfWidth = Mathf.Cos(Mathf.Asin(((y - num) * pixelSize - num2 - terr.Y[0]) / terr.Radius)) * terr.Radius;
@@ -362,8 +445,10 @@ namespace FiresRPGmaker.Modules.Territories
                 startX = Mathf.Clamp(startX, 0, texSize);
                 endX = Mathf.Clamp(endX, 0, texSize);
 
+                bool polyRow = terr.Shape == TerritoryShape.Polygon && terr.IsPolygon;
                 for (int x = startX; x < endX; x++)
                 {
+                    if (polyRow && !PolyPixelInside(x)) continue;
                     int idx = y * texSize + x;
                     Color c;
                     if (terr.UsingGradient())
@@ -384,6 +469,11 @@ namespace FiresRPGmaker.Modules.Territories
                             _ => terr.GetColor()
                         };
                     }
+                    else if (!terr.DrawOnMap())
+                    {
+                        // An area with no colour of its own shows the forced biome's own map colour, as vanilla paints that biome
+                        c = BiomeMapColor(ForcedMapBiome(terr));
+                    }
                     else
                     {
                         c = terr.GetColor();
@@ -400,6 +490,20 @@ namespace FiresRPGmaker.Modules.Territories
                     {
                         fogData[idx * fogStride] = 0;
                         fogTouched = true;
+                    }
+                }
+                // 0.0.806: spread mode yields between rows once this frame's step is spent
+                if (spread && step.Elapsed.TotalMilliseconds >= SpreadStepMs)
+                {
+                    if (step.Elapsed.TotalMilliseconds > worstStep) worstStep = step.Elapsed.TotalMilliseconds;
+                    yield return null;
+                    steps++; step.Restart();
+                    if (Minimap.instance != mm || mapTex == null || (fogStride > 0 && fogTex == null))
+                    {
+                        _scratchMap32 = null; _scratchMap = null; _scratchHeightRaw = null; _scratchHeight = null;
+                        _overlayDirty = true;
+                        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[TerritoryOverlay] spread paint stopped: the minimap was replaced mid-pass; it repaints on the next change");
+                        yield break;
                     }
                 }
             }
@@ -420,14 +524,16 @@ namespace FiresRPGmaker.Modules.Territories
             }
             // Only upload when a territory actually revealed something; the pixels are already in the texture's buffer.
             if (fogTouched) fogTex.Apply(false);
-            // 0.0.576 (the lead 10-13, memory): the scratch copies are only the working space of this pass; the next pass
-            // rebuilds them from the base. Holding them between passes kept another ~72 MB (2048² map + height) for nothing.
+            // The scratch copies are only the working space of this pass; the next pass rebuilds them from the base. Holding
+            // them between passes kept another ~72 MB (2048² map + height) for nothing.
             _scratchMap32 = null; _scratchMap = null; _scratchHeightRaw = null; _scratchHeight = null;
             _overlayDirty = false;
             _appliedSignature = signature;
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] Territory overlay applied to minimap - drew {drawnCount} territories in {sw.ElapsedMilliseconds}ms " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Territory overlay applied to minimap - drew {drawnCount} territories in {sw.ElapsedMilliseconds}ms " +
                       $"({(_capturedCompact ? "compact" : "legacy")} buffers, {HeldMegabytes():F0} MB held)");
+            if (step.Elapsed.TotalMilliseconds > worstStep) worstStep = step.Elapsed.TotalMilliseconds;
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TerritoryOverlay] paint {(spread ? "spread" : "one frame")}: {drawnCount} territories, total {sw.ElapsedMilliseconds} ms over {steps} frame(s), worst frame {worstStep:0.0} ms");
         }
 
         // Cheap fingerprint of everything ApplyOverlay reads. Never returns 0, so the initial _appliedSignature
@@ -489,7 +595,7 @@ namespace FiresRPGmaker.Modules.Territories
             _deepNorthPixelSize = pixelSize;
             _deepNorthBuilt = _deepNorthIdx;
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] Deep North band cached - {_deepNorthIdx.Length} pixels of {texSize * texSize} in {sw.ElapsedMilliseconds}ms (once per map geometry)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Deep North band cached - {_deepNorthIdx.Length} pixels of {texSize * texSize} in {sw.ElapsedMilliseconds}ms (once per map geometry)");
             return _deepNorthIdx;
         }
 
@@ -512,7 +618,7 @@ namespace FiresRPGmaker.Modules.Territories
                     sw.Stop();
                     long ms = sw.ElapsedMilliseconds;
                     FiresCore.Async.MainThreadDispatcher.Enqueue(() =>
-                        Debug.Log($"[FiresRPGmaker] Deep North band precomputed off-thread - {built.Length} pixels of {texSize * texSize} in {ms}ms"));
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Deep North band precomputed off-thread - {built.Length} pixels of {texSize * texSize} in {ms}ms"));
                 }
                 catch (Exception ex)
                 {
@@ -569,7 +675,7 @@ namespace FiresRPGmaker.Modules.Territories
             _forceHeightUpload = height;
             _appliedSignature = 0L;
             sw.Stop();
-            Debug.Log($"[FiresRPGmaker] Deep North band baked into the base map - {band.Length} pixels in {sw.ElapsedMilliseconds}ms, no per-pass band work from here");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Deep North band baked into the base map - {band.Length} pixels in {sw.ElapsedMilliseconds}ms, no per-pass band work from here");
         }
 
         private static int[] BuildDeepNorthIndices(int texSize, float pixelSize)
@@ -621,7 +727,7 @@ namespace FiresRPGmaker.Modules.Territories
 {
            return TerritoryLedger.Territories;
             }
-        return TerritorySyncedState.ClientTerritories;
+        return TerritoryApi.WithExternal(TerritorySyncedState.ClientTerritories); // API boxes on clients
         }
 
         private static bool TryCaptureBaseTextures()
@@ -630,7 +736,7 @@ namespace FiresRPGmaker.Modules.Territories
    var mm = Minimap.instance;
      if (mm == null)
   {
-       Debug.Log("[FiresRPGmaker] TryCaptureBaseTextures failed - Minimap.instance is null");
+       global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] TryCaptureBaseTextures failed - Minimap.instance is null");
           return false;
             }
          var map = GetTex(mm, "m_mapTexture");
@@ -638,7 +744,7 @@ namespace FiresRPGmaker.Modules.Territories
        var fog = GetTex(mm, "m_fogTexture");
    if (map == null)
             {
-  Debug.Log("[FiresRPGmaker] TryCaptureBaseTextures failed - m_mapTexture is null");
+  global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] TryCaptureBaseTextures failed - m_mapTexture is null");
           return false;
           }
  try
@@ -664,7 +770,7 @@ namespace FiresRPGmaker.Modules.Territories
             _baseTexturesCaptured = true;
             _appliedSignature = 0L;
             if (DeepNorthOverlayEnabled) BeginDeepNorthBuild(GetInt(mm, "m_textureSize"), GetFloat(mm, "m_pixelSize"));
-            Debug.Log($"[FiresRPGmaker] Base textures captured successfully - map size: {BasePixelCount()}, " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Base textures captured successfully - map size: {BasePixelCount()}, " +
                       $"buffers {(compact ? "compact" : "legacy")} holding {HeldMegabytes():F0} MB");
        return true;
   }
@@ -700,7 +806,7 @@ namespace FiresRPGmaker.Modules.Territories
   Debug.LogWarning("[FiresRPGmaker] Territory visualizers disabled - no suitable shader found and/or graphics device is Null.");
    return;
       }
-          Debug.Log($"[FiresRPGmaker] Territory visualizers using shader: {shader.name}");
+          global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Territory visualizers using shader: {shader.name}");
             _vizMat = new Material(shader);
       _vizMat.SetFloat("_Mode", 3);
        _vizMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
@@ -731,6 +837,7 @@ namespace FiresRPGmaker.Modules.Territories
 var pos = terr.Shape switch
           {
           TerritoryShape.Rectangle => terr.Pos3D() + new Vector3(terr.X[1] * 0.5f, 0, terr.Y[1] * 0.5f),
+          TerritoryShape.Polygon when terr.IsPolygon => new Vector3(terr.Center2D().x, terr.Pos3D().y, terr.Center2D().y),   // Its bounds box
    _ => terr.Pos3D()
             };
                 go.transform.position = pos;
@@ -739,6 +846,7 @@ var pos = terr.Shape switch
             go.transform.localScale = terr.Shape switch
      {
           TerritoryShape.Rectangle => new Vector3(Mathf.Max(1, terr.X.Length > 1 ? terr.X[1] : 1), height, Mathf.Max(1, terr.Y.Length > 1 ? terr.Y[1] : 1)),
+          TerritoryShape.Polygon when terr.IsPolygon => new Vector3(Mathf.Max(1f, terr.PolyMax.x - terr.PolyMin.x), height, Mathf.Max(1f, terr.PolyMax.y - terr.PolyMin.y)),
         _ => new Vector3(Mathf.Max(1, terr.Radius * 2f), height, Mathf.Max(1, terr.Radius * 2f)),
       };
             var rend = go.GetComponent<Renderer>();
@@ -758,9 +866,9 @@ var pos = terr.Shape switch
     }
      }
 
-        // 0.0.576 (the lead 10-13, memory): the base map copy (2048² ARGB + height, ~72 MB) lived on in these statics after
-        // logout, from the main menu onward. The map goes with its world now; the next world captures its own. (A dedicated
-        // server has no Minimap, so it never captured any.)
+        // The base map copy (2048² ARGB + height, ~72 MB) lived on in these statics after logout, from the main menu
+        // onward. The map goes with its world now; the next world captures its own. (A dedicated server has no Minimap, so
+        // it never captured any.)
         [HarmonyPatch(typeof(Minimap), "OnDestroy")]
         [HarmonyPostfix]
         private static void Minimap_OnDestroy_Postfix()
@@ -769,14 +877,14 @@ var pos = terr.Shape switch
             ReleaseBuffers();
             _baseTexturesCaptured = false;
             _overlayDirty = false;
-            if (mb > 0f) Debug.Log($"[FiresRPGmaker] TerritoryMapOverlay: map closed with its world; released {mb:F0} MB of map buffers");
+            if (mb > 0f) global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] TerritoryMapOverlay: map closed with its world; released {mb:F0} MB of map buffers");
         }
 
         [HarmonyPatch(typeof(Minimap), "Start")]
         [HarmonyPostfix]
         private static void Minimap_Start_Postfix(Minimap __instance)
         {
-            Debug.Log("[FiresRPGmaker] Minimap_Start_Postfix triggered");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Minimap_Start_Postfix triggered");
             if (!TryCaptureBaseTextures())
    {
  if (OverlayEnabled)
@@ -793,7 +901,7 @@ var pos = terr.Shape switch
         [HarmonyPostfix]
  private static void Minimap_LoadMapData_Postfix(Minimap __instance)
         {
-            Debug.Log("[FiresRPGmaker] Minimap_LoadMapData_Postfix triggered");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Minimap_LoadMapData_Postfix triggered");
       if (!TryCaptureBaseTextures())
           {
       if (OverlayEnabled)
@@ -810,7 +918,7 @@ var pos = terr.Shape switch
 [HarmonyPostfix]
         private static void Minimap_GenerateWorldMap_Postfix(Minimap __instance)
         {
-            Debug.Log("[FiresRPGmaker] Minimap_GenerateWorldMap_Postfix triggered");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Minimap_GenerateWorldMap_Postfix triggered");
        if (!TryCaptureBaseTextures())
   {
       if (OverlayEnabled)

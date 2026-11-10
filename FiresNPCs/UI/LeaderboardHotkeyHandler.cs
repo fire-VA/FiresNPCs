@@ -27,6 +27,10 @@ namespace FiresRPGmaker.UI
 
         private void Update()
         {
+            // 0.0.828 (perf pass): nothing to do unless the key went down this frame; the state checks only run then
+            var perfCfg = ConfigManager.Instance;
+            if ((perfCfg?.configPerfHotkeyGate?.Value ?? false) && perfCfg.configLeaderboardHotkey != null
+                && !FiresCore.Input.FiresKeys.GetKeyDown(perfCfg.configLeaderboardHotkey.Value.MainKey)) return;
             if (!CanProcessHotkey()) return;
             var cfg = ConfigManager.Instance?.configLeaderboardHotkey;
             if (cfg == null || cfg.Value.MainKey == KeyCode.None) return;

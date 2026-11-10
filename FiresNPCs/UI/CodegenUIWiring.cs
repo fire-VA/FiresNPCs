@@ -174,7 +174,9 @@ namespace FiresRPGmaker.UI
         public static Toggle FindToggle(Transform parent, string path)
         {
             var t = FindChild(parent, path);
-            return t?.GetComponentInChildren<Toggle>(true);
+            var tg = t?.GetComponentInChildren<Toggle>(true);
+            if (tg != null && path != null && path.IndexOf("Auto-Complete", System.StringComparison.OrdinalIgnoreCase) >= 0) global::FiresRPGmaker.UI.KitControlsAdapter.Kitize(tg);   // quest Auto-Complete = Core kit switch
+            return tg;
         }
 
         public static ScrollRect FindScrollRect(Transform parent, string path)

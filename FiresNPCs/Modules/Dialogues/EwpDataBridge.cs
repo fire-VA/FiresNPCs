@@ -30,7 +30,7 @@ namespace FiresRPGmaker.Modules.Dialogues
     {
         private static string _ewpDir;
         private static string _ewpFilePath;
-        private static bool _rpcsRegistered;
+        private static ZRoutedRpc _rpcsRegisteredOn;
 
         // RPC names
         public const string RPC_ServerAddKey = "VA_EwpAddKey";
@@ -56,8 +56,10 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// </summary>
         public static void RegisterRPCs()
         {
-            if (_rpcsRegistered) return;
-            _rpcsRegistered = true;
+            // Guard by the ZRoutedRpc instance, not a bool: a bool is never reset, so a
+            // process that first ran as a client would never bind these server RPCs when it later hosts, nor after a rejoin.
+            if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(_rpcsRegisteredOn)) return;
+            _rpcsRegisteredOn = ZRoutedRpc.instance;
 
             try
             {
@@ -68,14 +70,22 @@ namespace FiresRPGmaker.Modules.Dialogues
                     ZRoutedRpc.instance.Register<string, int>(RPC_ServerWriteKey, RPC_OnServerWriteKey);
                     ZRoutedRpc.instance.Register(RPC_ServerClearMyKeys, new Action<long>(RPC_OnServerClearMyKeys));
                     ZRoutedRpc.instance.Register(RPC_ServerClearAllKeys, new Action<long>(RPC_OnServerClearAllKeys));
-                    Debug.Log("[EwpDataBridge] Server RPCs registered");
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[EwpDataBridge] Server RPCs registered");
+                    global::FiresRPGmaker.Managers.RpcRegistration.Logged("EwpDataBridge", 5);
                 }
             }
             catch
             {
-                Debug.Log("[EwpDataBridge] RPCs already registered, skipping");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[EwpDataBridge] RPCs already registered, skipping");
             }
         }
+
+        // Keys are written to the EWP file as "<id>/<key>" lines (": value" for valued keys), so a key from the network may not
+        // carry a '/', ':', '#' or a line break: letters, digits, space, '_', '-' and '.' only.
+        private static readonly System.Text.RegularExpressions.Regex SafeKeyPattern =
+            new System.Text.RegularExpressions.Regex(@"^[A-Za-z0-9_\-. ]{1,96}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        internal static bool IsSafeKeyName(string keyName) => !string.IsNullOrEmpty(keyName) && SafeKeyPattern.IsMatch(keyName) && keyName.Trim().Length > 0;
 
         // -- Server-side RPC handlers --
 
@@ -83,7 +93,8 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             string platformId = ResolvePlatformId(sender);
             if (string.IsNullOrEmpty(platformId)) return;
-            Debug.Log($"[EwpDataBridge] RPC AddKey from {platformId}: {keyName}");
+            if (!IsSafeKeyName(keyName)) { Debug.LogWarning($"[EwpDataBridge] AddKey refused: unsafe key name from {platformId}"); return; }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] RPC AddKey from {platformId}: {keyName}");
             FileAddKey(platformId, keyName);
         }
 
@@ -91,7 +102,8 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             string platformId = ResolvePlatformId(sender);
             if (string.IsNullOrEmpty(platformId)) return;
-            Debug.Log($"[EwpDataBridge] RPC RemoveKey from {platformId}: {keyName}");
+            if (!IsSafeKeyName(keyName)) { Debug.LogWarning($"[EwpDataBridge] RemoveKey refused: unsafe key name from {platformId}"); return; }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] RPC RemoveKey from {platformId}: {keyName}");
             FileRemoveKey(platformId, keyName);
         }
 
@@ -99,7 +111,8 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             string platformId = ResolvePlatformId(sender);
             if (string.IsNullOrEmpty(platformId)) return;
-            Debug.Log($"[EwpDataBridge] RPC WriteKey from {platformId}: {keyName} = {value}");
+            if (!IsSafeKeyName(keyName)) { Debug.LogWarning($"[EwpDataBridge] WriteKey refused: unsafe key name from {platformId}"); return; }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] RPC WriteKey from {platformId}: {keyName} = {value}");
             FileWriteKey(platformId, keyName, value);
         }
 
@@ -107,13 +120,14 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             string platformId = ResolvePlatformId(sender);
             if (string.IsNullOrEmpty(platformId)) return;
-            Debug.Log($"[EwpDataBridge] RPC ClearMyKeys from {platformId}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] RPC ClearMyKeys from {platformId}");
             FileClearPlayerKeys(platformId);
         }
 
         private static void RPC_OnServerClearAllKeys(long sender)
         {
-            Debug.Log($"[EwpDataBridge] RPC ClearAllKeys from sender {sender}");
+            if (!FiresCore.Sync.AdminSyncing.IsAdmin(sender) && sender != ZDOMan.GetSessionID()) { Debug.LogWarning($"[EwpDataBridge] ClearAllKeys refused: peer {sender} is not an admin"); return; }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] RPC ClearAllKeys from sender {sender}");
             FileClearAllKeys();
         }
 
@@ -242,12 +256,12 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             if (ZNet.instance != null && ZNet.instance.IsServer())
             {
-                Debug.Log($"[EwpDataBridge] AddKey (server-direct): {steamId}/{keyName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] AddKey (server-direct): {steamId}/{keyName}");
                 FileAddKey(steamId, keyName);
             }
             else if (ZRoutedRpc.instance != null)
             {
-                Debug.Log($"[EwpDataBridge] AddKey (client RPC): {keyName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] AddKey (client RPC): {keyName}");
                 ZRoutedRpc.instance.InvokeRoutedRPC(RPC_ServerAddKey, keyName);
             }
             else
@@ -264,12 +278,12 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             if (ZNet.instance != null && ZNet.instance.IsServer())
             {
-                Debug.Log($"[EwpDataBridge] WriteKey (server-direct): {steamId}/{keyName} = {value}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] WriteKey (server-direct): {steamId}/{keyName} = {value}");
                 FileWriteKey(steamId, keyName, value);
             }
             else if (ZRoutedRpc.instance != null)
             {
-                Debug.Log($"[EwpDataBridge] WriteKey (client RPC): {keyName} = {value}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] WriteKey (client RPC): {keyName} = {value}");
                 ZRoutedRpc.instance.InvokeRoutedRPC(RPC_ServerWriteKey, keyName, value);
             }
             else
@@ -286,12 +300,12 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             if (ZNet.instance != null && ZNet.instance.IsServer())
             {
-                Debug.Log($"[EwpDataBridge] RemoveKey (server-direct): {steamId}/{keyName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] RemoveKey (server-direct): {steamId}/{keyName}");
                 FileRemoveKey(steamId, keyName);
             }
             else if (ZRoutedRpc.instance != null)
             {
-                Debug.Log($"[EwpDataBridge] RemoveKey (client RPC): {keyName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] RemoveKey (client RPC): {keyName}");
                 ZRoutedRpc.instance.InvokeRoutedRPC(RPC_ServerRemoveKey, keyName);
             }
             else
@@ -308,12 +322,12 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             if (ZNet.instance != null && ZNet.instance.IsServer())
             {
-                Debug.Log($"[EwpDataBridge] ClearMyKeys (server-direct): {steamId}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] ClearMyKeys (server-direct): {steamId}");
                 FileClearPlayerKeys(steamId);
             }
             else if (ZRoutedRpc.instance != null)
             {
-                Debug.Log($"[EwpDataBridge] ClearMyKeys (client RPC)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] ClearMyKeys (client RPC)");
                 ZRoutedRpc.instance.InvokeRoutedRPC(RPC_ServerClearMyKeys);
             }
             else
@@ -330,12 +344,12 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             if (ZNet.instance != null && ZNet.instance.IsServer())
             {
-                Debug.Log("[EwpDataBridge] ClearAllKeys (server-direct)");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[EwpDataBridge] ClearAllKeys (server-direct)");
                 FileClearAllKeys();
             }
             else if (ZRoutedRpc.instance != null)
             {
-                Debug.Log("[EwpDataBridge] ClearAllKeys (client RPC)");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[EwpDataBridge] ClearAllKeys (client RPC)");
                 ZRoutedRpc.instance.InvokeRoutedRPC(RPC_ServerClearAllKeys);
             }
             else
@@ -466,7 +480,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 {
                     lines.Add(entry);
                     File.WriteAllLines(_ewpFilePath, lines.ToArray(), Encoding.UTF8);
-                    Debug.Log($"[EwpDataBridge] Added key to file: {entry}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] Added key to file: {entry}");
                 }
             }
             catch (Exception ex)
@@ -508,7 +522,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     lines.Add(newLine);
 
                 File.WriteAllLines(_ewpFilePath, lines.ToArray(), Encoding.UTF8);
-                Debug.Log($"[EwpDataBridge] Wrote key to file: {newLine}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] Wrote key to file: {newLine}");
             }
             catch (Exception ex)
             {
@@ -537,14 +551,14 @@ namespace FiresRPGmaker.Modules.Dialogues
                 if (removedCount > 0)
                 {
                     File.WriteAllLines(_ewpFilePath, lines.ToArray(), Encoding.UTF8);
-                    Debug.Log($"[EwpDataBridge] Removed {removedCount} line(s) from file: {entry}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] Removed {removedCount} line(s) from file: {entry}");
                 }
                 else
                 {
-                    Debug.Log($"[EwpDataBridge] Key not found in file for removal: {entry}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] Key not found in file for removal: {entry}");
                     // Log all lines for debugging
                     foreach (var line in lines)
-                        Debug.Log($"[EwpDataBridge]   line: '{line}'");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge]   line: '{line}'");
                 }
             }
             catch (Exception ex)
@@ -568,11 +582,11 @@ namespace FiresRPGmaker.Modules.Dialogues
                 if (removedCount > 0)
                 {
                     File.WriteAllLines(_ewpFilePath, lines.ToArray(), Encoding.UTF8);
-                    Debug.Log($"[EwpDataBridge] Cleared {removedCount} key(s) for player {platformId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] Cleared {removedCount} key(s) for player {platformId}");
                 }
                 else
                 {
-                    Debug.Log($"[EwpDataBridge] No keys found for player {platformId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[EwpDataBridge] No keys found for player {platformId}");
                 }
             }
             catch (Exception ex)
@@ -589,7 +603,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 if (!File.Exists(_ewpFilePath)) return;
 
                 File.WriteAllText(_ewpFilePath, "{}", Encoding.UTF8);
-                Debug.Log("[EwpDataBridge] Cleared ALL keys from ewp_data.yaml");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[EwpDataBridge] Cleared ALL keys from ewp_data.yaml");
             }
             catch (Exception ex)
             {

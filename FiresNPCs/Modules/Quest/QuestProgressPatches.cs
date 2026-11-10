@@ -22,14 +22,14 @@ namespace FiresRPGmaker.Modules.Quest
         // Rate limiting for combat logs to reduce spam
         private static System.Collections.Generic.Dictionary<string, DateTime> _lastLogTimes = new System.Collections.Generic.Dictionary<string, DateTime>();
         private static readonly TimeSpan LOG_THROTTLE_INTERVAL = TimeSpan.FromSeconds(5);
-        
+
         /// <summary>
         /// Check if we should log for a specific key (rate-limited to once per LOG_THROTTLE_INTERVAL).
         /// </summary>
         private static bool ShouldLogForKey(string key)
         {
             if (!FiresLogger.VerboseEnabled) return false;
-            
+
             var now = DateTime.UtcNow;
             if (_lastLogTimes.TryGetValue(key, out var lastTime))
             {
@@ -187,7 +187,7 @@ namespace FiresRPGmaker.Modules.Quest
                                 FiresLogger.LogVerbose($"[FiresRPGmaker] Recorded kill for companion {killingCompanion.GetDisplayName()}: {prefab}");
                             }
                         }
-                        
+
                         // =========================================
                         // ARCHETYPE SKILL XP FOR KILLS
                         // Award bonus XP to any active combat ability
@@ -198,7 +198,7 @@ namespace FiresRPGmaker.Modules.Quest
                             // Award kill XP to the companion's currently active combat skills
                             // This rewards any offensive ability that contributed to the kill
                             skillSystem.OnKillWithAbility(target, star > 0);
-                            
+
                             if (FiresLogger.VerboseEnabled)
                             {
                                 FiresLogger.LogVerbose($"[FiresRPGmaker] Awarded skill XP for kill to companion {killingCompanion.GetDisplayName()}");
@@ -286,7 +286,7 @@ namespace FiresRPGmaker.Modules.Quest
                                 // Always increment main stat (star0 included here)
                                 // For companion kills, we track both player stats and companion-specific stats
                                 var pkg = CreateStatPackage(playerId, $"kills.{statKey}", 1);
-                                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_UpdateStat", pkg);
+                                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_UpdateStat"), "FiresRPGmaker_UpdateStat", pkg);
 
                                 // Feed the server-authoritative cross-player leaderboard (Core repo). PvP kills
                                 // route to the KilledPlayers column; everything else to KilledCreatures.
@@ -313,14 +313,14 @@ namespace FiresRPGmaker.Modules.Quest
                                 if (star > 0)
                                 {
                                     var pkgStar = CreateStatPackage(playerId, $"kills.{statKey}{star}Star", 1);
-                                    ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_UpdateStat", pkgStar);
+                                    ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_UpdateStat"), "FiresRPGmaker_UpdateStat", pkgStar);
                                 }
 
                                 // Track companion-assisted kills separately
                                 if (killingCompanion != null)
                                 {
                                     var pkgCompanion = CreateStatPackage(playerId, $"companion_kills.{statKey}", 1);
-                                    ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_UpdateStat", pkgCompanion);
+                                    ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_UpdateStat"), "FiresRPGmaker_UpdateStat", pkgCompanion);
                                 }
 
                                 if (FiresLogger.VerboseEnabled)
@@ -361,7 +361,7 @@ namespace FiresRPGmaker.Modules.Quest
                                     sharePkg.Write(prefab);
                                     sharePkg.Write(star);
                                     sharePkg.Write(false);   // shared credit carries no companion attribution
-                                    ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_KillEvent", sharePkg);
+                                    ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_KillEvent"), "FiresRPGmaker_KillEvent", sharePkg);
                                 }
                             }
                         }
@@ -444,7 +444,7 @@ namespace FiresRPGmaker.Modules.Quest
                                         {
                                             pkg.Write(killingCompanion.companionId ?? "");
                                         }
-                                        ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_KillEvent", pkg);
+                                        ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_KillEvent"), "FiresRPGmaker_KillEvent", pkg);
                                         if (FiresLogger.VerboseEnabled)
                                         {
                                             string killerInfo = killingCompanion != null ? $"companion {killingCompanion.GetDisplayName()}" : "player";

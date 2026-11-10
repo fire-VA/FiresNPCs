@@ -54,7 +54,11 @@ namespace FiresRPGmaker.Modules.ChatSystem
         private GameObject _bodyGroup;          // collapsible: body + input row
         private TMP_Text _bodyText, _inputMirror, _placeholder;
         private ScrollRect _scroll;
+        private RectTransform _content, _vpRect;   // fixed-size scroll area
+        private float _lastVpH = -1f;
+        private float _inputReserve;            // extra bottom room under the last line while the input row is taller than one line
         private Image _caret;
+        private RectMask2D _inputMask;
         private Button[] _tabBtns;
         private Image[] _tabBgs, _tabFrames;
         private TMP_Text[] _tabLbls;
@@ -63,6 +67,23 @@ namespace FiresRPGmaker.Modules.ChatSystem
         private int _lastBufCount = -1;
         private string _lastBufTail;
         private float _lastScale = -1f;
+        // grow UPWARD only while typing: a TEMPORARY visual height. The root _win (the rect Core's dock places, hit-tests
+        // and saves) is never resized; a child background (_growBg) plus the header and body group are pushed up by _growExtra local units.
+        private const float GrowMax = 300f, GrowTopMargin = 20f;
+        private RectTransform _growBg, _bodyRect;
+        private Image _winImg, _growImg;
+        private Color _winImgColor;
+        private float _growExtra;
+        // the grown chat draws ON TOP of every HUD element: active-state order of the chat's own root canvas
+        // (Core lifts the minimap column/status to 30000 and the inventory to 30100; dock grips 30900, layout overlay 31000).
+        internal const int FrontOrder = 30500;
+        private bool _front;
+        private int _baseOrder = 28;
+        internal bool TestFront => _front;
+        internal int TestBaseOrder => _baseOrder;
+        internal Canvas TestCanvas => _canvas;
+        private Vector2 _visShift;   // visible-content shift that keeps the panel on screen (root untouched)
+        private Vector2 _anchorBR; private bool _anchorValid;   // compact drawn bottom-right (screen px), pinned while active
 
         public static void EnsureCreated()
         {
@@ -99,7 +120,20 @@ namespace FiresRPGmaker.Modules.ChatSystem
             if (!PokerActive && _pokerWasActive && _pokerView) { _pokerView = false; _lastBufCount = -1; RefreshTabs(); }
             _pokerWasActive = PokerActive;
             if (_pokerTab != null && _pokerTab.gameObject.activeSelf != PokerActive) _pokerTab.gameObject.SetActive(PokerActive);
-            if (_canvas != null) _canvas.sortingOrder = PokerActive ? 6600 : 28;
+            // the grown chat draws ON TOP of every HUD element it covers: the chat owns its own root ScreenSpaceOverlay
+            // canvas and Core's dock never reparents a registered rect (DockService only adds grip children with their own override
+            // canvases), but Core raises the minimap column/status canvases to 30000 while the cursor is free (ShellMinimapWatch.Apply,
+            // ShellMinimapClicks.Raise) - i.e. while typing. Active = the root canvas at FrontOrder; compact = the exact base order again.
+            // Only sortingOrder changes: no rect, parent or sibling the dock places or saves.
+            bool front = !_collapsed && Chat.instance.HasFocus();
+            int baseOrder = PokerActive ? 6600 : 28;
+            if (_canvas != null)
+            {
+                int want = front ? FrontOrder : baseOrder;
+                if (_canvas.sortingOrder != want) _canvas.sortingOrder = want;
+                if (front && !_front) global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatChannelUI] brought to front (root canvas sortingOrder, order {FrontOrder}, base {baseOrder})");
+                _front = front; _baseOrder = baseOrder;
+            }
 
             // Mirror vanilla's own show/hide (fade timer toggles Chat_box) + always show while typing or at a table.
             bool focused = Chat.instance.m_input.isFocused;
@@ -108,11 +142,14 @@ namespace FiresRPGmaker.Modules.ChatSystem
             if (!show) return;
 
             ApplyLayoutConfig();
+            ApplyActiveGrow(Chat.instance.HasFocus() && !_collapsed);   // vanilla's own 'chat active' (window shown + input focused)
             SyncBuffer();
+            // the dock grip changed the window -> re-fit the content to the new viewport (content only)
+            if (_vpRect != null && Mathf.Abs(_vpRect.rect.height - _lastVpH) > 0.5f) { _lastVpH = _vpRect.rect.height; FitContent(true); }
             SyncInputRow(focused);
             HandleTabCycle(focused);
             HandleArrange();
-            SaveDockSize();   // 0.0.657
+            SaveDockSize();
         }
 
         // ── build ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -134,14 +171,24 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _win = win.rectTransform;
             _win.anchorMin = _win.anchorMax = new Vector2(1f, 0f);   // native bottom-right
             _win.pivot = new Vector2(1f, 0f);
-            _win.sizeDelta = new Vector2(CurW, CurH);   // 0.0.657: the saved size (Core grip)
+            _win.sizeDelta = new Vector2(CurW, CurH);   // the saved size (Core grip)
             _win.anchoredPosition = new Vector2(-24f, 22f);
+            _winImg = win; _winImgColor = win.color;
+
+            // the active-state background - a child of the root that extends ABOVE it by _growExtra (root rect untouched).
+            _growImg = NewImg(_win, "GrowBg", FiresChatSkin.Panel, Image.Type.Sliced);
+            _growImg.color = _winImgColor; _growImg.raycastTarget = true; _growImg.enabled = false;
+            _growBg = _growImg.rectTransform;
+            _growBg.anchorMin = Vector2.zero; _growBg.anchorMax = Vector2.one; _growBg.offsetMin = Vector2.zero; _growBg.offsetMax = Vector2.zero;
+            _growBg.SetAsFirstSibling();
 
             // Header — title, tabs, minimize.
             var head = new GameObject("Header", typeof(RectTransform)).GetComponent<RectTransform>();
             head.SetParent(_win, false);
             head.anchorMin = new Vector2(0f, 1f); head.anchorMax = new Vector2(1f, 1f); head.pivot = new Vector2(0.5f, 1f);
             head.sizeDelta = new Vector2(-24f, HeadH); head.anchoredPosition = new Vector2(0f, -9f);
+            _headRect = head;   // Core's live drag handle (empty header space; title, tabs and buttons keep their clicks)
+            { var hi = head.gameObject.AddComponent<Image>(); hi.color = new Color(0f, 0f, 0f, 0f); hi.raycastTarget = true; }
 
             var title = NewTxt(head, "Chat", 14f, FiresChatSkin.Gold);
             title.alignment = TextAlignmentOptions.MidlineLeft;
@@ -222,6 +269,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             bg.SetParent(_win, false);
             bg.anchorMin = Vector2.zero; bg.anchorMax = Vector2.one;
             bg.offsetMin = new Vector2(12f, 12f); bg.offsetMax = new Vector2(-12f, -(HeadH + 14f));
+            _bodyRect = bg;
 
             var vp = NewImg(bg, "BodyViewport", null, Image.Type.Simple);
             vp.color = new Color(0f, 0f, 0f, 0.30f);
@@ -243,7 +291,10 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _bodyText.richText = true;
             _bodyText.raycastTarget = false;
             _bodyText.margin = new Vector4(9f, 6f, 9f, 6f);
-            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            // fixed-size scroll area: no ContentSizeFitter - FitContent() sizes ONLY the content inside the masked
+            // viewport (max of viewport height and the text's preferred height), so short history sits at the bottom like vanilla
+            // and long history scrolls; nothing above the content (viewport, body, window) is ever sized from the text.
+            _content = content; _vpRect = vprt;
 
             _scroll = vp.gameObject.AddComponent<ScrollRect>();
             _scroll.content = content; _scroll.viewport = vprt;
@@ -295,7 +346,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             if (font != null) foreach (var t in _win.GetComponentsInChildren<TMP_Text>(true)) t.font = font;
 
             RefreshTabs();
-            Debug.Log("[FiresChat] custom window built (tabs=" + channels.Length + ")");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresChat] custom window built (tabs=" + channels.Length + ")");
             _built = true;
         }
 
@@ -315,7 +366,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
                 foreach (var g in inputGO.GetComponentsInChildren<Graphic>(true))
                     g.enabled = true;   // graphics re-enabled but fully transparent via the CanvasGroup
                 _vanillaHidden = true;
-                Debug.Log("[FiresChat] vanilla chat visuals hidden (engine untouched)");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresChat] vanilla chat visuals hidden (engine untouched)");
             }
             catch (Exception ex) { Debug.LogWarning("[FiresChat] hide-vanilla: " + ex.Message); _vanillaHidden = true; }
         }
@@ -323,7 +374,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         // ── per-frame sync ──────────────────────────────────────────────────────────────────────────────────────
         private void ApplyLayoutConfig()
         {
-            if (_dockOwned) return;   // 0.0.608: Core's HUD dock owns position + scale
+            if (_dockOwned) return;   // Core's HUD dock owns position + scale
             float s = ChatChannelManager.UiScale != null ? Mathf.Clamp(ChatChannelManager.UiScale.Value, 0.6f, 2.5f) : 1f;
             if (!Mathf.Approximately(s, _lastScale)) { _lastScale = s; _win.localScale = new Vector3(s, s, 1f); }
             float ox = ChatChannelManager.OffsetX != null ? ChatChannelManager.OffsetX.Value : 0f;
@@ -337,9 +388,9 @@ namespace FiresRPGmaker.Modules.ChatSystem
             {
                 if (PokerFeedVersion == _lastFeedVer) return;
                 _lastFeedVer = PokerFeedVersion;
+                bool pAt = AtBottom();
                 _bodyText.text = PokerFeed.Count > 0 ? string.Join("\n", PokerFeed) : "<i>The table is quiet…</i>";
-                Canvas.ForceUpdateCanvases();
-                _scroll.verticalNormalizedPosition = 0f;
+                FitContent(pAt);
                 return;
             }
 
@@ -348,10 +399,99 @@ namespace FiresRPGmaker.Modules.ChatSystem
             string tail = buf.Count > 0 ? buf[buf.Count - 1] : null;
             if (buf.Count == _lastBufCount && tail == _lastBufTail) return;
             _lastBufCount = buf.Count; _lastBufTail = tail;
+            bool at = AtBottom() || _lastBufCount <= 1;
             _bodyText.text = string.Join("\n", buf);
-            Canvas.ForceUpdateCanvases();
-            _scroll.verticalNormalizedPosition = 0f;
+            FitContent(at);
         }
+
+        // fixed-size chat scroll area, vanilla-like: true when the view is at (within 4 px of) the newest line or there
+        // is nothing to scroll; a reader who scrolled up keeps his place when new lines arrive.
+        private bool AtBottom()
+        {
+            if (_scroll == null || _content == null || _vpRect == null) return true;
+            float over = _content.rect.height - _vpRect.rect.height;
+            if (over <= 1f) return true;
+            return _scroll.verticalNormalizedPosition * over <= 4f;
+        }
+
+        // sizes the CONTENT only (inside the RectMask2D viewport), never the viewport or window; optionally snaps to the newest line.
+        private void FitContent(bool stick)
+        {
+            if (_content == null || _vpRect == null || _bodyText == null) return;
+            var m = _bodyText.margin;
+            if (Mathf.Abs(m.w - (6f + _inputReserve)) > 0.1f) _bodyText.margin = new Vector4(m.x, m.y, m.z, 6f + _inputReserve);
+            float w = Mathf.Max(10f, _vpRect.rect.width);
+            float pref = _bodyText.GetPreferredValues(_bodyText.text ?? "", w, 0f).y;
+            float h = Mathf.Max(_vpRect.rect.height, pref);
+            if (Mathf.Abs(_content.sizeDelta.y - h) > 0.5f) _content.sizeDelta = new Vector2(0f, h);
+            if (stick && _scroll != null) { _scroll.StopMovement(); _scroll.verticalNormalizedPosition = 0f; }
+        }
+
+        // while the chat is ACTIVE the panel grows UPWARD only, may cover other UI; inactive = the compact saved/dock size .
+        // Bottom-right never moves: the root rect is untouched (Core's dock places/hit-tests by the root's screen rect + top-left and only
+        // saves a size from its own grip via SizeChanged; a root sizeDelta change would move that top-left and risk a re-place/save), so the
+        // extra height lives in children only. extra = min(300, room up to screen top - 20 GUI above the compact top); 0 = exact restore.
+        private void ApplyActiveGrow(bool active)
+        {
+            if (_win == null || _bodyRect == null || _headRect == null || _growBg == null) return;
+            float extra = 0f;
+            // Core's dock put the root 45.9 GUI past the right edge at 3440x1440: the VISIBLE content
+            // (background, header, body) is shifted left/up inside the screen with the 20 GUI margin; the root rect the dock places and
+            // saves is never touched. Measured every frame from the root's current screen rect, so a dock move re-fits at once.
+            Vector2 shift = Vector2.zero;
+            {
+                var c = new Vector3[4]; _win.GetWorldCorners(c);
+                var cam = _canvas != null && _canvas.renderMode != RenderMode.ScreenSpaceOverlay ? _canvas.worldCamera : null;
+                Vector2 bl = RectTransformUtility.WorldToScreenPoint(cam, c[0]), tr = RectTransformUtility.WorldToScreenPoint(cam, c[2]);
+                float bot = bl.y, top = tr.y;
+                float ppu = _win.rect.height > 1f ? (top - bot) / _win.rect.height : 1f;   // screen px per window-local unit
+                float inv = 1f / Mathf.Max(0.0001f, ppu);
+                float gui = _canvas != null && _canvas.scaleFactor > 0.0001f ? _canvas.scaleFactor : 1f;
+                float m = GrowTopMargin * gui;
+                float overR = tr.x - (Screen.width - m);              // px past the right margin
+                if (overR > 0f) shift.x = -Mathf.Min(overR, Mathf.Max(0f, bl.x - m)) * inv;   // never past the left margin
+                float overB = m - bot;                                 // px below the bottom margin
+                if (overB > 0f) shift.y = Mathf.Min(overB, Mathf.Max(0f, Screen.height - m - top)) * inv;
+                shift = new Vector2(Mathf.Round(shift.x), Mathf.Round(shift.y));
+                // Core's dock can re-place the ROOT while typing (and the
+                // per-frame shift followed it down): the compact drawn bottom-right is captured in screen px while INACTIVE; while ACTIVE the
+                // visual shift pins the drawn bottom-right to that point whatever the root does; growth is upward only, capped by the room
+                // to the top margin. The root's position is never written here.
+                if (!active) { _anchorBR = new Vector2(tr.x + shift.x * ppu, bot + shift.y * ppu); _anchorValid = true; }
+                else if (_anchorValid) shift = new Vector2((_anchorBR.x - tr.x) * inv, (_anchorBR.y - bot) * inv);   // unrounded = sub-px exact
+                if (active)
+                {
+                    float room = (Screen.height - m - top) * inv - shift.y;   // the grown top respects the screen top after the shift
+                    // chat OPENED as a giant window: the grow was a flat GrowMax (300) the moment the
+                    // input took focus, so every open doubled the panel. Open = the compact/saved size; the panel grows up only by
+                    // the extra rows the typed text actually wraps to (_inputReserve), so the message area never shrinks while typing.
+                    float want = Mathf.Max(0f, _inputReserve);
+                    extra = Mathf.Floor(Mathf.Clamp(Mathf.Min(want, room), 0f, GrowMax));
+                }
+            }
+            if (Mathf.Abs(extra - _growExtra) <= 0.01f && (shift - _visShift).sqrMagnitude <= 0.0001f && _growImg.enabled == (extra > 0f || shift != Vector2.zero)) return;
+            _growExtra = extra; _visShift = shift;
+            bool on = extra > 0f || shift != Vector2.zero;
+            _growBg.offsetMin = shift; _growBg.offsetMax = new Vector2(shift.x, shift.y + extra);
+            _growImg.enabled = on;
+            if (_winImg != null) _winImg.color = on ? new Color(_winImgColor.r, _winImgColor.g, _winImgColor.b, 0f) : _winImgColor;   // alpha 0 keeps its raycast
+            _headRect.anchoredPosition = new Vector2(shift.x, -9f + extra + shift.y);
+            _bodyRect.offsetMin = new Vector2(12f + shift.x, 12f + shift.y);
+            _bodyRect.offsetMax = new Vector2(-12f + shift.x, -(HeadH + 14f) + extra + shift.y);
+            _lastVpH = -1f;   // re-fit the content to the new viewport height on this frame's check
+        }
+
+        // the VISUAL panel rect (grown background while active, else the root) + input handles.
+        internal RectTransform TestVisual => _growImg != null && _growImg.enabled ? _growBg : _win;
+        internal float TestGrowExtra => _growExtra;
+        internal RectTransform TestInputRow => _inputMirror != null ? _inputMirror.transform.parent as RectTransform : null;
+        internal TMP_Text TestInputMirror => _inputMirror;
+
+        // read-only handles for the test.
+        internal RectTransform TestWindow => _win;
+        internal RectTransform TestViewport => _vpRect;
+        internal TMP_Text TestBody => _bodyText;
+        internal ScrollRect TestScroll => _scroll;
 
         private void SyncInputRow(bool focused)
         {
@@ -374,15 +514,25 @@ namespace FiresRPGmaker.Modules.ChatSystem
             {
                 float wrapW = Mathf.Max(40f, irt.rect.width - 26f);
                 float pref = string.IsNullOrEmpty(_inputMirror.text) ? 0f : _inputMirror.GetPreferredValues(_inputMirror.text, wrapW, 0f).y;
-                float rowH = Mathf.Clamp(pref + 12f, InputH, InputH + 14f * 4f);
+                // 'input line 5 y 298-322 px in row 300-433': the cap (InputH + 56) was below 5 wrapped lines + the 8 unit
+                // text inset, so the last line hung under the row. Cap = 5 lines; past it the mirror scrolls so the caret's line stays in.
+                float rowCap = InputH + 18f * 4f;
+                float rowH = Mathf.Clamp(pref + 12f, InputH, rowCap);
+                float scrollUp = Mathf.Max(0f, pref + 12f - rowCap);
+                var mrt = _inputMirror.rectTransform;
+                if (Mathf.Abs(mrt.offsetMax.y - (-4f + scrollUp)) > 0.1f) { mrt.offsetMin = new Vector2(12f, 4f + scrollUp); mrt.offsetMax = new Vector2(-14f, -4f + scrollUp); }
+                if (_inputMask == null) { _inputMask = irt.gameObject.GetComponent<RectMask2D>(); if (_inputMask == null) _inputMask = irt.gameObject.AddComponent<RectMask2D>(); }   // scrolled-off top lines clip
                 if (Mathf.Abs(irt.sizeDelta.y - rowH) > 0.5f)
                 {
                     irt.sizeDelta = new Vector2(irt.sizeDelta.x, rowH);
-                    if (_scroll != null && _scroll.viewport != null)
-                        _scroll.viewport.offsetMin = new Vector2(_scroll.viewport.offsetMin.x, rowH + 6f);
+                    // fixed message area: the viewport rect is NOT moved any more (it was re-written here whenever the
+                    // input wrapped, so the message area resized while typing); the taller row overlays the viewport's bottom and the
+                    // content gets that much bottom margin so the newest line stays visible above the row.
+                    _inputReserve = rowH - InputH;
+                    FitContent(true);
                 }
                 if (text.Length > 20 && Time.frameCount % 45 == 0)
-                    Debug.Log($"[ChatWrap] len={text.Length} rowW={irt.rect.width:F0} wrapW={wrapW:F0} pref={pref:F0} rowH={rowH:F0} wrap={_inputMirror.enableWordWrapping} of={_inputMirror.overflowMode} mirrorW={_inputMirror.rectTransform.rect.width:F0}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatWrap] len={text.Length} rowW={irt.rect.width:F0} wrapW={wrapW:F0} pref={pref:F0} rowH={rowH:F0} wrap={_inputMirror.enableWordWrapping} of={_inputMirror.overflowMode} mirrorW={_inputMirror.rectTransform.rect.width:F0}");
             }
 
             bool caretOn = focused && (Time.unscaledTime % 1.06f) < 0.53f;
@@ -449,7 +599,8 @@ namespace FiresRPGmaker.Modules.ChatSystem
         {
             _collapsed = !_collapsed;
             _bodyGroup.SetActive(!_collapsed);
-            _win.sizeDelta = new Vector2(CurW, _collapsed ? HeadH + 22f : CurH);   // 0.0.657
+            if (_collapsed) ApplyActiveGrow(false);   // collapse never grows
+            _win.sizeDelta = new Vector2(CurW, _collapsed ? HeadH + 22f : CurH);
         }
 
         // ── arrange mode (Alt+C): free cursor, drag to move, corner grip to resize ────────────────────────────
@@ -511,10 +662,11 @@ namespace FiresRPGmaker.Modules.ChatSystem
                 "Chat arrange - drag to move, corner grip to resize. Alt+C or Esc to finish.");
         }
 
-        // 0.0.608 ([lead] 10-15, every HUD element movable): the chat window registers with Core's HUD dock (0.2.522+) as
+        // Every HUD element is movable: the chat window registers with Core's HUD dock (0.2.522+) as
         // "firesnpcs.chatchannels". While registered, the dock moves/scales it and saves the layout, so the chat's own
         // Offset/Scale config and arrange mode stop writing. Older Core: own arrange mode as before.
         private bool _dockOwned;
+        private RectTransform _headRect;
         private float CurW => ChatChannelManager.PanelWidth != null ? Mathf.Clamp(ChatChannelManager.PanelWidth.Value, 300f, 2000f) : WinW;
         private float CurH => ChatChannelManager.PanelHeight != null ? Mathf.Clamp(ChatChannelManager.PanelHeight.Value, 120f, 1400f) : WinH;
         private Vector2 _sizePending; private float _sizeDue = -1f;
@@ -529,7 +681,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             if (ChatChannelManager.PanelWidth != null) ChatChannelManager.PanelWidth.Value = WinW;
             if (ChatChannelManager.PanelHeight != null) ChatChannelManager.PanelHeight.Value = WinH;
             if (_win != null) _win.sizeDelta = new Vector2(WinW, _collapsed ? HeadH + 22f : WinH);
-            Debug.Log($"[FiresChat] chat window size reset to {WinW:0}x{WinH:0} (Core layout Reset)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresChat] chat window size reset to {WinW:0}x{WinH:0} (Core layout Reset)");
         }
         private void SaveDockSize()
         {
@@ -537,7 +689,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
             _sizeDue = -1f;
             if (ChatChannelManager.PanelWidth != null) ChatChannelManager.PanelWidth.Value = Mathf.Clamp(_sizePending.x, 300f, 2000f);
             if (ChatChannelManager.PanelHeight != null) ChatChannelManager.PanelHeight.Value = Mathf.Clamp(_sizePending.y, 120f, 1400f);
-            Debug.Log($"[FiresChat] chat window size saved {_sizePending.x:0}x{_sizePending.y:0} (Core grip)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresChat] chat window size saved {_sizePending.x:0}x{_sizePending.y:0} (Core grip)");
         }
         private void RegisterWithDock()
         {
@@ -545,11 +697,11 @@ namespace FiresRPGmaker.Modules.ChatSystem
             try
             {
                 var shell = Type.GetType("FiresCore.UI.Shell.FiresShell, FiresUnifiedCore", false);
-                // 0.0.608 ([lead] 10-15): the options type is FiresCore.UI.Shell.HudElementOptions, not ...Dock...; take it from the method itself.
+                // the options type is FiresCore.UI.Shell.HudElementOptions, not ...Dock...; take it from the method itself.
                 var reg = shell == null ? null : System.Linq.Enumerable.FirstOrDefault(shell.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static), m => m.Name == "RegisterHudElement" && m.GetParameters().Length == 3 && m.GetParameters()[0].ParameterType == typeof(string) && m.GetParameters()[1].ParameterType == typeof(RectTransform));
                 var optType = reg?.GetParameters()[2].ParameterType;
-                if (reg == null) { Debug.Log("[FiresChat] Core has no HUD dock (RegisterHudElement, 0.2.522+): the chat keeps its own arrange mode"); return; }
-                // 0.0.631 (Fire 10-15: chat misaligned vs his pre-overhaul default): the dock takes the window's CURRENT rect as its
+                if (reg == null) { global::FiresRPGmaker.FiresLogger.LogDebug("[FiresChat] Core has no HUD dock (RegisterHudElement, 0.2.522+): the chat keeps its own arrange mode"); return; }
+                // chat misaligned vs his pre-overhaul default: the dock takes the window's CURRENT rect as its
                 // default when no layout is saved, and this ran right after Build(), before the first ApplyLayoutConfig placed it. Place it
                 // exactly where the pre-dock code does (anchor -24/22 + the Offset config, Scale config) first.
                 ApplyLayoutConfig();
@@ -557,16 +709,20 @@ namespace FiresRPGmaker.Modules.ChatSystem
                 optType.GetField("Owner")?.SetValue(opt, "FiresRPGmaker");
                 optType.GetField("Label")?.SetValue(opt, "Chat channels");
                 optType.GetField("Resizable")?.SetValue(opt, true);
-                // 0.0.657 (Fire: a REAL resize - diagonal both axes, straight one axis): Core 0.2.578 SizeChanged + MinSize; Core sets
+                // a REAL resize - diagonal both axes, straight one axis: Core 0.2.578 SizeChanged + MinSize; Core sets
                 // sizeDelta per axis, the window's children are stretch-anchored so they re-lay, and the size is saved here (debounced)
                 optType.GetField("SizeChanged")?.SetValue(opt, (Action<Vector2>)OnDockSize);
                 optType.GetField("MinSize")?.SetValue(opt, new Vector2(300f, 120f));
-                // 0.0.658 (Core 0.2.579 SizeReset): the layout Reset also puts the chat back to its default 460x300
+                // Core 0.2.579 SizeReset: the layout Reset also puts the chat back to its default 460x300
                 optType.GetField("SizeReset")?.SetValue(opt, (Action)ResetDockSize);
+                // Core 0.2.583 HudElementOptions.LiveEdit + DragHandle: the chat moves by its header and resizes by its corner at ANY
+                // time, as its own arrange mode did before the dock - not only inside the layout editor
+                optType.GetField("LiveEdit")?.SetValue(opt, true);
+                optType.GetField("DragHandle")?.SetValue(opt, _headRect);
                 reg.Invoke(null, new object[] { "firesnpcs.chatchannels", _win, opt });
                 _dockOwned = true;
                 if (_arranging) ToggleArrange(false);
-                Debug.Log("[FiresChat] registered with Core's HUD dock as 'firesnpcs.chatchannels' (layout mode moves/scales it; own arrange off)");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresChat] registered with Core's HUD dock as 'firesnpcs.chatchannels' (layout mode moves/scales it; own arrange off)");
             }
             catch (Exception ex) { _dockOwned = false; Debug.LogWarning("[FiresChat] HUD dock registration failed, keeping own arrange: " + (ex.InnerException ?? ex).Message); }
         }

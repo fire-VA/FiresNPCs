@@ -10,7 +10,7 @@ namespace FiresRPGmaker.Modules.Dialogues
     /// <summary>
     /// Dialogue loader compatible with Marketplace/KG-style .cfg profiles.
     /// Reads from Config/FiresRPGmaker/Dialogues/ (all .cfg files, including legacy/ subfolder).
-    /// 
+    ///
     /// Supports the full Marketplace dialogue format:
     /// - [uid] or [uid=bg_image] headers
     /// - @interaction / @inrange / @outrange prefixes
@@ -45,7 +45,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     WriteSampleIfMissing();
                 }
                 LoadAllDialogues();
-                Debug.Log($"[FiresRPGmaker] DialogueCodex loaded {_dialogues.Count} dialogues");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] DialogueCodex loaded {_dialogues.Count} dialogues");
             }
             catch (Exception ex)
             {
@@ -90,7 +90,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         /// <summary>
         /// Removes all dialogues whose UIDs were defined in the given .cfg content.
-        /// Used when a file is deleted - the server sends empty content, 
+        /// Used when a file is deleted - the server sends empty content,
         /// and the client needs to remove those UIDs.
         /// </summary>
         public static void RemoveDialoguesFromContent(string content)
@@ -189,9 +189,9 @@ namespace FiresRPGmaker.Modules.Dialogues
             return firstToken != null && KnownConditionPrefixes.Contains(firstToken);
         }
 
-        /// <summary>0.0.532 (Fire 10-08, conditions fail closed): a part of an option line the parser doesn't understand
-        /// (a typo'd key, a condition without "Condition:" that isn't one of the bare names) used to be dropped silently,
-        /// which could leave the option un-gated. It now locks the option through a condition the engine always fails,
+        /// <summary>Conditions fail closed: a part of an option line the parser doesn't understand
+        /// (a typo'd key, a condition without "Condition:" that isn't one of the bare names) would otherwise leave the
+        /// option un-gated, so it locks the option through a condition the engine always fails,
         /// with one warning naming the line.</summary>
         private static void LockUnreadable(List<string[]> conditions, string uid, string segment, string line)
         {
@@ -200,12 +200,12 @@ namespace FiresRPGmaker.Modules.Dialogues
         }
         private static void ParseLines(string[] lines)
         {
-            // 0.0.607 (LOG_AUDIT 10-15 B9: 12 warnings per start): the old DialogueManager's example_merchant.cfg ("Key = Value",
+            // The old DialogueManager's example_merchant.cfg ("Key = Value",
             // DefaultGreeting/Response/Priority) sits in the same folder; it isn't a codex file, so it is skipped, not parsed.
             if (lines != null && lines.Any(l => l != null && (l.TrimStart().StartsWith("DefaultGreeting", StringComparison.OrdinalIgnoreCase)
                                                              || l.StartsWith("# Example Dialogue Profile for FiresRPGmaker", StringComparison.Ordinal))))
             {
-                Debug.Log("[DialogueCodex] skipped a legacy DialogueManager profile (DefaultGreeting / Key = Value format); not a codex dialogue file");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[DialogueCodex] skipped a legacy DialogueManager profile (DefaultGreeting / Key = Value format); not a codex dialogue file");
                 return;
             }
             RawDialogue current = null;

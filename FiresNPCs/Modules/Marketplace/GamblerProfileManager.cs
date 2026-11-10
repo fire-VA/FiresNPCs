@@ -91,7 +91,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 try { LoadOne(kv.Key, kv.Value); }
                 catch (System.Exception ex) { Debug.LogError("[GamblerProfileManager] " + kv.Key + ": " + ex.Message); }
             }
-            Debug.Log("[GamblerProfileManager] Loaded " + _profiles.Count + " profile(s)");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[GamblerProfileManager] Loaded " + _profiles.Count + " profile(s)");
         }
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Gamblers);
@@ -217,7 +217,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 _initialized = false;
                 EnsureLoaded();
                 global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Gamblers", safe + ".cfg", content);
-                Debug.Log($"[GamblerProfileManager] Saved gambler profile '{name}' (maxRolls={maxRolls}) -> {file}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[GamblerProfileManager] Saved gambler profile '{name}' (maxRolls={maxRolls}) -> {file}");
             }
             catch (System.Exception ex) { Debug.LogError("[GamblerProfileManager] SaveProfile failed: " + ex.Message); }
         }

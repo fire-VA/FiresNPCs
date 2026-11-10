@@ -68,13 +68,16 @@ namespace FiresRPGmaker.Modules.Territories
         Scale = 1 << 15,
         /// <summary>FirstPerson: the camera is forced to first person inside (Core's CrawlCamera); zoom-out ignored. No admin bypass.</summary>
         FirstPerson = 1 << 16,
+        /// <summary>Winter or Winter=cap (0..1, empty = 1): dynamic snow here follows the seasons (Core SnowField), up to the cap. Admin only.</summary>
+        Winter = 1 << 17,
     }
 
     public enum TerritoryShape
     {
         Circle,
         Square,
-        Rectangle
+        Rectangle,
+        Polygon   // X/Y hold the outline's vertices (x0..xn, z0..zn); appended, so stored values keep their meaning
     }
 
     public enum TerritoryType
@@ -134,10 +137,15 @@ namespace FiresRPGmaker.Modules.Territories
         public float IncreasedMonsterDamageValue;
         public string[] CustomEnvironment;
         public float MoveSpeedMultiplier = 1f;
-        public float Gravity = 1f;   // 0.0.498, with AdditionalTerritoryFlags.Gravity
-        public float Scale = 1f;     // 0.0.498, with AdditionalTerritoryFlags.Scale
+        public float Gravity = 1f;   // With AdditionalTerritoryFlags.Gravity
+        public float WinterCap = 1f;   // With AdditionalTerritoryFlags.Winter: the dynamic snow cap 0..1
+        public float Scale = 1f;     // With AdditionalTerritoryFlags.Scale
         public float OverridenHeight;
         public int OverridenBiome;
+        public string OverridenAltBiome = string.Empty;   // Vanilla 1.0 AltBiome name ("Plains - <blend>"), empty = the plain biome
+        public string FlagsLine = string.Empty;
+        public string ColorLine = string.Empty;   // The colour line exactly as stored (Edit keeps it unless a colour field changes)
+        public float BiomeBlend = 32f;   // ForceBiome=<biome>,<metres> - the height / paint blend band inside the edge
         public int AddMonsterLevel;
         public float Wind;
         public float DropMultiplier = 1f;
@@ -152,18 +160,65 @@ namespace FiresRPGmaker.Modules.Territories
         public TerritoryType Type;
         public string Owner = string.Empty;
         public int SellPrice;
-        // 0.0.533 (Fire 10-08): Vedr season / weather shown while inside (client-local, Vedr API 7+). Empty = none.
+        // Vedr season / weather shown while inside (client-local, Vedr API 7+). Empty = none.
         public string ForceSeason = string.Empty;
         public string ForceVedrWeather = string.Empty;
         public ValueTuple<int, int> HeightBounds = new(-100000, 100000);
         public string Permitted = string.Empty;
+        // Owner access options. Stored as Access...= tokens on the cfg flags line and synced in ONE trailing block after the
+        // territory list (WriteAccessBlock / ReadAccessBlock), not inside Serialize: territories are packed back to back, so
+        // a per-item append would misalign an older reader on the 2nd territory.
+        public bool PartyAllowed;              // AccessParty=1: the owners' party members count as allowed
+        public bool GuildAllowed;              // AccessGuild=1: the owners' guild members count as allowed
+        public bool RaidProtection = true;     // AccessRaid=0/1: stored + synced only in step 1 (no enforcement yet)
+        public bool OfflineProtection = true;  // AccessOffline=0/1: stored + synced only in step 1 (no enforcement yet)
 
         public Vector3 Pos3D() => new(X?.Length > 0 ? X[0] : 0, (HeightBounds.Item1 + HeightBounds.Item2) / 2f, Y?.Length > 0 ? Y[0] : 0);
 
         // The middle of the area on the ground plane. A Rectangle's X/Y hold its min corner and its size.
         public Vector2 Center2D() => Shape == TerritoryShape.Rectangle && X?.Length > 1 && Y?.Length > 1
             ? new Vector2(X[0] + X[1] * 0.5f, Y[0] + Y[1] * 0.5f)
+            : Shape == TerritoryShape.Polygon && IsPolygon ? (PolyMin + PolyMax) * 0.5f
             : new Vector2(X?.Length > 0 ? X[0] : 0, Y?.Length > 0 ? Y[0] : 0);
+
+        // ── Polygon (one outline; X/Y = its vertices). Bounds and area are cached on first use (vertices never change after load) ──
+        public bool IsPolygon => Shape == TerritoryShape.Polygon && X != null && Y != null && X.Length >= 3 && X.Length == Y.Length;
+        [NonSerialized] private bool _polyCached;
+        [NonSerialized] private Vector2 _polyMin, _polyMax;
+        [NonSerialized] private float _polyArea;
+        private void CachePoly()
+        {
+            if (_polyCached) return;
+            _polyCached = true;
+            float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue, area2 = 0f;
+            int n = X.Length;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                if (X[i] < minX) minX = X[i]; if (X[i] > maxX) maxX = X[i];
+                if (Y[i] < minY) minY = Y[i]; if (Y[i] > maxY) maxY = Y[i];
+                area2 += (float)X[j] * Y[i] - (float)X[i] * Y[j];
+            }
+            _polyMin = new Vector2(minX, minY); _polyMax = new Vector2(maxX, maxY); _polyArea = Mathf.Abs(area2) * 0.5f;
+        }
+        public Vector2 PolyMin { get { CachePoly(); return _polyMin; } }
+        public Vector2 PolyMax { get { CachePoly(); return _polyMax; } }
+        public float PolyArea { get { CachePoly(); return _polyArea; } }
+
+        // Even-odd point in polygon, after a bounds check (a few microseconds for a few hundred vertices).
+        private bool InsidePolygon(float x, float y)
+        {
+            if (!IsPolygon) return false;
+            CachePoly();
+            if (x < _polyMin.x || x > _polyMax.x || y < _polyMin.y || y > _polyMax.y) return false;
+            bool inside = false;
+            int n = X.Length;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                float yi = Y[i], yj = Y[j];
+                if ((yi > y) != (yj > y) && x < (X[j] - X[i]) * (y - yi) / (yj - yi) + X[i]) inside = !inside;
+            }
+            return inside;
+        }
         public bool DrawOnMap() => Colors.Count > 0;
         public bool UsingGradient() => Shape != TerritoryShape.Rectangle && Colors.Count > 1;
 
@@ -179,6 +234,8 @@ namespace FiresRPGmaker.Modules.Territories
                     return Vector2.Distance(new Vector2(X[0], Y[0]), new Vector2(x, y)) <= Radius;
                 case TerritoryShape.Rectangle:
                     return x >= X[0] && x <= X[0] + X[1] && y >= Y[0] && y <= Y[0] + Y[1];
+                case TerritoryShape.Polygon:
+                    return InsidePolygon(x, y);
                 default:
                     return false;
             }
@@ -245,10 +302,15 @@ namespace FiresRPGmaker.Modules.Territories
             pkg.Write(RevealCenterX);
             pkg.Write(RevealCenterZ);
             pkg.Write(RevealRadius);
-            pkg.Write(Gravity);   // 0.0.498: appended last, read with a fallback, so older packages still load
+            pkg.Write(Gravity);   // Appended last, read with a fallback, so older packages still load
             pkg.Write(Scale);
-            pkg.Write(ForceSeason ?? "");       // 0.0.533, appended last with a fallback
+            pkg.Write(ForceSeason ?? "");       // Appended last with a fallback
             pkg.Write(ForceVedrWeather ?? "");
+            pkg.Write(OverridenAltBiome ?? "");   // Appended last with a fallback
+            pkg.Write(BiomeBlend);
+            pkg.Write(FlagsLine ?? "");   // Appended last with a fallback
+            pkg.Write(ColorLine ?? "");
+            pkg.Write(WinterCap);   // 0.0.770, appended last with a fallback
         }
 
         public static Territory Deserialize(ZPackage pkg)
@@ -341,7 +403,59 @@ namespace FiresRPGmaker.Modules.Territories
             catch { t.Gravity = 1f; t.Scale = 1f; }
             try { t.ForceSeason = pkg.ReadString(); t.ForceVedrWeather = pkg.ReadString(); }
             catch { t.ForceSeason = string.Empty; t.ForceVedrWeather = string.Empty; }
+            try { t.OverridenAltBiome = pkg.ReadString(); t.BiomeBlend = pkg.ReadSingle(); }
+            catch { t.OverridenAltBiome = string.Empty; t.BiomeBlend = 32f; }
+            try { t.FlagsLine = pkg.ReadString(); } catch { t.FlagsLine = string.Empty; }
+            try { t.ColorLine = pkg.ReadString(); } catch { t.ColorLine = string.Empty; }
+            try { t.WinterCap = pkg.ReadSingle(); } catch { t.WinterCap = 1f; }
             return t;
+        }
+
+        // The access fields ride in one block written after the LAST territory of a package: marker, count, then one bit
+        // byte per territory. Older readers stop after `count` territories and never touch the trailing bytes; newer
+        // readers given an older package find nothing left and keep the defaults.
+        private const int AccessBlockMarker = 0x41434331;   // "ACC1"
+
+        public static void WriteAccessBlock(ZPackage pkg, IReadOnlyList<Territory> list, int start, int count)
+        {
+            pkg.Write(AccessBlockMarker);
+            pkg.Write(count);
+            for (int i = 0; i < count; i++)
+            {
+                var t = list[start + i];
+                byte bits = 0;
+                if (t != null)
+                {
+                    if (t.PartyAllowed) bits |= 1;
+                    if (t.GuildAllowed) bits |= 2;
+                    if (t.RaidProtection) bits |= 4;
+                    if (t.OfflineProtection) bits |= 8;
+                }
+                pkg.Write(bits);
+            }
+        }
+
+        /// <summary>Reads the trailing access block into list[start..start+count) when present; a package without
+        /// it (older server, older client cache) leaves the defaults. Never throws.</summary>
+        public static void ReadAccessBlock(ZPackage pkg, IList<Territory> list, int start, int count)
+        {
+            try
+            {
+                if (pkg == null || list == null || pkg.GetPos() + 8 > pkg.Size()) return;
+                if (pkg.ReadInt() != AccessBlockMarker) return;
+                int n = pkg.ReadInt();
+                for (int i = 0; i < n && pkg.GetPos() < pkg.Size(); i++)
+                {
+                    byte bits = pkg.ReadByte();
+                    if (i >= count || start + i >= list.Count || list[start + i] == null) continue;
+                    var t = list[start + i];
+                    t.PartyAllowed = (bits & 1) != 0;
+                    t.GuildAllowed = (bits & 2) != 0;
+                    t.RaidProtection = (bits & 4) != 0;
+                    t.OfflineProtection = (bits & 8) != 0;
+                }
+            }
+            catch { }
         }
 
         public Color32 CalculateGradient(float t)

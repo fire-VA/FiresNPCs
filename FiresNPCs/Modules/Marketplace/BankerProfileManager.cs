@@ -13,7 +13,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         public string Name;
         /// <summary>currency prefab name -> max balance the bank will hold for the player.</summary>
         public Dictionary<string, int> CurrencyLimits = new Dictionary<string, int>();
-        // 0.0.557 (Fire/audit: "the mockup says weekly, the code does per-minute"): `interest=` is the % per PERIOD and
+        // `interest=` is the % per PERIOD and
         // `interestperiod=` picks the period (minute | hour | day | week; default minute, so existing cfgs keep their meaning).
         public float InterestPerMinute; // % per PERIOD (name kept for compatibility); see InterestPeriod
         public string InterestPeriod = "minute";
@@ -88,7 +88,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 try { LoadOne(kv.Key, kv.Value); }
                 catch (System.Exception ex) { Debug.LogError("[BankerProfileManager] " + kv.Key + ": " + ex.Message); }
             }
-            Debug.Log("[BankerProfileManager] Loaded " + _profiles.Count + " profile(s)");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[BankerProfileManager] Loaded " + _profiles.Count + " profile(s)");
         }
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Bankers);
@@ -163,7 +163,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 _initialized = false;
                 EnsureLoaded();
                 global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Bankers", safe + ".cfg", content);
-                Debug.Log($"[BankerProfileManager] Saved banker profile '{name}' -> {file}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[BankerProfileManager] Saved banker profile '{name}' -> {file}");
             }
             catch (System.Exception ex) { Debug.LogError("[BankerProfileManager] SaveProfile failed: " + ex.Message); }
         }

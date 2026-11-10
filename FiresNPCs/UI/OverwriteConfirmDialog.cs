@@ -33,6 +33,7 @@ namespace FiresRPGmaker.UI
             _instance._onConfirm = onConfirm;
             _instance._messageText.text = $"A profile named <b>{profileName}</b> already exists.\nDo you want to overwrite it?";
             _dialogRoot.SetActive(true);
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(_instance, "OverwriteConfirm", _dialogRoot.transform.Find("DialogBox") as RectTransform);   // Core's live panel
         }
 
         /// <summary>

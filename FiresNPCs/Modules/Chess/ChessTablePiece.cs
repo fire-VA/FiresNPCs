@@ -79,7 +79,7 @@ namespace FiresRPGmaker.Modules.Chess
             int ok = 0;
             foreach (var def in Defs)
                 if (Configure(bundle, def)) ok++;
-            Debug.Log($"{FiresRPGmaker.PluginName}: chess pieces loaded ({ok}/{Defs.Length}) + queued for hammer registration.");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: chess pieces loaded ({ok}/{Defs.Length}) + queued for hammer registration.");
         }
 
         private static bool Configure(AssetBundle bundle, Def def)
@@ -225,7 +225,7 @@ namespace FiresRPGmaker.Modules.Chess
             }
 
             var nv = GetComponent<ZNetView>();
-            string cashCur = Modules.Poker.PokerCashTables.CurrencyCfg != null ? Modules.Poker.PokerCashTables.CurrencyCfg.Value : "Coins";
+            string cashCur = Modules.Poker.PokerCashTables.CurrencyCfg != null && !string.IsNullOrEmpty(Modules.Poker.PokerCashTables.CurrencyCfg.Value) ? Modules.Poker.PokerCashTables.CurrencyCfg.Value : "Coins";   // empty = Coins
             int cashBuy = Modules.Poker.PokerCashTables.BuyInCfg != null ? Modules.Poker.PokerCashTables.BuyInCfg.Value : 500;
             Modules.TableGames.GameModePopup.Show("Hold'em", "The gambler's table.", new[]
             {

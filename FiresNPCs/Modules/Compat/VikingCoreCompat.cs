@@ -3,7 +3,7 @@ using UnityEngine;
 namespace FiresRPGmaker.Modules.Compat
 {
     /// <summary>
-    /// Guild hand-off detection. 0.0.533 (Fire 10-08): the old reference mod VikingLands.Core (TDV, "terresdeviking.plugin")
+    /// Guild hand-off detection. The old reference mod VikingLands.Core (TDV, "terresdeviking.plugin")
     /// is no longer probed or logged. Guilds come from FiresGuilds only; groups, leaderboards and achievements are RPG Maker's
     /// own. <see cref="Present"/> stays as a constant false so the old call sites compile and never stand down.
     /// </summary>
@@ -35,7 +35,7 @@ namespace FiresRPGmaker.Modules.Compat
         // whoever reads the log hunting for a mod that is not installed.
         public static string GuildOwner => FiresGuildsPresent ? "FiresGuilds" : null;
 
-        // 0.0.525 ([ghost], Fire 10-08: RPG Maker's guilds are moving out to FiresGuilds): FiresGuilds 1.0.10+ has its own guild
+        // RPG Maker's guilds are moving out to FiresGuilds: FiresGuilds 1.0.10+ has its own guild
         // friendly fire, guild-mate map pin colours and Shift+MMB guild ping, so RPG Maker's copies (which reach FiresGuilds' data
         // through the RpgMakerApi bridge) stand down; an older FiresGuilds keeps getting them from us.
         private static int _firesGuildsPorts = -1;

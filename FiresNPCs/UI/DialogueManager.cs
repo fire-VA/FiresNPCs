@@ -35,12 +35,12 @@ namespace FiresRPGmaker.UI
 
     /// <summary>
     /// [DEPRECATED] Legacy dialogue manager using simple key=value .cfg format.
-    /// 
+    ///
     /// This class is superseded by <see cref="FiresRPGmaker.Modules.Dialogues.DialogueCodex"/>
     /// and <see cref="FiresRPGmaker.Modules.Dialogues.DialogueUI"/> which support the full
     /// Marketplace-compatible dialogue format with conditions, commands, branching, icons,
     /// and colors.
-    /// 
+    ///
     /// Kept for backward compatibility - NpcController falls through to this if
     /// DialogueCodex has no matching dialogue UID.
     /// New dialogues should be authored using the Marketplace .cfg format and placed in
@@ -61,7 +61,7 @@ public static void Initialize()
             _initialized = true;
 
             LoadAllProfiles();
-    Debug.Log($"[DialogueManager] Loaded {_profiles.Count} dialogue profiles");
+    global::FiresRPGmaker.FiresLogger.LogDebug($"[DialogueManager] Loaded {_profiles.Count} dialogue profiles");
     }
 
         /// <summary>
@@ -71,7 +71,7 @@ public static void Initialize()
         {
       _profiles.Clear();
             LoadAllProfiles();
-     Debug.Log($"[DialogueManager] Reloaded {_profiles.Count} dialogue profiles");
+     global::FiresRPGmaker.FiresLogger.LogDebug($"[DialogueManager] Reloaded {_profiles.Count} dialogue profiles");
         }
 
         /// <summary>
@@ -297,7 +297,7 @@ Priority = 0
   try
      {
   File.WriteAllText(examplePath, content);
-   Debug.Log($"[DialogueManager] Created example profile at {examplePath}");
+   global::FiresRPGmaker.FiresLogger.LogDebug($"[DialogueManager] Created example profile at {examplePath}");
           }
     catch (Exception ex)
  {

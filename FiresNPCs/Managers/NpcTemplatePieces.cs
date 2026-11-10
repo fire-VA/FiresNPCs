@@ -57,7 +57,7 @@ namespace FiresRPGmaker.Managers
                 // Base random StaticNpc moves onto the tab with the templates.
                 GameObject baseNpc = basePiecePrefabs?.Find(p => p != null && p.name == "StaticNpc");
                 var basePiece = baseNpc != null ? baseNpc.GetComponent<Piece>() : null;
-                if (basePiece != null) basePiece.m_category = category;
+                if (basePiece != null) { basePiece.m_category = category; basePiece.m_usage = 0; EnsureUsage(basePiece, "base Static NPC"); }
 
                 if (baseNpc == null || ZNetScene.instance == null) return;
                 _table = table;
@@ -129,6 +129,7 @@ namespace FiresRPGmaker.Managers
                 piece.m_name = templateName;
                 piece.m_description = "Saved NPC appearance template. Places a static NPC with this look - assign its role via Shift+E.";
                 piece.m_category = category;
+                piece.m_usage = 0; EnsureUsage(piece, "NPC template");
                 piece.m_canBeRemoved = false;
 
                 var record = SavedNpcManager.GetTemplate(templateName);
@@ -151,7 +152,7 @@ namespace FiresRPGmaker.Managers
                     {
                         record.IconPng = png;
                         SavedNpcManager.SaveTemplate(templateName, record);
-                        Debug.Log($"[NpcTemplatePieces] rendered + persisted portrait icon for template '{templateName}'");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplatePieces] rendered + persisted portrait icon for template '{templateName}'");
                     }
                     else if (icon != null)
                     {
@@ -233,7 +234,7 @@ namespace FiresRPGmaker.Managers
                 _table.m_pieces.RemoveAll(p => p == null || (p != clone && p.name == clone.name));
                 if (!_table.m_pieces.Contains(clone)) _table.m_pieces.Add(clone);
                 RefreshLocalBuildTable();
-                Debug.Log($"[NpcTemplatePieces] live-registered template piece '{templateName}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplatePieces] live-registered template piece '{templateName}'");
             }
             catch (Exception ex)
             {
@@ -255,7 +256,7 @@ namespace FiresRPGmaker.Managers
                 if (clone != null) DestroyClone(templateName, clone);
                 else _clones.Remove(templateName);
                 RefreshLocalBuildTable();
-                Debug.Log($"[NpcTemplatePieces] removed template piece '{templateName}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplatePieces] removed template piece '{templateName}'");
             }
             catch (Exception ex)
             {
@@ -377,7 +378,33 @@ namespace FiresRPGmaker.Managers
                     Debug.LogWarning($"[NpcTemplatePieces] FAP VACategoryRegistry.GetOrAdd failed, using fallback: {ex.Message}");
                 }
             }
-            return FallbackCategoryRegistry.GetOrAdd(CategoryName);
+            // 0.0.807 ([ghost]; Fire 10-31, a player on RPGmaker alone: "is there a way to place them using hammer?"): without FAP a
+            // custom category number has no tab (vanilla Hud draws only its fixed m_pieceCategoryTabs, Hud.cs:1142), so the NPC pieces
+            // were reachable only by search. Without FAP they go on vanilla's Misc tab, as before 1.0.
+            if (!_categoryLogged) { _categoryLogged = true; global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[NpcTemplatePieces] NPC pieces on the hammer's Misc tab (FAP not installed; its 'Fires NPCs' tab needs FAP)"); }
+            return Piece.PieceCategory.Misc;
+        }
+        private static bool _categoryLogged;
+
+        // 0.0.809 (Fire 10-31 shot of the 1.0 build menu: the NPC pieces show only under "Show All"): 1.0's Categories list is
+        // ByUsagePieceList, which files a piece by Piece.m_usage (UsageTagFlags), NOT m_category (assembly_valheimREF1.0.15
+        // ByUsagePieceList.cs:27-38). Our pieces carried no usage flag, so no category listed them. A piece with none gets the usage
+        // that matches its category (Misc for the NPCs); one that already has flags is left alone.
+        internal static void EnsureUsage(Piece piece, string why)
+        {
+            if (piece == null || piece.m_usage != 0) return;
+            switch (piece.m_category)
+            {
+                case Piece.PieceCategory.Crafting: piece.m_usage = Piece.UsageTagFlags.Crafting; break;
+                case Piece.PieceCategory.BuildingWorkbench:
+                case Piece.PieceCategory.BuildingStonecutter: piece.m_usage = Piece.UsageTagFlags.Building; break;
+                case Piece.PieceCategory.Furniture: piece.m_usage = Piece.UsageTagFlags.Furniture; break;
+                case Piece.PieceCategory.Food: piece.m_usage = Piece.UsageTagFlags.Food; break;
+                case Piece.PieceCategory.Meads: piece.m_usage = Piece.UsageTagFlags.Meads; break;
+                case Piece.PieceCategory.Feasts: piece.m_usage = Piece.UsageTagFlags.Feasts; break;
+                default: piece.m_usage = Piece.UsageTagFlags.Misc; break;
+            }
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[BuildMenu] {piece.gameObject.name} ('{piece.m_name}'): category {piece.m_category}, 1.0 menu usage {piece.m_usage} ({why})");
         }
 
         private static void ProbeFap()
@@ -456,6 +483,48 @@ namespace FiresRPGmaker.Managers
     /// </summary>
     public sealed class NpcTemplatePlacedSwapper : MonoBehaviour
     {
+        /// <summary>A template's APPEARANCE onto an NPC body's ZDO: the name / model overrides, fashion, the npc_equip_* fields and
+        /// the vanilla look (item hashes + model index + colours). The one write path: template placement here and the Studio's
+        /// preset Apply (NpcTemplatePresetKind) both use it. Profiles / type are never touched.</summary>
+        internal static void WriteAppearance(ZDO zdo, SavedNpcData record)
+        {
+            if (zdo == null || record == null) return;
+            zdo.Set("npc_name_override", record.DisplayNameOverride ?? "");
+            zdo.Set("npc_model_override", record.ModelOverride ?? "");
+            if (!string.IsNullOrEmpty(record.FashionJson)) zdo.Set("npc_fashion_json", record.FashionJson);
+            zdo.Set("npc_equip_helmet", record.EquipHelmet ?? "");
+            zdo.Set("npc_equip_chest", record.EquipChest ?? "");
+            zdo.Set("npc_equip_legs", record.EquipLegs ?? "");
+            zdo.Set("npc_equip_shoulder", record.EquipShoulder ?? "");
+            zdo.Set("npc_equip_utility", record.EquipUtility ?? "");
+            zdo.Set("npc_equip_righthand", record.EquipRightHand ?? "");
+            zdo.Set("npc_equip_lefthand", record.EquipLeftHand ?? "");
+            zdo.Set("npc_equip_rightback", record.EquipRightBack ?? "");
+            zdo.Set("npc_equip_leftback", record.EquipLeftBack ?? "");
+            zdo.Set("npc_equip_righthand_data", record.EquipRightHandData ?? "");
+            zdo.Set("npc_equip_lefthand_data", record.EquipLeftHandData ?? "");
+            // Vanilla look (item hashes + model index + colors): the appearance of randomly
+            // dressed source NPCs lives ONLY here — seed it or the placed body spawns naked
+            // and re-randomizes.
+            NpcTemplateAppearance.SeedLookOntoBody(zdo, record.LookJson);
+        }
+
+        /// <summary>The inverse of <see cref="WriteAppearance"/>: an appearance-only record read off a body's ZDO (headless).</summary>
+        internal static SavedNpcData ReadAppearance(ZDO zdo)
+        {
+            if (zdo == null) return null;
+            string S(string k) { string v = zdo.GetString(k, ""); return v.Length > 0 ? v : null; }
+            return new SavedNpcData
+            {
+                DisplayNameOverride = S("npc_name_override"), ModelOverride = S("npc_model_override"), FashionJson = S("npc_fashion_json"),
+                EquipHelmet = S("npc_equip_helmet"), EquipChest = S("npc_equip_chest"), EquipLegs = S("npc_equip_legs"),
+                EquipShoulder = S("npc_equip_shoulder"), EquipUtility = S("npc_equip_utility"), EquipRightHand = S("npc_equip_righthand"),
+                EquipLeftHand = S("npc_equip_lefthand"), EquipRightBack = S("npc_equip_rightback"), EquipLeftBack = S("npc_equip_leftback"),
+                EquipRightHandData = S("npc_equip_righthand_data"), EquipLeftHandData = S("npc_equip_lefthand_data"),
+                LookJson = NpcTemplateAppearance.CaptureLookJson(zdo),
+            };
+        }
+
         private void Awake()
         {
             var nview = GetComponent<ZNetView>();
@@ -492,28 +561,10 @@ namespace FiresRPGmaker.Managers
                     zdo.Set("npc_stationed_pos", transform.position);
                     zdo.Set("npc_stationed_rot", transform.rotation);
                     zdo.Set("npc_placed_anchor", transform.position);
-                    zdo.Set("npc_name_override", record.DisplayNameOverride ?? "");
-                    zdo.Set("npc_model_override", record.ModelOverride ?? "");
-                    if (!string.IsNullOrEmpty(record.FashionJson)) zdo.Set("npc_fashion_json", record.FashionJson);
-                    zdo.Set("npc_equip_helmet", record.EquipHelmet ?? "");
-                    zdo.Set("npc_equip_chest", record.EquipChest ?? "");
-                    zdo.Set("npc_equip_legs", record.EquipLegs ?? "");
-                    zdo.Set("npc_equip_shoulder", record.EquipShoulder ?? "");
-                    zdo.Set("npc_equip_utility", record.EquipUtility ?? "");
-                    zdo.Set("npc_equip_righthand", record.EquipRightHand ?? "");
-                    zdo.Set("npc_equip_lefthand", record.EquipLeftHand ?? "");
-                    zdo.Set("npc_equip_rightback", record.EquipRightBack ?? "");
-                    zdo.Set("npc_equip_leftback", record.EquipLeftBack ?? "");
-                    zdo.Set("npc_equip_righthand_data", record.EquipRightHandData ?? "");
-                    zdo.Set("npc_equip_lefthand_data", record.EquipLeftHandData ?? "");
-
-                    // Vanilla look (item hashes + model index + colors): the appearance of randomly
-                    // dressed source NPCs lives ONLY here — seed it or the placed body spawns naked
-                    // and re-randomizes.
-                    NpcTemplateAppearance.SeedLookOntoBody(zdo, record.LookJson);
+                    WriteAppearance(zdo, record);
                 }
 
-                Debug.Log($"[NpcTemplatePieces] placed template '{templateName}' → StaticNpc at {transform.position}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcTemplatePieces] placed template '{templateName}' → StaticNpc at {transform.position}");
             }
             catch (Exception ex)
             {

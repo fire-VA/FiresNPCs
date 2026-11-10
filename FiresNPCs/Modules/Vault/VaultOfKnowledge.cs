@@ -10,6 +10,7 @@ using System.Reflection;
 using UnityEngine;
 using FiresRPGmaker.Modules.Quest;
 using FiresCore.Lifecycle;
+using FiresRPGmaker.Managers;
 
 namespace FiresRPGmaker.Modules.Vault
 {
@@ -50,7 +51,7 @@ namespace FiresRPGmaker.Modules.Vault
             {
                 string path = Path.Combine(FiresCore.Storage.FiresConfigPaths.Worlds, SanitizeWorldName(world), "vault.db");
                 FiresCore.Storage.VaultDatabase.Configure(path);
-                FiresLogger.LogInfo($"[FiresRPGmaker] VaultDatabase configured (per-world): {path}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] VaultDatabase configured (per-world): {path}");
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] EnsureVaultConfigured failed: {ex.Message}"); }
         }
@@ -187,6 +188,7 @@ namespace FiresRPGmaker.Modules.Vault
                 catch { }
                 _rpcInstance = ZRoutedRpc.instance;
                 FiresLogger.LogVerbose("[FiresRPGmaker] Vault RPCs registered (hybrid)");
+                global::FiresRPGmaker.Managers.RpcRegistration.Logged("VaultOfKnowledge", 18);
             }
             catch (Exception ex)
             {
@@ -343,6 +345,7 @@ namespace FiresRPGmaker.Modules.Vault
             // only process on server
             if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
             if (Instance == null) return;
+            if (!RpcSender.ResolvedOrDeferred("Vault_AnnouncePlayerInfo", sender, pkg, RPC_AnnouncePlayerInfo)) return;
 
             try
             {
@@ -365,6 +368,16 @@ namespace FiresRPGmaker.Modules.Vault
                     return;
                 }
 
+                // Bind to the routed sender: a client may announce only itself. Name and platform id come from
+                // the server's own view of the peer (the packet's copies are ignored for remote senders).
+                if (!RpcSender.IsServerSelf(sender))
+                {
+                    if (!RpcSender.SenderIsPlayer(sender, playerId)) { RpcSender.Refuse("Vault_AnnouncePlayerInfo", sender, $"playerId {playerId} is not the sender's character"); return; }
+                    playerName = RpcSender.SenderName(sender);
+                    platformId = RpcSender.SenderHostName(sender);
+                    platform = !string.IsNullOrEmpty(platformId) ? ZNet.m_onlineBackend.ToString() : null;
+                }
+
                 var player = Player.GetPlayer(playerId) ?? Player.GetAllPlayers().FirstOrDefault(p => p.GetPlayerID() == playerId);
                 PlayerVaultData data = null;
                 if (player != null)
@@ -385,7 +398,8 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     if (ZNet.instance != null)
                     {
-                        var peer = ZNet.instance.GetPeerByPlayerName(data.PlayerName);
+                        // The routed sender's own peer (never looked up by a name from the packet or the vault).
+                        var peer = RpcSender.IsServerSelf(sender) ? null : RpcSender.Peer(sender);
                         var adminList = ZNet.instance.GetAdminList();
                         string hostPlatform = peer?.m_socket?.GetHostName() ?? string.Empty;
                         if (string.IsNullOrEmpty(data.PlatformId) && !string.IsNullOrEmpty(hostPlatform))
@@ -394,7 +408,9 @@ namespace FiresRPGmaker.Modules.Vault
                             data.Platform = ZNet.m_onlineBackend.ToString();
                         }
 
-                        if (adminList != null && (!string.IsNullOrEmpty(data.PlatformId) && adminList.Contains(data.PlatformId) || (peer != null && adminList.Contains(peer.m_playerName))))
+                        // Admin only from the socket host id / peer name the server itself sees.
+                        string trustedPlatform = RpcSender.IsServerSelf(sender) ? data.PlatformId : hostPlatform;
+                        if (adminList != null && (!string.IsNullOrEmpty(trustedPlatform) && adminList.Contains(trustedPlatform) || (peer != null && adminList.Contains(peer.m_playerName))))
                         {
                             data.IsAdmin = true;
                         }
@@ -453,9 +469,9 @@ namespace FiresRPGmaker.Modules.Vault
                     pkg.Write(playerId);
                     string companionJson = JsonConvert.SerializeObject(companionData);
                     pkg.Write(companionJson);
-                    SafeInvokeRoutedRPC(0L, "FiresRPGmaker_Vault_SyncCompanion", pkg);
+                    SafeInvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Vault_SyncCompanion"), "FiresRPGmaker_Vault_SyncCompanion", pkg);
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] Client sent companion sync RPC for {companionData.CompanionName} (ID: {companionData.CompanionId})");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Client sent companion sync RPC for {companionData.CompanionName} (ID: {companionData.CompanionId})");
                     
                     // Also update local cache so client has immediate access
                     SaveCompanionLocally(playerId, companionData);
@@ -489,7 +505,7 @@ namespace FiresRPGmaker.Modules.Vault
                 bool isServer = ZNet.instance == null || ZNet.instance.IsServer();
 
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[FiresRPGmaker] SaveCompanionLocally START - isServer={isServer}, playerId={playerId}, companion={companionData?.CompanionName}, knownPlayerName={knownPlayerName}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally START - isServer={isServer}, playerId={playerId}, companion={companionData?.CompanionName}, knownPlayerName={knownPlayerName}");
 
                 // CRITICAL FIX: Always load from disk on server to get existing companions
                 // DeserializeFromCustomData EXCLUDES companions by design (to prevent cross-server pollution)
@@ -503,14 +519,14 @@ namespace FiresRPGmaker.Modules.Vault
                         // Load existing data from disk
                         data = LoadPlayerData(playerId);
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Loaded from disk, companions count: {data?.Companions?.Count ?? 0}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Loaded from disk, companions count: {data?.Companions?.Count ?? 0}");
                     }
                     else
                     {
                         // No existing file - create new with known player name to avoid Unknown_ rejection
                         data = new PlayerVaultData(playerId);
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - No existing file, created new PlayerVaultData");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - No existing file, created new PlayerVaultData");
                     }
                     
                     // CRITICAL: Set player name from knownPlayerName parameter FIRST (most reliable)
@@ -519,7 +535,7 @@ namespace FiresRPGmaker.Modules.Vault
                     {
                         data.PlayerName = knownPlayerName;
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Set player name from knownPlayerName: {knownPlayerName}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Set player name from knownPlayerName: {knownPlayerName}");
                     }
                     // Only try other sources if we still don't have a valid name
                     else if (string.IsNullOrEmpty(data.PlayerName) || data.PlayerName == "Unknown")
@@ -570,7 +586,7 @@ namespace FiresRPGmaker.Modules.Vault
                         {
                             data.PlayerName = resolvedName;
                             if (FiresLogger.VerboseEnabled)
-                                Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Resolved player name: {resolvedName}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Resolved player name: {resolvedName}");
                         }
                         else
                         {
@@ -602,20 +618,20 @@ namespace FiresRPGmaker.Modules.Vault
                             Companions = cachedData.Companions != null ? new List<object>(cachedData.Companions) : new List<object>()
                         };
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Client loaded from playerCache, companions count: {data.Companions?.Count ?? 0}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Client loaded from playerCache, companions count: {data.Companions?.Count ?? 0}");
                     }
                     else if (player != null)
                     {
                         // Fallback: use customData (companions excluded, but that's the fallback)
                         data = DeserializeFromCustomData(player) ?? new PlayerVaultData(playerId);
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Client fallback to customData, companions count: {data.Companions?.Count ?? 0}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Client fallback to customData, companions count: {data.Companions?.Count ?? 0}");
                     }
                     else
                     {
                         data = new PlayerVaultData(playerId);
                         if (FiresLogger.VerboseEnabled)
-                            Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Client created new PlayerVaultData");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Client created new PlayerVaultData");
                     }
                 }
 
@@ -624,7 +640,7 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     data.Companions = new List<object>();
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Initialized empty companions list");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Initialized empty companions list");
                 }
 
                 // Find existing companion with same ID and update, or add new
@@ -639,7 +655,7 @@ namespace FiresRPGmaker.Modules.Vault
                             data.Companions[i] = companionData;
                             found = true;
                             if (FiresLogger.VerboseEnabled)
-                                Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Updated existing companion at index {i}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Updated existing companion at index {i}");
                             break;
                         }
                     }
@@ -650,7 +666,7 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     data.Companions.Add(companionData);
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Added new companion, total count: {data.Companions.Count}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Added new companion, total count: {data.Companions.Count}");
                 }
 
                 data.IsDirty = true;
@@ -659,13 +675,13 @@ namespace FiresRPGmaker.Modules.Vault
                 if (isServer)
                 {
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - About to save to disk with {data.Companions.Count} companions");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - About to save to disk with {data.Companions.Count} companions");
 
                     // Server: Save directly to disk (companions are server-specific)
                     SavePlayerData(playerId, data);
 
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - SavePlayerData completed");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - SavePlayerData completed");
 
                     // Also update customData (without companions) if player is online
                     if (player != null)
@@ -678,7 +694,7 @@ namespace FiresRPGmaker.Modules.Vault
                     // Client: Update playerCache so subsequent calls see the updated companions
                     playerCache[playerId] = data;
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] SaveCompanionLocally - Client updated playerCache with {data.Companions.Count} companions");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally - Client updated playerCache with {data.Companions.Count} companions");
                     
                     // Also update customData (without companions) if player available
                     if (player != null)
@@ -688,7 +704,7 @@ namespace FiresRPGmaker.Modules.Vault
                 }
 
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[FiresRPGmaker] SaveCompanionLocally END - Saved companion {companionData.CompanionName} (ID: {companionData.CompanionId}) to vault for player {playerId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SaveCompanionLocally END - Saved companion {companionData.CompanionName} (ID: {companionData.CompanionId}) to vault for player {playerId}");
             }
             catch (Exception ex)
             {
@@ -707,12 +723,21 @@ namespace FiresRPGmaker.Modules.Vault
                 if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
                 if (Instance == null) return;
                 if (pkg == null) return;
+                if (!RpcSender.ResolvedOrDeferred("Vault_SyncCompanion", sender, pkg, RPC_SyncCompanion)) return;
 
                 long playerId = 0;
                 string companionJson = null;
 
                 try { playerId = pkg.ReadLong(); } catch { playerId = 0; }
                 try { companionJson = pkg.ReadString(); } catch { companionJson = null; }
+
+                // Bind to the routed sender: a client saves companions only into its own vault (0 = "mine").
+                if (!RpcSender.IsServerSelf(sender))
+                {
+                    long ownId = RpcSender.SenderPlayerId(sender);
+                    if (playerId == 0) playerId = ownId;
+                    if (playerId != ownId && !AdminSyncing.IsAdmin(sender)) { RpcSender.Refuse("Vault_SyncCompanion", sender, $"playerId {playerId} is not the sender's character"); return; }
+                }
 
                 // CRITICAL: Get player info from the sender peer
                 // The sender is the peer UID - we can get player name directly from ZNetPeer
@@ -730,7 +755,7 @@ namespace FiresRPGmaker.Modules.Vault
                         {
                             playerId = peer.m_uid;
                         }
-                        Debug.Log($"[FiresRPGmaker] RPC_SyncCompanion - Got peer info: playerName={playerName}, playerId={playerId}, peerUid={peer.m_uid}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_SyncCompanion - Got peer info: playerName={playerName}, playerId={playerId}, peerUid={peer.m_uid}");
                     }
                 }
                 catch (Exception ex)
@@ -765,7 +790,7 @@ namespace FiresRPGmaker.Modules.Vault
                 Instance.SaveCompanionLocally(playerId, companionData, playerName);
                 
                 if (FiresLogger.VerboseEnabled)
-                    Debug.Log($"[FiresRPGmaker] Server received and saved companion sync for {companionData.CompanionName} (ID: {companionData.CompanionId}) from player {playerId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Server received and saved companion sync for {companionData.CompanionName} (ID: {companionData.CompanionId}) from player {playerId}");
             }
             catch (Exception ex)
             {
@@ -792,9 +817,9 @@ namespace FiresRPGmaker.Modules.Vault
                     var pkg = new ZPackage();
                     pkg.Write(playerId);
                     pkg.Write(companionId);
-                    SafeInvokeRoutedRPC(0L, "FiresRPGmaker_Vault_RemoveCompanion", pkg);
+                    SafeInvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Vault_RemoveCompanion"), "FiresRPGmaker_Vault_RemoveCompanion", pkg);
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] Client sent remove companion RPC for {companionId}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Client sent remove companion RPC for {companionId}");
                     
                     // Also update local cache
                     RemoveCompanionLocally(playerId, companionId);
@@ -896,7 +921,7 @@ namespace FiresRPGmaker.Modules.Vault
                     // Only log if verbose logging is enabled
                     if (FiresLogger.VerboseEnabled)
                     {
-                        Debug.Log($"[FiresRPGmaker] Removed companion {companionId} from vault for player {playerId}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Removed companion {companionId} from vault for player {playerId}");
                     }
                 }
             }
@@ -929,13 +954,15 @@ namespace FiresRPGmaker.Modules.Vault
                     Debug.LogWarning($"[FiresRPGmaker] RPC_RemoveCompanionRPC invalid payload from {sender}");
                     return;
                 }
+                if (!RpcSender.ResolvedOrDeferred("Vault_RemoveCompanion", sender, new ZPackage(pkg.GetArray()), RPC_RemoveCompanionRPC)) return;
+                if (!RpcSender.MayActFor(sender, playerId)) { RpcSender.Refuse("Vault_RemoveCompanion", sender, $"playerId {playerId} is not the sender's character"); return; }
 
                 Instance.RemoveCompanionLocally(playerId, companionId);
                 
                 // Only log on server if verbose logging is enabled
                 if (FiresLogger.VerboseEnabled)
                 {
-                    Debug.Log($"[FiresRPGmaker] Server removed companion {companionId} for player {playerId} (requested by {sender})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Server removed companion {companionId} for player {playerId} (requested by {sender})");
                 }
             }
             catch (Exception ex)
@@ -1365,6 +1392,8 @@ namespace FiresRPGmaker.Modules.Vault
 
         private static DiskRead ReadPlayerFile(string playersDir, long playerId)
         {
+
+            VaultStatSaver.Drain();   // 0.0.800: queued background vault writes land first (order kept)
             var read = new DiskRead();
             string file = FindPlayerFile(playersDir, playerId);
             if (string.IsNullOrEmpty(file) || !File.Exists(file)) return read;
@@ -1432,7 +1461,7 @@ namespace FiresRPGmaker.Modules.Vault
                     if (expiry <= now)
                     {
                         // Quest has expired - handle it immediately
-                        Debug.Log($"[FiresRPGmaker] Found expired quest {activeQuest.QuestId} for player {playerId} - handling expiry");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Found expired quest {activeQuest.QuestId} for player {playerId} - handling expiry");
                         HandleQuestTimerExpired(playerId, activeQuest.QuestId);
                     }
                     else
@@ -1441,7 +1470,7 @@ namespace FiresRPGmaker.Modules.Vault
                         QuestTimerManager.ScheduleTimerAt(playerId, activeQuest.QuestId, expiry);
                         serverData.Timers[key] = expiry.Ticks;
                         serverData.IsDirty = true;
-                        Debug.Log($"[FiresRPGmaker] Auto-scheduled missing timer for quest {activeQuest.QuestId} player {playerId} expiry {expiry:o}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Auto-scheduled missing timer for quest {activeQuest.QuestId} player {playerId} expiry {expiry:o}");
                     }
                 }
                 catch (Exception ex)
@@ -1459,8 +1488,9 @@ namespace FiresRPGmaker.Modules.Vault
         // Save from runtime ZDO (player.m_customData) to disk
         // CRITICAL: Companions are excluded from m_customData to prevent cross-server pollution.
         // We must PRESERVE companions from the existing disk file when saving other data.
-        public void SavePlayerDataFromZDO(long playerId, Player player)
+        public void SavePlayerDataFromZDO(long playerId, Player player, bool offThread = false)
         {
+            if (!offThread) VaultStatSaver.Drain();   // 0.0.800: an older queued write lands before this one
             if (playerId == 0) return;
             if (ZNet.instance != null && !ZNet.instance.IsServer())
             {
@@ -1537,6 +1567,34 @@ namespace FiresRPGmaker.Modules.Vault
                     data.PlayerName = reResolved;
                 }
 
+                // 0.0.800 (lead 10-30, "every measured hitch corrected"): the snapshot above stays on the main thread (ZDO + names);
+                // the disk part below (companions read, legacy cleanup, JSON, atomic write) runs on VaultStatSaver's worker, and the
+                // dirty marker is cleared back on the main thread only after the write succeeded.
+                if (offThread)
+                {
+                    var snap = data; var who = player;
+                    VaultStatSaver.Enqueue(playerId, () => WriteZdoSave(playerId, snap, true), ok => { if (ok) { try { who.m_customData["FiresRPGmaker_Dirty"] = "0"; } catch { } } });
+                    return;
+                }
+                if (!WriteZdoSave(playerId, data, false)) return;
+
+                // Clear the ZDO dirty marker so this player isn't re-saved next cycle
+                // until something actually changes again.
+                try { player.m_customData["FiresRPGmaker_Dirty"] = "0"; } catch { }
+
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[FiresRPGmaker] Failed to save player data {playerId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>0.0.800: the file half of SavePlayerDataFromZDO. Worker-safe when onWorker (no Unity / game-state calls; the
+        /// quest-timer pass that the old disk read did is posted back to the main thread). True when the file was written.</summary>
+        private bool WriteZdoSave(long playerId, PlayerVaultData data, bool onWorker)
+        {
+            try
+            {
                 // CRITICAL FIX: Preserve companions from disk!
                 // DeserializeFromCustomData excludes companions (by design, to prevent cross-server pollution).
                 // We must load existing companions from disk and preserve them.
@@ -1548,10 +1606,11 @@ namespace FiresRPGmaker.Modules.Vault
                 // StackOverflowException -> instant native process death.
                 try
                 {
-                    var diskData = ReadPlayerDataFromDiskNoCreate(playerId);
+                    var diskData = onWorker ? ReadPlayerFile(PlayersDir, playerId).Data : ReadPlayerDataFromDiskNoCreate(playerId);
+                    if (onWorker && diskData != null) { var dd = diskData; VaultStatSaver.OnMain(() => { try { ScheduleMissingTimersForPlayerData(playerId, dd); } catch { } }); }
                     int diskCompanionCount = diskData?.Companions?.Count ?? 0;
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log($"[FiresRPGmaker] SavePlayerDataFromZDO - Preserving {diskCompanionCount} companions from disk for player {playerId}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SavePlayerDataFromZDO - Preserving {diskCompanionCount} companions from disk for player {playerId}");
                     if (diskData?.Companions != null && diskData.Companions.Count > 0)
                     {
                         data.Companions = diskData.Companions;
@@ -1573,7 +1632,7 @@ namespace FiresRPGmaker.Modules.Vault
                     if (FiresLogger.VerboseEnabled)
                         FiresLogger.LogVerbose(
                             $"SavePlayerDataFromZDO: player {playerId} PlayerName '{data.PlayerName}' sanitized to empty - skipping save.");
-                    return;
+                    return false;
                 }
                 string file = Path.Combine(PlayersDir, playerFileName);
 
@@ -1611,18 +1670,15 @@ namespace FiresRPGmaker.Modules.Vault
                 if (!PlayerFileStorage.SavePlayerFile(file, json))
                 {
                     Debug.LogWarning($"[FiresRPGmaker] SavePlayerData skipped/failed for player {playerId}");
-                    return;
+                    return false;
                 }
 
-                // Clear the ZDO dirty marker so this player isn't re-saved next cycle
-                // until something actually changes again.
-                try { player.m_customData["FiresRPGmaker_Dirty"] = "0"; } catch { }
-
-                Debug.Log($"[FiresRPGmaker] Saved player data for {playerId} -> {Path.GetFileName(file)}");
+                return true;
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[FiresRPGmaker] Failed to save player data {playerId}: {ex.Message}");
+                return false;
             }
         }
 
@@ -1667,7 +1723,7 @@ namespace FiresRPGmaker.Modules.Vault
         }
 
         // Deserialize PlayerVaultData from player's m_customData
-        /// <summary>0.0.532: a quest turned in or dropped from <see cref="ActiveQuestStore"/> stayed listed in the old vault
+        /// <summary>A quest turned in or dropped from <see cref="ActiveQuestStore"/> stayed listed in the old vault
         /// (the m_customData blob, and on a host the server record). ActiveQuestStore.Load's one-time migration then copied
         /// it back on every spawn, so a finished quest returned after a relog. Called from ActiveQuestStore.Abandon.</summary>
         internal static void DropActiveQuestFromVault(Player player, string questId)
@@ -1680,7 +1736,7 @@ namespace FiresRPGmaker.Modules.Vault
                     && blob.ActiveQuests.RemoveAll(q => string.Equals(ActiveQuestStore.Norm(q?.QuestId), questId, StringComparison.OrdinalIgnoreCase)) > 0)
                 {
                     Instance?.SerializeToCustomData(player, blob);
-                    Debug.Log($"[QuestPipe] dropped {questId} from the old vault blob");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] dropped {questId} from the old vault blob");
                 }
                 if (Instance != null && ZNet.instance != null && ZNet.instance.IsServer())
                 {
@@ -1691,7 +1747,7 @@ namespace FiresRPGmaker.Modules.Vault
                     {
                         record.IsDirty = true;
                         Instance.SavePlayerData(pid, record);
-                        Debug.Log($"[QuestPipe] dropped {questId} from the server vault record");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] dropped {questId} from the server vault record");
                     }
                 }
             }
@@ -1723,6 +1779,21 @@ namespace FiresRPGmaker.Modules.Vault
             return null;
         }
 
+        /// <summary>Max length of a client-sent stat key ("kills.$enemy_greydwarf3Star" style).</summary>
+        private const int MaxStatKeyLength = 128;
+        /// <summary>Most a non-admin client may add to one stat in one UpdateStat event (honest kills send 1).</summary>
+        private const int MaxClientStatDeltaPerEvent = 1;
+        /// <summary>Most a non-admin client may add to quest progress in one QuestProgressEvent (a picked-up stack).</summary>
+        private const int MaxClientProgressPerEvent = 1000;
+
+        private static bool IsSaneStatKey(string key)
+        {
+            if (string.IsNullOrEmpty(key) || key.Length > MaxStatKeyLength) return false;
+            foreach (char c in key)
+                if (!(char.IsLetterOrDigit(c) || c == '_' || c == '.' || c == '$' || c == '-' || c == ' ')) return false;
+            return true;
+        }
+
         // RPC: update stat (now operates on m_customData)
         private static void RPC_UpdateStat(long sender, ZPackage pkg)
         {
@@ -1731,10 +1802,19 @@ namespace FiresRPGmaker.Modules.Vault
 
             try
             {
+                if (!RpcSender.ResolvedOrDeferred("FiresRPGmaker_UpdateStat", sender, pkg, RPC_UpdateStat)) return;
                 long playerId = pkg.ReadLong();
                 string statKey = pkg.ReadString();
                 int delta = pkg.ReadInt();
 
+                if (!RpcSender.MayActFor(sender, playerId)) { RpcSender.Refuse("FiresRPGmaker_UpdateStat", sender, $"playerId {playerId} is not the sender's character"); return; }
+                if (!IsSaneStatKey(statKey)) { RpcSender.Refuse("FiresRPGmaker_UpdateStat", sender, "bad stat key"); return; }
+                // Honest clients send +1 per kill; a non-admin client can never move a stat by more per event.
+                if (!RpcSender.IsServerSelf(sender) && !AdminSyncing.IsAdmin(sender))
+                    delta = Mathf.Clamp(delta, 0, MaxClientStatDeltaPerEvent);
+                if (delta == 0) return;
+
+                var swProbe = System.Diagnostics.Stopwatch.StartNew(); double tRead, tSer = 0, tSave;   // 0.0.796 perf probe (lead 10-29)
                 var player = Player.GetPlayer(playerId);
                 PlayerVaultData data = null;
                 if (player != null)
@@ -1746,6 +1826,7 @@ namespace FiresRPGmaker.Modules.Vault
                     data = Instance.LoadPlayerData(playerId);
                 }
 
+                tRead = swProbe.Elapsed.TotalMilliseconds;
                 if (!data.Stats.ContainsKey(statKey)) data.Stats[statKey] = 0;
                 data.Stats[statKey] += delta;
                 data.IsDirty = true;
@@ -1753,19 +1834,36 @@ namespace FiresRPGmaker.Modules.Vault
                 if (player != null)
                 {
                     Instance.SerializeToCustomData(player, data);
-                    Instance.SavePlayerDataFromZDO(playerId, player);
+                    tSer = swProbe.Elapsed.TotalMilliseconds;
+                    // 0.0.797: the file save is debounced (VaultStatSaver); the stat is already in the ZDO above
+                    if (VaultStatSaver.On) VaultStatSaver.MarkDue(playerId); else Instance.SavePlayerDataFromZDO(playerId, player);
                 }
                 else
                 {
                     Instance.SavePlayerData(playerId, data);
                 }
 
-                Debug.Log($"[FiresRPGmaker] Updated stat {statKey} by {delta} for player {playerId}. New value: {data.Stats[statKey]}");
+                tSave = swProbe.Elapsed.TotalMilliseconds;
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[PerfProbe] RPC_UpdateStat {statKey}: read {tRead:0.00} ms, serialize {(tSer > 0 ? tSer - tRead : 0):0.00} ms, save {tSave - (tSer > 0 ? tSer : tRead):0.00} ms, total {tSave:0.00} ms (player {(player != null ? "online, ZDO path" : "offline, file path")})");
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[FiresRPGmaker] Updated stat {statKey} by {delta} for player {playerId}. New value: {data.Stats[statKey]}");
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[FiresRPGmaker] RPC_UpdateStat exception: {ex}");
             }
+        }
+
+        /// <summary>kg AllowKillQuestsInParty share radius (client uses 100 m) plus slack for ZDO position lag.</summary>
+        private const float PartyKillShareMaxDistance = 130f;
+
+        /// <summary>A client may credit ANOTHER player's kill quest only as kg's party share: the toggle is on and
+        /// that player is online within range of the sender's character, as the server sees both.</summary>
+        private static bool IsPartyKillShareAllowed(long sender, long memberPlayerId)
+        {
+            if (!global::FiresRPGmaker.Modules.Marketplace.MarketplaceGlobals.AllowKillQuestsInParty) return false;
+            if (!RpcSender.SenderPosition(sender, out Vector3 senderPos)) return false;
+            if (!RpcSender.PlayerPosition(memberPlayerId, out Vector3 memberPos)) return false;
+            return Vector3.Distance(senderPos, memberPos) <= PartyKillShareMaxDistance;
         }
 
         // Client -> Server: notification that a kill occurred. Server applies quest progress to m_customData.
@@ -1785,8 +1883,12 @@ namespace FiresRPGmaker.Modules.Vault
                 try { star = pkg.ReadInt(); } catch { }
 
                 if (playerId == 0 || string.IsNullOrEmpty(prefab)) return;
+                if (!RpcSender.ResolvedOrDeferred("FiresRPGmaker_KillEvent", sender, new ZPackage(pkg.GetArray()), RPC_KillEvent)) return;
+                if (!RpcSender.MayActFor(sender, playerId) && !IsPartyKillShareAllowed(sender, playerId))
+                { RpcSender.Refuse("FiresRPGmaker_KillEvent", sender, $"playerId {playerId} is not the sender's character (nor a party share within range)"); return; }
+                // Every KillEvent is exactly one kill (+1 progress below); the packet carries no amount to clamp.
 
-                FiresLogger.LogVerbose($"[FiresRPGmaker] RPC_KillEvent: player={playerId}, prefab={prefab}, star={star}");
+                FiresLogger.LogVerbose($"[FiresRPGmaker] RPC_KillEvent:player={playerId}, prefab={prefab}, star={star}");
 
                 var player = Player.GetPlayer(playerId);
                 PlayerVaultData data = null;
@@ -1908,7 +2010,7 @@ namespace FiresRPGmaker.Modules.Vault
                         Debug.LogWarning($"[FiresRPGmaker] Failed to send updated player data after KillEvent: {exSend.Message}");
                     }
 
-                    Debug.Log($"[FiresRPGmaker] Server applied kill event for player {playerId} prefab {prefab}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Server applied kill event for player {playerId} prefab {prefab}");
                 }
                 else
                 {
@@ -1928,11 +2030,15 @@ namespace FiresRPGmaker.Modules.Vault
             try
             {
                 if (!ZNet.instance.IsServer() || Instance == null || pkg == null) return;
+                if (!RpcSender.ResolvedOrDeferred("FiresRPGmaker_QuestProgressEvent", sender, pkg, RPC_QuestProgressEvent)) return;
                 long playerId = pkg.ReadLong();
                 string questType = pkg.ReadString();
                 string prefab = pkg.ReadString();
                 int amount = pkg.ReadInt();
                 if (playerId == 0 || string.IsNullOrEmpty(questType) || string.IsNullOrEmpty(prefab)) return;
+                if (!RpcSender.MayActFor(sender, playerId)) { RpcSender.Refuse("FiresRPGmaker_QuestProgressEvent", sender, $"playerId {playerId} is not the sender's character"); return; }
+                if (!RpcSender.IsServerSelf(sender) && !AdminSyncing.IsAdmin(sender))
+                    amount = Mathf.Clamp(amount, 1, MaxClientProgressPerEvent);
                 ApplyQuestProgressLocal(playerId, questType, prefab, amount);
             }
             catch (Exception ex) { Debug.LogError("[FiresRPGmaker] RPC_QuestProgressEvent exception: " + ex); }
@@ -1945,11 +2051,18 @@ namespace FiresRPGmaker.Modules.Vault
             try
             {
                 if (!ZNet.instance.IsServer() || Instance == null || pkg == null) return;
+                if (!RpcSender.ResolvedOrDeferred("FiresRPGmaker_QuestMoveCheck", sender, pkg, RPC_QuestMoveCheck)) return;
                 long playerId = pkg.ReadLong();
                 float x = pkg.ReadSingle();
                 float y = pkg.ReadSingle();
                 float z = pkg.ReadSingle();
                 var position = new Vector3(x, y, z);
+                if (!RpcSender.IsServerSelf(sender))
+                {
+                    if (!RpcSender.SenderIsPlayer(sender, playerId)) { RpcSender.Refuse("FiresRPGmaker_QuestMoveCheck", sender, $"playerId {playerId} is not the sender's character"); return; }
+                    // Never trust the packet's position: use where the server sees the sender's character.
+                    if (!RpcSender.SenderPosition(sender, out position)) { RpcSender.Refuse("FiresRPGmaker_QuestMoveCheck", sender, "sender position unknown"); return; }
+                }
                 if (Player.GetPlayer(playerId) == null && ZNet.instance != null) QueueMoveCheckUntilRead(playerId, position);
                 else ApplyMoveQuestCheckLocal(playerId, position);
             }
@@ -2076,7 +2189,7 @@ namespace FiresRPGmaker.Modules.Vault
                         int next = Math.Min(t.Amount, cur + Math.Max(1, amount));
                         eventScored = true;
                         ActiveQuestStore.SetTargetProgress(active.QuestId, ti, next, tc);
-                        Debug.Log($"[QuestPipe] Progress {active.QuestId} obj{ti} {objType}:{prefab} {cur}->{next}/{t.Amount}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] Progress {active.QuestId} obj{ti} {objType}:{prefab} {cur}->{next}/{t.Amount}");
 
                         if (def.Autocomplete && active.AllTargetsComplete(def))
                         {
@@ -2086,7 +2199,7 @@ namespace FiresRPGmaker.Modules.Vault
                             try { if (def.Rewards != null && def.Rewards.Count > 0) QuestRewardDispatcher.GrantAll(data, player, def.Rewards); } catch { }
                             try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.OnCompleted(def, data, player); } catch { }
                             try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest completed: " + (def.Name ?? active.QuestId)); } catch { }
-                            Debug.Log($"[QuestPipe] Autocomplete {active.QuestId}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] Autocomplete {active.QuestId}");
                         }
                         break;
                     }
@@ -2095,7 +2208,7 @@ namespace FiresRPGmaker.Modules.Vault
             catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] ApplyQuestProgressClientLocal failed: " + ex.Message); }
         }
 
-        /// <summary>Move-quest distance check on the player's own client (0.0.532), against the same active-quest store
+        /// <summary>Move-quest distance check on the player's own client, against the same active-quest store
         /// (m_customData "FiresQuest.&lt;id&gt;") every other objective type uses. Each Move target ("x,y,z" in
         /// <c>QuestTarget.Prefab</c>) within 10 m (x/z) counts one tick through <see cref="ApplyQuestProgressClientLocal"/>,
         /// which logs "[QuestPipe] Progress ..." and handles autocomplete and rewards.</summary>
@@ -2129,7 +2242,7 @@ namespace FiresRPGmaker.Modules.Vault
 
         /// <summary>Move-quest distance check (KG parity, every 3s on client). Target stored as
         /// "x,y,z" string in <c>QuestTarget.Prefab</c>; within 10m counts as one progress tick.
-        /// 0.0.532: no longer called by the client. It reads the vault blob, which a dedicated server never has for a
+        /// No longer called by the client. It reads the vault blob, which a dedicated server never has for a
         /// remote player (vanilla keeps Player.m_customData in the client's profile), so Move quests never progressed there.
         /// Kept for firesrpg_test and the old RPC.</summary>
         public static void ApplyMoveQuestCheckLocal(long playerId, Vector3 position)
@@ -2191,7 +2304,7 @@ namespace FiresRPGmaker.Modules.Vault
             try
             {
                 // Accepts/abandons are rare — log receipt unconditionally so a dropped RPC is diagnosable from logs.
-                Debug.Log($"[FiresRPGmaker] RPC_UpdateQuestFlag received from {sender} (isServer={(ZNet.instance != null && ZNet.instance.IsServer())})");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_UpdateQuestFlag received from {sender} (isServer={(ZNet.instance != null && ZNet.instance.IsServer())})");
 
                 // Ensure ZNet is available
                 if (ZNet.instance == null)
@@ -2232,6 +2345,9 @@ namespace FiresRPGmaker.Modules.Vault
                     Debug.LogWarning($"[FiresRPGmaker] RPC_UpdateQuestFlag invalid payload from {sender}");
                     return;
                 }
+                // Bind to the routed sender: a client changes only its own quest flags (admins: anyone's).
+                if (!RpcSender.ResolvedOrDeferred("Vault_UpdateQuestFlag", sender, new ZPackage(pkg.GetArray()), RPC_UpdateQuestFlag)) return;
+                if (!RpcSender.MayActFor(sender, playerId)) { RpcSender.Refuse("Vault_UpdateQuestFlag", sender, $"playerId {playerId} is not the sender's character"); return; }
 
                 // Normalize quest id (strip command prefixes like 'startquest') before any lookup
                 try
@@ -2249,6 +2365,8 @@ namespace FiresRPGmaker.Modules.Vault
                     {
                         int delta = 1;
                         try { delta = pkg.ReadInt(); } catch { delta = 1; }
+                        if (!RpcSender.IsServerSelf(sender) && !AdminSyncing.IsAdmin(sender))
+                            delta = Mathf.Clamp(delta, 1, MaxClientProgressPerEvent);
                         Instance.ApplyQuestFlagLocally(playerId, questId, "progress", false, delta, sender);
                     }
                     else if (flagType == "active")
@@ -2271,7 +2389,7 @@ namespace FiresRPGmaker.Modules.Vault
                                         if (ChroniclesOfTime.IsQuestOnCooldown(completedEntry, def.CooldownDays, out DateTime availableAt))
                                         {
                                             string cooldownMsg = ChroniclesOfTime.BuildCooldownMessage(questId, def.Name, availableAt);
-                                            Debug.Log($"[FiresRPGmaker] RPC_UpdateQuestFlag: Rejecting quest start due to cooldown - {cooldownMsg}");
+                                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_UpdateQuestFlag: Rejecting quest start due to cooldown - {cooldownMsg}");
 
                                             // Send rejection to requester
                                             try
@@ -2329,10 +2447,10 @@ namespace FiresRPGmaker.Modules.Vault
                                     // Debug: log snapshot received on server
                                     try
                                     {
-                                        Debug.Log($"[FiresRPGmaker] Received inventory snapshot from {sender}: {snapshot.Count} items");
+                                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Received inventory snapshot from {sender}: {snapshot.Count} items");
                                         foreach (var sbi in snapshot)
                                         {
-                                            try { Debug.Log($"[FiresRPGmaker] Snapshot item from {sender}: Type={sbi.Type}, Prefab={sbi.Prefab}, Amount={sbi.Amount}, Quality={sbi.Quality}, Durability={sbi.Durability}"); } catch { }
+                                            try { global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Snapshot item from {sender}: Type={sbi.Type}, Prefab={sbi.Prefab}, Amount={sbi.Amount}, Quality={sbi.Quality}, Durability={sbi.Durability}"); } catch { }
                                         }
                                     }
                                     catch { }
@@ -2359,7 +2477,7 @@ namespace FiresRPGmaker.Modules.Vault
                                 if (!ok)
                                 {
                                     // This was a fully SILENT server-side exit — log it so failed accepts are diagnosable.
-                                    Debug.Log($"[FiresRPGmaker] RPC_UpdateQuestFlag: rejecting '{questId}' for player {playerId} — missing: {string.Join(", ", missing)}");
+                                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_UpdateQuestFlag: rejecting '{questId}' for player {playerId} — missing: {string.Join(", ", missing)}");
                                     // Send rejection to requester with missing items
                                     try
                                     {
@@ -2433,7 +2551,7 @@ namespace FiresRPGmaker.Modules.Vault
         {
             try
             {
-                Debug.Log($"[FiresRPGmaker] ApplyQuestFlagLocally called: playerId={playerId}, questId={questId}, flagType={flagType}, boolValue={boolValue}, intValue={intValue}, requesterUid={requesterUid}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] ApplyQuestFlagLocally called: playerId={playerId}, questId={questId}, flagType={flagType}, boolValue={boolValue}, intValue={intValue}, requesterUid={requesterUid}");
 
                 var player = Player.GetPlayer(playerId);
                 PlayerVaultData data = null;
@@ -2518,7 +2636,7 @@ namespace FiresRPGmaker.Modules.Vault
                             if (def.CooldownDays > 0 && ChroniclesOfTime.IsQuestOnCooldown(completedEntry, def.CooldownDays, out DateTime availableAt))
                             {
                                 string cooldownMsg = ChroniclesOfTime.BuildCooldownMessage(questId, def.Name, availableAt);
-                                Debug.Log($"[FiresRPGmaker] Quest activation rejected - {cooldownMsg}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Quest activation rejected - {cooldownMsg}");
 
                                 // Send rejection to requester if provided
                                 if (requesterUid != 0)
@@ -2641,12 +2759,12 @@ namespace FiresRPGmaker.Modules.Vault
                 {
                     SerializeToCustomData(player, data);
                     SavePlayerDataFromZDO(playerId, player);
-                    Debug.Log($"[FiresRPGmaker] Applied quest flag locally and saved via ZDO for player {playerId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Applied quest flag locally and saved via ZDO for player {playerId}");
                 }
                 else
                 {
                     SavePlayerData(playerId, data);
-                    Debug.Log($"[FiresRPGmaker] Applied quest flag locally and saved to disk for player {playerId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Applied quest flag locally and saved to disk for player {playerId}");
                 }
 
                 // If a requester UID is provided, send an acknowledgement so client may fetch authoritative copy
@@ -2683,7 +2801,7 @@ namespace FiresRPGmaker.Modules.Vault
 
                 string msg = $"Quest timer expired: {questName} ({questId}). Please try again";
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, msg);
-                Debug.Log($"[FiresRPGmaker] RPC_QuestTimerExpired: {msg}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_QuestTimerExpired: {msg}");
             }
             catch (Exception ex)
             {
@@ -2753,7 +2871,7 @@ namespace FiresRPGmaker.Modules.Vault
                     var req = new ZPackage();
                     req.Write(playerId);
                     try { req.Write(Player.m_localPlayer?.GetPlayerName() ?? string.Empty); } catch { req.Write(string.Empty); }
-                    SafeInvokeRoutedRPC(0L, "FiresRPGmaker_Vault_RequestPlayerData", req);
+                    SafeInvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Vault_RequestPlayerData"), "FiresRPGmaker_Vault_RequestPlayerData", req);
                 }
                 catch (Exception ex)
                 {
@@ -2764,7 +2882,7 @@ namespace FiresRPGmaker.Modules.Vault
                 // The ack simply indicates the server processed the request. Log for debugging and rely on ReceivePlayerData handler.
                 try
                 {
-                    Debug.Log($"[FiresRPGmaker] Received UpdateQuestFlag ack from {sender} for player {playerId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Received UpdateQuestFlag ack from {sender} for player {playerId}");
                 }
                 catch { }
             }
@@ -2793,6 +2911,11 @@ namespace FiresRPGmaker.Modules.Vault
                     Debug.LogWarning($"[FiresRPGmaker] RPC_RequestPlayerData invalid playerId from {sender}");
                     return;
                 }
+                // A client may read only its own vault (admins: anyone's); the name is the peer's, not the packet's.
+                if (!RpcSender.ResolvedOrDeferred("Vault_RequestPlayerData", sender, new ZPackage(pkg.GetArray()), RPC_RequestPlayerData)) return;
+                if (!RpcSender.MayActFor(sender, playerId)) { RpcSender.Refuse("Vault_RequestPlayerData", sender, $"playerId {playerId} is not the sender's character"); return; }
+                if (!RpcSender.IsServerSelf(sender) && RpcSender.SenderIsPlayer(sender, playerId))
+                    playerName = RpcSender.SenderName(sender) ?? playerName;
 
                 // Load authoritative data from disk (server)
                 var data = Instance.LoadPlayerData(playerId);
@@ -2842,6 +2965,7 @@ namespace FiresRPGmaker.Modules.Vault
         }
 
         // RPC handler: client receives player data package from server
+        private static int s_receiveSeq;
         private static void RPC_ReceivePlayerData(long sender, ZPackage pkg)
         {
             try
@@ -2874,20 +2998,50 @@ namespace FiresRPGmaker.Modules.Vault
                     int completedQuests = data.CompletedQuests?.Count ?? 0;
                     int companions = data.Companions?.Count ?? 0;
                     int bankItems = data.BankItems?.Count ?? 0;
-                    Debug.Log($"[FiresRPGmaker] RPC_ReceivePlayerData scheduling customData write for player {data.PlayerId} (activeQuests={activeQuests}, completedQuests={completedQuests}, companions={companions}, bankItems={bankItems})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_ReceivePlayerData scheduling customData write for player {data.PlayerId} (activeQuests={activeQuests}, completedQuests={completedQuests}, companions={companions}, bankItems={bankItems})");
 
                     // Defer the write - server push can land while the client is mid-teleport
                     // / mid-respawn, and writing to m_customData during engine teardown of the
                     // Player MonoBehaviour has been observed to wedge the loading screen.
                     PlayerVaultData capturedData = data;
+                    // 0.0.806 ([Vault] Serialize received vault data in the background, default off until its A/B; "RPC_ReceivePlayerData x1
+                    // 36.0 ms"): the JSON is built on a pool thread from the received copy (nothing else holds it) and written into
+                    // m_customData on the main thread through the same spawn gate. A newer receive supersedes an older one still in flight.
+                    if (global::FiresRPGmaker.Managers.ConfigManager.Instance?.configBackgroundVaultReceive?.Value == true)
+                    {
+                        int seq = System.Threading.Interlocked.Increment(ref s_receiveSeq);
+                        var swBg = System.Diagnostics.Stopwatch.StartNew();
+                        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                        {
+                            string bgJson = null; string err = null;
+                            try { bgJson = JsonConvert.SerializeObject(capturedData); } catch (Exception e) { err = e.Message; }
+                            double bgMs = swBg.Elapsed.TotalMilliseconds;
+                            global::FiresRPGmaker.Modules.Vault.VaultStatSaver.OnMain(() =>
+                            {
+                                if (seq != s_receiveSeq) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[VaultReceive] background JSON {seq} dropped: a newer receive follows"); return; }
+                                if (bgJson == null) { Debug.LogWarning($"[FiresRPGmaker] Failed to write received vault data to local customData: {err}"); return; }
+                                PlayerSpawnGate.RunWhenLocalReady(30f, lp2 =>
+                                {
+                                    var swMain = System.Diagnostics.Stopwatch.StartNew();
+                                    lp2.m_customData["FiresRPGmaker_Vault"] = bgJson;
+                                    lp2.m_customData["FiresRPGmaker_Dirty"] = "0";
+                                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_ReceivePlayerData wrote vault data ({bgJson.Length} bytes) into local player customData for {capturedData.PlayerId}");
+                                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[VaultReceive] background: JSON {bgMs:0.0} ms off the main thread, main-thread write {swMain.Elapsed.TotalMilliseconds:0.00} ms");
+                                });
+                            });
+                        });
+                        return;
+                    }
                     PlayerSpawnGate.RunWhenLocalReady(30f, lp =>
                     {
                         try
                         {
+                            var swMainOnly = System.Diagnostics.Stopwatch.StartNew();
                             string json = JsonConvert.SerializeObject(capturedData);
+                            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[VaultReceive] main thread: JSON {swMainOnly.Elapsed.TotalMilliseconds:0.0} ms");
                             lp.m_customData["FiresRPGmaker_Vault"] = json;
                             lp.m_customData["FiresRPGmaker_Dirty"] = "0";
-                            Debug.Log($"[FiresRPGmaker] RPC_ReceivePlayerData wrote vault data ({json.Length} bytes) into local player customData for {capturedData.PlayerId}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_ReceivePlayerData wrote vault data ({json.Length} bytes) into local player customData for {capturedData.PlayerId}");
                         }
                         catch (Exception ex)
                         {
@@ -2930,7 +3084,7 @@ namespace FiresRPGmaker.Modules.Vault
 
                 string msg = $"Quest completed: {questName} ({questId})";
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, msg);
-                Debug.Log($"[FiresRPGmaker] RPC_QuestCompleteNotify: {msg}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_QuestCompleteNotify: {msg}");
 
                 var local = Player.m_localPlayer;
                 if (local != null && rewardCount > 0)
@@ -2959,7 +3113,7 @@ namespace FiresRPGmaker.Modules.Vault
                             {
                                 lp.m_customData["FiresRPGmaker_Vault"] = JsonConvert.SerializeObject(capturedPv);
                                 lp.m_customData["FiresRPGmaker_Dirty"] = "0";
-                                Debug.Log($"[FiresRPGmaker] RPC_QuestCompleteNotify stored rewards into local Vault for player {lp.GetPlayerID()}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_QuestCompleteNotify stored rewards into local Vault for player {lp.GetPlayerID()}");
                             }
                             catch (Exception ex)
                             {
@@ -3034,7 +3188,7 @@ namespace FiresRPGmaker.Modules.Vault
                                         p.m_customData["FiresRPGmaker_Vault"] = JsonConvert.SerializeObject(capturedDiskPeer);
                                         p.m_customData["FiresRPGmaker_Dirty"] = "1";
                                         SavePlayerDataFromZDO(capturedPlayerId, p);
-                                        Debug.Log($"[FiresRPGmaker] Migrated on-disk peer file {Path.GetFileName(capturedPeerFile)} -> player {capturedPlayerId}");
+                                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Migrated on-disk peer file {Path.GetFileName(capturedPeerFile)} -> player {capturedPlayerId}");
                                     }
                                     catch (Exception ex)
                                     {
@@ -3077,6 +3231,8 @@ namespace FiresRPGmaker.Modules.Vault
 
         public void SavePlayerData(long playerId, PlayerVaultData data)
         {
+
+            VaultStatSaver.Drain();   // 0.0.800: queued background vault writes land first (order kept)
             // Validate player ID
             if (playerId == 0)
             {
@@ -3127,7 +3283,7 @@ namespace FiresRPGmaker.Modules.Vault
                 // bug-class.  Most non-companion code paths build `data` via
                 //   GetPlayerData -> DeserializeFromCustomData
                 // which by design EXCLUDES companions (see the comments on
-                // DeserializeFromCustomData around line 1212/407 - the exclusion
+                // DeserializeFromCustomData - the exclusion
                 // is to prevent cross-server companion pollution).  Those callers
                 // then update something unrelated (a stat, a quest, a name field,
                 // etc.) and call SavePlayerData - which used to blindly serialize
@@ -3198,7 +3354,7 @@ namespace FiresRPGmaker.Modules.Vault
                 // Log companion data for debugging
                 if (FiresLogger.VerboseEnabled && data.Companions != null && data.Companions.Count > 0)
                 {
-                    Debug.Log($"[FiresRPGmaker] SavePlayerData: {data.Companions.Count} companions for player {playerId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] SavePlayerData: {data.Companions.Count} companions for player {playerId}");
                 }
 
                 // Save via centralized helper
@@ -3208,7 +3364,7 @@ namespace FiresRPGmaker.Modules.Vault
                     return;
                 }
 
-                Debug.Log($"[FiresRPGmaker] Saved player data: {fileName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Saved player data: {fileName}");
             }
             catch (Exception ex)
             {
@@ -3237,7 +3393,7 @@ namespace FiresRPGmaker.Modules.Vault
                             try 
                             { 
                                 File.Delete(f);
-                                Debug.Log($"[FiresRPGmaker] Cleaned up legacy file: {Path.GetFileName(f)}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Cleaned up legacy file: {Path.GetFileName(f)}");
 
                                 // Also drop the matching .bak / .tmp so they don't accumulate
                                 // for players whose character name changed across sessions.
@@ -3255,7 +3411,7 @@ namespace FiresRPGmaker.Modules.Vault
                         try 
                         { 
                             File.Delete(legacy);
-                            Debug.Log($"[FiresRPGmaker] Cleaned up legacy file: {playerId}.json");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Cleaned up legacy file: {playerId}.json");
                         } 
                         catch { }
                     }
@@ -3292,7 +3448,7 @@ namespace FiresRPGmaker.Modules.Vault
                                 if (p.m_customData.ContainsKey("FiresRPGmaker_Vault"))
                                     p.m_customData.Remove("FiresRPGmaker_Vault");
                                 p.m_customData["FiresRPGmaker_Dirty"] = "0";
-                                Debug.Log($"[FiresRPGmaker] Cleared in-memory vault data for player {capturedPlayerId}");
+                                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Cleared in-memory vault data for player {capturedPlayerId}");
                             }
                             catch { }
                         });
@@ -3314,7 +3470,7 @@ namespace FiresRPGmaker.Modules.Vault
                             var files = Directory.GetFiles(PlayersDir, p);
                             foreach (var f in files)
                             {
-                                try { File.Delete(f); Debug.Log($"[FiresRPGmaker] Deleted vault file {Path.GetFileName(f)} for player {playerId}"); } catch { }
+                                try { File.Delete(f); global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Deleted vault file {Path.GetFileName(f)} for player {playerId}"); } catch { }
                             }
                         }
                     }
@@ -3463,7 +3619,7 @@ namespace FiresRPGmaker.Modules.Vault
                 else
                 {
                     if (!string.IsNullOrEmpty(msg)) MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, msg);
-                    Debug.Log($"[FiresRPGmaker] Quest start acknowledged: {msg}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Quest start acknowledged: {msg}");
                 }
             }
             catch (Exception ex)

@@ -59,7 +59,6 @@ private GameObject _buttonsPanel;
         // Drag state
         private bool _isDragging;
         private Vector2 _dragOffset;
-     private JournalDragHandler _dragHandler;
 
  // Resize state
   private GameObject _resizeHandle;
@@ -88,7 +87,7 @@ private const float ITEM_HEIGHT = 32f;
         private const float HEADER_FONT_SIZE = 16f;
   private const float BACKGROUND_MARGIN_X = 60f;
         private const float BACKGROUND_MARGIN_Y = 70f;
-        
+
    // Default content size for font scaling reference
         private const float DEFAULT_CONTENT_WIDTH = 600f;
         private const float DEFAULT_CONTENT_HEIGHT = 700f;
@@ -96,7 +95,6 @@ private const float ITEM_HEIGHT = 32f;
         // Colors from UIFontConfig
         private static Color ItemNormalColor => UIFontConfig.Colors.ItemNormal;
         private static Color ItemSelectedColor => UIFontConfig.Colors.ItemSelected;
-        private static Color ItemHoverColor => UIFontConfig.Colors.ItemHover;
         private static Color TextColor => UIFontConfig.Colors.Gold;
         private static Color LabelColor => UIFontConfig.Colors.LabelGold;
 
@@ -121,6 +119,7 @@ private const float ITEM_HEIGHT = 32f;
            _panelWidthConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Width", 600f, new BepInEx.Configuration.ConfigDescription("Width of the Quest Journal content area", new BepInEx.Configuration.AcceptableValueRange<float>(200f, 3000f)));
            if (_panelHeightConfig == null)
          _panelHeightConfig = FiresRPGmaker.Instance.Config.Bind("UI", "Quest Journal Height", 700f, new BepInEx.Configuration.ConfigDescription("Height of the Quest Journal content area", new BepInEx.Configuration.AcceptableValueRange<float>(200f, 3000f)));
+            global::FiresRPGmaker.RpgConfigUi.Apply(FiresRPGmaker.Instance.Config);   // 10-20: late binds get their settings UI tags (hidden)
             }
  }
 
@@ -136,7 +135,7 @@ private const float ITEM_HEIGHT = 32f;
   {
       if (Instance != null && Instance._initialized)
           {
-          Debug.Log("[QuestJournalController] Using existing controller");
+          global::FiresRPGmaker.FiresLogger.LogDebug("[QuestJournalController] Using existing controller");
     return Instance;
  }
 
@@ -174,7 +173,7 @@ private const float ITEM_HEIGHT = 32f;
 
         rootGO.SetActive(false);
 
-      Debug.Log("[QuestJournalController] Created Quest Journal UI with background layer");
+      global::FiresRPGmaker.FiresLogger.LogDebug("[QuestJournalController] Created Quest Journal UI with background layer");
    return controller;
         }
 
@@ -199,9 +198,9 @@ CreateHeader(contentRect);
             CreateQuestListPanel(contentRect);
        CreateQuestDetailsPanel(contentRect);
    CreateButtonsPanel(contentRect);
-            // 0.0.655 (UI audit): no own resize handle (Core's bottom-right grip scales the journal)
+            // (UI audit): no own resize handle (Core's bottom-right grip scales the journal)
 
-            // 0.0.655 (UI audit): no own background drag (Core live panel)
+            // (UI audit): no own background drag (Core live panel)
             FixAllFonts();
   }
 
@@ -225,12 +224,12 @@ CreateHeader(contentRect);
              _backgroundImage.sprite = bgSprite;
  _backgroundImage.type = Image.Type.Sliced;
      _backgroundImage.color = Color.white;
-       Debug.Log("[QuestJournalController] Applied asset bundle background sprite");
+       global::FiresRPGmaker.FiresLogger.LogDebug("[QuestJournalController] Applied asset bundle background sprite");
       }
      else
           {
   _backgroundImage.color = new Color(0.08f, 0.08f, 0.1f, 0.98f);
-      Debug.Log("[QuestJournalController] Using fallback solid background color");
+      global::FiresRPGmaker.FiresLogger.LogDebug("[QuestJournalController] Using fallback solid background color");
      }
 
      _backgroundImage.raycastTarget = true;
@@ -259,7 +258,7 @@ CreateHeader(contentRect);
          headerText.alignment = TextAlignmentOptions.Center;
             headerText.fontSize = 20f;
 
-            // 0.0.655 (UI audit): the header is Core's drag handle (FiresShell.RegisterLivePanel: drag, resize, dock, save)
+            // (UI audit): the header is Core's drag handle (FiresShell.RegisterLivePanel: drag, resize, dock, save)
             CoreUiBridge.RegisterLivePanel("FiresQuestBookJournal", "rpgmaker.questjournal", GetComponent<RectTransform>(), headerGO.GetComponent<RectTransform>(), "Quest journal", "FiresRPGmaker");
         }
 
@@ -396,7 +395,7 @@ CreateHeader(contentRect);
             handleRect.sizeDelta = new Vector2(RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
 
   var handleImage = _resizeHandle.AddComponent<Image>();
-      handleImage.color = new Color(0.6f, 0.5f, 0.3f, 0f);   // 0.0.542: invisible hit area; the dot triangle below is the grip (it was drawn over a solid square)
+      handleImage.color = new Color(0.6f, 0.5f, 0.3f, 0f);   // invisible hit area; the dot triangle below is the grip (it was drawn over a solid square)
     handleImage.raycastTarget = true;
 
             var lineContainer = new GameObject("ResizeLines");
@@ -444,20 +443,6 @@ dotRect.sizeDelta = new Vector2(3, 3);
 
         #region Drag Handling
 
-        private void SetupDragHandler()
-        {
-            if (_backgroundLayer != null)
- {
-                _dragHandler = _backgroundLayer.GetComponent<JournalDragHandler>();
-         if (_dragHandler == null)
- {
-            _dragHandler = _backgroundLayer.AddComponent<JournalDragHandler>();
-        }
-   _dragHandler.Initialize(this);
-}
-            Debug.Log("[QuestJournalController] Drag handler setup complete");
-        }
-
         public void OnDragStart(Vector2 mousePosition)
         {
  if (_panelLockedConfig?.Value == true) return;
@@ -499,22 +484,9 @@ dotRect.sizeDelta = new Vector2(3, 3);
            _panelPosXConfig.Value = rectTransform.anchoredPosition.x;
     _panelPosYConfig.Value = rectTransform.anchoredPosition.y;
        FiresRPGmaker.Instance?.Config.Save();
-      Debug.Log($"[QuestJournalController] Position saved: ({_panelPosXConfig.Value}, {_panelPosYConfig.Value})");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestJournalController] Position saved: ({_panelPosXConfig.Value}, {_panelPosYConfig.Value})");
             }
         }
-
-        private void LoadPanelPosition()
- {
-            var rectTransform = GetComponent<RectTransform>();
-            if (rectTransform == null) return;
-
-     if (_panelPosXConfig != null && _panelPosYConfig != null)
- {
-     var savedPos = new Vector2(_panelPosXConfig.Value, _panelPosYConfig.Value);
-    rectTransform.anchoredPosition = savedPos;
-                Debug.Log($"[QuestJournalController] Position loaded: ({_panelPosXConfig.Value}, {_panelPosYConfig.Value})");
-       }
-      }
 
   public void ToggleLock()
         {
@@ -525,7 +497,7 @@ dotRect.sizeDelta = new Vector2(3, 3);
 
    string status = _panelLockedConfig.Value ? "locked" : "unlocked";
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest Journal position {status}");
-        Debug.Log($"[QuestJournalController] Position {status}");
+        global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestJournalController] Position {status}");
        }
         }
 
@@ -578,7 +550,7 @@ dotRect.sizeDelta = new Vector2(3, 3);
       newHeight = Mathf.Clamp(newHeight, minTotalHeight, maxTotalHeight);
 
          rectTransform.sizeDelta = new Vector2(newWidth, newHeight);
-         
+
   // Apply font scaling in real-time during resize for immediate visual feedback
          ApplyFontScaling();
         }
@@ -604,7 +576,7 @@ dotRect.sizeDelta = new Vector2(3, 3);
        _panelWidthConfig.Value = contentWidth;
      _panelHeightConfig.Value = contentHeight;
     FiresRPGmaker.Instance?.Config.Save();
-         Debug.Log($"[QuestJournalController] Size saved: {contentWidth}x{contentHeight}");
+         global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestJournalController] Size saved: {contentWidth}x{contentHeight}");
             }
         }
 
@@ -621,7 +593,7 @@ dotRect.sizeDelta = new Vector2(3, 3);
       contentWidth + BACKGROUND_MARGIN_X * 2,
              contentHeight + BACKGROUND_MARGIN_Y * 2
          );
-                Debug.Log($"[QuestJournalController] Size loaded: {contentWidth}x{contentHeight}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestJournalController] Size loaded: {contentWidth}x{contentHeight}");
         ApplyFontScaling();
             }
         }
@@ -750,11 +722,11 @@ if (btnText != null) btnText.fontSize = FONT_SIZE * scale;
             Cursor.lockState = CursorLockMode.None;
 
     FixAllFonts();
-            // 0.0.655 (UI audit): Core's live panel applies the saved position (the [UI] Quest Journal Position X/Y keys are retired)
+            // (UI audit): Core's live panel applies the saved position (the [UI] Quest Journal Position X/Y keys are retired)
   LoadPanelSize();
    Canvas.ForceUpdateCanvases();
 
-            Debug.Log($"[QuestJournalController] Showing Quest Journal - Active: {_activeQuests.Count}, Completed: {_completedQuests.Count}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestJournalController] Showing Quest Journal - Active: {_activeQuests.Count}, Completed: {_completedQuests.Count}");
         }
 
       public void Hide()
@@ -1184,7 +1156,7 @@ foreach (var ext in extensions)
      MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest abandoned: {questName}");
 
    StartCoroutine(RefreshAfterDelay(0.3f));
-         
+
             // Also refresh the QuestInteractionScreen if it's open
    NotifyQuestInteractionScreen();
       }
@@ -1210,7 +1182,7 @@ foreach (var ext in extensions)
    _selectedQuestId = null;
             ClearQuestDetails();
    UpdateButtonStates();
-   
+
     // Also notify the quest interaction screen after the delay
   NotifyQuestInteractionScreen();
    }

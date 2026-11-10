@@ -27,7 +27,7 @@ Content (quests, dialogue trees, trader stock and so on) lives in plain config f
   Tab cycles them while typing), player titles and factions. Guilds themselves come from the FiresGuilds mod;
   with it installed, `/g <message>` sends to your guild.
 - **Territories.** Map zones with their own rules and a minimap overlay.
-- **Compendium** of discoveries, and a **Leaderboard & Achievements** panel (L), including deaths and what
+- **Compendium** of discoveries, and a **Leaderboard & Achievements** panel (Player > Leaderboard in the F1 hub), including deaths and what
   killed you.
 - **Games.** Dice, rune and wheel wagers at Gambler NPCs, plus chess, fanorona and poker.
 - **Globe HUD.** Liquid health, stamina, eitr and adrenaline globes with value popups and tooltips. With the
@@ -71,6 +71,8 @@ Checked in game by the automated `firesnpcs_test` run (step names in brackets):
 
 ## Configuration
 
+In the Fires config window only the keybinds and main on/off switches show; turn on **Advanced** for the rest. Window sizes and positions are saved when you drag them, so they are not listed.
+
 Main file: `BepInEx/config/com.Fire.FiresRPGmaker.cfg`, also editable in the Fires config window (F1, or F8 when
 another configuration manager is installed). Content lives in folders under `BepInEx/config/FiresRPGmaker/`
 (Quests, QuestProfiles, Dialogues, Traders, Bankers, Gamblers, Marketplace, Mail, Territories, Factions,
@@ -79,7 +81,7 @@ ServerInfos and more), and changes on the server reload without a restart.
 Worth knowing:
 
 - `[General] ServerAuthority` (false) - lock config changes to admins.
-- `[Hotkeys] QuestJournalKey` (J), `LeaderboardKey` (L) - key combinations work; set None to disable.
+- `[Hotkeys] QuestJournalKey` (J), `LeaderboardKey` (unbound; the leaderboard is in the F1 hub) - key combinations work; set None to disable.
 - `[UI] UseGlobeHud` (true), `UseBookAdminPanel` (true), `ExtendedInteractRange`, font choices, panel sizes.
 - `[Chat] CustomChatWindow` (true) and its offset and scale.
 - `[Territories] EnableMapOverlay` (true), `EnableDeepNorthMapOverlay` (true; turn off if another mod draws its
@@ -126,3 +128,12 @@ https://discord.gg/zQRgHbqms4
 ## Licence
 
 MIT License, Copyright (c) 2025 fire-VA. See the LICENSE file.
+
+## Screenshots
+
+<!-- ![rpg_globes](HOSTED_URL/rpg_globes.png) -->
+<!-- ![rpg_quest_tracker](HOSTED_URL/rpg_quest_tracker.png) -->
+<!-- ![rpg_npc_book](HOSTED_URL/rpg_npc_book.png) -->
+<!-- ![rpg_dressing_room](HOSTED_URL/rpg_dressing_room.png) -->
+<!-- ![rpg_leaderboard](HOSTED_URL/rpg_leaderboard.png) -->
+<!-- ![rpg_chat](HOSTED_URL/rpg_chat.png) -->

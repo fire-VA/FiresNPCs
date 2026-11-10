@@ -20,7 +20,7 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         private static readonly Color OverlayColor = new Color(0f, 0f, 0f, 0.35f);
 
-        // House style (Fire 10-08, leaderboard overhaul): the Classes window / VAInventory palette.
+        // House style (leaderboard overhaul): the Classes window / VAInventory palette.
         private static readonly Color LbPanel = new Color32(0x24, 0x1a, 0x11, 0xff);
         private static readonly Color LbCell = new Color32(0x2e, 0x21, 0x13, 0xff);
         private static readonly Color LbCellDone = new Color32(0x3a, 0x2a, 0x12, 0xff);
@@ -39,6 +39,7 @@ namespace FiresRPGmaker.UI.Leaderboard
         private static string AchievementProfile => AchievementProfileManager.ResolveActiveProfile();
 
         private GameObject _canvasRoot;
+        private bool _liveRegistered, _liveTried, _resizedSinceBuild;
         /// <summary>The leaderboard's canvas root (null before the first open); read by the UI test.</summary>
         public static GameObject CanvasRoot => _instance != null ? _instance._canvasRoot : null;
         private RectTransform _canvasRootRect;
@@ -51,7 +52,7 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         private static Type ResolveCanvasType(string fullName, params string[] qualifiedNames)
         {
-            Type type = AccessTools.TypeByName(fullName);
+            Type type = global::FiresRPGmaker.Utilities.QuietTypes.Find(fullName);   // 0.0.808: the fallbacks below follow; no HarmonyX warning for a miss
             if (type != null) return type;
             foreach (string qualified in qualifiedNames)
             {
@@ -80,6 +81,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             if (_canvasButtonTemplate == null || _canvasTextTemplate == null) return false;
 
             Transform parent = ResolveVanillaWindowParent(sourceDialog.transform);
+            _vanillaParent = parent;
             _canvasRoot = new GameObject("FiresLeaderboard.CanvasRoot", typeof(RectTransform));
             _canvasRoot.transform.SetParent(parent, false);
             _canvasRootRect = _canvasRoot.GetComponent<RectTransform>();
@@ -87,7 +89,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             _canvasRootRect.localRotation = Quaternion.identity;
             // Size the window in the parent's own units (the HUD canvas), not screen pixels: CenterRect clamped to Screen.width
             // / height, which shrank it too far on small screens (1024x768) and mixed units everywhere but 1080p. The header's
-            // buttons sit right-aligned inside it, so a window that fits the canvas keeps all of them on screen (round 16).
+            // buttons sit right-aligned inside it, so a window that fits the canvas keeps all of them on screen.
             if (parent is RectTransform parentRect && parentRect.rect.width > 0f && parentRect.rect.height > 0f)
             {
                 float w = Mathf.Min(BaseWindowWidth * WindowScale, parentRect.rect.width - 40f);
@@ -117,8 +119,33 @@ namespace FiresRPGmaker.UI.Leaderboard
             if (_canvasRootRect == null) return;
             if (!visible) { SetCanvasRootVisible(false); return; }
 
-            SetCenteredRect(_canvasRootRect, _windowRect.width, _windowRect.height);
-            _canvasRootRect.localScale = Vector3.one;
+            if (Hosted)   // fill the hub page; the layout reads _windowRect, so it takes the page size
+            {
+                Stretch(_canvasRootRect, Vector2.zero, Vector2.one);
+                var hr = _host.rect;
+                if (hr.width > 0f && hr.height > 0f) _windowRect = new Rect(0f, 0f, hr.width, hr.height);
+            }
+            else if (!_liveTried)
+            {
+                // the first visible frame
+                // centres it, then it becomes a Core live panel (header drag + corner resize, saved per player) and is never re-centred.
+                SetCenteredRect(_canvasRootRect, _windowRect.width, _windowRect.height);
+                _canvasRootRect.localScale = Vector3.one;
+                _liveTried = true;
+                _liveRegistered = global::FiresRPGmaker.UI.CoreUiBridge.RegisterLivePanel("FiresRPGmaker:Leaderboard", "rpgmaker.leaderboard", _canvasRootRect,
+                    global::FiresRPGmaker.UI.CoreUiBridge.HeaderStrip(_canvasRootRect, 40f), "Leaderboard", "FiresRPGmaker");
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Leaderboard] live panel (drag + corner resize) {(_liveRegistered ? "registered" : "NOT registered (Core too old?) - stays centred")}");
+            }
+            else if (_liveRegistered)
+            {
+                // the dock owns the spot and size now: the layout follows the rect, rebuilt when a resize changed it
+                var sz = _canvasRootRect.rect.size;
+                if (Mathf.Abs(sz.x - _windowRect.width) > 1f || Mathf.Abs(sz.y - _windowRect.height) > 1f)
+                {
+                    _windowRect = new Rect(_windowRect.x, _windowRect.y, sz.x, sz.y);
+                    _resizedSinceBuild = true;
+                }
+            }
             _canvasRootRect.localRotation = Quaternion.identity;
             RectTransform contentRect = _canvasContentRoot != null ? _canvasContentRoot.GetComponent<RectTransform>() : null;
             if (contentRect != null) Stretch(contentRect, Vector2.zero, Vector2.one);
@@ -134,6 +161,7 @@ namespace FiresRPGmaker.UI.Leaderboard
         private void RefreshCanvasViewIfNeeded()
         {
             if (!IsVisible || !EnsureCanvasUiReady()) return;
+            if (_resizedSinceBuild) { _resizedSinceBuild = false; RebuildCanvasView(true); return; }   // a corner resize reflows the board
             string signature = GetCanvasSignature();
             if (!string.Equals(signature, _canvasSignature, StringComparison.Ordinal)) RebuildCanvasView(true);
         }
@@ -145,15 +173,42 @@ namespace FiresRPGmaker.UI.Leaderboard
             if (!force && string.Equals(signature, _canvasSignature, StringComparison.Ordinal)) return;
             ClearCanvasContent();
             BuildCanvasWindow();
+            ApplyKitSkin();   // hosted + Unified UI ON only; OFF = this build, unchanged
             _canvasSignature = signature;
-            // 0.0.602 ([wishbone]'s FCT step): one Info line whenever the shown tab changes (tab clicks and OpenOnTab alike)
+            // one Info line whenever the shown tab changes (tab clicks and OpenOnTab alike)
             if (!string.Equals(_lastLoggedView, _localViewMode, StringComparison.OrdinalIgnoreCase))
             {
                 _lastLoggedView = _localViewMode;
-                global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Leaderboard] tab {_localViewMode} shown");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[Leaderboard] tab {_localViewMode} shown");
             }
         }
         private string _lastLoggedView;
+
+        // ---- LeaderboardKitSkin over the built hierarchy;
+        // the full-window Overlay dim goes transparent while skinned (the hub's own Panel is the backdrop) and comes back otherwise.
+        private Color? _overlayOrig;
+        private static bool s_skinHooked;
+        private void ApplyKitSkin()
+        {
+            LeaderboardKitSkin.Apply(_canvasContentRoot != null ? _canvasContentRoot.transform : null, Hosted);
+            var ov = _canvasRoot != null ? _canvasRoot.transform.Find("Overlay") : null;
+            var ovImg = ov != null ? ov.GetComponent<UnityEngine.UI.Image>() : null;
+            if (ovImg != null)
+            {
+                if (LeaderboardKitSkin.LastOn) { if (_overlayOrig == null) _overlayOrig = ovImg.color; ovImg.color = new Color(0f, 0f, 0f, 0f); }
+                else if (_overlayOrig != null) { ovImg.color = _overlayOrig.Value; _overlayOrig = null; }
+            }
+            if (!s_skinHooked)
+            {
+                s_skinHooked = true;
+                try { FiresCore.UI.Shell.FiresShell.OverrideChanged += _ => { if (_instance != null && IsVisible) _instance.RebuildCanvasView(true); }; } catch { }
+            }
+        }
+
+        // test hooks (rpg_leaderboard_ui_test)
+        internal static bool TestHosted => _instance != null && _instance.Hosted && IsVisible;
+        internal static RectTransform TestHost => _instance != null ? _instance._host : null;   // the hub content rect
+        internal static Transform TestContentRoot => _instance != null && _instance._canvasContentRoot != null ? _instance._canvasContentRoot.transform : null;
 
         private string GetCanvasSignature()
         {
@@ -182,6 +237,9 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         private void BuildCanvasWindow()
         {
+            // hosted = lay out from the hub page rect at build time (a stale _windowRect from a standalone open or a
+            // pre-layout 0 rect made the page taller than the hub)
+            if (Hosted) { var hr = _host.rect; if (hr.width > 0f && hr.height > 0f) _windowRect = new Rect(0f, 0f, hr.width, hr.height); }
             float margin = 18f;
             float width = _windowRect.width - (margin * 2f);
             float footerY = _windowRect.height - 54f;
@@ -197,7 +255,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             CreateTextAt(headerPanel.transform, "Leaderboard", new Rect(18f, 8f, Mathf.Min(520f, textWidth), 28f), 28f, LbGold, TextAnchor.MiddleLeft, false);
             CreateTextAt(headerPanel.transform, BuildSubtitle(), new Rect(18f, 36f, Mathf.Min(760f, textWidth), 18f), 16f, LbMuted, TextAnchor.MiddleLeft, false);
             bool rankingActive = IsRankingMode();
-            // 0.0.601 (Fire 10-15, the approved mock): tabs Seasons / Progression / Ranking. Achievements moved to Core's hub tab
+            // tabs Seasons / Progression / Ranking. Achievements moved to Core's hub tab
             // (RPGmaker still feeds it through AchievementBridge); a stale "achievements" view mode falls back to Progression.
             if (string.Equals(_localViewMode, ViewAchievements, StringComparison.OrdinalIgnoreCase)) _localViewMode = ViewProgression;
             bool seasonsActive = string.Equals(_localViewMode, ViewSeasons, StringComparison.OrdinalIgnoreCase);
@@ -261,12 +319,41 @@ namespace FiresRPGmaker.UI.Leaderboard
             GameObject bodyPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Body", new Rect(margin, blockY, width, blockHeight), LbWell, LbEdge);
             CreateTextAt(bodyPanel.transform, BuildDynamicBlockTitle(), new Rect(16f, 8f, 360f, 22f), 18f, LbMuted, TextAnchor.MiddleLeft, false);
 
-            Rect innerRect = new Rect(10f, 42f, width - 20f, blockHeight - 56f);
-            BuildCanvasDynamicBlock(bodyPanel.transform, innerRect);
+            // the dynamic block lives in a vertical
+            // ScrollRect (Core's UIBuilderHelper.CreateScrollArea, RectMask2D viewport) sized from the page; the content is as
+            // tall as the view needs (never squeezed below its minimum), so nothing ever draws outside the page.
+            float bodyInnerW = Mathf.Max(0f, width - 16f), bodyInnerH = Mathf.Max(0f, blockHeight - 16f);
+            const float scrollTitleH = 30f, scrollBarW = 10f;
+            var sa = FiresCore.UI.UIBuilderHelper.CreateScrollArea(bodyPanel.transform, "Leaderboard.Body.Scroll", Vector2.zero, Vector2.one, null, scrollBarW);
+            var saRect = sa.Root.GetComponent<RectTransform>();
+            saRect.offsetMin = Vector2.zero; saRect.offsetMax = new Vector2(0f, -scrollTitleH);
+            float viewW = Mathf.Max(0f, bodyInnerW - 5f - scrollBarW - 6f);
+            float viewH = Mathf.Max(0f, bodyInnerH - scrollTitleH - 10f);
+            float contentH = Mathf.Max(viewH, RequiredDynamicHeight(viewW));
+            sa.Content.sizeDelta = new Vector2(0f, contentH);
+            _bodyScroll = sa.ScrollRect;
+            Rect innerRect = new Rect(0f, 6f, viewW, contentH - 12f);
+            BuildCanvasDynamicBlock(sa.Content, innerRect);
 
             GameObject footerPanel = CreatePanelBox(_canvasContentRoot.transform, "Leaderboard.Footer", new Rect(margin, footerY, width, 36f), LbWell, LbEdge);
             CreateTextAt(footerPanel.transform, BuildFooter(), new Rect(16f, 8f, width - 420f, 20f), 15f, LbMuted, TextAnchor.MiddleLeft, false);
-            CreateActionButtonAt(footerPanel.transform, "Close", new Rect(width - 96f, 4f, 80f, 24f), delegate { Close(); }, true, false, 16f, false);
+            if (!Hosted) CreateActionButtonAt(footerPanel.transform, "Close", new Rect(width - 96f, 4f, 80f, 24f), delegate { Close(); }, true, false, 16f, false);   // in the hub, the hub closes it
+        }
+
+        // the scroll content height each view needs at the given width (the view's own fixed blocks), so the content
+        // grows and scrolls instead of the blocks overflowing the page. Progression/Detail = Adventure (258) + gap + player card min.
+        internal const float PlayerCardMinHeight = 640f;
+        private UnityEngine.UI.ScrollRect _bodyScroll;
+        internal static UnityEngine.UI.ScrollRect TestBodyScroll => _instance != null ? _instance._bodyScroll : null;
+        private float RequiredDynamicHeight(float viewW)
+        {
+            if (string.Equals(_localViewMode, DetailViewMode, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(_localViewMode, ViewProgression, StringComparison.OrdinalIgnoreCase))
+                return 12f + 258f - 6f + 8f + PlayerCardMinHeight;
+            if (string.Equals(_localViewMode, ViewSeasons, StringComparison.OrdinalIgnoreCase))
+                return 12f + Mathf.Max(1, (LeaderboardBoard.AvailableSeasons?.Count ?? 0) + 1) * 50f;
+            int n = _adapter != null ? _adapter.GetRankings().Count : 0;
+            return 12f + 6f + 30f + 8f + Mathf.Max(1, n) * 54f + 16f;
         }
 
         private bool IsRankingMode()
@@ -291,7 +378,7 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         private string BuildFooter()
         {
-            return "Press L to close. Climb the board by killing, building, crafting, and exploring.";
+            return "Climb the board by killing, building, crafting, and exploring.";
         }
 
         private void BuildCanvasDynamicBlock(Transform parent, Rect rect)
@@ -314,7 +401,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             BuildCanvasRankingView(parent, rect);
         }
 
-        // 0.0.601: the Seasons tab - every season the server has (newest first, then "Overall"), the one being viewed highlighted;
+        // the Seasons tab - every season the server has (newest first, then "Overall"), the one being viewed highlighted;
         // "View ranking" switches the board to that season and opens Ranking. The leader of the VIEWED season is shown (the board
         // only holds the viewed season's rows, so other seasons show their name + the button).
         private void BuildCanvasSeasonsView(Transform parent, Rect rect)
@@ -594,7 +681,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             }
             else
             {
-                // 0.0.601 (Fire 10-15, the approved leaderboard mock: "rounded, the edges not sharp, always with all our ui's"): the
+                // the
                 // solid fill is a rounded 9-slice (radius 10, the kit's / Core minimap plate's) with the edge colour as its 1 px rim.
                 SetProperty(img, "sprite", FiresCore.UI.FiresRoundedSkin.RoundedSprite(10, fillColor, borderColor.a > 0f ? (Color?)borderColor : null, 1));
                 SetTypeSliced(img);

@@ -126,7 +126,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
             _newestSeen = NewestWriteTime();
             if (_blobs.Count > 0)
-                Debug.Log($"[CustomSpawnData] loaded {_blobs.Count} data blob(s)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[CustomSpawnData] loaded {_blobs.Count} data blob(s)");
         }
 
         private static DateTime NewestWriteTime()

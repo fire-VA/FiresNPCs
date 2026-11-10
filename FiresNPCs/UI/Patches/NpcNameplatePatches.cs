@@ -27,9 +27,13 @@ namespace FiresRPGmaker.UI.Patches
             private static void Postfix(Character c, ref bool __result)
             {
                 if (!__result || c == null) return;
+                // R3 Hide Nameplate hides the WHOLE EnemyHud plate (name + health bar), not just the name.
+                // TestShow both adds and keeps a hud, so false here also removes a shown plate on the next frame (live toggle).
+                var hidden = c.GetComponent<NpcController>();
+                if (hidden != null && hidden.hideNameplate) { __result = false; return; }
                 var mode = ConfigManager.Instance?.configStaticNpcNameplateMode?.Value ?? StaticNpcNameplateMode.HealthBar;
                 if (mode == StaticNpcNameplateMode.HealthBar) return;
-                if (c.GetComponent<NpcController>() != null) __result = false;
+                if (hidden != null) __result = false;   // 0.0.805: the lookup above, not a second GetComponent
             }
         }
 

@@ -80,7 +80,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 try { LoadOne(kv.Key, kv.Value); }
                 catch (System.Exception ex) { Debug.LogError("[LeaderboardProfileManager] " + kv.Key + ": " + ex.Message); }
             }
-            Debug.Log("[LeaderboardProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
+            global::FiresRPGmaker.FiresLogger.LogDebug("[LeaderboardProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
                       + " entry(ies) across " + _byProfile.Count + " profile(s)");
         }
 

@@ -87,7 +87,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             }
 
             float gap = 16f;
-            float leftWidth = Mathf.Max(380f, rect.width * 0.55f);
+            float leftWidth = Mathf.Min(Mathf.Max(380f, rect.width * 0.55f), Mathf.Max(0f, rect.width - gap - 160f));   // leave the ranking column room
             float rightWidth = rect.width - leftWidth - gap;
             float yOffset = 36f;
             GameObject leftPanel = CreatePanelBox(parent, "Leaderboard.Player.Left", new Rect(rect.x, rect.y + yOffset, leftWidth, rect.height - 52f), LbWell, LbEdge);
@@ -95,7 +95,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             string playerHeader = player.PlayerName ?? "Player";
             CreateTextAt(leftPanel.transform, playerHeader, new Rect(12f, 8f, leftWidth - 24f, 22f), 20f, LbText, TextAnchor.MiddleLeft, false);
 
-            // 0.0.601: the right column's title (its rows are built at the end of this method).
+            // the right column's title (its rows are built at the end of this method).
             int viewedSeason = LeaderboardBoard.ViewedSeason;
             CreateTextAt(rightPanel.transform, "Season ranking", new Rect(12f, 8f, rightWidth - 140f, 22f), 20f, LbGold, TextAnchor.MiddleLeft, false);
             CreateTextAt(rightPanel.transform, viewedSeason == LeaderboardBoard.OverallSeason ? "Overall" : "Season " + viewedSeason, new Rect(rightWidth - 160f, 8f, 120f, 22f), 13f, LbMuted, TextAnchor.MiddleRight, false);
@@ -137,8 +137,8 @@ namespace FiresRPGmaker.UI.Leaderboard
 
             float skillsPanelY = 34f + resumePanelHeight + sectionGap;
             float bottomPanelGap = 6f;
-            float skillsBlockWidth = Mathf.Max(120f, (sideWidth - bottomPanelGap) * 0.5f);
-            float favoriteWeaponBlockWidth = Mathf.Max(120f, sideWidth - skillsBlockWidth - bottomPanelGap);
+            float skillsBlockWidth = Mathf.Max(0f, (sideWidth - bottomPanelGap) * 0.5f);   // no 120 floor (it pushed Favorite weapon past the card)
+            float favoriteWeaponBlockWidth = Mathf.Max(0f, sideWidth - skillsBlockWidth - bottomPanelGap);
             GameObject skillsPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.Skills", new Rect(sideX, skillsPanelY, skillsBlockWidth, skillsPanelHeight), LbWell, LbEdge);
             CreateTextAt(skillsPanel.transform, "Skills", new Rect(8f, 6f, skillsBlockWidth - 16f, 18f), 16f, LbMuted, TextAnchor.MiddleLeft, false);
             GameObject favoriteWeaponPanel = CreatePanelBox(leftPanel.transform, "Leaderboard.Player.FavoriteWeapon", new Rect(sideX + skillsBlockWidth + bottomPanelGap, skillsPanelY, favoriteWeaponBlockWidth, skillsPanelHeight), LbWell, LbEdge);
@@ -157,7 +157,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             }
             CreateTextAt(skillsPanel.transform, skillsText, new Rect(8f, 28f, skillsBlockWidth - 16f, skillsPanel.GetComponent<RectTransform>().rect.height - 36f), 14f, LbText, TextAnchor.UpperLeft, true);
 
-            // 0.0.601 (Fire 10-15, the approved mock): the right column is the SEASON RANKING of the viewed season (Rank / Viking /
+            // the right column is the SEASON RANKING of the viewed season (Rank / Viking /
             // Score); achievements moved to Core's hub Achievements tab. The shown player's row is highlighted in gold.
             var rows = LeaderboardBoard.Rows ?? new List<LeaderboardRow>();
             float rankRowH = 38f, colRank = 12f, colName = 82f;
@@ -330,9 +330,9 @@ namespace FiresRPGmaker.UI.Leaderboard
             GameObject slotRoot = new GameObject(name, typeof(RectTransform));
             slotRoot.transform.SetParent(parent, false);
             SetRect(slotRoot.GetComponent<RectTransform>(), rect.x, rect.y, rect.width, rect.height);
-            // Fire 10-08 (leaderboard overhaul, mockup a): a dark cell plate with the milestone's vanilla icon. Done = a gold
+            // (leaderboard overhaul, mockup a): a dark cell plate with the milestone's vanilla icon. Done = a gold
             // edge, a gold check and the icon in full colour; ahead = a thin edge and the icon dimmed and grey.
-            // 0.0.601 (the approved mock): a rounded plate (radius 6), gold 2 px rim when done, a thin edge when ahead.
+            // (the approved mock): a rounded plate (radius 6), gold 2 px rim when done, a thin edge when ahead.
             {
                 Component plate = slotRoot.AddComponent(CanvasImageType);
                 SetProperty(plate, "sprite", FiresCore.UI.FiresRoundedSkin.RoundedSprite(6, completed ? LbCellDone : LbCell, completed ? LbGold : LbEdge, completed ? 2 : 1));
@@ -359,7 +359,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                     completed ? LbText : LbMuted, TextAnchor.MiddleCenter, true);
                 if (completed)
                 {
-                    // 0.0.601: a small gold diamond in the top-right corner (was a "✓" glyph, which is not Latin-1 and drew a box)
+                    // a small gold diamond in the top-right corner (was a "✓" glyph, which is not Latin-1 and drew a box)
                     GameObject badge = CreateCanvasSolidRect(slotRoot.transform, name + ".Earned", new Rect(rect.width - 13f, 5f, 8f, 8f), LbGold);
                     badge.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
                 }
@@ -396,10 +396,10 @@ namespace FiresRPGmaker.UI.Leaderboard
             {
                 GameObject imageObject = new GameObject("Image", typeof(RectTransform));
                 imageObject.transform.SetParent(host.transform, false);
-                SetRect(imageObject.GetComponent<RectTransform>(), 0f, 0f, rect.width, rect.height);
+                FitPreviewImage(imageObject.GetComponent<RectTransform>(), rect.width, rect.height);   // keep the 512x768 render aspect
                 Component rawImage = imageObject.AddComponent(CanvasRawImageType);
                 SetBoolProperty(rawImage, "raycastTarget", true); // lets drag-to-rotate work where a raycaster exists
-                // 0.0.542 (Fire 10-09: "dark, odd angle, world behind"): the live-player camera (UIOverridePlayerPreview)
+                // the live-player camera (UIOverridePlayerPreview)
                 // filmed the player where they stand. Like the remote rows, the local row now stages an isolated mannequin
                 // (UIMannequinPreview: own stage far above the world, own light, facing the camera) from a snapshot of
                 // the local player's current look, so only the player and their gear show.
@@ -417,7 +417,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 // camera/RenderTexture and tears down via OnDestroy when ClearCanvasContent destroys this host.
                 GameObject imageObject = new GameObject("Image", typeof(RectTransform));
                 imageObject.transform.SetParent(host.transform, false);
-                SetRect(imageObject.GetComponent<RectTransform>(), 0f, 0f, rect.width, rect.height);
+                FitPreviewImage(imageObject.GetComponent<RectTransform>(), rect.width, rect.height);
                 Component rawImage = imageObject.AddComponent(CanvasRawImageType);
                 SetBoolProperty(rawImage, "raycastTarget", true);
                 var mannequin = imageObject.AddComponent<FiresCore.UI.UIMannequinPreview>();
@@ -431,6 +431,15 @@ namespace FiresRPGmaker.UI.Leaderboard
             }
 
             return host;
+        }
+
+        // the RawImage keeps the mannequin render's aspect
+        // (UIMannequinPreview 512x768 = 2:3), as large as fits and centred in the preview box.
+        internal const float PreviewAspect = 512f / 768f;
+        private static void FitPreviewImage(RectTransform rt, float boxW, float boxH)
+        {
+            float h = Mathf.Min(boxH, boxW / PreviewAspect), w = h * PreviewAspect;
+            SetRect(rt, (boxW - w) * 0.5f, (boxH - h) * 0.5f, w, h);
         }
 
         private GameObject CreateWeaponPlaceholderIcon(Transform parent, string name, Rect rect)
@@ -534,7 +543,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 var local = Player.m_localPlayer;
                 var item = local != null ? local.GetCurrentWeapon() : null;
                 // Bare hands are no "favourite weapon": the unarmed item has no drop prefab and no icon, which showed "?"
-                // (Fire 10-08). Fall through to the server's tracked favourite.
+                // . Fall through to the server's tracked favourite.
                 if (item == null || item.m_dropPrefab == null
                     || (local.m_unarmedWeapon != null && item == local.m_unarmedWeapon.m_itemData)) return string.Empty;
                 if (item.m_dropPrefab != null)

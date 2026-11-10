@@ -176,7 +176,7 @@ namespace FiresRPGmaker.UI.Patches
                 if (components.Length > 0) components += ", ";
                 components += c.GetType().Name;
             }
-            FiresLogger.LogInfo($"[TooltipStyle] {indent}{t.name} [{components}]");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[TooltipStyle] {indent}{t.name} [{components}]");
             for (int i = 0; i < t.childCount; i++)
                 LogHierarchy(t.GetChild(i), depth + 1);
         }

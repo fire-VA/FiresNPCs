@@ -57,7 +57,7 @@ namespace FiresRPGmaker.Modules.Props
                     boards++;
                 }
             }
-            Debug.Log($"{FiresRPGmaker.PluginName}: props loaded — {mailboxes} mailbox piece(s) + {boards} board prefab(s).");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: props loaded — {mailboxes} mailbox piece(s) + {boards} board prefab(s).");
         }
     }
 }

@@ -62,10 +62,14 @@ namespace FiresRPGmaker.UI
         [Header("Combat / Health")]
         public float maxHealth = 0f;          // 0 = use the prefab's natural health; >=20 = custom (slider 20–250000)
         public bool infiniteHealth = false;   // blocks all damage with no calculation
+        // True once an admin applied the Invincible toggle in the NPC book (ZDO npc_invincible_set); false = default protection decides.
+        public bool infiniteHealthSet = false;
         public float respawnDelay = 60f;      // seconds before a killed patrol NPC respawns
 
         [Header("Nameplate")]
         public bool hideNameplate = false;    // hide the floating name
+        public bool defendWhenAttacked = true;   // ON unless switched OFF (Core 0.2.669 reads unset as ON); a static NPC fights back when hit (Core reads npc_defend)
+        public float defendLeash = 2f;            // metres it may leave its anchor while defending (npc_defend_leash)
         public float nameplateScale = 1f;     // canvas scale of the floating plate
         public float nameplateYOffset = 0f;   // metres added to the plate height above the model
 
@@ -80,7 +84,7 @@ namespace FiresRPGmaker.UI
         public string equipLeftHand;
         public string equipRightBack;
         public string equipLeftBack;
-        public string equipPet;   // 0.0.559: cosmetic pet item/creature ("" none); owner writes "fires_pet" via NpcPetSlot
+        public string equipPet;   // cosmetic pet item/creature ("" none); owner writes "fires_pet" via NpcPetSlot
 
         // Full serialized ItemData (base64) for the hand weapons, so a static NPC fights with the EXACT item
         // the player equipped (quality/upgrades/crafter/customData/worldLevel) — not a quality-1 prefab clone.
@@ -135,6 +139,9 @@ namespace FiresRPGmaker.UI
         private void Awake()
      {
             _nview = GetComponent<ZNetView>();
+            // max health is applied by the body's OWNER; a non-owner (the admin's client) asks it here.
+            // A ZNetView RPC is per instance (registered with this view, gone with it), so a relog re-registers with the new view.
+            try { if (_nview != null && _nview.IsValid()) _nview.Register<float>(MaxHealthRpc, RPC_ApplyMaxHealth); } catch (Exception ex) { Debug.LogWarning("[NpcController] max health RPC register: " + ex.Message); }
             _animator = GetComponentInChildren<Animator>(true);
           _characterController = GetComponent<CharacterController>();
 
@@ -143,6 +150,24 @@ namespace FiresRPGmaker.UI
             // the override is applied. This prevents the "spawn as humanoid then
             // swap" pattern that causes UpdateColors/UpdateVisuals errors.
             TryReadModelOverrideEarly();
+            // the birth stamp is taken in Start, not here - respawn paths (StaticNpcRespawnManager.Respawn, Core NpcAnchorKeeper) set npc_initialized right after Instantiate, i.e. after Awake but before Start.
+        }
+
+        // a body THIS process just created (its ZDO id carries our session id, never initialized) is stamped with its birth time once.
+        // SavedNpcManager drops a saved record older than the stamp instead of applying it. NPCs that existed before have no stamp
+        // and load exactly as before.
+        internal const string BornTicksKey = "npc_born_ticks";
+        private void StampBirth()
+        {
+            try
+            {
+                var zdo = _nview != null && _nview.IsValid() ? _nview.GetZDO() : null;
+                if (zdo == null || !zdo.IsOwner() || ZDOMan.instance == null) return;
+                if (zdo.m_uid.UserID != ZDOMan.GetSessionID()) return;
+                if (zdo.GetBool("npc_initialized", false) || zdo.GetLong(BornTicksKey, 0L) != 0L) return;
+                zdo.Set(BornTicksKey, DateTime.UtcNow.Ticks);
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcController] birth stamp: " + ex.Message); }
         }
 
         /// <summary>
@@ -188,6 +213,7 @@ namespace FiresRPGmaker.UI
         {
             // Delay initialization to ensure server connection is established
             // This prevents timing issues with ZDO loading and visual equipment
+            StampBirth();   // one frame after Instantiate, so a respawned/re-materialised body (npc_initialized already set) is never stamped
             StartCoroutine(DelayedStart());
         }
 
@@ -198,13 +224,13 @@ namespace FiresRPGmaker.UI
             {
                 yield return null;
             }
-            
+
             // Wait for ObjectDB to be ready (needed for equipment prefab lookups)
             while (ObjectDB.instance == null)
             {
                 yield return null;
             }
-            
+
             // If connecting to a server, wait for connection to be established
             if (ZNet.instance != null && !ZNet.instance.IsServer())
             {
@@ -216,14 +242,14 @@ namespace FiresRPGmaker.UI
                     yield return null;
                 }
             }
-            
+
             // Small additional delay to let skeleton/joints settle
             yield return new WaitForSeconds(0.5f);
-            
+
             // Now do the actual initialization
             PerformStartInitialization();
         }
-        
+
         private void PerformStartInitialization()
         {
             if (_nview != null && _nview.IsValid())
@@ -240,7 +266,13 @@ namespace FiresRPGmaker.UI
                     ApplyModelOverride(modelOverride);
                 }
 
-                if (HasAnyEquipment())
+                // a body with Core's CompanionInventory is dressed by Core from its bag; the npc_equip_* names are moved into
+                // that bag once (MoveGearIntoBagOnce) and never painted. Bodies without Core's inventory keep the name-painted look.
+                if (CoreOwnsGear)
+                {
+                    StartCoroutine(MoveGearIntoBagOnce());
+                }
+                else if (HasAnyEquipment())
                 {
                     Invoke(nameof(ApplyVisualEquipment), 0.5f);
                 }
@@ -263,11 +295,12 @@ private void Update()
             }
    }
 
-        // 0.0.632 (R-1015SF8 route_walk): the route key can change on the ZDO after this controller loaded it (an admin client's
+        // the route key can change on the ZDO after this controller loaded it (an admin client's
         // SetPatrolKey RPC lands on the server, then syncs back), and nothing re-read it, so the PatrolAssignment stayed empty.
         // Once a second, adopt a changed key. A missing key never clears a route.
         private float _patrolKeyTimer;
         private string _lastZdoRouteKey;
+        private uint _patrolZdoRevision;
         private void WatchPatrolKey()
         {
             _patrolKeyTimer += Time.deltaTime;
@@ -276,11 +309,16 @@ private void Update()
             if (_nview == null || !_nview.IsValid()) return;
             var zdo = _nview.GetZDO();
             if (zdo == null) return;
+            // 0.0.828 (perf pass): a client only adopts a CHANGE of the ZDO, so an unchanged data revision needs no read. The server
+            // keeps reading: its re-assert depends on its own assignment table, not only on the ZDO.
+            bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
+            if (!isServer && _lastZdoRouteKey != null && zdo.DataRevision == _patrolZdoRevision
+                && (ConfigManager.Instance?.configPerfPatrolKeyRevision?.Value ?? true)) return;
+            _patrolZdoRevision = zdo.DataRevision;
             const string Missing = "<no key>";
             string key = zdo.GetString("npc_patrol_route", Missing);
             if (key == Missing) return;
-            // 0.0.634 (R-1015E: the route reverted to '' a second after the server applied it, and the client's watcher wiped its
-            // just-assigned local route before the server's key arrived): the server, as owner, re-asserts the route an admin last
+            // A client's watcher could wipe its just-assigned local route before the server's key arrived, so the server, as owner, re-asserts the route an admin last
             // assigned instead of adopting a stale write; everyone else adopts only a CHANGE of the ZDO value, never "differs from mine".
             if (ZNet.instance != null && ZNet.instance.IsServer() && _nview.IsOwner() && PatrolRouteSync.TryGetServerAssigned(zdo.m_uid, out var assigned, out var aPreset) && key != assigned)
             {
@@ -295,7 +333,7 @@ private void Update()
             patrolRouteName = key;
             patrolSpeedPreset = zdo.GetString("npc_patrol_preset", patrolSpeedPreset ?? "");
             ApplyRouteChange();
-            global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Patrol] {GetDisplayName()} adopted route '{key}' from its ZDO (owner here={_nview.IsOwner()})");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[Patrol] {GetDisplayName()} adopted route '{key}' from its ZDO (owner here={_nview.IsOwner()})");
         }
 
         /// <summary>
@@ -320,14 +358,14 @@ private void Update()
        fashionComp?.PlayGreetAnimation();
        FireProximityDialogueInteractions(InteractionType.InRange);
            if (FiresLogger.VerboseEnabled)
-               Debug.Log($"[NpcController] Player entered range of {GetDisplayName()} - playing greet animation");
+               global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Player entered range of {GetDisplayName()} - playing greet animation");
       }
       else if (!playerInRange && _playerWasInRange)
  {
      fashionComp?.PlayByeAnimation();
      FireProximityDialogueInteractions(InteractionType.OutRange);
  if (FiresLogger.VerboseEnabled)
-     Debug.Log($"[NpcController] Player left range of {GetDisplayName()} - playing bye animation");
+     global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Player left range of {GetDisplayName()} - playing bye animation");
             }
 
             _playerWasInRange = playerInRange;
@@ -389,7 +427,7 @@ if (_isFollowing && _followTarget == player)
             var fashionComp = GetComponent<NpcFashionComponent>();
             fashionComp?.PlayGreetAnimation();
 
-            Debug.Log($"[NpcController] {GetDisplayName()} started following {player.GetPlayerName()}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] {GetDisplayName()} started following {player.GetPlayerName()}");
  }
 
      /// <summary>
@@ -408,7 +446,7 @@ if (_isFollowing && _followTarget == player)
       _animator.SetFloat("forward_speed", 0f);
             }
 
-            Debug.Log($"[NpcController] {GetDisplayName()} stopped following");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] {GetDisplayName()} stopped following");
         }
 
         /// <summary>
@@ -439,7 +477,7 @@ if (_isFollowing && _followTarget == player)
     {
         transform.position = targetPos + UnityEngine.Random.insideUnitSphere * _followDistance;
          transform.position = new Vector3(transform.position.x, targetPos.y, transform.position.z);
-            Debug.Log($"[NpcController] {GetDisplayName()} teleported to follow target");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] {GetDisplayName()} teleported to follow target");
        return;
             }
 
@@ -569,8 +607,52 @@ if (_isFollowing && _followTarget == player)
             else if (slot == DressingRoomScreenController.EquipmentSlot.LeftHand) equipLeftHandData = base64 ?? "";
         }
 
+        // ONE wardrobe. Static NPC bodies carry
+        // Core's CompanionInventory, which rebuilds the worn gear from its saved bag on every load (UnequipAllItems + reconcile). RPGmaker's
+        // older npc_equip_* names were a second record painted over the model, so the two disagreed after a respawn and she went naked.
+        // Core's bag is now the only source for these bodies; the names stay as a mirror for the saved files and templates.
+        public bool CoreOwnsGear => GetComponent<CompanionInventory>() != null;
+        private const string GearInBagKey = "npc_gear_in_bag";
+
+        // Once per NPC ZDO, on the owner, after Core's first load: every npc_equip_* piece Core's bag does not already wear is put into its
+        // slot (same rule as Core's own MigrateLegacyEquipment: mark first, never re-create a piece that is already worn).
+        private IEnumerator MoveGearIntoBagOnce()
+        {
+            var ci = GetComponent<CompanionInventory>();
+            float until = Time.time + 20f;
+            while (ci != null && !ci.StorageLoaded && Time.time < until) yield return new WaitForSeconds(0.25f);
+            if (ci == null || !ci.StorageLoaded || _nview == null || !_nview.IsValid() || !_nview.IsOwner()) yield break;
+            var zdo = _nview.GetZDO();
+            if (zdo == null || zdo.GetInt(GearInBagKey, 0) != 0) yield break;
+            zdo.Set(GearInBagKey, 1);
+            int moved = 0;
+            foreach (var kv in GetEquipmentData())
+            {
+                if (string.IsNullOrEmpty(kv.Value)) continue;
+                if (!Enum.TryParse(kv.Key.ToString(), out CompanionInventory.EquipmentSlot cs)) continue;
+                if (ci.GetEquippedItem(cs) != null) continue;
+                string data = kv.Key == DressingRoomScreenController.EquipmentSlot.RightHand ? equipRightHandData
+                            : kv.Key == DressingRoomScreenController.EquipmentSlot.LeftHand ? equipLeftHandData : "";
+                bool ok = false;
+                try
+                {
+                    var item = !string.IsNullOrEmpty(data) ? CompanionInventory.DeserializeItemData(data) : null;
+                    ok = item != null ? ci.EquipItem(cs, item) : ci.EquipItem(cs, kv.Value, 1);
+                }
+                catch (Exception ex) { Debug.LogWarning($"[NpcController] gear into bag {cs} failed: {ex.Message}"); }
+                if (ok) moved++;
+            }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] 0.0.709 '{GetDisplayName()}': {moved} piece(s) of the old saved outfit moved into Core's bag (once)");
+        }
+
         public void ApplyVisualEquipment()
         {
+            // Core dresses this body from its bag; painting the names over it is the second wardrobe that stripped her
+            if (CoreOwnsGear)
+            {
+                FiresCore.Services.VanillaAssetResolver.RepairBrokenShaders(gameObject, $"npc '{GetDisplayName()}' after equip");
+                return;
+            }
    if (_visEquipment == null)
  {
    _visEquipment = GetComponent<NpcVisEquipment>();
@@ -583,7 +665,7 @@ if (_isFollowing && _followTarget == player)
 
           _visEquipment.ApplyEquipment(GetEquipmentData().ToDictionary(kv => (CompanionInventory.EquipmentSlot)(int)kv.Key, kv => kv.Value));
       FiresCore.Services.VanillaAssetResolver.RepairBrokenShaders(gameObject, $"npc '{GetDisplayName()}' after equip");
-      Debug.Log($"[NpcController] Applied visual equipment to {GetDisplayName()}");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Applied visual equipment to {GetDisplayName()}");
         }
 
         /// <summary>
@@ -592,7 +674,7 @@ if (_isFollowing && _followTarget == player)
         /// Runs on every machine from LoadFromZDO; the patrol movement itself runs on the owner.
         /// </summary>
         /// <summary>
-        /// 0.0.633 (R-1015D route_walk: Patrol active on the dedi, "moved 0.0 m"): a route assigned AFTER spawn left the body in its
+        /// a route assigned AFTER spawn left the body in its
         /// fixture stage (Rigidbody FreezeAll, AI off), which SyncPatrolAssignment never undoes. Re-resolve the body stage too, the
         /// same call the book's Apply path makes. Use this for every live route change; LoadFromZDO (spawn) keeps SyncPatrolAssignment.
         /// </summary>
@@ -602,7 +684,7 @@ if (_isFollowing && _followTarget == player)
             try { GetComponent<global::FiresRPGmaker.Modules.Companions.NpcMode.StaticNpcInitializer>()?.ReapplyBodyStage(); }
             catch (System.Exception ex) { Debug.LogWarning("[NpcController] ReapplyBodyStage after a route change: " + ex.Message); }
             var rb = GetComponent<Rigidbody>();
-            global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Patrol] {GetDisplayName()} route '{patrolRouteName}' applied, body constraints now {(rb != null ? rb.constraints.ToString() : "no Rigidbody")}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[Patrol] {GetDisplayName()} route '{patrolRouteName}' applied, body constraints now {(rb != null ? rb.constraints.ToString() : "no Rigidbody")}");
         }
 
         public void SyncPatrolAssignment()
@@ -616,6 +698,8 @@ if (_isFollowing && _followTarget == player)
             if (pa == null) pa = gameObject.AddComponent<FiresCore.Npc.Patrol.PatrolAssignment>();
             pa.RouteName = patrolRouteName;
             pa.PresetName = patrolSpeedPreset ?? "";
+            // the exact-replay driver rides along with every route; it takes the patrol only when the route carries a replay.
+            NpcReplayPlayer.Attach(this, pa);
             // Patrol runs through CompanionIdleBehavior, which is disabled on a non-wandering static NPC —
             // enable it so the route actually drives. No physics changes needed: the NPC already has normal
             // companion physics (gravity on), so PatrolBehavior just walks it like any companion.
@@ -627,22 +711,58 @@ if (_isFollowing && _followTarget == player)
             // leaving the NPC kinematic → the companion movement prefixes drop its walk and it gets dragged.
             // Clearing it whenever a route is present closes that race.
             var rb = GetComponent<Rigidbody>();
-            if (rb != null && rb.isKinematic) { rb.isKinematic = false; rb.useGravity = true; }
+            if (rb != null && rb.isKinematic) { rb.isKinematic = false; if (!global::FiresRPGmaker.Utilities.RingUp.OnRing(transform.position)) rb.useGravity = true; }   // 0.0.773: HaloFrame owns ring gravity
         }
 
         /// <summary>Pushes the configured max health onto the Humanoid. Static NPCs are server-authoritative,
         /// so this only writes on the server (claiming ownership if needed). Tops up current health when the
         /// bar was full so raising the cap actually fills it.</summary>
+        // this returned on every non-server machine, and on a dedicated
+        // server the body has no instance at all (StaticNpc ZDOs are owned + simulated by the placing/nearest client, see
+        // StaticNpcAnchorRpc), so the admin's client saved npc_max_health and nothing ever called SetMaxHealth. Now the body's
+        // OWNER applies it (Character.SetMaxHealth writes the synced max_health ZDO var); a non-owner sends the value to the owner
+        // through this view's RPC. The owner also re-reads npc_max_health on its own load (LoadFromZDO) as before.
+        internal const string MaxHealthRpc = "RPGmaker_NpcApplyMaxHealth";
+        internal static string LastMaxHealthApply = "";   // rpg_npc_fire_list_test
         public void ApplyMaxHealth()
         {
             if (maxHealth < 20f) return; // unset / below the slider floor → leave the prefab's natural health
+            if (_nview == null || !_nview.IsValid()) return;
+            if (!_nview.IsOwner())
+            {
+                // A dedicated server has no body instance / RPC handler, so a value sent to it is dropped: when the server owns the ZDO
+                // the admin's client takes ownership the vanilla interact way (ZNetView.ClaimOwnership) and applies on its own body.
+                long owner = _nview.GetZDO().GetOwner();
+                var srv = ZNet.instance != null && !ZNet.instance.IsServer() ? ZNet.instance.GetServerPeer() : null;
+                if (owner == 0L || (srv != null && srv.m_uid == owner))
+                {
+                    _nview.ClaimOwnership();
+                    ApplyMaxHealthLocal(maxHealth, "claimed from server " + owner);
+                    return;
+                }
+                _nview.InvokeRPC(MaxHealthRpc, maxHealth);   // ZNetView.InvokeRPC(method, ..) goes to the view's owner
+                LastMaxHealthApply = $"{GetDisplayName()}: {maxHealth:0} sent to owner {_nview.GetZDO().GetOwner()}";
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] max health {maxHealth:0} for '{GetDisplayName()}' sent to the body owner ({_nview.GetZDO().GetOwner()})");
+                return;
+            }
+            ApplyMaxHealthLocal(maxHealth, "owner");
+        }
+        private void RPC_ApplyMaxHealth(long sender, float value)
+        {
+            if (_nview == null || !_nview.IsValid() || !_nview.IsOwner()) return;
+            if (value < 20f || value > 1000000f) return;
+            maxHealth = value;
+            ApplyMaxHealthLocal(value, "rpc from " + sender);
+        }
+        private void ApplyMaxHealthLocal(float value, string via)
+        {
             var hum = GetComponent<Humanoid>();
-            if (hum == null || _nview == null || !_nview.IsValid()) return;
-            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
-            if (!_nview.IsOwner()) _nview.ClaimOwnership();
+            if (hum == null) return;
             bool wasFull = hum.GetHealth() >= hum.GetMaxHealth() - 0.01f;
-            hum.SetMaxHealth(maxHealth);
-            if (wasFull) hum.SetHealth(maxHealth);
+            hum.SetMaxHealth(value);
+            if (wasFull) hum.SetHealth(value);
+            LastMaxHealthApply = $"{GetDisplayName()}: max {hum.GetMaxHealth():0} health {hum.GetHealth():0} ({via})";
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] max health applied on the owner for '{GetDisplayName()}': {LastMaxHealthApply}");
         }
 
         #endregion
@@ -656,7 +776,7 @@ if (_isFollowing && _followTarget == player)
    var player = user as Player;
   if (player == null) return false;
 
-     Debug.Log($"[NpcController] Player interacted with NPC: {GetDisplayName()}");
+     global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Player interacted with NPC: {GetDisplayName()}");
 
       var fashionComp = GetComponent<NpcFashionComponent>();
          fashionComp?.PlayInteractAnimation();
@@ -670,7 +790,7 @@ if (_isFollowing && _followTarget == player)
        // Admin Shift: open the config book (the old flat NpcMainPanelController is retired).
             if (isAdmin && shiftHeld)
    {
-                Debug.Log($"[Interact] NpcController.Interact (admin, shift, alt {alt}) -> NpcBookController.ShowForNpc for '{GetDisplayName()}'");   // 0.0.648: the real Shift+E path, for the FDT interact test
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[Interact] NpcController.Interact (admin, shift, alt {alt}) -> NpcBookController.ShowForNpc for '{GetDisplayName()}'");   // the real Shift+E path, for the FDT interact test
                 NpcBookController.ShowForNpc(this);
     return true;
    }
@@ -778,14 +898,18 @@ if (_isFollowing && _followTarget == player)
 
             maxHealth = zdo.GetFloat("npc_max_health", 0f);
             infiniteHealth = zdo.GetBool("npc_infinite_health", false);
+            infiniteHealthSet = zdo.GetBool("npc_invincible_set", false);
             respawnDelay = zdo.GetFloat("npc_respawn_delay", respawnDelay);
             hideNameplate = zdo.GetBool("npc_name_hidden", false);
+            defendWhenAttacked = zdo.GetBool("npc_defend", true);
+            defendLeash = zdo.GetFloat("npc_defend_leash", 2f);
             nameplateScale = zdo.GetFloat("npc_text_size", 1f);
             nameplateYOffset = zdo.GetFloat("npc_text_height", 0f);
             // kg-style hover-name label (NameplateStyle=HoverName). Self-managing: builds lazily,
             // hides itself in the other modes and on a dedicated server (no camera).
             if (GetComponent<NpcHoverNameplate>() == null) gameObject.AddComponent<NpcHoverNameplate>();
-            ApplyMaxHealth();
+            // on load only the owner applies (every machine loads; a non-owner must not RPC the owner on each load)
+            if (maxHealth >= 20f && _nview != null && _nview.IsValid() && _nview.IsOwner()) ApplyMaxHealthLocal(maxHealth, "load");
 
       equipHelmet = zdo.GetString("npc_equip_helmet", "");
   equipChest = zdo.GetString("npc_equip_chest", "");
@@ -810,7 +934,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
    _pendingFashionJson = fashionJson;
             }
 
-            Debug.Log($"[NpcController] Loaded from ZDO - Name: {npcProfileName}, Type: {npcType}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Loaded from ZDO - Name: {npcProfileName}, Type: {npcType}");
         }
 
   public string GetPendingFashionJson() => _pendingFashionJson;
@@ -847,8 +971,11 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
 
             zdo.Set("npc_max_health", maxHealth);
             zdo.Set("npc_infinite_health", infiniteHealth);
+            if (infiniteHealthSet) zdo.Set("npc_invincible_set", true);   // only after an explicit NPC-book set; never-set ZDOs stay absent
             zdo.Set("npc_respawn_delay", respawnDelay);
             zdo.Set("npc_name_hidden", hideNameplate);
+            zdo.Set("npc_defend", defendWhenAttacked);
+            zdo.Set("npc_defend_leash", defendLeash);
             zdo.Set("npc_text_size", nameplateScale);
             zdo.Set("npc_text_height", nameplateYOffset);
 
@@ -900,7 +1027,7 @@ string fashionJson = zdo.GetString("npc_fashion_json", "");
             catch (Exception ex) { Debug.LogWarning($"[NpcController] live stage re-apply failed: {ex.Message}"); }
 
             SavedNpcManager.SaveFromNpc(this);
-            Debug.Log($"[NpcController] Saved to ZDO - Name: {npcProfileName}, Type: {npcType}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Saved to ZDO - Name: {npcProfileName}, Type: {npcType}");
 
             // Tell any open config screen showing THIS NPC to re-read its profile field. There's one
             // field per type, so this carries no value — it just keeps the left "Configure NPC" page
@@ -1156,7 +1283,7 @@ visualGO.transform.SetParent(transform, false);
       // CRITICAL: We need to DESTROY CharacterAnimEvent components on the SOURCE before cloning
       // Just disabling them doesn't work because Instantiate() creates new instances
       // and Unity calls Awake() on the NEW cloned components, not the source ones.
-      // 
+      //
       // Solution: Clone the source visual's hierarchy manually, or accept that we must
       // destroy the components immediately after instantiation but before they can run.
       // Since Awake() runs synchronously during Instantiate(), we'll use a workaround:
@@ -1262,7 +1389,7 @@ visualGO.transform.SetParent(transform, false);
             Invoke(nameof(ApplyVisualEquipment), 0.2f);
         }
 
-      Debug.Log($"[NpcController] Applied model override '{modelPrefabName}'");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Applied model override '{modelPrefabName}'");
          }
      catch (Exception ex)
      {
@@ -1272,7 +1399,7 @@ visualGO.transform.SetParent(transform, false);
 
   public void ResetModelToDefault()
  {
-            Debug.Log("[NpcController] Resetting model to default");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[NpcController] Resetting model to default");
             _appliedModelOverride = null;
  modelOverride = "";
 
@@ -1454,7 +1581,7 @@ private void HandleDialogueNpcInteraction(Player player)
             try
             {
     NpcFashionManager.ApplyFashionJsonToNpc(_pendingFashionJson, this);
-    Debug.Log($"[NpcController] Applied pending fashion JSON");
+    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Applied pending fashion JSON");
           }
             catch (Exception ex)
 {
@@ -1748,7 +1875,7 @@ private bool HasParameter(Animator animator, string paramName)
                     if (child.name == "dev_smoke")
                     {
                         Destroy(child.gameObject);
-                        Debug.Log($"[NpcController] Removed dev_smoke effect from player model");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcController] Removed dev_smoke effect from player model");
                         break; // There's typically only one
                     }
                 }

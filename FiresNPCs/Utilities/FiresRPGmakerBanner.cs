@@ -47,8 +47,8 @@ namespace FiresRPGmaker
         // duplicate. Falls back to Debug.Log before Setup wires the source.
         private static void EmitHeader(string text)
         {
-            if (FiresRPGmaker.Log != null) FiresRPGmaker.Log.LogInfo(text);
-            else Debug.Log($"[FiresRPGmaker] {text}");
+            if (FiresRPGmaker.Log != null) global::FiresRPGmaker.FiresLogger.LogDebug(text);
+            else global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] {text}");
         }
 
         private static Banner.Segment[][] ToSegments((string text, ConsoleColor color)[] lines)
@@ -95,7 +95,7 @@ namespace FiresRPGmaker
             new[] { new Banner.Segment("   Fires RPG Maker Loaded",    ConsoleColor.Magenta) },
         };
 
-        // FIRES RPG MAKER block banner (owner-authored 2026-07-07). Color zones:
+        // FIRES RPG MAKER block banner. Color zones:
         // starfield Cyan/DarkCyan, FIRES Red, RPG Yellow, MAKER Magenta, tagline White/Gray.
         private static readonly (string text, ConsoleColor color)[] s_bigLines =
         {

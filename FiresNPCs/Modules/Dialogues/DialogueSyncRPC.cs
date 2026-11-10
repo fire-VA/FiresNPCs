@@ -11,12 +11,12 @@ namespace FiresRPGmaker.Modules.Dialogues
 {
     /// <summary>
     /// Server->Client sync for dialogue config files.
-    /// 
+    ///
     /// Flow:
     /// 1. Server's <see cref="ServerConfigFileWatcher"/> detects .cfg change in Dialogues/
     /// 2. Server broadcasts raw file content via <c>FiresRPGmaker_FileUpdate</c> RPC
     /// 3. Client receives, saves to local Dialogues/ folder, reloads <see cref="DialogueCodex"/>
-    /// 
+    ///
     /// Admin push (client->server):
     /// 1. Admin edits dialogue in-game via editor
     /// 2. Client sends file content via <c>FiresRPGmaker_SyncFiles</c> RPC to server
@@ -58,7 +58,10 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// </summary>
         public static void Register()
         {
-            if (ZRoutedRpc.instance == null) return;
+            // Re-register RPCs per connection: one pattern for every module - by ZRoutedRpc instance, never twice on one
+            if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(s_regOn)) return;
+            s_regOn = ZRoutedRpc.instance;
+            s_regCount = 0;
 
             RegisterRpc("FiresRPGmaker_FileUpdate", RPC_FileUpdate);
             RegisterRpc("FiresRPGmaker_SyncFiles", RPC_SyncFiles);
@@ -67,7 +70,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             // pushes ride the existing SyncFiles channel.
             RegisterRpc("FiresRPGmaker_PullConfigs", RPC_PullConfigs);
             RegisterRpc("FiresRPGmaker_FileDownload", RPC_FileDownload);
-            // [release] audit #1: the server's MarketPlace.cfg for the NPC book's Marketplace + Mail tabs.
+            // The server's MarketPlace.cfg for the NPC book's Marketplace + Mail tabs.
             try { global::FiresRPGmaker.Managers.MarketCfgSync.Register(); } catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] MarketCfgSync RPC registration failed: {ex.Message}"); }
 
             // NPC data/delete/anchor-move RPCs MUST bind here too. Their FinishInit registration runs
@@ -85,8 +88,12 @@ namespace FiresRPGmaker.Modules.Dialogues
             RegisterRpc("Fires_DlgPick", RPC_DlgPick);
             RegisterRpc("Fires_DlgPickResult", RPC_DlgPickResult);
 
-            Debug.Log("[FiresRPGmaker] DialogueSyncRPC registered");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] DialogueSyncRPC registered");
+            global::FiresRPGmaker.Managers.RpcRegistration.Logged("DialogueSyncRPC", s_regCount);
         }
+
+        private static ZRoutedRpc s_regOn;
+        private static int s_regCount;
 
         /// <summary>
         /// Registers a single routed RPC, isolating each binding so one failure can't abort the
@@ -94,11 +101,28 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// ArgumentException if the name is already bound; without this isolation a duplicate
         /// registration would silently drop every RPC queued after it (notably the cooldown RPCs).
         /// </summary>
+        /// <summary>True when an RPC came from the server: the server peer on a client, this machine itself on the server.
+        /// Routed RPCs can be sent by any peer, so every handler that writes or loads files checks this first.</summary>
+        internal static bool IsFromServer(long sender)
+        {
+            if (ZNet.instance == null || ZRoutedRpc.instance == null) return false;
+            if (ZNet.instance.IsServer()) return sender == 0L || sender == ZDOMan.GetSessionID();
+            return sender == ZRoutedRpc.instance.GetServerPeerID();
+        }
+
+        private static readonly HashSet<long> s_refusedSenders = new HashSet<long>();
+
+        internal static void RefuseNotServer(string rpc, long sender)
+        {
+            if (s_refusedSenders.Add(sender)) Debug.LogWarning($"[FiresRPGmaker] {rpc} refused: peer {sender} is not the server (only the server may send files)");
+        }
+
         private static void RegisterRpc(string name, Action<long, ZPackage> handler)
         {
             try
             {
                 ZRoutedRpc.instance.Register<ZPackage>(name, handler);
+                s_regCount++;
             }
             catch (Exception ex)
             {
@@ -116,6 +140,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static void RPC_FileUpdate(long sender, ZPackage pkg)
         {
             if (pkg == null) return;
+            if (!IsFromServer(sender)) { RefuseNotServer("FileUpdate", sender); return; }
 
             try
             {
@@ -167,6 +192,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 return content != null;
             }
 
+            if (contentOrChunk != null && contentOrChunk.Length > MaxSyncFileChars) { Debug.LogWarning($"[FiresRPGmaker] file sync refused: {folderName}/{fileName} is too large"); return false; }
             content = contentOrChunk;
             return true;
         }
@@ -187,7 +213,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                     return;
                 }
                 int sent = ServerConfigFileWatcher.SendAllConfigFilesForDownload(sender);
-                Debug.Log($"[FiresRPGmaker] Admin {sender} pulled the config tree ({sent} file(s) sent)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Admin {sender} pulled the config tree ({sent} file(s) sent)");
             }
             catch (Exception ex)
             {
@@ -203,13 +229,13 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static void RPC_FileDownload(long sender, ZPackage pkg)
         {
             if (pkg == null) return;
+            if (!IsFromServer(sender)) { RefuseNotServer("FileDownload", sender); return; }
             try
             {
                 if (!TryReadFilePacket(pkg, "dl:", out string folderName, out string fileName, out string content))
                     return;
 
-                string baseDir = FiresCore.Storage.FiresConfigPaths.GroupedPath(folderName);
-                string fullPath = Path.Combine(baseDir, fileName);
+                if (!TryResolveSyncPath(folderName, fileName, out string fullPath, fromServer: true)) return;
                 string dir = Path.GetDirectoryName(fullPath);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 if (string.IsNullOrEmpty(content))
@@ -231,10 +257,16 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// Buffers a chunk and returns the full reassembled content when all chunks have arrived.
         /// Returns null if still waiting for more chunks. Key = stream prefix + folder/file.
         /// </summary>
+        private const int MaxChunksPerFile = 512;
+        private const int MaxSyncFileChars = 8 * 1024 * 1024;
+        private const int MaxPendingStreams = 64;
+
         private static string BufferChunk(string key, string chunk, int chunkIndex, int totalChunks)
         {
+            if (totalChunks > MaxChunksPerFile) { Debug.LogWarning($"[FiresRPGmaker] file sync refused: {totalChunks} chunks for {key} (max {MaxChunksPerFile})"); return null; }
             if (!_chunkBuffers.TryGetValue(key, out var chunks) || chunks.Length != totalChunks)
             {
+                if (!_chunkBuffers.ContainsKey(key) && _chunkBuffers.Count >= MaxPendingStreams) { Debug.LogWarning($"[FiresRPGmaker] file sync refused: {MaxPendingStreams} transfers already pending"); return null; }
                 chunks = new string[totalChunks];
                 _chunkBuffers[key] = chunks;
             }
@@ -253,7 +285,10 @@ namespace FiresRPGmaker.Modules.Dialogues
             _chunkBuffers.Remove(key);
             var sb = new System.Text.StringBuilder();
             for (int i = 0; i < totalChunks; i++)
+            {
                 sb.Append(chunks[i]);
+                if (sb.Length > MaxSyncFileChars) { Debug.LogWarning($"[FiresRPGmaker] file sync refused: {key} is over {MaxSyncFileChars} chars"); return null; }
+            }
 
             if (FiresLogger.VerboseEnabled)
                 FiresLogger.LogVerbose($"[FiresRPGmaker] Reassembled {totalChunks} chunks for {key} ({sb.Length} chars)");
@@ -274,6 +309,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (pureClient)
             {
                 SyncedConfigStore.Apply(folderName, fileName, content);
+                // One Debug line per synced file received, so peer sync drift is traceable
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[ConfigSync] received {folderName}/{fileName} ({(content ?? "").Length} chars) from the server; reload queued");
                 // QuestProfiles has its own dedicated in-memory apply (client Reload() is a no-op
                 // by design) — feed it directly.
                 if (folderName.Equals("QuestProfiles", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(content))
@@ -284,8 +321,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 return;
             }
 
-            string baseDir = FiresCore.Storage.FiresConfigPaths.GroupedPath(folderName);
-            string fullPath = Path.Combine(baseDir, fileName);
+            if (!TryResolveSyncPath(folderName, fileName, out string fullPath, fromServer: true)) return;
 
             string dir = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(dir))
@@ -325,7 +361,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             "Quests", "QuestProfiles", "QuestEvents", "Dialogues", "Traders", "Territories", "ServerInfos", "SavedNPCs",
             "Bankers", "Gamblers", "Transmogrifications", "Mail", "Buffers", "BufferProfiles", "LeaderboardAchievements",
-            "Factions", "PatrolRoutes"   // 0.0.505: Core 0.2.308 pushes admin patrol-route saves here
+            "Factions", "PatrolRoutes"   // Core pushes admin patrol-route saves here
         };
 
         /// <summary>
@@ -361,6 +397,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
                 if (string.IsNullOrEmpty(folderName) || string.IsNullOrEmpty(fileName)) return;
 
+                if (content != null && content.Length > MaxSyncFileChars) { Debug.LogWarning($"[FiresRPGmaker] SyncFiles refused: {folderName}/{fileName} is {content.Length} chars (max {MaxSyncFileChars})"); return; }
                 if (!TryResolveSyncPath(folderName, fileName, out string fullPath))
                     return;
 
@@ -375,7 +412,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 {
                     if (File.Exists(fullPath))
                         File.Delete(fullPath);
-                    Debug.Log($"[FiresRPGmaker] Admin {sender} deleted config: {folderName}/{fileName}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Admin {sender} deleted config: {folderName}/{fileName}");
                 }
                 else
                 {
@@ -390,7 +427,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                         catch (Exception mex) { Debug.LogWarning($"[FiresRPGmaker] block-merge {folderName}/{fileName} failed, writing as-is: {mex.Message}"); }
                     }
                     File.WriteAllText(fullPath, content);
-                    Debug.Log($"[FiresRPGmaker] Admin {sender} pushed config: {folderName}/{fileName} ({content.Length} chars)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Admin {sender} pushed config: {folderName}/{fileName} ({content.Length} chars)");
                 }
 
                 // The file watcher will detect the change, reload server caches, and broadcast to other clients
@@ -460,7 +497,17 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// rejection. Subfolders are permitted; "..", rooted paths, and folders outside the allowlist
         /// are not.
         /// </summary>
-        private static bool TryResolveSyncPath(string folderName, string fileName, out string fullPath)
+        /// <summary>The folders the server sends (sync, admin pull): ServerConfigFileWatcher's watched folders.</summary>
+        private static readonly string[] ServerSentFolders =
+        {
+            "Quests", "QuestProfiles", "QuestEvents", "Dialogues", "Traders", "Territories", "ServerInfos", "SavedNPCs",
+            "Bankers", "Gamblers", "Transmogrifications", "Mail", "Buffers", "BufferProfiles", "LeaderboardAchievements",
+            "Factions", "UILayouts", "PatrolRoutes"
+        };
+
+        // Every network path goes through here: a fixed folder allow-list (an admin's push, or the server's sync), a
+        // .cfg/.json/.yml/.yaml extension, no "..", rooted or drive paths, and the resolved path inside the config root.
+        private static bool TryResolveSyncPath(string folderName, string fileName, out string fullPath, bool fromServer = false)
         {
             fullPath = null;
 
@@ -472,7 +519,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             // (config/Marketplace), OUTSIDE the FiresRPGmaker tree. This reserved token maps to that single
             // fixed file so an admin's edit reaches the server (where the KG plugin's own watcher reloads it).
             // The caller's fileName is ignored — there is no traversal surface, and admin was already verified.
-            if (string.Equals(normFolder, "MarketplaceCfg", StringComparison.OrdinalIgnoreCase))
+            if (!fromServer && string.Equals(normFolder, "MarketplaceCfg", StringComparison.OrdinalIgnoreCase))
             {
                 fullPath = Path.Combine(Paths.ConfigPath, "Marketplace", "MarketPlace.cfg");
                 return true;
@@ -485,7 +532,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             }
 
             string topFolder = normFolder.Split('/')[0];
-            if (Array.IndexOf(AllowedSyncFolders, topFolder) < 0)
+            if (Array.IndexOf(fromServer ? ServerSentFolders : AllowedSyncFolders, topFolder) < 0)
             {
                 Debug.LogWarning($"[FiresRPGmaker] SyncFiles rejected disallowed folder: {folderName}");
                 return false;
@@ -522,7 +569,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// </summary>
         private static bool HasTraversal(string normalizedPath)
         {
-            if (Path.IsPathRooted(normalizedPath)) return true;
+            if (Path.IsPathRooted(normalizedPath) || normalizedPath.IndexOf(':') >= 0) return true;   // drive letters, alternate streams
             foreach (var seg in normalizedPath.Split('/'))
             {
                 if (seg == "." || seg == "..") return true;
@@ -561,6 +608,7 @@ namespace FiresRPGmaker.Modules.Dialogues
         private static void ExecutePendingReloads()
         {
             var folders = new List<string>(_pendingReloads);
+            if (ZNet.instance != null && !ZNet.instance.IsServer()) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[ConfigSync] debounced reload runs for: {string.Join(", ", folders)}");
             _pendingReloads.Clear();
 
             foreach (var folderName in folders)
@@ -589,6 +637,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                             {
                                 if (global::FiresRPGmaker.Modules.Quest.QuestManager.Instance != null)
                                     global::FiresRPGmaker.Modules.Quest.QuestManager.Instance.LoadQuestDatabase();
+                                    if (ZNet.instance != null && !ZNet.instance.IsServer()) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[ConfigSync] quests reloaded on this client: {(global::FiresRPGmaker.Modules.Quest.QuestManager.Instance.GetAllQuests().Count)} quest(s)");
                                 else
                                     global::FiresRPGmaker.Modules.Quest.QuestManager.Init();
                             }
@@ -628,7 +677,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                             try { global::FiresRPGmaker.Modules.Marketplace.AchievementProfileManager.ReloadAll();
                                   global::FiresRPGmaker.Modules.Marketplace.LeaderboardProfileManager.ReloadAll(); } catch { }
                             break;
-                        case "patrolroutes":   // 0.0.505: an admin's patrol route (Core 0.2.308 push), on the server and on clients
+                        case "patrolroutes":   // an admin's patrol route (Core push), on the server and on clients
                             try { FiresCore.Npc.Patrol.PatrolRouteManager.Reset(); FiresCore.Npc.Patrol.PatrolRouteManager.Initialize(); } catch { }
                             break;
                     }
@@ -677,7 +726,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 }
 
                 DialogueCodex.Reload();
-                Debug.Log($"[FiresRPGmaker] Pushed dialogue config to server: {fileName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Pushed dialogue config to server: {fileName}");
             }
             catch (Exception ex)
             {
@@ -881,9 +930,9 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static void RPC_DlgCdState(long sender, ZPackage pkg)
         {
-            // Anyone with a local player: a client, or a host / single player answering itself. 0.0.532: this returned on
-            // every server, so a listen host or single player never got its own cooldown state or pick result back, and
-            // cooldown options never ran their commands there.
+            // Anyone with a local player: a client, or a host / single player answering itself.
+            // Returning on every server would leave a listen host or single player without its own cooldown state or pick
+            // result, so cooldown options would never run their commands there.
             if (Player.m_localPlayer == null && ZNet.instance != null && ZNet.instance.IsServer()) return;
             if (pkg == null) return;
 

@@ -24,7 +24,7 @@ namespace FiresRPGmaker.Modules.Factions
             {
                 SeedExample();
                 FactionManager.Reload();
-                Debug.Log("[Factions] module initialized");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[Factions] module initialized");
             }
             catch (System.Exception ex) { Debug.LogError($"[Factions] init failed: {ex}"); }
         }
@@ -103,14 +103,14 @@ namespace FiresRPGmaker.Modules.Factions
                 {
                     FactionManager.Reload();
                     args.Context.AddString($"[faction] reloaded ({new List<string>(FactionManager.Ids).Count} faction(s)).");
-                });
+                }, isCheat: true);
 
                 new Terminal.ConsoleCommand("factioneditor", "- open the admin faction editor window", args =>
                 {
                     if (!FiresCore.Sync.AdminSyncing.IsLocalAdmin())
                     { args.Context.AddString("[faction] admin only."); FiresCore.Logging.FiresLogger.LogDebug("[faction] factioneditor refused: not admin (AdminSyncing.IsLocalAdmin false)"); return; }
                     FactionEditorPanel.Toggle();
-                });
+                }, isCheat: true);
             }
         }
     }

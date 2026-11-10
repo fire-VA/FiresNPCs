@@ -100,7 +100,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             wrapped.Write(playerId);
             wrapped.Write(local != null ? (local.GetPlayerName() ?? "") : "");
             wrapped.Write(inner.GetArray());
-            ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcReq, wrapped);
+            ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcReq), RpcReq, wrapped);
         }
 
         // ── Server handler ─────────────────────────────────────────────────────────────────────────────────
@@ -113,7 +113,8 @@ namespace FiresRPGmaker.Modules.Marketplace
             try
             {
                 long playerId    = pkg.ReadLong();
-                string playerName = pkg.ReadString();
+                pkg.ReadString();   // client-sent name: ignored (spoofable); the name comes from the sender's peer
+                string playerName = EconomySenderGuard.SenderName(senderId);
                 var inner = new ZPackage(pkg.ReadByteArray());
                 // kg-parity owner key: platform user id, server-derived from the sender's socket
                 // (account-scoped like kg — a migrated DB.db resolves without remapping; unspoofable).
@@ -128,7 +129,15 @@ namespace FiresRPGmaker.Modules.Marketplace
                     case Op.GetInbox:
                     {
                         string profile = inner.ReadString();
-                        SeedProfileMail(ownerId, playerName, profile);
+                        // Template mail carries item attachments: only seed it for a sender standing at a mail NPC
+                        // that really has this profile (its ZDO "npc_mail_profile"), or an admin. The inbox is still sent.
+                        if (!string.IsNullOrEmpty(profile))
+                        {
+                            if (global::FiresCore.Sync.AdminSyncing.IsAdmin(senderId) || IsNearMailNpc(senderId, profile))
+                                SeedProfileMail(ownerId, playerName, profile);
+                            else
+                                Debug.LogWarning($"{LogPrefix} profile mail '{profile}' not seeded for sender {senderId}: no RPGM NPC within {MailNpcRadius} m");
+                        }
                         ReplyInbox(senderId, ownerId);
                         break;
                     }
@@ -151,8 +160,24 @@ namespace FiresRPGmaker.Modules.Marketplace
             catch (Exception ex) { Debug.LogWarning($"{LogPrefix} RPC_MailReq error: {ex.Message}"); }
         }
 
+        /// <summary>How close (metres) the sender's character must be to a mail NPC for its profile mail to seed.</summary>
+        private const float MailNpcRadius = 15f;
+        private const string MailProfileZdoKey = "npc_mail_profile";
+
+        private const string NpcProfileZdoKey = "npc_profile";
+        private const string NpcDialogueProfileZdoKey = "npc_dialogue_profile";
+
+        // A mail NPC with this profile, OR any RPGM NPC: a dialogue "mail,<profile>" command sets the profile only on
+        // the client (never on the ZDO), so any saved NPC within range counts. A sender near no NPC is still refused.
+        private static bool IsNearMailNpc(long senderId, string profile) =>
+            EconomySenderGuard.IsSenderNear(senderId, MailNpcRadius,
+                z => string.Equals(z.GetString(MailProfileZdoKey, ""), profile, StringComparison.OrdinalIgnoreCase)
+                     || !string.IsNullOrEmpty(z.GetString(NpcProfileZdoKey, ""))
+                     || !string.IsNullOrEmpty(z.GetString(NpcDialogueProfileZdoKey, "")));
+
         private static void UpsertUser(string ownerId, string playerName)
         {
+            if (string.IsNullOrEmpty(ownerId) || string.IsNullOrWhiteSpace(playerName)) return;   // never register an empty name
             try
             {
                 MailRepository.UpsertUser(new MailUser
@@ -269,8 +294,36 @@ namespace FiresRPGmaker.Modules.Marketplace
             if (string.IsNullOrWhiteSpace(name)) return null;
             string want = name.Trim();
             var users = MailRepository.GetAllUsers();
-            var hit = users.FirstOrDefault(u => u.Name != null && u.Name.Trim().Equals(want, StringComparison.OrdinalIgnoreCase));
-            return hit?.UserID;
+            var ids = users.Where(u => u != null && !string.IsNullOrEmpty(u.UserID) && u.Name != null && u.Name.Trim().Equals(want, StringComparison.OrdinalIgnoreCase))
+                           .Select(u => u.UserID).Distinct(StringComparer.Ordinal).ToList();
+            // Character names are player-chosen: two accounts with the same name must not let one receive the
+            // other's mail, so an ambiguous name resolves to nobody.
+            if (ids.Count > 1)
+            {
+                Debug.LogWarning($"{LogPrefix} recipient name '{want}' is shared by {ids.Count} accounts — not delivered by name");
+                return null;
+            }
+            return ids.Count == 1 ? ids[0] : null;
+        }
+
+        /// <summary>Server-side system mail to an owner KEY (the economy owner id the server recorded, e.g. a
+        /// listing's SellerUserID). Preferred over <see cref="DeliverSystemMail"/>: names are not identities.</summary>
+        public static bool DeliverSystemMailToOwner(string ownerId, string sender, string subject, string body, List<StoredItem> attachments)
+        {
+            if (!IsServer || string.IsNullOrEmpty(ownerId)) return false;
+            MailRepository.AddMail(new FiresCore.Storage.MailEntry
+            {
+                Owner = ownerId,
+                Sender = sender ?? "System",
+                Topic = subject ?? "",
+                Message = body ?? "",
+                Created = DateTime.UtcNow.Ticks,
+                Attachments = attachments ?? new List<StoredItem>(),
+                Links = new List<StoredItem>(),
+                WasRead = false,
+                AttachmentsTaken = false,
+            });
+            return true;
         }
 
         /// <summary>Public server-side entry for system mail (e.g. marketplace seller payout in E3). Delivers
@@ -330,8 +383,22 @@ namespace FiresRPGmaker.Modules.Marketplace
             var list = grant ?? new List<StoredItem>();
             pkg.Write(list.Count);
             foreach (var a in list) { pkg.Write(a.ItemPrefab ?? ""); pkg.Write(a.Count); }
+            // 0.0.763 trailing block (old clients ignore it): per attachment, the item's fidelity, so an escrowed
+            // marketplace item returned by mail keeps its quality/variant/durability/crafter/customData.
+            foreach (var a in list)
+            {
+                pkg.Write(a.Quality);
+                pkg.Write(a.Variant);
+                pkg.Write(a.DurabilityPercent);
+                pkg.Write(a.CrafterName ?? "");
+                pkg.Write(a.CrafterID);
+                pkg.Write(a.CUSTOMdata ?? "{}");
+            }
             ZRoutedRpc.instance.InvokeRoutedRPC(senderId, RpcRes, pkg);
         }
+
+        // Fidelity of one claimed attachment (Quality 0 = plain mail item: fresh quality-1 stack, as before).
+        private sealed class AttFidelity { public int Quality, Variant; public byte DurabilityPct; public string CrafterName = "", CustomData = "{}"; public long CrafterId; }
 
         private static void ReplySendResult(long senderId, bool ok, string status)
         {
@@ -397,7 +464,18 @@ namespace FiresRPGmaker.Modules.Marketplace
                             int cnt = pkg.ReadInt();
                             grant.Add(new MailAttachment { Prefab = prefab, Count = cnt });
                         }
-                        int granted = GrantToInventory(grant);
+                        if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(senderId))
+                        { Debug.LogWarning($"{LogPrefix} ClaimGrant ignored: sender {senderId} is not the server"); break; }
+                        // Optional 0.0.763 fidelity block (absent from an older server).
+                        var fid = new List<AttFidelity>();
+                        if (pkg.GetPos() < pkg.Size())
+                            for (int a = 0; a < nAtt; a++)
+                                fid.Add(new AttFidelity
+                                {
+                                    Quality = pkg.ReadInt(), Variant = pkg.ReadInt(), DurabilityPct = pkg.ReadByte(),
+                                    CrafterName = pkg.ReadString(), CrafterId = pkg.ReadLong(), CustomData = pkg.ReadString(),
+                                });
+                        int granted = GrantToInventory(grant, fid);
                         // Reflect the claim locally so the panel clears the attachment list without a round-trip.
                         var m = ClientInbox.FirstOrDefault(e => e.Id == mailId);
                         if (m != null) m.Attachments.Clear();
@@ -418,21 +496,52 @@ namespace FiresRPGmaker.Modules.Marketplace
             catch (Exception ex) { Debug.LogWarning($"{LogPrefix} RPC_MailRes error: {ex.Message}"); }
         }
 
-        private static int GrantToInventory(List<MailAttachment> grant)
+        // Inventory full: the dropped copy keeps the escrowed item's fidelity too.
+        private static ItemDrop.ItemData WithFidelity(ItemDrop.ItemData template, AttFidelity f)
+        {
+            if (f == null) return template;
+            var d = template.Clone();
+            d.m_quality = f.Quality; d.m_variant = f.Variant; d.m_crafterID = f.CrafterId; d.m_crafterName = f.CrafterName ?? "";
+            if (d.m_shared != null && d.m_shared.m_useDurability) d.m_durability = Mathf.Clamp01(f.DurabilityPct / 100f) * d.GetMaxDurability(f.Quality);
+            return d;
+        }
+
+        private static int GrantToInventory(List<MailAttachment> grant, List<AttFidelity> fid = null)
         {
             var player = Player.m_localPlayer;
             if (player == null || grant == null) return 0;
             var inv = player.GetInventory();
             int granted = 0;
-            foreach (var att in grant)
+            for (int i = 0; i < grant.Count; i++)
             {
+                var att = grant[i];
+                var f = fid != null && i < fid.Count && fid[i].Quality > 0 ? fid[i] : null;
                 var pf = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(att.Prefab) : null;
                 var drop = pf != null ? pf.GetComponent<ItemDrop>() : null;
                 if (drop == null) continue;
                 if (inv.CanAddItem(drop.m_itemData, att.Count))
-                    inv.AddItem(att.Prefab, att.Count, 1, 0, 0L, "", false);
+                {
+                    var added = f != null
+                        ? inv.AddItem(att.Prefab, att.Count, f.Quality, f.Variant, f.CrafterId, f.CrafterName ?? "", false)
+                        : inv.AddItem(att.Prefab, att.Count, 1, 0, 0L, "", false);
+                    // Durability + customData only on a single item (equipment never stacks) — same rule as the market grant.
+                    if (f != null && added != null && att.Count == 1)
+                    {
+                        try
+                        {
+                            if (added.m_shared != null && added.m_shared.m_useDurability)
+                                added.m_durability = Mathf.Clamp01(f.DurabilityPct / 100f) * added.GetMaxDurability(f.Quality);
+                            if (!string.IsNullOrEmpty(f.CustomData) && f.CustomData != "{}")
+                            {
+                                var dict = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(f.CustomData);
+                                if (dict != null) foreach (var kv in dict) added.m_customData[kv.Key] = kv.Value;
+                            }
+                        }
+                        catch { }
+                    }
+                }
                 else
-                    ItemDrop.DropItem(drop.m_itemData, att.Count, player.transform.position + player.transform.forward * 1.5f + Vector3.up * 1.5f, Quaternion.identity);
+                    ItemDrop.DropItem(WithFidelity(drop.m_itemData, f), att.Count, player.transform.position + player.transform.forward * 1.5f + Vector3.up * 1.5f, Quaternion.identity);
                 granted++;
             }
             return granted;

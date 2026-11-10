@@ -49,7 +49,7 @@ namespace FiresRPGmaker.Managers
                 if (_totalChars / LogBoundaryChars != _lastLoggedBoundary)
                 {
                     _lastLoggedBoundary = _totalChars / LogBoundaryChars;
-                    UnityEngine.Debug.Log($"[SyncedConfigStore] holding {_totalChars / (1024f * 1024f):F1} MB of synced config text");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[SyncedConfigStore] holding {_totalChars / (1024f * 1024f):F1} MB of synced config text");
                 }
             }
         }

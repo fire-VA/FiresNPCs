@@ -36,7 +36,6 @@ namespace FiresRPGmaker.Modules.Buffer
             if (b.Backend == BuffBackend.TargetSE && !string.IsNullOrEmpty(b.TargetSE)) sb.AppendLine($"TargetSE={b.TargetSE}");
             if (b.StrengthCap < 0.999f) sb.AppendLine($"StrengthCap={b.StrengthCap.ToString(CultureInfo.InvariantCulture)}");
             if (b.DurationCap > 0) sb.AppendLine($"DurationCap={b.DurationCap.ToString(CultureInfo.InvariantCulture)}");
-            // 10-09: the parser read CostScales but the writer never wrote it (Buffer Setup edits it now).
             if (!string.IsNullOrEmpty(b.CostScales) && !string.Equals(b.CostScales, "none", StringComparison.OrdinalIgnoreCase)) sb.AppendLine($"CostScales={b.CostScales}");
             return sb.ToString();
         }
@@ -77,7 +76,7 @@ namespace FiresRPGmaker.Modules.Buffer
                 pkg.Write(folder);
                 pkg.Write(fileName);
                 pkg.Write(content);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_SyncFiles", pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_SyncFiles"), "FiresRPGmaker_SyncFiles", pkg);   // client->server RPCs target the server
             }
             catch (Exception ex) { Debug.LogWarning($"[BufferConfigWriter] push failed: {ex.Message}"); }
         }

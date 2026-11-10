@@ -23,12 +23,66 @@ namespace FiresRPGmaker.Modules.Territories.Paint
         {
             if (outline == null || outline.Count < 3) return;
             var pts = new List<Vector3>(outline);
-            if (Vector3.Distance(pts[0], pts[pts.Count - 1]) > 1f) pts.Add(pts[0]);   // close the loop
-            var circles = OutlineSurveyor.FillWithCircles(pts);
-            if (circles.Count == 0) return;
-            var blocks = new List<string>(circles.Count);
-            foreach (var c in circles) blocks.Add(Block(b, "Circle", $"{R(c.x)},{R(c.z)},15"));
-            WriteAndSync(b, "outlines", blocks);
+            // The flood fill is stored as ONE Polygon block - the outline itself, simplified - instead of a lattice of 15 m circles (his
+            // 'territory' was 65,899 Circle blocks, ~4 MB, all pushed and looked up one by one). Its inside is the even-odd test of that
+            // outline (Territory.IsInside2D), so every flag lives on one entry.
+            var ring = new List<Vector2>(pts.Count);
+            foreach (var p in pts) ring.Add(new Vector2(p.x, p.z));
+            if (ring.Count > 1 && Vector2.Distance(ring[0], ring[ring.Count - 1]) <= 1f) ring.RemoveAt(ring.Count - 1);   // stored open; the test closes it
+            var simple = SimplifyRing(ring, 2f);
+            for (float tol = 4f; simple.Count > MaxPolygonPoints && tol < 512f; tol *= 2f) simple = SimplifyRing(ring, tol);
+            if (simple.Count < 3) return;
+            var sb = new System.Text.StringBuilder(simple.Count * 12);
+            int last = int.MinValue, lastZ = int.MinValue, kept = 0;
+            foreach (var v in simple)
+            {
+                int x = Mathf.RoundToInt(v.x), z = Mathf.RoundToInt(v.y);
+                if (x == last && z == lastZ) continue;   // whole metres: drop repeats after rounding
+                if (kept++ > 0) sb.Append(',');
+                sb.Append(x).Append(',').Append(z);
+                last = x; lastZ = z;
+            }
+            if (kept < 3) return;
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TerritoryPaint] flood '{b.Name}' saved as one Polygon: {kept} point(s) from a {ring.Count}-point outline");
+            WriteAndSync(b, "outlines", new List<string> { Block(b, "Polygon", sb.ToString()) });
+        }
+
+        private const int MaxPolygonPoints = 600;
+
+        // Douglas-Peucker on a closed ring (split at the point farthest from the first, so both halves are simplified as open runs).
+        private static List<Vector2> SimplifyRing(List<Vector2> ring, float tol)
+        {
+            if (ring.Count <= 3) return new List<Vector2>(ring);
+            int far = 0; float best = -1f;
+            for (int i = 1; i < ring.Count; i++) { float d = (ring[i] - ring[0]).sqrMagnitude; if (d > best) { best = d; far = i; } }
+            var a = ring.GetRange(0, far + 1);
+            var c = ring.GetRange(far, ring.Count - far); c.Add(ring[0]);
+            var ra = Dp(a, tol); var rc = Dp(c, tol);
+            var outp = new List<Vector2>(ra.Count + rc.Count);
+            outp.AddRange(ra);
+            for (int i = 1; i < rc.Count - 1; i++) outp.Add(rc[i]);   // skip the shared far point and the closing first point
+            return outp;
+        }
+        private static List<Vector2> Dp(List<Vector2> pts, float tol)
+        {
+            var keep = new bool[pts.Count]; keep[0] = keep[pts.Count - 1] = true;
+            var stack = new Stack<(int, int)>(); stack.Push((0, pts.Count - 1));
+            while (stack.Count > 0)
+            {
+                var (s, e) = stack.Pop();
+                float dmax = 0f; int idx = -1;
+                Vector2 A = pts[s], B = pts[e], AB = B - A; float len2 = AB.sqrMagnitude;
+                for (int i = s + 1; i < e; i++)
+                {
+                    Vector2 P = pts[i];
+                    float d = len2 < 1e-6f ? (P - A).magnitude : Mathf.Abs(AB.x * (P.y - A.y) - AB.y * (P.x - A.x)) / Mathf.Sqrt(len2);
+                    if (d > dmax) { dmax = d; idx = i; }
+                }
+                if (idx >= 0 && dmax > tol) { keep[idx] = true; stack.Push((s, idx)); stack.Push((idx, e)); }
+            }
+            var r = new List<Vector2>();
+            for (int i = 0; i < pts.Count; i++) if (keep[i]) r.Add(pts[i]);
+            return r;
         }
 
         public static void CommitRoad(TerritoryBrush b, List<Vector3> line)

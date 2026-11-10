@@ -51,7 +51,7 @@ namespace FiresRPGmaker.Modules.Vault
             var p = Player.m_localPlayer;
             if (p?.m_customData != null)
                 p.m_customData[DoneKeyPrefix + questId] = times.ToString(CultureInfo.InvariantCulture) + ";" + unix.ToString(CultureInfo.InvariantCulture);
-            Debug.Log($"[QuestPipe] MarkCompleted {questId} times={times} totalDone={_completed.Count}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] MarkCompleted {questId} times={times} totalDone={_completed.Count}");
         }
 
         /// <summary>Overlay the client-local completions onto a freshly-read vault object (mirrors the ActiveQuests
@@ -105,7 +105,7 @@ namespace FiresRPGmaker.Modules.Vault
 
             MigrateFromVaultBlob(player); // reads the real vault blob (routing still off), copies leftovers into per-quest keys
             _loadedFor = pid;             // NOW authoritative — GetPlayerData routes active quests through the store
-            Debug.Log($"[QuestPipe] Load player={pid} active={_active.Count} done={_completed.Count} ids=[{string.Join(",", _active.Keys)}]");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] Load player={pid} active={_active.Count} done={_completed.Count} ids=[{string.Join(",", _active.Keys)}]");
         }
 
         // One-time: pull any ActiveQuests still in the server vault blob into per-quest keys, so existing players
@@ -127,7 +127,7 @@ namespace FiresRPGmaker.Modules.Vault
                         Write(player, id, aq);
                         migrated++;
                     }
-                    if (migrated > 0) Debug.Log($"[QuestPipe] migrated {migrated} quest(s) from vault blob → per-quest keys");
+                    if (migrated > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] migrated {migrated} quest(s) from vault blob → per-quest keys");
                 }
                 // Completed quests likewise move client-local, so existing completions still gate chains after the switch.
                 if (data.CompletedQuests != null && player.m_customData != null)
@@ -144,7 +144,7 @@ namespace FiresRPGmaker.Modules.Vault
                         player.m_customData[DoneKeyPrefix + id] = times.ToString(CultureInfo.InvariantCulture) + ";" + unix.ToString(CultureInfo.InvariantCulture);
                         migratedC++;
                     }
-                    if (migratedC > 0) Debug.Log($"[QuestPipe] migrated {migratedC} completed quest(s) from vault blob → done keys");
+                    if (migratedC > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] migrated {migratedC} completed quest(s) from vault blob → done keys");
                 }
             }
             catch (Exception ex) { Debug.LogWarning($"[QuestPipe] blob migrate failed: {ex.Message}"); }
@@ -157,14 +157,14 @@ namespace FiresRPGmaker.Modules.Vault
             if (string.IsNullOrEmpty(questId)) return false;
             var p = Player.m_localPlayer;
             if (p == null) { Debug.LogWarning("[QuestPipe] Accept: no local player"); return false; }
-            if (_active.ContainsKey(questId)) { Debug.Log($"[QuestPipe] Accept skip (already active) {questId}"); return false; }
+            if (_active.ContainsKey(questId)) { global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] Accept skip (already active) {questId}"); return false; }
 
             int targets = def?.QuestTargets?.Count ?? 0;
             var aq = new ActiveQuestData { QuestId = questId, Progress = 0, StartedAt = DateTime.UtcNow };
             aq.EnsureTargetProgress(targets);
             _active[questId] = aq;
             Write(p, questId, aq);
-            Debug.Log($"[QuestPipe] Accept OK {questId} targets={targets} total={_active.Count}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] Accept OK {questId} targets={targets} total={_active.Count}");
             return true;
         }
 
@@ -175,9 +175,9 @@ namespace FiresRPGmaker.Modules.Vault
             bool had = _active.Remove(questId);
             var p = Player.m_localPlayer;
             if (p?.m_customData != null) p.m_customData.Remove(KeyPrefix + questId);
-            // 0.0.532: also out of the old vault, or Load's migration brings a turned-in quest back after a relog.
+            // Also out of the old vault, or Load's migration brings a turned-in quest back after a relog.
             VaultOfKnowledge.DropActiveQuestFromVault(p, questId);
-            Debug.Log($"[QuestPipe] {(had ? "Abandon OK" : "Abandon skip (not active)")} {questId} total={_active.Count}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] {(had ? "Abandon OK" : "Abandon skip (not active)")} {questId} total={_active.Count}");
             return had;
         }
 

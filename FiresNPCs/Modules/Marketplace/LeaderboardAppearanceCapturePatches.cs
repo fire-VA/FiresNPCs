@@ -69,9 +69,15 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 if (__instance == null || Player.m_localPlayer == null) return;
                 if (__instance != (Humanoid)Player.m_localPlayer) return;
-                CaptureAndSendIfChanged();
+                // 0.0.785 ([lead] perf, round51 GC): no capture inside the equip call (it built a whole appearance record per call,
+                // often several per equip change); mark it and let the Player.Update tick capture once, at most every 0.5 s.
+                if (!_equipDirty) FiresRPGmaker.Log?.LogDebug("[Leaderboard] appearance capture deferred: equip changed, captured once on the next tick");
+                _equipDirty = true;
             }
         }
+
+        private static bool _equipDirty;
+        private static float _lastEquipCapture;
 
         [HarmonyPatch(typeof(Player), nameof(Player.Update))]
         public static class Player_Update
@@ -84,6 +90,15 @@ namespace FiresRPGmaker.Modules.Marketplace
                 if (!_initialCaptured)
                 {
                     _initialCaptured = true;
+                    CaptureAndSendIfChanged();
+                    return;
+                }
+
+                if (_equipDirty && Time.time - _lastEquipCapture >= 0.5f)
+                {
+                    _equipDirty = false;
+                    _lastEquipCapture = Time.time;
+                    _backstopTimer = 0f;
                     CaptureAndSendIfChanged();
                     return;
                 }

@@ -110,9 +110,9 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _rows.Clear();
 
             var profile = BankerProfileManager.GetProfile(_profileName);
-            // 0.0.548 (Fire, stream 10:19: "Profile '' not loaded"): a banker NPC with no profile name still works. It falls back
+            // a banker NPC with no profile name still works. It falls back
             // to the "default" profile, or the first loaded one, and the panel and its server calls use that name from here on.
-            // 0.0.565: also when the named profile isn't loaded (FDT 582 "fdt_bigbatch" showed no rows).
+            // also when the named profile isn't loaded (FDT 582 "fdt_bigbatch" showed no rows).
             if (profile == null)
             {
                 string fallback = null;
@@ -126,7 +126,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                     string wanted = _profileName;
                     _profileName = fallback;
                     profile = BankerProfileManager.GetProfile(fallback);
-                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Banker] banker profile '{wanted}' not loaded; using '{fallback}'");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[Banker] banker profile '{wanted}' not loaded; using '{fallback}'");
                 }
             }
             if (profile == null)
@@ -139,7 +139,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 return;
             }
             if (_profileSummary != null)
-                // 0.0.557: "<rate>% <period> interest · Accepts A, B, C" (the approved mockup's subtitle).
+                // "<rate>% <period> interest · Accepts A, B, C" (the approved mockup's subtitle).
                 _profileSummary.text = (profile.InterestPerMinute > 0f ? profile.InterestPerMinute.ToString("0.##") + "% " + profile.PeriodLabel + " interest" : "No interest")
                                      + "  ·  Accepts " + string.Join(", ", profile.CurrencyLimits.Keys);
             string playerName = Player.m_localPlayer != null ? Player.m_localPlayer.GetPlayerName() : "?";
@@ -161,7 +161,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 int balance = BankerBalanceStore.Get(playerName, kv.Key);
                 int inventory = CountInInventory(kv.Key);
                 if (kv.Value.Inventory != null) kv.Value.Inventory.text = inventory.ToString("N0");
-                // 0.0.558 redesign: BankLabel = the banked number; CapacityText "x / max" + CapacityFill bar (old prefabs: BankLabel "x / max").
+                // redesign: BankLabel = the banked number; CapacityText "x / max" + CapacityFill bar (old prefabs: BankLabel "x / max").
                 if (kv.Value.Bank != null) kv.Value.Bank.text = kv.Value.Capacity != null ? balance.ToString("N0") : balance.ToString("N0") + " / " + kv.Value.Limit.ToString("N0");
                 if (kv.Value.Capacity != null) kv.Value.Capacity.text = balance.ToString("N0") + " / " + kv.Value.Limit.ToString("N0");
                 if (kv.Value.Fill != null) kv.Value.Fill.fillAmount = kv.Value.Limit > 0 ? Mathf.Clamp01(balance / (float)kv.Value.Limit) : 0f;
@@ -194,7 +194,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             var fillGo = Find(rowGo.transform, "CapacityFill");
             _rows[currency] = new RowRefs { Inventory = invLabel, Bank = bankLabel, Limit = limit, Capacity = capText, Fill = fillGo != null ? fillGo.GetComponent<Image>() : null };
 
-            // 0.0.558 redesign (Fire-approved mockup): quick buttons per row. Minus = withdraw, Plus = deposit, All = deposit
+            // quick buttons per row. Minus = withdraw, Plus = deposit, All = deposit
             // every one of this currency in the bag. Shift multiplies the step by 10. Each shows a hover tip.
             WireStep(rowGo, "Minus10", currency, limit, -10);
             WireStep(rowGo, "Minus1",  currency, limit, -1);

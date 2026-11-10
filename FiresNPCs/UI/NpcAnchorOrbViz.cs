@@ -112,7 +112,7 @@ namespace FiresRPGmaker.UI
             // World gone (logout/menu) — the marker is world-space and meaningless without it.
             if (ZNetScene.instance == null) { Hide(); return; }
 
-            // 0.0.583 (Fire 10-14, Ulvar: "cant delete static npcs?? ... orb is still there"): the orb drops itself as soon as its
+            // the orb drops itself as soon as its
             // anchor ZDO is gone, whoever removed it (our hammer gate, Infinity Hammer's remove-anything, another admin, the
             // catch-all), with no zone reload. Checked once a second against the anchor's own zone (the zone is loaded: the orb is
             // only shown for an NPC the admin is standing near).
@@ -120,7 +120,7 @@ namespace FiresRPGmaker.UI
             _nextAnchorCheck = Time.time + 1f;
             if (!ZNetScene.instance.IsAreaReady(_world)) return;   // not loaded yet: can't tell gone from far
             if (AnchorExists()) return;
-            global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[StaticNpc] anchor {_guid} ({_npcName}) is gone: anchor orb removed (no zone reload needed)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] anchor {_guid} ({_npcName}) is gone: anchor orb removed (no zone reload needed)");
             Hide();
         }
 

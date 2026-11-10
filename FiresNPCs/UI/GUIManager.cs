@@ -19,11 +19,11 @@ namespace FiresRPGmaker.UI
         // Cached TMP font from game UI
    private static TMP_FontAsset _cachedFont;
         private static bool _fontSearched;
-        
+
         // Cached Norse SDF font for headers/titles (Viking-style font)
      private static TMP_FontAsset _cachedNorseFont;
         private static bool _norseFontSearched;
-        
+
         // Flag to track if we've subscribed to font config changes
         private static bool _fontConfigSubscribed;
 
@@ -31,7 +31,7 @@ namespace FiresRPGmaker.UI
         /// Gets whether UI input is currently blocked.
         /// </summary>
   public static bool IsInputBlocked => FiresCore.UI.InputBlock.IsBlocked;
-        
+
         /// <summary>
         /// Initializes the GUIManager and subscribes to font config changes.
         /// Call this during mod initialization.
@@ -48,7 +48,7 @@ namespace FiresRPGmaker.UI
             // preventing "LiberationSans SDF Font Asset was not found" warnings
             UIBuilderHelper.InitializeFontCache();
         }
-        
+
         /// <summary>
         /// Cleans up subscriptions. Call during mod shutdown.
         /// </summary>
@@ -60,7 +60,7 @@ namespace FiresRPGmaker.UI
                 _fontConfigSubscribed = false;
             }
         }
-        
+
         /// <summary>
         /// Called when font configuration changes.
         /// Refreshes fonts on all active UI screens.
@@ -69,7 +69,7 @@ namespace FiresRPGmaker.UI
         {
             try
             {
-                Debug.Log("[GUIManager] Font configuration changed, refreshing all active UI screens...");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[GUIManager] Font configuration changed, refreshing all active UI screens...");
                 RefreshAllActiveFonts();
             }
             catch (Exception ex)
@@ -77,7 +77,7 @@ namespace FiresRPGmaker.UI
                 Debug.LogWarning($"[GUIManager] Error refreshing fonts: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Refreshes fonts on all currently active UI screens.
         /// Call this when font configuration changes.
@@ -85,16 +85,16 @@ namespace FiresRPGmaker.UI
         public static void RefreshAllActiveFonts()
         {
             int refreshedCount = 0;
-            
+
             // Refresh Info NPC Screen (Admin config screen)
-            if (Screens.InfoNpcScreenController.Instance != null && 
+            if (Screens.InfoNpcScreenController.Instance != null &&
                 Screens.InfoNpcScreenController.Instance.screenRoot != null &&
                 Screens.InfoNpcScreenController.Instance.screenRoot.activeSelf)
             {
                 UIFontConfig.RefreshFontsInHierarchy(Screens.InfoNpcScreenController.Instance.screenRoot);
                 refreshedCount++;
             }
-            
+
             // Refresh Info NPC Player Panel (static class - find by name in Hud)
             if (Screens.InfoNpcPlayerPanel.IsVisible)
             {
@@ -109,14 +109,14 @@ namespace FiresRPGmaker.UI
                 }
                 catch { }
             }
-            
+
             // Refresh Quest Journal
             if (QuestJournalController.Instance != null && QuestJournalController.Instance.IsVisible)
             {
                 UIFontConfig.RefreshFontsInHierarchy(QuestJournalController.Instance.gameObject);
                 refreshedCount++;
             }
-            
+
             // Refresh registered mod screens (companions, guilds) via Core ModUiRegistry.
             FiresCore.Bridge.ModUiRegistry.ForEachOpenRoot(go =>
             {
@@ -139,7 +139,7 @@ namespace FiresRPGmaker.UI
                 }
                 catch { }
             }
-            
+
             // Refresh Quest Config Screen (admin sub-screen)
             try
             {
@@ -151,7 +151,7 @@ namespace FiresRPGmaker.UI
                 }
             }
             catch { }
-            
+
             // Refresh Dialogue Editor Screen (admin sub-screen)
             try
             {
@@ -163,7 +163,7 @@ namespace FiresRPGmaker.UI
                 }
             }
             catch { }
-            
+
             // Refresh Dressing Room Screen (admin sub-screen)
             try
             {
@@ -175,9 +175,9 @@ namespace FiresRPGmaker.UI
                 }
             }
             catch { }
-            
 
-            Debug.Log($"[GUIManager] Font refresh completed for {refreshedCount} active UI screens");
+
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GUIManager] Font refresh completed for {refreshedCount} active UI screens");
         }
 
         #region Font Management
@@ -227,7 +227,7 @@ namespace FiresRPGmaker.UI
                 ApplyGameFont(textComponent);
             }
         }
-        
+
         /// <summary>
         /// Gets the Body font (descriptions, buttons, readable text).
         /// Uses the configured Body font from BepInEx config.
@@ -237,7 +237,7 @@ namespace FiresRPGmaker.UI
             var effectiveFont = UIFontConfig.GetConfiguredFont(UIFontConfig.FontCategory.Body);
             return UIFontConfig.GetFont(effectiveFont);
         }
-        
+
         /// <summary>
         /// Applies the Body font to a TMP_Text component.
         /// Uses the configured Body font from BepInEx config.
@@ -245,7 +245,7 @@ namespace FiresRPGmaker.UI
         public static void ApplyBodyFont(TMP_Text textComponent)
         {
             if (textComponent == null) return;
-            
+
             var bodyFont = GetBodyFont();
             if (bodyFont != null)
             {
@@ -256,7 +256,7 @@ namespace FiresRPGmaker.UI
                 ApplyGameFont(textComponent);
             }
         }
-        
+
         /// <summary>
         /// Applies a font from a specific category to a TMP_Text component.
         /// </summary>
@@ -328,7 +328,7 @@ namespace FiresRPGmaker.UI
 public static bool IsCustomPanelOpen()
        {
     // Check the book NPC config panel (parchment admin UI)
-    if (NpcBookController.Instance != null && NpcBookController.Instance.IsOnScreen)   // 0.0.634: on screen, not activeSelf
+    if (NpcBookController.Instance != null && NpcBookController.Instance.IsOnScreen)   // on screen, not activeSelf
         return true;
 
     // Check player info display panel
@@ -382,7 +382,7 @@ return false;
         /// </summary>
   public static void CloseAllPanels()
      {
-   NpcBookController.Instance?.Hide();
+   NpcBookController.Instance?.Hide("esc (CloseAllPanels)");
    Screens.InfoNpcPlayerPanel.Hide();
          QuestJournalController.Instance?.Hide();
          global::FiresRPGmaker.Modules.Dialogues.DialogueUI.Hide();

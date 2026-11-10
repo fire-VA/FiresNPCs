@@ -25,10 +25,10 @@ namespace FiresRPGmaker.UI
     /// <summary>
     /// Manages quest profiles for NPCs.
     /// Quest profiles group quests that a specific NPC can offer.
-    /// 
+    ///
     /// On SERVER: Loads from all .cfg files in the QuestProfiles folder.
     /// On CLIENT: Only loads from data received from the server via RPC.
-    /// 
+    ///
     /// Format: [profile_name] followed by quest IDs on each line.
     /// </summary>
     public static class QuestProfileManager
@@ -54,7 +54,7 @@ private static bool _initialized;
                 if (IsServer)
            {
              LoadAllProfiles();
-             Debug.Log($"[QuestProfileManager] Server loaded {_profiles.Count} quest profiles from local files");
+             global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Server loaded {_profiles.Count} quest profiles from local files");
        }
             else
       {
@@ -62,7 +62,7 @@ private static bool _initialized;
                 // QuestManager.LoadQuestDatabase uses for "Quests". The old "wait for an RPC push" left clients
                 // with zero profiles when the push didn't land (bounty board "no quests available").
                 LoadFromSyncedStore();
-                Debug.Log($"[QuestProfileManager] Client loaded {_profiles.Count} quest profiles from synced store");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Client loaded {_profiles.Count} quest profiles from synced store");
            }
         }
 
@@ -98,7 +98,7 @@ private static bool _initialized;
             }
 
       LoadAllProfiles();
-      Debug.Log($"[QuestProfileManager] Reloaded {_profiles.Count} quest profiles from local files");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Reloaded {_profiles.Count} quest profiles from local files");
         }
 
         /// <summary>
@@ -119,7 +119,7 @@ public static void ApplyProfileDataFromServer(string fileName, string fileConten
 var lines = fileContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
          ParseProfileLines(lines, fileName);
 
-  Debug.Log($"[QuestProfileManager] Applied in-memory profile file {fileName}; profiles={_profiles.Count}");
+  global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Applied in-memory profile file {fileName}; profiles={_profiles.Count}");
         }
 
    /// <summary>
@@ -370,7 +370,7 @@ if (!profile.QuestIds.Contains(questId, StringComparer.OrdinalIgnoreCase))
             int removed = profile.QuestIds.RemoveAll(q => string.Equals(q, questId, StringComparison.OrdinalIgnoreCase));
             if (removed <= 0) return false;
             SaveProfilesToFile(profile.SourceFile ?? DefaultProfilesFile);
-            Debug.Log($"[QuestProfileManager] Removed '{questId}' from profile '{profileName}'");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Removed '{questId}' from profile '{profileName}'");
             return true;
         }
 
@@ -450,7 +450,7 @@ return;
       }
          }
 
-   Debug.Log($"[QuestProfileManager] Loaded {_profiles.Count} profiles from {files.Length} file(s)");
+   global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Loaded {_profiles.Count} profiles from {files.Length} file(s)");
         }
 
         private static void LoadProfilesFromFile(string filePath)
@@ -523,7 +523,7 @@ sb.AppendLine($"[{profile.Name}]");
      File.WriteAllText(fullPath, sb.ToString());
  }
             global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("QuestProfiles", targetFile, sb.ToString());
-       Debug.Log($"[QuestProfileManager] Saved profiles to {targetFile} ({(pureClient ? "pushed to server" : "disk + push")})");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Saved profiles to {targetFile} ({(pureClient ? "pushed to server" : "disk + push")})");
             }
             catch (Exception ex)
             {
@@ -568,7 +568,7 @@ hunt_wolves
     Directory.CreateDirectory(QuestProfilesFolder);
 
      File.WriteAllText(DefaultProfilesFile, content);
-            Debug.Log($"[QuestProfileManager] Created example profile file at {DefaultProfilesFile}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestProfileManager] Created example profile file at {DefaultProfilesFile}");
     }
     catch (Exception ex)
 {

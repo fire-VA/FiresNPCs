@@ -156,7 +156,7 @@ namespace FiresRPGmaker.Modules.Quest
             }
             if (overflow > 0) SendOverflowToServer(player, mode, prefabName, overflow, q);
             if (tally != null) { tally.Inv += intoInv; tally.Ground += onGround; }
-            Debug.Log($"[QuestReward] gave {count}x {prefabName} (q{q}) — inv={intoInv} ground={onGround} {mode.ToLowerInvariant()}={overflow}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestReward] gave {count}x {prefabName} (q{q}) — inv={intoInv} ground={onGround} {mode.ToLowerInvariant()}={overflow}");
         }
 
         /// <summary>RandomItem: <c>Target</c> is a comma-/semicolon-separated pool; pick one and deliver it.</summary>
@@ -201,7 +201,7 @@ namespace FiresRPGmaker.Modules.Quest
                 pkg.Write(prefab);
                 pkg.Write(amount);
                 pkg.Write(level);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcOverflow, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcOverflow), RpcOverflow, pkg);
             }
             catch (Exception ex) { Debug.LogWarning("[QuestReward] overflow send failed: " + ex.Message); }
         }
@@ -222,7 +222,23 @@ namespace FiresRPGmaker.Modules.Quest
                 string prefab = pkg.ReadString();
                 int amount = pkg.ReadInt();
                 int level = pkg.ReadInt();
-                string result = ServerStoreOverflow(sender, pid, mode, prefab, amount, level);
+
+                const string rpc = RpcOverflow;
+                // 1) Bind the bank/mail owner to the routed sender: overflow is always the sender's OWN reward.
+                long ownId = global::FiresRPGmaker.Managers.RpcSender.SenderPlayerId(sender);
+                string refusal = null;
+                if (ownId == 0L || pid != ownId) refusal = $"pid {pid} is not the sender's character";
+                // 2) The item must be a real item prefab, and some configured quest must pay it out
+                //    (Item / RandomItem reward naming that prefab) with at least this amount and quality.
+                else if (!IsPlausibleQuestReward(prefab, amount, level, out string why)) refusal = why;
+                // 3) Rate limit per sender (a turn-in overflows a handful of stacks at most).
+                else if (!OverflowRateOk(sender)) refusal = $"more than {MaxOverflowPerWindow} overflows in {OverflowWindowSeconds}s";
+
+                // A refusal stores NOTHING server-side; the reply "Ground" makes the sender's own client drop the
+                // items at its own feet (what it could do locally anyway), so an honest edge case never loses items.
+                string result;
+                if (refusal != null) { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, refusal); result = "Ground"; }
+                else result = ServerStoreOverflow(sender, pid, mode, prefab, amount, level);
 
                 var reply = new ZPackage();
                 reply.Write(result);
@@ -232,6 +248,68 @@ namespace FiresRPGmaker.Modules.Quest
                 ZRoutedRpc.instance.InvokeRoutedRPC(sender, RpcOverflowResult, reply);
             }
             catch (Exception ex) { Debug.LogWarning("[QuestReward] RPC_Overflow failed: " + ex.Message); }
+        }
+
+        /// <summary>Overflow requests allowed per sender per window (one turn-in sends one per item reward).</summary>
+        private const int MaxOverflowPerWindow = 20;
+        private const float OverflowWindowSeconds = 60f;
+        private static readonly Dictionary<long, (float start, int count)> s_overflowRate = new Dictionary<long, (float, int)>();
+
+        private static bool OverflowRateOk(long sender)
+        {
+            float now = Time.realtimeSinceStartup;
+            // Drop windows long expired (covers disconnected peers) so the map never grows without bound.
+            if (s_overflowRate.Count > 0)
+            {
+                List<long> old = null;
+                foreach (var kv in s_overflowRate)
+                    if (now - kv.Value.start > OverflowWindowSeconds * 5f) (old ??= new List<long>()).Add(kv.Key);
+                if (old != null) foreach (var k in old) s_overflowRate.Remove(k);
+            }
+            if (!s_overflowRate.TryGetValue(sender, out var w) || now - w.start > OverflowWindowSeconds) w = (now, 0);
+            w.count++;
+            s_overflowRate[sender] = w;
+            return w.count <= MaxOverflowPerWindow;
+        }
+
+        /// <summary>Reward types that never deliver an item (everything else, incl. unknown types, delivers as an item).</summary>
+        private static readonly HashSet<string> s_nonItemRewardTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "skill", "skill_exp", "pet", "setcustomvalue", "addcustomvalue", "guildaddlevel",
+            "epicmmo_exp", "cozyheim_exp", "battlepass_exp", "rustyclasses_exp",
+        };
+
+        /// <summary>
+        /// SERVER: quest state is client-local (ActiveQuestStore), so the server cannot see WHICH quest the client
+        /// just turned in. The strongest check available is against the server's own quest DB: the prefab must be
+        /// a real item and at least one configured quest must pay it out as an item reward with Amount >= amount
+        /// and Level >= quality. A forged packet can then claim at most what a real quest pays (rate-limited),
+        /// never an arbitrary prefab, stack size or quality.
+        /// </summary>
+        private static bool IsPlausibleQuestReward(string prefab, int amount, int level, out string why)
+        {
+            why = null;
+            if (string.IsNullOrEmpty(prefab) || amount <= 0) { why = "empty prefab or amount"; return false; }
+            var go = ZNetScene.instance != null ? ZNetScene.instance.GetPrefab(prefab) : null;
+            if (go == null || go.GetComponent<ItemDrop>() == null) { why = $"'{prefab}' is not an item prefab"; return false; }
+            var qm = QuestManager.Instance;
+            if (qm == null) { why = "quest DB not loaded"; return false; }
+            int q = Math.Max(1, level);
+            foreach (var entry in qm.GetAllQuests())
+            {
+                var def = qm.GetQuestDefinition(entry.QuestId);
+                if (def?.Rewards == null) continue;
+                foreach (var r in def.Rewards)
+                {
+                    if (r == null || string.IsNullOrEmpty(r.Target)) continue;
+                    if (r.Type != null && s_nonItemRewardTypes.Contains(r.Type.Trim())) continue;
+                    if (amount > r.Amount || q > Math.Max(1, r.Level)) continue;
+                    foreach (var t in r.Target.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                        if (string.Equals(t.Trim(), prefab, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+            why = $"no configured quest rewards {amount}x {prefab} q{q}";
+            return false;
         }
 
         private static string ServerStoreOverflow(long senderPeer, long pid, string mode, string prefab, int amount, int level)
@@ -251,7 +329,7 @@ namespace FiresRPGmaker.Modules.Quest
                         pdata.AddBankItem("item", prefab, amount, Math.Max(1, level), -1f);
                         pdata.IsDirty = true;
                         vok.SavePlayerData(pid, pdata);
-                        Debug.Log($"[QuestReward] overflow → BANK: {amount}x {prefab} for player {pid}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestReward] overflow → BANK: {amount}x {prefab} for player {pid}");
                         return "Bank";
                     }
                     else
@@ -273,7 +351,7 @@ namespace FiresRPGmaker.Modules.Quest
                             WasRead = false,
                             AttachmentsTaken = false,
                         });
-                        Debug.Log($"[QuestReward] overflow → MAIL: {amount}x {prefab} for player {pid}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestReward] overflow → MAIL: {amount}x {prefab} for player {pid}");
                         return "Mail";
                     }
                 }
@@ -288,6 +366,8 @@ namespace FiresRPGmaker.Modules.Quest
         public static void RPC_OverflowResult(long sender, ZPackage pkg)
         {
             if (pkg == null) return;
+            // Only the server's verdict counts (a "Ground" reply spawns items locally).
+            if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer(RpcOverflowResult, sender); return; }
             try
             {
                 string mode = pkg.ReadString();

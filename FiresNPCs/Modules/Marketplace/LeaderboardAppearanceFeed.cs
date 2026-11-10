@@ -31,7 +31,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var pkg = new ZPackage();
                 appearance.Pack(pkg);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcName, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcName), RpcName, pkg);
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Appearance Send failed: {ex.Message}"); }
         }
@@ -44,6 +44,18 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var appearance = PlayerAppearance.Unpack(pkg);
                 if (appearance == null || string.IsNullOrEmpty(appearance.PlayerName)) return;
+                // Key by the routed sender's own name: a client may only save its own look.
+                if (!global::FiresRPGmaker.Managers.RpcSender.IsServerSelf(sender))
+                {
+                    string senderName = global::FiresRPGmaker.Managers.RpcSender.SenderName(sender);
+                    if (string.IsNullOrEmpty(senderName)) { global::FiresRPGmaker.Managers.RpcSender.Refuse(RpcName, sender, "unknown sender name"); return; }
+                    // A mismatched name is dropped, never rewritten.
+                    if (!string.Equals(senderName.Trim(), appearance.PlayerName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[FiresRPGmaker] {RpcName}: dropped appearance for '{appearance.PlayerName}' sent by peer {sender} ('{senderName}')");
+                        return;
+                    }
+                }
 
                 // Key off the board's normalizer so rows and appearances join on the same Owner value.
                 appearance.Owner = LeaderboardServerFeed.OwnerKey(appearance.PlayerName);

@@ -72,7 +72,16 @@ namespace FiresRPGmaker.Modules.Party
         }
 
         public static bool VerboseLogging = false;
-        private static bool _registered;
+        private static ZRoutedRpc s_regOn;
+
+        // Every ZNet.Awake builds a new ZRoutedRpc; bind the party RPCs on it.
+        // Ascend still calls Initialize once at plugin init (now a no-op when already on this instance).
+        [HarmonyPatch(typeof(ZNet), "Awake")]
+        private static class RegisterOnZNetAwake
+        {
+            [HarmonyPostfix]
+            private static void Postfix() => Initialize();   // (VikingCoreCompat.Present is a constant false since FiresGuilds)
+        }
 
         // Pending-invite tracking on the receiving side: only one
         // outstanding YesNoPopup at a time per local client. Re-invites
@@ -89,19 +98,24 @@ namespace FiresRPGmaker.Modules.Party
         /// </summary>
         public static void Initialize()
         {
-            if (_registered) return;
             if (ZRoutedRpc.instance == null)
             {
                 Debug.LogWarning($"{LogPrefix} ZRoutedRpc not ready, deferring registration.");
                 return;
             }
+            // Guard by the ZRoutedRpc instance: a leave + rejoin builds a new one, and without re-registering PartyMsg has no
+            // handler and every accept is dropped before it reaches the inviter.
+            if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(s_regOn)) return;
+            s_regOn = ZRoutedRpc.instance;
 
             try
             {
-                ZRoutedRpc.instance.Register<ZPackage>(RpcRoute, new Action<long, ZPackage>(RPC_PartyRoute));
-                ZRoutedRpc.instance.Register<ZPackage>(RpcMsg, new Action<long, ZPackage>(RPC_PartyMsg));
-                _registered = true;
-                Debug.Log($"{LogPrefix} Registered party RPCs.");
+                const string M = "Party";
+                int n = 0;
+                n += global::FiresRPGmaker.Managers.RpcRegistration.Try(M, RpcRoute, () => ZRoutedRpc.instance.Register<ZPackage>(RpcRoute, new Action<long, ZPackage>(RPC_PartyRoute)));
+                n += global::FiresRPGmaker.Managers.RpcRegistration.Try(M, RpcMsg, () => ZRoutedRpc.instance.Register<ZPackage>(RpcMsg, new Action<long, ZPackage>(RPC_PartyMsg)));
+                global::FiresRPGmaker.Managers.RpcRegistration.Logged(M, n);
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{LogPrefix} Registered party RPCs.");
             }
             catch (Exception ex)
             {
@@ -224,7 +238,8 @@ namespace FiresRPGmaker.Modules.Party
                 pkg.Write(m?.JoinedUtcTicks ?? 0L);
             }
 
-            SendRouted(canonicalName, pkg);
+            SendRouted(canonicalName, pkg, targetPlayerId);
+            _outgoingInvites[(canonicalName ?? "").Trim().ToLowerInvariant()] = DateTime.UtcNow;   // the Accept must answer this
             Notify($"Invite sent to {canonicalName}.");
 
             // Persist the (possibly new) party locally so the inviter
@@ -289,21 +304,47 @@ namespace FiresRPGmaker.Modules.Party
 
                 string targetName = pkg.ReadString();
                 var inner = pkg.ReadPackage();
+                // Optional trailing target id (absent from older clients).
+                long targetId = 0L;
+                try { if (pkg.GetPos() + 8 <= pkg.Size()) targetId = pkg.ReadLong(); } catch { targetId = 0L; }
 
-                if (string.IsNullOrEmpty(targetName) || inner == null)
+                if ((string.IsNullOrEmpty(targetName) && targetId == 0L) || inner == null)
                 {
                     if (VerboseLogging) Debug.LogWarning($"{LogPrefix} Route from {senderId} with empty target/payload \u2014 dropping.");
+                    TestLastRouteResolution = $"dropped:empty sender={senderId}";
                     return;
                 }
 
-                long targetPeerUid = ResolvePeerUidByName(targetName);
+                string how = "id";
+                long targetPeerUid = targetId != 0L ? ResolvePeerUidById(targetId) : 0L;
                 if (targetPeerUid == 0)
                 {
-                    if (VerboseLogging) Debug.Log($"{LogPrefix} Route target '{targetName}' not online \u2014 dropping.");
+                    how = "name";
+                    targetPeerUid = ResolvePeerUidByName(targetName);
+                }
+                if (targetPeerUid == 0)
+                {
+                    if (VerboseLogging) global::FiresRPGmaker.FiresLogger.LogDebug($"{LogPrefix} Route target '{targetName}' (id {targetId}) not online \u2014 dropping.");
+                    TestLastRouteResolution = $"unresolved name={targetName} id={targetId}";
                     return;
                 }
+                TestLastRouteResolution = $"{how} name={targetName} id={targetId} peer={targetPeerUid}";
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Party] route to {targetName} resolved by {how} ({targetPeerUid})");
 
-                ZRoutedRpc.instance.InvokeRoutedRPC(targetPeerUid, RpcMsg, inner);
+                // Stamp the REAL sender (server's view of the routed sender) after the inner message; the recipient
+                // trusts only this stamp, never the ids/names inside the message.
+                long stampId = global::FiresRPGmaker.Managers.RpcSender.SenderPlayerId(senderId);
+                string stampName = global::FiresRPGmaker.Managers.RpcSender.SenderName(senderId);
+                if (stampId == 0L || string.IsNullOrEmpty(stampName))
+                {
+                    global::FiresRPGmaker.Managers.RpcSender.Refuse(RpcRoute, senderId, "sender has no player character to stamp");
+                    return;
+                }
+                var stamped = new ZPackage(inner.GetArray());
+                stamped.SetPos(stamped.Size());
+                stamped.Write(stampId);
+                stamped.Write(stampName);
+                ZRoutedRpc.instance.InvokeRoutedRPC(targetPeerUid, RpcMsg, stamped);
             }
             catch (Exception ex)
             {
@@ -319,7 +360,10 @@ namespace FiresRPGmaker.Modules.Party
             try
             {
                 if (pkg == null) return;
+                // Only the server's forward counts: it carries the stamp of the real sender.
+                if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(senderId)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer(RpcMsg, senderId); return; }
                 MsgType type = (MsgType)pkg.ReadByte();
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Party] PartyMsg {type} received from server");
 
                 switch (type)
                 {
@@ -340,6 +384,41 @@ namespace FiresRPGmaker.Modules.Party
             }
         }
 
+        /// <summary>Largest party a message may describe (allocation guard).</summary>
+        private const int MaxPartyMembers = 32;
+        /// <summary>How long an outgoing invite stays acceptable.</summary>
+        private const double OutgoingInviteTtlSeconds = 300;
+        // Lower-cased names this client invited -> when; an Accept is honoured only from one of them.
+        private static readonly Dictionary<string, DateTime> _outgoingInvites = new Dictionary<string, DateTime>();
+        private static readonly HashSet<string> _refusedParty = new HashSet<string>();
+
+        /// <summary>Reads the server's sender stamp appended after the inner message (see RPC_PartyRoute).</summary>
+        private static bool TryReadStamp(ZPackage pkg, MsgType type, out long senderPlayerId, out string senderName)
+        {
+            senderPlayerId = 0L; senderName = null;
+            try
+            {
+                if (pkg.GetPos() < pkg.Size()) { senderPlayerId = pkg.ReadLong(); senderName = pkg.ReadString(); }
+            }
+            catch { senderPlayerId = 0L; }
+            if (senderPlayerId != 0L && !string.IsNullOrEmpty(senderName)) return true;
+            RefuseParty(type, "no server sender stamp");
+            return false;
+        }
+
+        private static void RefuseParty(MsgType type, string reason)
+        {
+            if (_refusedParty.Count > 1024) _refusedParty.Clear();
+            if (_refusedParty.Add(type + "|" + reason)) Debug.LogWarning($"{LogPrefix} {type} refused: {reason}");
+        }
+
+        private static bool ValidMemberCount(int n, MsgType type)
+        {
+            if (n >= 0 && n <= MaxPartyMembers) return true;
+            RefuseParty(type, $"member count {n} outside 0..{MaxPartyMembers}");
+            return false;
+        }
+
         private static void HandleIncomingInvite(ZPackage pkg)
         {
             long inviterId = pkg.ReadLong();
@@ -347,6 +426,7 @@ namespace FiresRPGmaker.Modules.Party
             long partyId = pkg.ReadLong();
             long leaderId = pkg.ReadLong();
             int memberCount = pkg.ReadInt();
+            if (!ValidMemberCount(memberCount, MsgType.Invite)) return;
             var members = new List<PartyMember>(memberCount);
             for (int i = 0; i < memberCount; i++)
             {
@@ -358,6 +438,13 @@ namespace FiresRPGmaker.Modules.Party
                 };
                 members.Add(m);
             }
+            if (!TryReadStamp(pkg, MsgType.Invite, out long stampId, out string stampName)) return;
+            // The inviter is whoever the server stamped, and must be in the party it offers.
+            if (inviterId != stampId) { RefuseParty(MsgType.Invite, $"inviter id {inviterId} is not the stamped sender {stampId}"); return; }
+            inviterName = stampName;
+            bool inviterListed = false;
+            foreach (var m in members) if (m != null && m.PlayerId == stampId) { inviterListed = true; break; }
+            if (!inviterListed) { RefuseParty(MsgType.Invite, "the inviter is not in the offered party"); return; }
 
             var local = Player.m_localPlayer;
             if (local == null) return;
@@ -368,7 +455,7 @@ namespace FiresRPGmaker.Modules.Party
             var existing = GetLocalParty();
             if (existing != null && existing.PartyId != partyId)
             {
-                SendDeclineTo(inviterName, local.GetPlayerID(), local.GetPlayerName(), reason: "already in a party");
+                SendDeclineTo(inviterName, local.GetPlayerID(), local.GetPlayerName(), reason: "already in a party", targetId: inviterId);
                 return;
             }
 
@@ -433,7 +520,7 @@ namespace FiresRPGmaker.Modules.Party
             ack.Write((byte)MsgType.InviteAccept);
             ack.Write(selfId);
             ack.Write(selfName);
-            SendRouted(inviterName, ack);
+            SendRouted(inviterName, ack, inviterId);
 
             Notify($"You joined {inviterName}'s party.");
         }
@@ -445,13 +532,21 @@ namespace FiresRPGmaker.Modules.Party
 
             var local = Player.m_localPlayer;
             if (local == null) return;
-            SendDeclineTo(inviterName, local.GetPlayerID(), local.GetPlayerName(), reason: "declined");
+            SendDeclineTo(inviterName, local.GetPlayerID(), local.GetPlayerName(), reason: "declined", targetId: inviterId);
         }
 
         private static void HandleIncomingAccept(ZPackage pkg)
         {
             long acceptedById = pkg.ReadLong();
             string acceptedByName = pkg.ReadString();
+            if (!TryReadStamp(pkg, MsgType.InviteAccept, out long stampId, out string stampName)) return;
+            // Only the stamped sender can accept for itself, and only an invite this client sent.
+            if (acceptedById != stampId) { RefuseParty(MsgType.InviteAccept, $"accepter id {acceptedById} is not the stamped sender {stampId}"); return; }
+            acceptedByName = stampName;
+            string inviteKey = stampName.Trim().ToLowerInvariant();
+            if (!_outgoingInvites.TryGetValue(inviteKey, out DateTime sentAt) || (DateTime.UtcNow - sentAt).TotalSeconds > OutgoingInviteTtlSeconds)
+            { RefuseParty(MsgType.InviteAccept, $"no open invite to '{stampName}'"); return; }
+            _outgoingInvites.Remove(inviteKey);
 
             var local = Player.m_localPlayer;
             if (local == null) return;
@@ -481,6 +576,9 @@ namespace FiresRPGmaker.Modules.Party
             long declinerId = pkg.ReadLong();
             string declinerName = pkg.ReadString();
             string reason = pkg.ReadString();
+            if (!TryReadStamp(pkg, MsgType.InviteDecline, out _, out string stampName)) return;
+            declinerName = stampName;
+            if (reason != null && reason.Length > 64) reason = reason.Substring(0, 64);
             Notify($"{declinerName} declined the invite{(string.IsNullOrEmpty(reason) ? "" : $" ({reason})")}.");
         }
 
@@ -489,6 +587,7 @@ namespace FiresRPGmaker.Modules.Party
             long partyId = pkg.ReadLong();
             long leaderId = pkg.ReadLong();
             int memberCount = pkg.ReadInt();
+            if (!ValidMemberCount(memberCount, MsgType.Sync)) return;
             var members = new List<PartyMember>(memberCount);
             for (int i = 0; i < memberCount; i++)
             {
@@ -499,10 +598,21 @@ namespace FiresRPGmaker.Modules.Party
                     JoinedUtcTicks = pkg.ReadLong(),
                 });
             }
+            if (!TryReadStamp(pkg, MsgType.Sync, out long stampId, out _)) return;
 
             var local = Player.m_localPlayer;
             if (local == null) return;
             long selfId = local.GetPlayerID();
+
+            // A sync is only from a member of MY current party (same party id); changing the leader or
+            // removing me (a kick) is the current leader's right only.
+            var current = PartyStorage.GetPartyOrNull(local);
+            if (current == null || current.PartyId != partyId) { RefuseParty(MsgType.Sync, "sync for a party this player is not in"); return; }
+            if (!current.ContainsPlayer(stampId)) { RefuseParty(MsgType.Sync, $"sender {stampId} is not a member"); return; }
+            if (leaderId != current.LeaderPlayerId && stampId != current.LeaderPlayerId) { RefuseParty(MsgType.Sync, "only the leader may change the leader"); return; }
+            bool includesSelf = false;
+            foreach (var m in members) if (m != null && m.PlayerId == selfId) { includesSelf = true; break; }
+            if (!includesSelf && stampId != current.LeaderPlayerId) { RefuseParty(MsgType.Sync, "only the leader may remove a member"); return; }
 
             // If the incoming sync doesn't include us, treat it as a
             // remote kick / leader-disband-equivalent and clear state.
@@ -531,10 +641,12 @@ namespace FiresRPGmaker.Modules.Party
         private static void HandleIncomingDisband(ZPackage pkg)
         {
             long partyId = pkg.ReadLong();
+            if (!TryReadStamp(pkg, MsgType.Disband, out long stampId, out _)) return;
             var local = Player.m_localPlayer;
             if (local == null) return;
             var party = PartyStorage.GetPartyOrNull(local);
             if (party == null || party.PartyId != partyId) return;
+            if (stampId != party.LeaderPlayerId) { RefuseParty(MsgType.Disband, $"sender {stampId} is not the leader"); return; }
             PartyStorage.ClearParty(local);
             Notify("Your party was disbanded by the leader.");
         }
@@ -542,6 +654,9 @@ namespace FiresRPGmaker.Modules.Party
         private static void HandleIncomingLeave(ZPackage pkg)
         {
             long leaverId = pkg.ReadLong();
+            if (!TryReadStamp(pkg, MsgType.Leave, out long stampId, out _)) return;
+            // A player can only announce its OWN leave.
+            if (leaverId != stampId) { RefuseParty(MsgType.Leave, $"leaver id {leaverId} is not the stamped sender {stampId}"); return; }
             var local = Player.m_localPlayer;
             if (local == null) return;
             var party = PartyStorage.GetPartyOrNull(local);
@@ -606,14 +721,14 @@ namespace FiresRPGmaker.Modules.Party
             return BitConverter.ToInt64(bytes, 0);
         }
 
-        private static void SendDeclineTo(string inviterName, long selfId, string selfName, string reason)
+        private static void SendDeclineTo(string inviterName, long selfId, string selfName, string reason, long targetId = 0L)
         {
             var pkg = new ZPackage();
             pkg.Write((byte)MsgType.InviteDecline);
             pkg.Write(selfId);
             pkg.Write(selfName ?? "");
             pkg.Write(reason ?? "");
-            SendRouted(inviterName, pkg);
+            SendRouted(inviterName, pkg, targetId);
         }
 
         private static ZPackage BuildSyncMsg(PartyData party)
@@ -655,8 +770,8 @@ namespace FiresRPGmaker.Modules.Party
             {
                 if (m == null) continue;
                 if (excludePlayerIds != null && excludePlayerIds.Contains(m.PlayerId)) continue;
-                if (string.IsNullOrEmpty(m.PlayerName)) continue;
-                SendRouted(m.PlayerName, msg);
+                if (string.IsNullOrEmpty(m.PlayerName) && m.PlayerId == 0L) continue;
+                SendRouted(m.PlayerName, msg, m.PlayerId);
             }
         }
 
@@ -667,8 +782,8 @@ namespace FiresRPGmaker.Modules.Party
             {
                 if (m == null) continue;
                 if (excludeSelf && m.PlayerId == selfId) continue;
-                if (string.IsNullOrEmpty(m.PlayerName)) continue;
-                SendRouted(m.PlayerName, msg);
+                if (string.IsNullOrEmpty(m.PlayerName) && m.PlayerId == 0L) continue;
+                SendRouted(m.PlayerName, msg, m.PlayerId);
             }
         }
 
@@ -676,7 +791,7 @@ namespace FiresRPGmaker.Modules.Party
         /// Push the inner payload to the server as a Route message; the
         /// server forwards it to the named target's peer.
         /// </summary>
-        private static void SendRouted(string targetName, ZPackage inner)
+        private static void SendRouted(string targetName, ZPackage inner, long targetId = 0L)
         {
             try
             {
@@ -684,7 +799,10 @@ namespace FiresRPGmaker.Modules.Party
                 var pkg = new ZPackage();
                 pkg.Write(targetName ?? "");
                 pkg.Write(inner ?? new ZPackage());
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcRoute, pkg);
+                // Add-only trailing field - the target's player id / character UserID / peer uid.
+                // An older server reads name + inner and ignores it; a newer server reads it only when bytes remain.
+                pkg.Write(targetId);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcRoute), RpcRoute, pkg);
             }
             catch (Exception ex)
             {
@@ -717,6 +835,49 @@ namespace FiresRPGmaker.Modules.Party
             catch { return false; }
         }
 
+        /// <summary>Test hook - the server's last PartyRoute resolution
+        /// ("id|name name=.. id=.. peer=..", "unresolved ...", "dropped:empty ...").</summary>
+        public static string TestLastRouteResolution = "";
+
+        /// <summary>
+        /// Server-side resolve an id to a peer uid. The id may be a peer uid, a character
+        /// ZDOID UserID (what ZNet.GetPlayerList gives the inviter) or a Player.GetPlayerID() (party member ids).
+        /// </summary>
+        private static long ResolvePeerUidById(long id)
+        {
+            try
+            {
+                if (id == 0L || ZNet.instance == null) return 0L;
+                var peers = ZNet.instance.GetPeers();
+                if (peers != null)
+                {
+                    for (int i = 0; i < peers.Count; i++)
+                    {
+                        var p = peers[i];
+                        if (p == null) continue;
+                        if (p.m_uid == id || p.m_characterID.UserID == id) return p.m_uid;
+                    }
+                }
+                long self = ZRoutedRpc.instance != null ? ZRoutedRpc.instance.GetServerPeerID() : 0L;
+                if (ZNet.instance.IsServer() && self != 0L && self == id) return self;
+                var all = Player.GetAllPlayers();
+                if (all != null)
+                {
+                    for (int i = 0; i < all.Count; i++)
+                    {
+                        var pl = all[i];
+                        if (pl == null || pl.GetPlayerID() != id) continue;
+                        if (ZNet.instance.IsServer() && pl == Player.m_localPlayer) return self;   // listen host's own player
+                        var zdo = pl.GetComponent<ZNetView>()?.GetZDO();
+                        long owner = zdo != null ? zdo.GetOwner() : 0L;
+                        if (owner != 0L) return owner;
+                    }
+                }
+                return 0L;
+            }
+            catch { return 0L; }
+        }
+
         /// <summary>
         /// Server-side: resolve a player NAME to the network <c>m_uid</c>
         /// of the connected peer hosting that player.
@@ -726,20 +887,35 @@ namespace FiresRPGmaker.Modules.Party
             try
             {
                 if (ZNet.instance == null) return 0;
-                if (string.IsNullOrEmpty(name)) return 0;
+                if (string.IsNullOrEmpty(name))
+                {
+                    Debug.LogWarning($"{LogPrefix} [Party] route by name: empty name and no id — cannot resolve.");
+                    return 0;
+                }
                 string lower = name.Trim().ToLowerInvariant();
 
+                // Count matches so a duplicate name is reported, not silently first-wins.
+                long found = 0; int matches = 0; int emptyNames = 0;
                 var peers = ZNet.instance.GetPeers();
                 if (peers != null)
                 {
                     for (int i = 0; i < peers.Count; i++)
                     {
                         var p = peers[i];
-                        if (p == null || string.IsNullOrEmpty(p.m_playerName)) continue;
+                        if (p == null) continue;
+                        if (string.IsNullOrEmpty(p.m_playerName)) { emptyNames++; continue; }
                         if (p.m_playerName.Trim().ToLowerInvariant() == lower)
-                            return p.m_uid;
+                        {
+                            if (matches == 0) found = p.m_uid;
+                            matches++;
+                        }
                     }
                 }
+                if (matches > 1)
+                    Debug.LogWarning($"{LogPrefix} [Party] route by name '{name}' is ambiguous ({matches} peers) — using peer {found}.");
+                if (matches > 0) return found;
+                if (emptyNames > 0)
+                    Debug.LogWarning($"{LogPrefix} [Party] route by name '{name}': no match, {emptyNames} peer(s) have no name yet (just joined?).");
 
                 // Server's own local player (the host on a listen-server)
                 // never appears in the peers list. Detect this case.
@@ -768,7 +944,7 @@ namespace FiresRPGmaker.Modules.Party
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, text);
             }
             catch { }
-            Debug.Log($"{LogPrefix} {text}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"{LogPrefix} {text}");
         }
 
         // ----------------------------- CONSOLE COMMANDS ---------------

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -50,9 +50,11 @@ namespace FiresRPGmaker.UI
         private bool _dressingWired;
         private bool _patrolBtnAdded;
         private RectTransform _patrolBtnRect;
-        internal RectTransform PatrolButtonRect => _patrolBtnRect;   // 0.0.643: the Dressing re-layout puts it under the preview
+        internal RectTransform PatrolButtonRect => _patrolBtnRect;   // the Dressing re-layout puts it under the preview
         private RectTransform _closeBtnRect;
         private RectTransform _anchorBtnRect;
+        private const float AnchorToggleDebounce = 0.6f;   // seconds; the manual hit-test and onClick both fire per click
+        private float _anchorToggleAt = -10f;   // one anchor toggle per click
         private RectTransform _dragHandleRect;
         private bool _dragging;
         private Vector2 _dragOffset;
@@ -66,7 +68,7 @@ namespace FiresRPGmaker.UI
         private bool _hoverShown;
 
         public bool IsOpen => _panelGo != null && _panelGo.activeSelf;
-        // 0.0.634: really on screen (the kit shell can hide the book by deactivating ITS root, leaving _panelGo activeSelf)
+        // really on screen (the kit shell can hide the book by deactivating ITS root, leaving _panelGo activeSelf)
         public bool IsOnScreen => _panelGo != null && _panelGo.activeInHierarchy;
 
         // ── entry / lifecycle ────────────────────────────────────────────────
@@ -91,27 +93,32 @@ namespace FiresRPGmaker.UI
             {
                 Instance.Hide();
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "NPC book unavailable (UI bundle failed to load): opening Set Patrol Route");
-                Debug.Log($"[NpcBookController] book broken: opened the patrol route popup for '{npc.GetDisplayName()}' instead");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] book broken: opened the patrol route popup for '{npc.GetDisplayName()}' instead");
                 PatrolRoutePopup.Open(npc, null);
             }
             else
             {
-                Debug.Log($"[NpcBookController] book opened for '{npc.GetDisplayName()}'");
-                try { if (FiresKitBookSkin.On) Instance.EnterShell(); else Instance.LeaveShell(); }   // 0.0.622 SCOPE #7
-                catch (Exception ex) { Debug.LogWarning("[NpcBookController] shell switch: " + ex.Message); }
-                // 0.0.648 (Fire: Shift+E showed the parchment "Trader Config" book): say which gate kept the classic book
-                if (Instance._shell == null) Debug.LogWarning($"[NpcBookController] classic parchment book shown for '{npc.GetDisplayName()}': kit book {(FiresKitBookSkin.On ? "ON but the shell did not build (see the line above)" : "OFF")} (Core Fires UI override {FiresKitBookSkin.SafeOverride()}, Use classic book UI {FiresKitBookSkin.ClassicBook?.Value.ToString() ?? "unbound"})");
-                try { FixNullFonts(Instance._panelGo); Instance.TextHealth = TextDiagnose(Instance._shell != null ? Instance._shell.Root.gameObject : Instance._panelGo, true); }   // 0.0.619: game font first
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] book opened for '{npc.GetDisplayName()}'");
+                // the shell switch now runs inside Open(), BEFORE the first SelectTab (see Open)
+                // say which gate kept the classic book
+                // 0.0.841 ([lead] log sweep 11-07): the kit book being OFF by config is the normal classic look, not a fault, so that
+                // case is Debug; only "kit book ON but its shell did not build" is a real failure and stays a Warning.
+                if (Instance._shell == null)
+                {
+                    string why = $"classic parchment book shown for '{npc.GetDisplayName()}': kit book {(FiresKitBookSkin.On ? "ON but the shell did not build (see the line above)" : "OFF")} (Core Fires UI override {FiresKitBookSkin.SafeOverride()}, Use classic book UI {FiresKitBookSkin.ClassicBook?.Value.ToString() ?? "unbound"})";
+                    if (FiresKitBookSkin.On) Debug.LogWarning("[NpcBookController] " + why);
+                    else global::FiresRPGmaker.FiresLogger.LogDebug("[NpcBookController] " + why);
+                }
+                try { FixNullFonts(Instance._panelGo); Instance.TextHealth = TextDiagnose(Instance._shell != null ? Instance._shell.Root.gameObject : Instance._panelGo, true); }   // game font first
                 catch (Exception ex) { Debug.LogWarning("[NpcBookController] text check threw: " + ex.Message); }
             }
         }
 
-        // 0.0.618 ([lead] R-NIGHT7 shot: the book renders but every baked text is invisible): re-sync each TMP's material
+        // re-sync each TMP's material
         // to its font's own atlas material when they differ, force a mesh update, and report how many texts actually drew
         // characters. The first 3 empty ones are described, plus each distinct font's glyph/character tables and atlas
-        // ([lead]: v5's static NpcAveria atlas may be empty or missing from the bundle).
         internal float TextHealth = -1f;
-        internal static int BadShaderTexts = -1;   // 0.0.619
+        internal static int BadShaderTexts = -1;
         internal static float TextDiagnose(GameObject root, bool repair)
         {
             if (root == null) return -1f;
@@ -144,8 +151,7 @@ namespace FiresRPGmaker.UI
                 try { atlas = f.atlasTextures != null && f.atlasTextures.Length > 0 ? f.atlasTextures[0] : null; } catch { }
                 fontInfo.Append($" || font '{f.name}': {kv.Value[1]}/{kv.Value[0]} drew; chars={f.characterTable?.Count ?? -1} atlas={(atlas != null ? atlas.width + "x" + atlas.height : "NULL")} mode={f.atlasPopulationMode}");
             }
-            // 0.0.619 ([lead] R-NIGHT8: 94% "drew characters" yet nothing was visible; the bundled material's shader has the
-            // right NAME but is our rip's empty copy): count visible texts whose shader is unsupported, or is a different
+            // A bundled material shader can have the right NAME but be an empty copy: count visible texts whose shader is unsupported, or is a different
             // INSTANCE of the game font's shader with the same name (= the bundle's copy). Any of those fails the gate.
             var good = GameFont()?.material?.shader;
             int badShader = 0; string badInfo = "";
@@ -159,7 +165,7 @@ namespace FiresRPGmaker.UI
             }
             BadShaderTexts = badShader;
             float ratio = total > 0 ? (float)drawn / total : 0f;
-            Debug.Log($"[NpcBookController] text check '{root.name}': {drawn}/{total} texts drew characters, {resynced} material(s) re-synced, {badShader} on a dead/bundled shader{badInfo}{fontInfo}{empties}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] text check '{root.name}': {drawn}/{total} texts drew characters, {resynced} material(s) re-synced, {badShader} on a dead/bundled shader{badInfo}{fontInfo}{empties}");
             return ratio;
         }
 
@@ -167,10 +173,9 @@ namespace FiresRPGmaker.UI
         {
         }
 
-        // 0.0.614: every TMP text in the baked book with a null font gets a real one (the game's TMP default, else the
+        // every TMP text in the baked book with a null font gets a real one (the game's TMP default, else the
         // font of any loaded TMP text), so TMP's layout math (GetPreferredValues) can't NRE. One line with the count.
-        // 0.0.614: null-font fallback. 0.0.619 ([visual] 10-15: the bundled NpcAveria material uses our rip's EMPTY TMP shader,
-        // so every baked text drew nothing): any TMP with no font, with the bundled NpcAveria font, or whose material shader
+        // null-font fallback. The bundled NpcAveria material uses an EMPTY TMP shader, so every baked text drew nothing: any TMP with no font, with the bundled NpcAveria font, or whose material shader
         // isn't supported gets the GAME's loaded font + its own material (what the trader/gambler/mail panels already get).
         static TMPro.TMP_FontAsset s_gameFont;
         static bool Usable(TMPro.TMP_FontAsset f) =>
@@ -214,24 +219,24 @@ namespace FiresRPGmaker.UI
                 if (why == "null") nul++; else if (why == "bundled") bundled++; else dead++;
             }
             int n = nul + bundled + dead;
-            if (n > 0) Debug.Log($"[NpcBookController] fonts in '{root.name}': {n} TMP text(s) moved to the game font '{game?.name}' (null {nul}, bundled NpcAveria {bundled}, unsupported shader {dead})");
-            else Debug.Log($"[NpcBookController] fonts OK in '{root.name}' (game font '{game?.name ?? "none found"}', nothing to move)");
+            if (n > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] fonts in '{root.name}': {n} TMP text(s) moved to the game font '{game?.name}' (null {nul}, bundled NpcAveria {bundled}, unsupported shader {dead})");
+            else global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] fonts OK in '{root.name}' (game font '{game?.name ?? "none found"}', nothing to move)");
             return n;
         }
 
-        // ---- 0.0.622 SCOPE #7: the book inside [saddles]' kit window (NpcBookShell) when the new look is on ----------------------
+        // ---- the book inside the kit window (NpcBookShell) when the new look is on ----------------------
         // Override ON + [UI] Use classic book UI = false: the LeftPage moves into the shell's SetupColumn and the RightPage
         // (every tab screen + Show Anchor) into its Page, stretched; the parchment art left behind is switched off. The rail
         // switches tabs through SelectTab; the window's x closes the book. Hide() puts everything back, so classic always works.
         private NpcBookShell _shell;
-        // 0.0.635: the kit window while the shell is on screen (null in the classic book)
-        internal void RefitShellTabs(float floor) { try { _shell?.RefitTabs(floor); } catch { } }   // 0.0.638
-        internal RectTransform ShellSetupColumn => _shell?.SetupColumn;   // 0.0.638: the Dressing preview sits in its free lower part
-        internal RectTransform ShellPage => _shell?.Page;                 // 0.0.639: the Dressing page re-layout (golden dressing_3panel)
-        internal void SetShellSetupShare(float share) { try { _shell?.SetSetupShare(share); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] setup share: " + ex.Message); } }   // 0.0.644
+        // the kit window while the shell is on screen (null in the classic book)
+        internal void RefitShellTabs(float floor) { try { _shell?.RefitTabs(floor); } catch { } }
+        internal RectTransform ShellSetupColumn => _shell?.SetupColumn;   // the Dressing preview sits in its free lower part
+        internal RectTransform ShellPage => _shell?.Page;                 // the Dressing page re-layout (golden dressing_3panel)
+        internal void SetShellSetupShare(float share) { try { _shell?.SetSetupShare(share); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] setup share: " + ex.Message); } }
         internal void SetShellPillTabs(bool on) { try { _shell?.SetPillTabs(on); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] pill tabs: " + ex.Message); } }
         internal RectTransform ShellWindow => _shell != null && _shell.Root != null && _shell.Root.gameObject.activeInHierarchy ? _shell.WindowRect : null;
-        // 0.0.659 (Fire 10-16: the Dressing room CENTRE panel could not be dragged; Setup and Wardrobe could): the book window's drag
+        // the book window's drag
         // handle is a topmost transparent strip over its header band (CoreUiBridge.HeaderStrip, kept last sibling), made once per window,
         // instead of the bare KitHeader root that sat under the window's own art.
         internal RectTransform ShellDragHandle
@@ -246,20 +251,31 @@ namespace FiresRPGmaker.UI
                 return CoreUiBridge.HeaderStrip(win, h) ?? head;
             }
         }
-        internal RectTransform ShellHeader => _shell?.HeaderRect;   // 0.0.653
+        internal RectTransform ShellHeader => _shell?.HeaderRect;
+        internal RectTransform ShellTabs => _shell?.TabsRect;
+        // Test hooks: every tab node of the shell (rail or pills), the manual hit-test, and the active tab
+        internal List<RectTransform> ShellTabNodes() => _shell != null ? new List<RectTransform>(_shell.TabNodes()) : new List<RectTransform>();
+        internal string ShellTabAt(Vector2 screen) => _shell?.TabAt(screen);
+        internal string ActiveTab => _activeTab;
+        // rpg_ui_tour_test hooks: the registered top-level panels (id -> rect), the tab body and the setup column
+        private static readonly Dictionary<string, RectTransform> s_testPanels = new Dictionary<string, RectTransform>();
+        internal static Dictionary<string, RectTransform> TestPanels => s_testPanels;
+        internal RectTransform TestPage => _shell != null ? _shell.Page : null;
+        internal RectTransform TestSetupColumn => _shell != null ? _shell.SetupColumn : null;
+        internal RectTransform TestPatrolButton => _patrolBtnRect;
         private sealed class Moved { public Transform T, Parent; public int Sibling; public Vector2 AMin, AMax, OMin, OMax, Pivot; }
         private readonly List<Moved> _moved = new List<Moved>();
         private readonly List<Graphic> _artOff = new List<Graphic>();
-
-        // ---- 0.0.652 (Fire 10-15: every NPC book tab and the Dressing room 3-panel adjustable with the Alt layout pill) ----------
         // Core 0.2.569+ FiresShell.RegisterScreenPanel(screenKey, id, rect, label, owner, resizable) / DockService.Unregister(id),
         // called softly so an older Core simply has no layout editing. Core then owns the panel's position + localScale; RPGmaker keeps
         // its size and content.
         internal const string BookScreenKey = "FiresNpcBook", DressingScreenKey = "FiresDressing";
+        internal const string OpenTab = "Dressing";   // Shift+E always opens the book on the Dressing room
         private static System.Reflection.MethodInfo s_regPanel, s_regLive, s_unregPanel; private static bool s_layoutLooked;
         internal static bool RegisterLayoutPanel(string screenKey, string id, RectTransform rect, string label, RectTransform header = null)
         {
             if (rect == null) return false;
+            s_testPanels[id] = rect;   // rpg_ui_tour_test reads the top-level panels from here
             if (!s_layoutLooked)
             {
                 s_layoutLooked = true;
@@ -267,18 +283,17 @@ namespace FiresRPGmaker.UI
                 {
                     var shell = Type.GetType("FiresCore.UI.Shell.FiresShell, FiresUnifiedCore");
                     s_regPanel = shell?.GetMethod("RegisterScreenPanel", new[] { typeof(string), typeof(string), typeof(RectTransform), typeof(string), typeof(string), typeof(bool) });
-                    // 0.0.653 (Fire: movable + resizable WITHOUT the Alt editor): Core 0.2.570 RegisterLivePanel(key, id, panel, header, label, owner)
+                    // Core 0.2.570 RegisterLivePanel(key, id, panel, header, label, owner)
                     s_regLive = shell?.GetMethod("RegisterLivePanel", new[] { typeof(string), typeof(string), typeof(RectTransform), typeof(RectTransform), typeof(string), typeof(string) });
                     var dock = Type.GetType("FiresCore.UI.Dock.DockService, FiresUnifiedCore");
                     s_unregPanel = dock?.GetMethod("Unregister", new[] { typeof(string) });
                 }
                 catch { }
-                global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[Layout] Core FiresShell.RegisterScreenPanel {(s_regPanel != null ? "found: the NPC book and Dressing room panels are adjustable (Alt)" + (s_regLive != null ? ", live panels (header drag + resize) too" : "") : "not found (Core older than 0.2.569): no layout editing")}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[Layout] Core FiresShell.RegisterScreenPanel {(s_regPanel != null ? "found: the NPC book and Dressing room panels are adjustable (Alt)" + (s_regLive != null ? ", live panels (header drag + resize) too" : "") : "not found (Core older than 0.2.569): no layout editing")}");
             }
             if (s_regLive != null && header != null)
             {
-                // 0.0.654 ([generator]: a drag starts only on a raycastable Graphic; KitHeader.Root is a layout node with kit text): a
-                // transparent raycast Image on the header root itself, as ShellHub.BuildDragHandles' DragBar does
+                // A transparent raycast Image on the header root itself, as ShellHub.BuildDragHandles' DragBar does
                 if (header.GetComponent<Graphic>() == null) { var hit = header.gameObject.AddComponent<Image>(); hit.color = new Color(0f, 0f, 0f, 0f); hit.raycastTarget = true; }
                 try { s_regLive.Invoke(null, new object[] { screenKey, id, rect, header, label, "FiresRPGmaker" }); global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Layout] live panel {screenKey}/{id} '{label}' (header '{header.name}': drag + resize)"); return true; }
                 catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] [Layout] live panel {id}: " + (ex.InnerException ?? ex).Message); }
@@ -289,13 +304,13 @@ namespace FiresRPGmaker.UI
         }
         internal static void UnregisterLayoutPanel(string id)
         {
+            s_testPanels.Remove(id);
             if (s_unregPanel == null) return;
             try { s_unregPanel.Invoke(null, new object[] { id }); global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Layout] unregistered {id}"); } catch { }
         }
 
         private void EnterShell()
         {
-            // 0.0.648 (Fire 10-15: a 2nd Shift+E showed the parchment book; only the 1st open of the session logged "kit shell on"):
             // a shell left from an earlier open (root gone or the pages no longer inside it) is dropped and rebuilt, and lost page
             // refs are found again under the book root, so every open takes the kit path.
             if (_shell != null && (_shell.Root == null || _leftPage == null || !_leftPage.IsChildOf(_shell.Root) || _rightPage == null || !_rightPage.IsChildOf(_shell.Root)))
@@ -306,11 +321,11 @@ namespace FiresRPGmaker.UI
             }
             if (_root != null && (_leftPage == null || _rightPage == null))
             {
-                if (_leftPage == null) _leftPage = FindRec(_root, "LeftPage") ?? (_canvasGo != null ? FindRec(_canvasGo.transform, "LeftPage") : null);   // 0.0.651: the shell too
+                if (_leftPage == null) _leftPage = FindRec(_root, "LeftPage") ?? (_canvasGo != null ? FindRec(_canvasGo.transform, "LeftPage") : null);   // the shell too
                 if (_rightPage == null) _rightPage = FindRec(_root, "RightPage") ?? (_canvasGo != null ? FindRec(_canvasGo.transform, "RightPage") : null);
-                Debug.Log($"[NpcBookController] pages found again under the book: left {(_leftPage != null ? "ok" : "null")}, right {(_rightPage != null ? "ok" : "null")}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] pages found again under the book: left {(_leftPage != null ? "ok" : "null")}, right {(_rightPage != null ? "ok" : "null")}");
             }
-            if (_shell != null) { Debug.Log("[NpcBookController] kit shell already on"); return; }
+            if (_shell != null) { global::FiresRPGmaker.FiresLogger.LogDebug("[NpcBookController] kit shell already on"); return; }
             if (_canvasGo == null || _leftPage == null || _rightPage == null)
             {
                 Debug.LogWarning($"[NpcBookController] kit shell NOT entered, the classic book shows: canvas {(_canvasGo != null ? "ok" : "null")}, left page {(_leftPage != null ? "ok" : "null")}, right page {(_rightPage != null ? "ok" : "null")}");
@@ -320,18 +335,18 @@ namespace FiresRPGmaker.UI
             {
                 _shell = NpcBookShell.Build((RectTransform)_canvasGo.transform, Tabs, _activeTab);
                 _shell.TabClicked += t => { try { SelectTab(t); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] shell tab " + t + ": " + ex.Message); } };
-                _shell.CloseClicked += () => { try { Hide(); } catch { } };
+                _shell.CloseClicked += () => { try { Hide("x button"); } catch { } };
                 MoveInto(_leftPage, _shell.SetupColumn);
                 MoveInto(_rightPage, _shell.Page);
                 foreach (var g in _panelGo.GetComponentsInChildren<Graphic>(true))
                     if (g != null && g.enabled) { g.enabled = false; _artOff.Add(g); }
-                // [saddles]: the book's own tab buttons would duplicate the shell's TabRail; hide them while the shell is up
+                // the book's own tab buttons would duplicate the shell's TabRail; hide them while the shell is up
                 foreach (var tab in Tabs)
                 {
                     var b = FindRec(_leftPage, tab + "Tab") ?? FindRec(_rightPage, tab + "Tab");
                     if (b != null && b.gameObject.activeSelf) { b.gameObject.SetActive(false); _tabsHidden.Add(b.gameObject); }
                 }
-                // 0.0.624 ([lead] 0.0.623 shot): the old TabsBar keeps its 0.495-0.82 band in the setup column even with its
+                // the old TabsBar keeps its 0.495-0.82 band in the setup column even with its
                 // buttons hidden; hide it and lift SetupGroup by that band so the setup fields sit right under the NPC name.
                 var bar = FindRec(_leftPage, "TabsBar");
                 if (bar != null && bar.gameObject.activeSelf) { bar.gameObject.SetActive(false); _tabsHidden.Add(bar.gameObject); }
@@ -340,19 +355,25 @@ namespace FiresRPGmaker.UI
                     _setupGroup = sg; _sgMin = sg.anchorMin; _sgMax = sg.anchorMax;
                     sg.anchorMin = new Vector2(_sgMin.x, _sgMin.y + 0.325f); sg.anchorMax = new Vector2(_sgMax.x, _sgMax.y + 0.325f);
                 }
-                // 0.0.624: the kit window draws above the HUD (minimap + plates sat on its top-right corner)
+                // The Dialogue tab's list group shares the same TabsBar band; it is lifted with SetupGroup so it starts right under "Configure NPC".
+                if (FindRec(_leftPage, "DialogueListGroup") is RectTransform dg)
+                {
+                    _dlgGroup = dg; _dgMin = dg.anchorMin; _dgMax = dg.anchorMax;
+                    float lift = Mathf.Min(0.325f, 1f - _dgMax.y);
+                    dg.anchorMin = new Vector2(_dgMin.x, _dgMin.y + lift); dg.anchorMax = new Vector2(_dgMax.x, _dgMax.y + lift);
+                }
+                // the kit window draws above the HUD (minimap + plates sat on its top-right corner)
                 var cv = _canvasGo.GetComponent<Canvas>();
-                if (cv != null) { _canvasOrder = cv.sortingOrder; cv.sortingOrder = 5000; }
-                // 0.0.624 (Fire 10-15: "hide the HUD elements when open: the mini map, the group hud etc."): vanilla's own HUD
-                // hide state (Hud.m_userHidden), which Core's minimap shell already follows; restored to its old value on close.
-                // A Core HideHudWhile(owner) for every docked element is requested from [generator].
-                // 0.0.625: Core 0.2.548 FiresShell.HideHudWhile(owner) hides every docked element; m_userHidden stays the fallback.
+                if (cv != null) { _canvasOrder = cv.sortingOrder; cv.sortingOrder = BookCanvasSortingOrder; }
+                // Vanilla's own HUD hide state (Hud.m_userHidden), which Core's minimap shell already follows; restored to its old value on close.
+                // A Core HideHudWhile(owner) for every docked element is requested from Core.
+                // Core 0.2.548 FiresShell.HideHudWhile(owner) hides every docked element; m_userHidden stays the fallback.
                 if (CoreHideHud(true)) _hudHiddenByCore = true;
                 else if (Hud.instance != null) { _hudWasHidden = Hud.instance.m_userHidden; Hud.instance.m_userHidden = true; _hudHiddenByUs = true; }
                 ApplySkin();
                 _shell.SetActive(_activeTab, "", ShellContext());
-                Debug.Log($"[NpcBookController] kit shell on: pages moved into NpcBookShell, {_artOff.Count} parchment graphic(s) off");
-                RegisterLayoutPanel(BookScreenKey, "npcbook.window", _shell.WindowRect, "NPC book", ShellDragHandle);   // 0.0.652
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] kit shell on: pages moved into NpcBookShell, {_artOff.Count} parchment graphic(s) off");
+                RegisterLayoutPanel(BookScreenKey, "npcbook.window", _shell.WindowRect, "NPC book", ShellDragHandle);
             }
             catch (Exception ex) { Debug.LogWarning("[NpcBookController] kit shell failed, classic book stays: " + ex); LeaveShell(); }
         }
@@ -366,7 +387,7 @@ namespace FiresRPGmaker.UI
             rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
         }
 
-        // 0.0.651: each page's own parent + sibling in the book, taken once at build (the pages are found there)
+        // each page's own parent + sibling in the book, taken once at build (the pages are found there)
         private Transform _leftParent, _rightParent; private int _leftSibling = -1, _rightSibling = -1;
         private void RememberPageHomes()
         {
@@ -397,33 +418,149 @@ namespace FiresRPGmaker.UI
             _moved.Clear();
             foreach (var g in _artOff) if (g != null) g.enabled = true;
             _artOff.Clear();
+            RestoreSmallText();
+            RestoreReadability();
             foreach (var go in _tabsHidden) if (go != null) go.SetActive(true);
             _tabsHidden.Clear();
             if (_setupGroup != null) { _setupGroup.anchorMin = _sgMin; _setupGroup.anchorMax = _sgMax; _setupGroup = null; }
+            if (_dlgGroup != null) { _dlgGroup.anchorMin = _dgMin; _dlgGroup.anchorMax = _dgMax; if (_dgPosSet) { _dlgGroup.anchoredPosition = _dgPos; _dlgGroup.localScale = Vector3.one; } _dgPosSet = false; _dlgGroup = null; }
             if (_hudHiddenByUs) { if (Hud.instance != null) Hud.instance.m_userHidden = _hudWasHidden; _hudHiddenByUs = false; }
             if (_hudHiddenByCore) { CoreHideHud(false); _hudHiddenByCore = false; }
             if (_canvasOrder != int.MinValue && _canvasGo != null) { var cv = _canvasGo.GetComponent<Canvas>(); if (cv != null) cv.sortingOrder = _canvasOrder; _canvasOrder = int.MinValue; }
-            // [saddles]: with the new look OFF (override off or classic on), one ApplyNpcBook per page restores the classic look
+            // with the new look OFF (override off or classic on), one ApplyNpcBook per page restores the classic look
             if (!FiresKitBookSkin.On)
             {
                 try { if (_leftPage != null) FiresKitBookSkin.ApplyNpcBook(_leftPage); } catch { }
                 try { if (_rightPage != null) FiresKitBookSkin.ApplyNpcBook(_rightPage); } catch { }
             }
-            // 0.0.651: never destroy the book's pages with the shell. A page still inside the shell (or parked outside the book by a
+            // never destroy the book's pages with the shell. A page still inside the shell (or parked outside the book by a
             // page re-layout) goes back under the book's own page parent before the shell is dropped.
             bool hadShell = _shell != null;
-            if (hadShell) UnregisterLayoutPanel("npcbook.window");   // 0.0.652
+            if (hadShell) UnregisterLayoutPanel("npcbook.window");
             RescuePage(ref _leftPage, _leftParent, _leftSibling, "LeftPage");
             RescuePage(ref _rightPage, _rightParent, _rightSibling, "RightPage");
-            if (hadShell) Debug.Log($"[NpcBookController] pages restored to the book (left {PageState(_leftPage)}, right {PageState(_rightPage)})");
+            if (hadShell) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] pages restored to the book (left {PageState(_leftPage)}, right {PageState(_rightPage)})");
             if (_shell != null) { try { _shell.Destroy(); } catch { } _shell = null; }
         }
 
         private readonly List<GameObject> _tabsHidden = new List<GameObject>();
-        private RectTransform _setupGroup; private Vector2 _sgMin, _sgMax;   // 0.0.624
-        private int _canvasOrder = int.MinValue;                              // 0.0.624
-        private bool _hudWasHidden, _hudHiddenByUs;                           // 0.0.624
-        private bool _hudHiddenByCore;                                        // 0.0.625
+        private RectTransform _setupGroup; private Vector2 _sgMin, _sgMax;
+        private RectTransform _dlgGroup; private Vector2 _dgMin, _dgMax;
+        // A plain anchor lift of min(0.325, 1 - anchorMax.y) is ~0 because DialogueListGroup is already anchored at (or near) the page top, so its header/search/list sit low
+        // INSIDE the group. Now measured: the group's topmost visible graphic is moved to 8 GUI under the "Configure NPC" text.
+        private Vector2 _dgPos; private bool _dgPosSet; private int _dlgLiftFrames;
+        private const int DialogueLiftFrames = 6;   // frames the lift is re-measured after later layouts
+        private void LiftDialogueGroupUnderHeader()
+        {
+            var dg = _dlgGroup; if (dg == null || !dg.gameObject.activeInHierarchy || _leftPage == null) return;
+            TMP_Text head = null;
+            foreach (var t in _leftPage.GetComponentsInChildren<TMP_Text>(false))
+                if (t != null && !t.transform.IsChildOf(dg) && (t.text ?? "").StartsWith("Configure NPC", StringComparison.Ordinal)) { head = t; break; }
+            if (head == null) return;
+            Canvas.ForceUpdateCanvases();
+            head.ForceMeshUpdate();
+            float headBottom = head.transform.TransformPoint(head.textBounds.min).y;
+            float top = float.MinValue; var wc = new Vector3[4];
+            foreach (var g in dg.GetComponentsInChildren<Graphic>(false))
+            {
+                if (g == null || !g.enabled || g.color.a < 0.02f || g.rectTransform == dg) continue;
+                g.rectTransform.GetWorldCorners(wc); top = Mathf.Max(top, wc[1].y);
+            }
+            if (top == float.MinValue) return;
+            KeepDialogueGroupInsideColumn(dg);
+            var parent = dg.parent as RectTransform; float ps = parent != null && parent.lossyScale.y > 0f ? parent.lossyScale.y : 1f;
+            float gapWorld = 8f * dg.lossyScale.y;
+            float shift = (headBottom - gapWorld - top) / ps;
+            if (Mathf.Abs(shift) < 1f) return;
+            if (!_dgPosSet) { _dgPos = dg.anchoredPosition; _dgPosSet = true; }
+            dg.anchoredPosition += new Vector2(0f, shift);
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] Dialogue list moved {shift:0} units to sit under 'Configure NPC' (header bottom {headBottom:0}, list top was {top:0})");
+        }
+        // the list group keeps the
+        // baked book's x anchors, which in the shell's (narrower, left-pinned) SetupColumn put its left part outside the column. The
+        // group's VISIBLE graphics are measured against the setup column and moved right (and shrunk if wider) so they sit inside with
+        // a 12-unit pad. Measured like LiftDialogueGroupUnderHeader, x instead of y.
+        private void KeepDialogueGroupInsideColumn(RectTransform dg)
+        {
+            var col = _shell?.SetupColumn; if (dg == null || col == null) return;
+            var wc = new Vector3[4]; col.GetWorldCorners(wc);
+            float pad = 12f * col.lossyScale.x, cl = wc[0].x + pad, cr = wc[2].x - pad;
+            float l = float.MaxValue, r = float.MinValue;
+            foreach (var g in dg.GetComponentsInChildren<Graphic>(false))
+            {
+                if (g == null || !g.enabled || g.color.a < 0.02f || g.rectTransform == dg) continue;
+                g.rectTransform.GetWorldCorners(wc); l = Mathf.Min(l, wc[0].x); r = Mathf.Max(r, wc[2].x);
+            }
+            if (l == float.MaxValue) return;
+            if (!_dgPosSet) { _dgPos = dg.anchoredPosition; _dgPosSet = true; }
+            if (r - l > cr - cl && r > l)
+            {
+                float k = (cr - cl) / (r - l);
+                var ls = dg.localScale; dg.localScale = new Vector3(ls.x * k, ls.y * k, ls.z);
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] 0.0.705 Dialogue list wider than the setup column: scaled x{k:0.00}");
+                Canvas.ForceUpdateCanvases();
+                l = float.MaxValue; r = float.MinValue;
+                foreach (var g in dg.GetComponentsInChildren<Graphic>(false))
+                {
+                    if (g == null || !g.enabled || g.color.a < 0.02f || g.rectTransform == dg) continue;
+                    g.rectTransform.GetWorldCorners(wc); l = Mathf.Min(l, wc[0].x); r = Mathf.Max(r, wc[2].x);
+                }
+            }
+            float dx = l < cl ? cl - l : (r > cr ? cr - r : 0f);
+            if (Mathf.Abs(dx) < 0.5f) return;
+            var parent = dg.parent as RectTransform; float px = parent != null && parent.lossyScale.x > 0f ? parent.lossyScale.x : 1f;
+            dg.anchoredPosition += new Vector2(dx / px, 0f);
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] 0.0.705 Dialogue list moved {dx / px:0} units to sit inside the setup column (left was {l:0}, column {cl:0}..{cr:0})");
+        }
+
+        // the pages' hierarchies are checked on every shell pass for (a) a CanvasGroup partly faded (0 < alpha < 1: the Dressing
+        // re-layout fades with alpha 0 and restores it, a partial value is a leftover) -> alpha 1, and (b) a large filled Image drawn
+        // AFTER text it covers (a backing that landed later in sibling order) -> moved to its parent's first sibling, behind the content.
+        // Each hit is logged once with its path, so the next live log names the exact object.
+        private readonly HashSet<int> _overlayLogged = new HashSet<int>();
+        private void FixPageOverlays()
+        {
+            foreach (var page in new[] { _leftPage, _rightPage })
+            {
+                if (page == null) continue;
+                foreach (var cg in page.GetComponentsInChildren<CanvasGroup>(false))
+                {
+                    if (cg == null || cg.alpha <= 0.01f || cg.alpha >= 0.99f) continue;
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] 0.0.705 D5 dimming CanvasGroup '{PathOf(cg.transform)}' alpha {cg.alpha:0.00} -> 1");
+                    cg.alpha = 1f;
+                }
+                var all = page.GetComponentsInChildren<Graphic>(false);   // depth-first = draw order inside one canvas
+                var wc = new Vector3[4];
+                for (int i = 0; i < all.Length; i++)
+                {
+                    var img = all[i] as Image;
+                    if (img == null || !img.enabled || img.color.a < 0.05f || img.GetComponentInParent<FiresCore.UI.Shell.Kit.KitLeaf>() != null) continue;
+                    if (img.GetComponent<Selectable>() != null || img.GetComponent<Mask>() != null) continue;
+                    img.rectTransform.GetWorldCorners(wc);
+                    var box = new Rect(wc[0].x, wc[0].y, wc[2].x - wc[0].x, wc[2].y - wc[0].y);
+                    if (box.width * box.height < 250f * 250f * img.rectTransform.lossyScale.x * img.rectTransform.lossyScale.y) continue;
+                    int covered = 0;
+                    for (int j = 0; j < i; j++)
+                    {
+                        if (!(all[j] is TMP_Text t) || !t.enabled || string.IsNullOrWhiteSpace(t.text) || t.transform.IsChildOf(img.transform)) continue;
+                        t.rectTransform.GetWorldCorners(wc);
+                        if (box.Contains((wc[0] + wc[2]) * 0.5f)) covered++;
+                    }
+                    if (covered == 0) continue;
+                    img.transform.SetAsFirstSibling();
+                    if (_overlayLogged.Add(img.GetInstanceID()))
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] 0.0.705 D5 overlay '{PathOf(img.transform)}' (colour {img.color}, {box.width:0}x{box.height:0}) was drawn over {covered} text(s): moved behind its siblings");
+                }
+            }
+        }
+        private static string PathOf(Transform t) { var s = t != null ? t.name : ""; for (var p = t != null ? t.parent : null; p != null && s.Length < 200; p = p.parent) s = p.name + "/" + s; return s; }
+
+        internal RectTransform TestDialogueGroup => _dlgGroup != null ? _dlgGroup : (_leftPage != null ? FindRec(_leftPage, "DialogueListGroup") as RectTransform : null);
+        internal RectTransform TestLeftPage => _leftPage as RectTransform;
+        private const int BookCanvasSortingOrder = 5000;   // above the HUD
+        private int _canvasOrder = int.MinValue;
+        private bool _hudWasHidden, _hudHiddenByUs;
+        private bool _hudHiddenByCore;
         private static System.Reflection.MethodInfo _hideHudWhile; private static bool _hideHudLooked;
         private static bool CoreHideHud(bool hide)
         {
@@ -434,7 +571,7 @@ namespace FiresRPGmaker.UI
                     _hideHudLooked = true;
                     var t = Type.GetType("FiresCore.UI.Shell.FiresShell, FiresUnifiedCore");
                     _hideHudWhile = t?.GetMethod("HideHudWhile", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static, null, new[] { typeof(string), typeof(bool) }, null);
-                    Debug.Log("[NpcBookController] Core HideHudWhile " + (_hideHudWhile != null ? "found" : "missing (m_userHidden fallback)"));
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[NpcBookController] Core HideHudWhile " + (_hideHudWhile != null ? "found" : "missing (m_userHidden fallback)"));
                 }
                 if (_hideHudWhile == null) return false;
                 _hideHudWhile.Invoke(null, new object[] { "RPGmaker.NpcBook", hide });
@@ -443,18 +580,174 @@ namespace FiresRPGmaker.UI
             catch (Exception ex) { Debug.LogWarning("[NpcBookController] HideHudWhile failed: " + ex.Message); return false; }
         }
 
-        // [saddles]' NpcBook classifier: restyles the moved pages' controls in place (colours + plate sprites; fonts untouched).
+        // ' NpcBook classifier: restyles the moved pages' controls in place (colours + plate sprites; fonts untouched).
         // Applied to both pages (they live under the shell now), after EnterShell and after every SelectTab.
         private void ApplySkin()
         {
             if (_shell == null) return;
             try { if (_leftPage != null) FiresKitBookSkin.ApplyNpcBook(_leftPage); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] skin left page: " + ex.Message); }
             try { if (_rightPage != null) FiresKitBookSkin.ApplyNpcBook(_rightPage); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] skin right page: " + ex.Message); }
+            RaiseSmallText();
+            ApplyReadability();
+            try { FixPageOverlays(); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] overlay check: " + ex.Message); }
+        }
+
+        // In the same shell pass that raises the text size, the pages' controls get Core's kit colours (FiresTokens only, as Core's Player /
+        // Stats hub pages use them): input/dropdown wells PanelRaised + an Edge (dropdown: Gold) outline, labels/values Text, section
+        // labels Gold, buttons Selected fill + Text label (the primary Apply/Save ones Gold-outlined). Originals are recorded and put
+        // back by RestoreReadability (LeaveShell); outlines we add are removed. Dropdown option lists are left alone.
+        private readonly Dictionary<Graphic, Color> _readCols = new Dictionary<Graphic, Color>();
+        private readonly List<Outline> _readOutlines = new List<Outline>();
+        private void ReadCol(Graphic g, Color c) { if (g == null) return; if (!_readCols.ContainsKey(g)) _readCols[g] = g.color; g.color = c; }
+        private void ReadOutline(Graphic g, Color c)
+        {
+            if (g == null) return;
+            var o = g.GetComponent<Outline>();
+            if (o == null) { o = g.gameObject.AddComponent<Outline>(); _readOutlines.Add(o); }
+            else if (!_readOutlines.Contains(o)) return;   // an outline the page already had stays as it is
+            o.effectColor = c; o.effectDistance = new Vector2(1.5f, -1.5f);
+        }
+        private static bool InTemplate(Transform t)
+        {
+            var dd = t.GetComponentInParent<TMP_Dropdown>(true);
+            return dd != null && dd.template != null && t.IsChildOf(dd.template);
+        }
+        private static float Lum(Color c) => 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+        private void ApplyReadability()
+        {
+            Color text = FiresCore.UI.Shell.Kit.FiresTokens.Text, gold = FiresCore.UI.Shell.Kit.FiresTokens.Gold, edge = FiresCore.UI.Shell.Kit.FiresTokens.Edge;
+            Color raised = FiresCore.UI.Shell.Kit.FiresTokens.PanelRaised, sel = FiresCore.UI.Shell.Kit.FiresTokens.Selected, muted = FiresCore.UI.Shell.Kit.FiresTokens.TextMuted;
+            int fields = 0, dds = 0, btns = 0, labels = 0;
+            var owned = new HashSet<TMP_Text>();
+            foreach (var page in new[] { _leftPage, _rightPage })
+            {
+                if (page == null) continue;
+                foreach (var f in page.GetComponentsInChildren<TMP_InputField>(true))
+                {
+                    if (f == null || InTemplate(f.transform)) continue;
+                    var bg = f.targetGraphic ?? f.GetComponent<Image>();
+                    if (bg != null) { ReadCol(bg, new Color(raised.r, raised.g, raised.b, 1f)); ReadOutline(bg, _pickerInputs.Contains(f) ? gold : edge); }   // a field picker's box = the dropdown edge
+                    if (f.textComponent != null) { ReadCol(f.textComponent, text); owned.Add(f.textComponent); }
+                    if (f.placeholder is TMP_Text ph) { ReadCol(ph, muted); owned.Add(ph); }
+                    fields++;
+                }
+                foreach (var d in page.GetComponentsInChildren<TMP_Dropdown>(true))
+                {
+                    if (d == null || _fieldPickers.Contains(d)) continue;   // a field picker stays a clear "v" inside its field
+                    var bg = d.targetGraphic ?? d.GetComponent<Image>();
+                    if (bg != null) { ReadCol(bg, new Color(raised.r, raised.g, raised.b, 1f)); ReadOutline(bg, gold); }
+                    if (d.captionText != null) { ReadCol(d.captionText, text); owned.Add(d.captionText); }
+                    dds++;
+                }
+                foreach (var b in page.GetComponentsInChildren<Button>(true))
+                {
+                    if (b == null || InTemplate(b.transform) || b.GetComponent<TMP_Dropdown>() != null) continue;
+                    var lab = b.GetComponentInChildren<TMP_Text>(true);
+                    if (lab == null || string.IsNullOrWhiteSpace(lab.text)) continue;   // icon / hit-only buttons keep their look
+                    var bg = b.targetGraphic as Graphic ?? b.GetComponent<Image>();
+                    if (bg == null || bg.color.a < 0.05f) continue;   // invisible hit areas (tab rails, pills) stay invisible
+                    string s = lab.text.Trim();
+                    bool primary = s.StartsWith("Apply", StringComparison.OrdinalIgnoreCase) || s.StartsWith("Save", StringComparison.OrdinalIgnoreCase);
+                    ReadCol(bg, new Color(sel.r, sel.g, sel.b, 1f)); ReadOutline(bg, primary ? gold : edge);
+                    ReadCol(lab, primary ? FiresCore.UI.Shell.Kit.FiresTokens.GoldBright : text); owned.Add(lab);
+                    btns++;
+                }
+                foreach (var t in page.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    if (t == null || owned.Contains(t) || InTemplate(t.transform) || string.IsNullOrWhiteSpace(t.text)) continue;
+                    if (t.GetComponentInParent<TMP_InputField>(true) != null) continue;
+                    string s = t.text.Trim();
+                    bool section = s.Length > 2 && s == s.ToUpperInvariant() && s.Any(char.IsLetter);   // SETUP / SAVE / DIALOGUES ... headers
+                    Color want = section ? gold : text;
+                    if (!section && Lum(t.color) >= Lum(text) - 0.02f) continue;   // already bright (gold titles, cream) - left alone
+                    ReadCol(t, new Color(want.r, want.g, want.b, t.color.a)); labels++;
+                }
+            }
+            if (fields + dds + btns + labels > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] readability (kit tokens): {fields} field(s), {dds} dropdown(s), {btns} button(s), {labels} label(s) restyled ({_readCols.Count} recorded)");
+        }
+        private void RestoreReadability()
+        {
+            foreach (var kv in _readCols) if (kv.Key != null) kv.Key.color = kv.Value;
+            _readCols.Clear();
+            foreach (var o in _readOutlines) if (o != null) UnityEngine.Object.Destroy(o);
+            _readOutlines.Clear();
+        }
+
+        // The field IS the dropdown. Every "XDD" arrow picker (ProfileDD on
+        // every tab, ModelDD, QuestIdDD) is moved INTO its input's box as a clear hit area over the right edge showing only its
+        // "v" (no caption), the input's text stops before the "v", and the box gets the dropdown's Gold edge (ApplyReadability),
+        // so it reads exactly like the baked NPC Type dropdown: one field, current value (or empty), small "v" at the right.
+        // The input still takes typing (a new Trader / Quest save-target name); the "v" opens the list, a pick fills the field.
+        // The option list opens under the whole field (its width), right-aligned to it.
+        private readonly HashSet<TMP_Dropdown> _fieldPickers = new HashSet<TMP_Dropdown>();
+        private readonly HashSet<TMP_InputField> _pickerInputs = new HashSet<TMP_InputField>();
+        internal const float PickerArrowW = 30f;
+        internal static bool IsFieldPicker(TMP_Dropdown d) => d != null && Instance != null && Instance._fieldPickers.Contains(d);
+        private void MakeFieldPicker(TMP_Dropdown dd, TMP_InputField input)
+        {
+            if (dd == null || input == null) return;
+            var box = (RectTransform)input.transform;
+            var rt = (RectTransform)dd.transform;
+            if (rt.parent != box) rt.SetParent(box, false);
+            rt.anchorMin = new Vector2(1f, 0f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(1f, 0.5f);
+            rt.sizeDelta = new Vector2(PickerArrowW, 0f); rt.anchoredPosition = Vector2.zero; rt.localScale = Vector3.one;
+            rt.SetAsLastSibling();
+            var bg = dd.targetGraphic as Graphic ?? dd.GetComponent<Image>();
+            if (bg != null)
+            {
+                if (_readCols.ContainsKey(bg)) _readCols[bg] = new Color(0f, 0f, 0f, 0f);
+                bg.color = new Color(0f, 0f, 0f, 0f); bg.raycastTarget = true;   // clear, still clickable
+                var o = bg.GetComponent<Outline>(); if (o != null) { _readOutlines.Remove(o); UnityEngine.Object.Destroy(o); }
+            }
+            if (dd.captionText != null) { dd.captionText.text = ""; dd.captionText.gameObject.SetActive(false); }
+            var tpl = dd.template;
+            if (tpl != null)
+            {
+                float w = Mathf.Max(box.rect.width, 200f);
+                tpl.anchorMin = new Vector2(1f, tpl.anchorMin.y); tpl.anchorMax = new Vector2(1f, tpl.anchorMax.y);
+                tpl.pivot = new Vector2(1f, tpl.pivot.y); tpl.sizeDelta = new Vector2(w, tpl.sizeDelta.y);
+                tpl.anchoredPosition = new Vector2(0f, tpl.anchoredPosition.y);
+            }
+            if (_pickerInputs.Add(input) && input.textViewport != null)
+                input.textViewport.offsetMax = new Vector2(input.textViewport.offsetMax.x - PickerArrowW, input.textViewport.offsetMax.y);
+            var ibg = input.targetGraphic ?? input.GetComponent<Image>();
+            if (ibg != null) { var io = ibg.GetComponent<Outline>(); if (io != null) io.effectColor = FiresCore.UI.Shell.Kit.FiresTokens.Gold; }
+            dd.gameObject.SetActive(true);
+            if (_fieldPickers.Add(dd)) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] field picker: '{dd.name}' is now the 'v' inside '{input.transform.parent?.name}/{input.name}' (NPC Type look, no caption)");
+        }
+
+        // while the kit shell is on,
+        // every page text below the book's body size is raised to it (BodyFont, the kit's body size the other tabs' labels use).
+        // Originals are recorded and put back by RestoreSmallText (LeaveShell). Dropdown option lists and kit nodes are left alone.
+        internal const float BodyFont = 14f;
+        private readonly Dictionary<TMPro.TMP_Text, float> _raisedFonts = new Dictionary<TMPro.TMP_Text, float>();
+        internal int TestRaisedFonts => _raisedFonts.Count;
+        private void RaiseSmallText()
+        {
+            int n = 0;
+            foreach (var page in new[] { _leftPage, _rightPage })
+            {
+                if (page == null) continue;
+                foreach (var t in page.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                {
+                    if (t == null || t.enableAutoSizing || t.fontSize >= BodyFont || t.fontSize <= 1f) continue;
+                    var dd = t.GetComponentInParent<TMPro.TMP_Dropdown>(true);
+                    if (dd != null && dd.template != null && t.transform.IsChildOf(dd.template)) continue;   // option list rows keep their 24-unit pitch
+                    if (!_raisedFonts.ContainsKey(t)) _raisedFonts[t] = t.fontSize;
+                    t.fontSize = BodyFont; n++;
+                }
+            }
+            if (n > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] {n} page text(s) below {BodyFont:0} raised to the book body size ({_raisedFonts.Count} recorded)");
+        }
+        private void RestoreSmallText()
+        {
+            foreach (var kv in _raisedFonts) if (kv.Key != null) kv.Key.fontSize = kv.Value;
+            _raisedFonts.Clear();
         }
 
         private string ShellContext() => _npc != null ? $"{_npc.GetDisplayName()} · {_npc.npcType}" : "";
 
-        // 0.0.623 (firesnpcs_test): switch tabs the way the shell's rail does; returns the shell rail's visible tab count (-1 = no shell)
+        // Test hook: switch tabs the way the shell's rail does; returns the shell rail's visible tab count (-1 = no shell)
         internal static int TestSelectTab(string tab)
         {
             var b = Instance;
@@ -468,24 +761,39 @@ namespace FiresRPGmaker.UI
             return n;
         }
 
-        internal static bool Broken;          // 0.0.611
+        internal static bool Broken;
         private static int s_unhooked;
 
         private void Open(NpcController npc)
         {
             if (!EnsureBuilt()) { Debug.LogError("[NpcBookController] build failed; cannot open book"); return; }
             _npc = npc;
+            if (_canvasGo != null && !_canvasGo.activeSelf) _canvasGo.SetActive(true);   // Hide turns the canvas off
+            s_openFrame = Time.frameCount;
             // Keep the left "Configure NPC" Profile field in lockstep with module-tab saves: any SaveToZDO
             // for this NPC re-reads the active profile onto the left page. Re-subscribe (idempotent) per open.
             NpcController.ProfileChanged -= OnNpcProfileChanged;
             NpcController.ProfileChanged += OnNpcProfileChanged;
             try { npc.LoadFromZDO(); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] LoadFromZDO: " + ex.Message); }
-            // 0.0.614 ([lead] R-NIGHT2: a null-font TMP threw in PopulateQuest and the book never showed): a populate that
-            // throws is logged with its tab and the book still opens.
+            // A populate that throws is logged with its tab and the book still opens.
             try { PopulateLeft(); } catch (Exception ex) { Debug.LogError("[NpcBookController] PopulateLeft threw (book opens anyway): " + ex); }
-            try { SelectTab(TabForType(npc.npcType)); } catch (Exception ex) { Debug.LogError($"[NpcBookController] SelectTab {TabForType(npc.npcType)} threw (book opens anyway): " + ex); }
+            // The Dressing room's first open drew the classic layout when SelectTab(Dressing) ran BEFORE the panel was active and
+            // BEFORE Show() entered the kit shell, so DressingThreePanel.Attach saw ShellMode false and zero-size rects. So the panel
+            // is made active and the shell is entered first, then the SAME SelectTab path a tab click runs.
             _panelGo.SetActive(true);
             ApplyBookScale();   // user-configurable overall UI scale ([UI] BookScale)
+            try { if (FiresKitBookSkin.On) EnterShell(); else LeaveShell(); }
+            catch (Exception ex) { Debug.LogWarning("[NpcBookController] shell switch: " + ex.Message); }
+            // 0.0.809 (Fire 10-31: the NPC / quest editor book gets the same bottom-right resize as our other windows, scaling every
+            // element): one of Core's live panels, like the quest journal. [UI] BookScale above stays the base scale; the grip
+            // multiplies it and Core saves it per player.
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(this, "NpcEditorBook", _panelGo.GetComponent<RectTransform>(), hitBounds: BookArtBounds.Ensure(_panelGo.GetComponent<RectTransform>(), _leftPage as RectTransform, _rightPage as RectTransform, () => _shell?.WindowRect));
+            Canvas.ForceUpdateCanvases();   // rects known before the Dressing layout measures them
+            // the book always opens on Dressing;
+            // the NPC's own module tab is one click away in the tab row
+            try { SelectTab(OpenTab); } catch (Exception ex) { Debug.LogError($"[NpcBookController] SelectTab {OpenTab} threw (book opens anyway): " + ex); }
+            RefreshAnchorLabel();   // the button says Hide Anchor when this NPC's orb is showing
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] opened on '{OpenTab}' for '{npc.GetDisplayName()}' (type {npc.npcType}, its module tab = {TabForType(npc.npcType)}, kit shell {(_shell != null ? "on" : "off")} before the first tab)");
             try { GUIManager.BlockInput(true); } catch { }
             try { GUIManager.ApplyGameFontToAll(_panelGo.transform); } catch { }
             // Valheim's crosshair "HoverName" raycastTarget sits at screen-center and would eat clicks on the
@@ -494,8 +802,7 @@ namespace FiresRPGmaker.UI
             VaPlayerPanel(true);
         }
 
-        // 0.0.549 (Fire: the VA player panel overlaps the NPC admin book; only the inventory grid should show): VAInventory
-        // 1.0.105+ VerdantsAscent.Managers.VAInventoryApi Suppress/ReleasePlayerPanel(owner), called softly by reflection, so
+        // VAInventory 1.0.105+ VerdantsAscent.Managers.VAInventoryApi Suppress/ReleasePlayerPanel(owner), called softly by reflection, so
         // without VAInventory (or an older one) this is a no-op. Released on close and on logout (OnDestroy).
         private const string VaPanelOwner = "FiresRPGmaker.NpcBook";
         private static System.Reflection.MethodInfo s_vaSuppress, s_vaRelease;
@@ -539,9 +846,72 @@ namespace FiresRPGmaker.UI
             }
         }
 
-        public void Hide()   // 0.0.622: also leaves the kit shell
+        public void Hide() => Hide("closed");   // also leaves the kit shell
+
+        // A CoreDragStrip under FiresNPCs_NpcBookCanvas could stay over the player panel header after a close: every close path names its reason, and the close always
+        // turns the book canvas off, removes its drag strips and releases the HUD hold, logged in one line.
+        internal static string LastCloseReason;
+        internal GameObject TestCanvas => _canvasGo;   // rpg_npcbook_close_test
+        internal bool TestHudHeld => _hudHiddenByCore || _hudHiddenByUs;
+        public void Hide(string reason)
         {
-            // 0.0.651 (FDT npc_book_reopen #2/#3 + Fire: parchment on every 2nd+ open, "LEFT PAGE NULL"): the Dressing room closes FIRST.
+            bool hadHud = _hudHiddenByCore || _hudHiddenByUs;
+            HideCore();
+            int strips = 0;
+            if (_canvasGo != null)
+            {
+                foreach (var t in _canvasGo.GetComponentsInChildren<Transform>(true))
+                    if (t != null && t.name == "CoreDragStrip") { t.gameObject.SetActive(false); UnityEngine.Object.Destroy(t.gameObject); strips++; }
+                _canvasGo.SetActive(false);
+            }
+            if (_hudHiddenByUs) { if (Hud.instance != null) Hud.instance.m_userHidden = _hudWasHidden; _hudHiddenByUs = false; }
+            if (_hudHiddenByCore) { CoreHideHud(false); _hudHiddenByCore = false; }
+            LastCloseReason = reason; s_closeFrame = Time.frameCount;
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBook] closed ({reason}): canvas off, drag strips {strips} removed, hud hold {(hadHud ? "released" : "none held")}");
+        }
+
+        // Shift+E (the human path, NpcBridgeProviders.OpenConfigPanel) toggles: the same NPC's book open = close it
+        private static int s_closeFrame = -10, s_openFrame = -10;
+        private static bool TypingInField()
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            var go = es != null ? es.currentSelectedGameObject : null;
+            if (go == null) return false;
+            var tmp = go.GetComponent<TMPro.TMP_InputField>(); if (tmp != null && tmp.isFocused) return true;
+            var leg = go.GetComponent<InputField>(); return leg != null && leg.isFocused;
+        }
+        internal static bool ToggleClose(NpcController npc)
+        {
+            if (Time.frameCount - s_closeFrame <= 1) return true;   // the book's own Shift+E closed it this frame: don't reopen
+            if (Instance == null || !Instance.IsOpen || npc == null || Instance._npc != npc) return false;
+            Instance.Hide("shift+e toggle");
+            return true;
+        }
+
+        // safety net (Update): the NPC gone / walked away (> 30 m) / no local player / the hub opened = close; the book
+        // not open but its canvas, drag strip or HUD hold still on = tear those down.
+        private const float WalkAwayMeters = 30f;
+        private bool SafetyNetClose()
+        {
+            if (!IsOpen)
+            {
+                bool leftover = _hudHiddenByCore || _hudHiddenByUs || (_canvasGo != null && _canvasGo.activeSelf && _shell != null);
+                if (leftover) Hide("safety net: book inactive with holds");
+                return leftover;
+            }
+            string why = null;
+            if (_npc == null || !_npc.gameObject.activeInHierarchy) why = "npc gone";
+            else if (Player.m_localPlayer == null) why = "no local player";
+            else if (Vector3.Distance(Player.m_localPlayer.transform.position, _npc.transform.position) > WalkAwayMeters) why = "walked away";
+            else { try { if (FiresCore.UI.Shell.FiresShell.IsOpen) why = "hub opened"; } catch { } }
+            if (why == null) return false;
+            Hide(why);
+            return true;
+        }
+
+        private void HideCore()
+        {
+            // the Dressing room closes FIRST.
             // It restores the left page to its recorded parent, the shell's SetupColumn; leaving the shell first destroyed that column
             // and the left page with it.
             if (_dressingCtrl != null) { try { _dressingCtrl.Hide(); } catch (Exception ex) { Debug.LogWarning("[NpcBookController] dressing close: " + ex.Message); } }
@@ -568,7 +938,16 @@ namespace FiresRPGmaker.UI
 
         private void Update()
         {
+            if (SafetyNetClose()) return;
             if (!IsOpen) return;
+            if (_dlgLiftFrames > 0) { _dlgLiftFrames--; LiftDialogueGroupUnderHeader(); }   // re-measured after later layouts
+            // Esc in the Dressing room (vanilla's InventoryGui eats that Esc, so Menu.Show never fires) and Shift+E while
+            // the book is up (the game's interact is blocked by the book) close it; not while typing in a field
+            if (Time.frameCount - s_openFrame > 1 && !TypingInField())
+            {
+                if (_activeTab == "Dressing" && Input.GetKeyDown(KeyCode.Escape)) { Hide("esc (dressing)"); return; }
+                if (Input.GetKeyDown(KeyCode.E) && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) { Hide("shift+e toggle"); return; }
+            }
             // The Hud may re-enable the crosshair raycast on its own update; keep it off while the book is open.
             FiresCore.UI.CrosshairRaycast.Reassert(_crosshairRaycasts);
             // Escape owned by the central Menu.Show hook (CloseAllPanels → NpcBookController.Hide) — no
@@ -658,12 +1037,14 @@ namespace FiresRPGmaker.UI
                 return;
             }
 
+            // the kit shell's tab pills (the classic left-page tabs are hidden while the shell is up)
+            if (_shell != null) { var sid = _shell.TabAt(mouse); if (sid != null) { global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] tab '{sid}' clicked (manual hit-test, Dressing)"); OnTabClicked(sid); return; } }
             if (_leftPage == null) return;
             foreach (var tab in Tabs)
             {
                 if (tab == _activeTab) continue;
                 if (!(FindRec(_leftPage, tab + "Tab") is RectTransform rt)) continue;
-                if (!Shown(rt)) continue;   // 0.0.659
+                if (!Shown(rt)) continue;
                 if (RectTransformUtility.RectangleContainsScreenPoint(rt, mouse, null))
                 {
                     OnTabClicked(tab);
@@ -682,7 +1063,7 @@ namespace FiresRPGmaker.UI
             return true;
         }
 
-        // 0.0.659 (Fire 10-16: Apply Changes in the Dressing room showed the anchor orb): the manual hit-tests ignore a button that is
+        // the manual hit-tests ignore a button that is
         // faded out (a parent CanvasGroup at alpha ~0, as the Dressing page fades the book's own buttons) - the book's hidden
         // "Show anchor" sat under Apply Changes and fired with it.
         private static bool Shown(RectTransform rt)
@@ -697,16 +1078,28 @@ namespace FiresRPGmaker.UI
             return true;
         }
 
-        private void OnCloseClicked() { if (TakeBookClick()) Hide(); }
+        private void OnCloseClicked() { if (TakeBookClick()) Hide("x button"); }
 
         private void OnShowAnchorClicked()
         {
             if (!TakeBookClick()) return;
-            // Close the book FIRST (patrol-flow UX — you need to see the world), then show
-            // the orb. Capture the NPC before Hide clears the panel state.
-            var npc = _npc;
-            Hide();
-            if (npc != null) NpcAnchorOrbViz.Show(npc);
+            // The manual hit-test fires on mouse DOWN and the Button's own onClick on mouse UP, a later frame, so TakeBookClick's one-frame guard let one click
+            // toggle twice. One toggle per click: a 0.6 s window, the same as the stats toggles.
+            if (Time.unscaledTime - _anchorToggleAt < AnchorToggleDebounce) return;
+            _anchorToggleAt = Time.unscaledTime;
+            // Show / hide the anchor orb: the same toggle the unified Dressing room has (DressingThreePanel "Show anchor" / "Hide anchor"); the book stays open.
+            if (_npc == null) return;
+            if (NpcAnchorOrbViz.ActiveGuid != null) NpcAnchorOrbViz.Hide(); else NpcAnchorOrbViz.Show(_npc);
+            RefreshAnchorLabel();
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBook] anchor toggle: {(NpcAnchorOrbViz.ActiveGuid != null ? "shown" : "hidden")} for '{_npc.GetDisplayName()}'");
+        }
+
+        private void RefreshAnchorLabel()
+        {
+            if (_anchorBtnRect == null) return;
+            string s = NpcAnchorOrbViz.ActiveGuid != null ? "Hide Anchor" : "Show Anchor";
+            foreach (var t in _anchorBtnRect.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.text = s;
+            foreach (var t in _anchorBtnRect.GetComponentsInChildren<UnityEngine.UI.Text>(true)) t.text = s;
         }
 
         private void OnSetPatrolClicked()
@@ -735,7 +1128,7 @@ namespace FiresRPGmaker.UI
 
             BuildCanvas();
             _panelGo = Instantiate(prefab, _canvasGo.transform);
-            FixNullFonts(_panelGo);   // 0.0.614: before anything measures text
+            FixNullFonts(_panelGo);   // before anything measures text
             _panelGo.name = "FiresRPGmaker_NpcPanel";
             _root = _panelGo.transform;
 
@@ -744,7 +1137,7 @@ namespace FiresRPGmaker.UI
 
             _leftPage = FindRec(_root, "LeftPage");
             _rightPage = FindRec(_root, "RightPage");
-            RememberPageHomes();   // 0.0.651
+            RememberPageHomes();
             if (_leftPage == null || _rightPage == null)
             { Debug.LogError("[NpcBookController] book is missing LeftPage/RightPage — bad prefab"); return false; }
 
@@ -754,7 +1147,7 @@ namespace FiresRPGmaker.UI
             WireToggleVisuals();
             WireDialogueExtras();
             NormalizeInteractive(_panelGo.transform);
-            // 0.0.565: npcbook.prefab carries 26 nested Canvases; a GraphicRaycaster only sees graphics of ITS canvas, so
+            // npcbook.prefab carries 26 nested Canvases; a GraphicRaycaster only sees graphics of ITS canvas, so
             // without one per nested canvas every tab/button click found "nothing under the screen point" (FDT 582).
             int addedRc = 0;
             foreach (var c in _panelGo.GetComponentsInChildren<Canvas>(true))
@@ -770,12 +1163,11 @@ namespace FiresRPGmaker.UI
             AddDragHandle();
             _panelGo.SetActive(false);
             _built = true;
-            // 0.0.611 (Fire 10-15 hand test: Shift+E showed only a floating "Show Anchor"): when npcbook.prefab's baked
-            // components fail to load ("The referenced script ... is missing!"), its Buttons can't be found and the book
+            // When npcbook.prefab's baked components fail to load ("The referenced script ... is missing!"), its Buttons can't be found and the book
             // renders invisible. Detect that once, say so loudly, and let ShowForNpc fall back to the patrol popup.
             Broken = s_unhooked >= 8 || _panelGo.GetComponentsInChildren<UnityEngine.UI.Graphic>(true).Length < 20;
             if (Broken) Debug.LogError($"[NpcBookController] npcbook.prefab did not load its UI scripts ({s_unhooked} baked button(s) not found, {_panelGo.GetComponentsInChildren<UnityEngine.UI.Graphic>(true).Length} graphic(s)): the book can't render. Shift+E opens the patrol route popup instead until the firesnpcsui bundle is fixed.");
-            Debug.Log("[NpcBookController] book loaded + wired");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[NpcBookController] book loaded + wired");
             return true;
         }
 
@@ -828,12 +1220,12 @@ namespace FiresRPGmaker.UI
                 return;
             }
 
-            if (Input.GetMouseButtonDown(0) && _dragHandleRect != null
+            if (Input.GetMouseButtonDown(0) && _dragHandleRect != null && !global::FiresRPGmaker.UI.Screens.PlayerPanels.BasePlayerModulePanel.AnyOpen   // a click on a module panel over the book (its X) never drags the book
                 && RectTransformUtility.RectangleContainsScreenPoint(_dragHandleRect, mouse, null))
             {
                 _dragging = true;
                 _dragOffset = (Vector2)panelRect.position - mouse;
-                Debug.Log("[NpcBookController] book drag start");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[NpcBookController] book drag start");
             }
         }
 
@@ -892,7 +1284,7 @@ namespace FiresRPGmaker.UI
         {
             if (string.IsNullOrEmpty(tab) || Array.IndexOf(Tabs, tab) < 0) tab = "Dressing";
             _activeTab = tab;
-            if (_shell != null) { try { _shell.SetActive(tab, "", ShellContext()); } catch { } ApplySkin(); }   // 0.0.622 SCOPE #7
+            if (_shell != null) { try { _shell.SetActive(tab, "", ShellContext()); } catch { } ApplySkin(); }
             bool dressing = (tab == "Dressing");
             bool dlg = (tab == "Dialogue");
             foreach (var t in Tabs)
@@ -905,6 +1297,7 @@ namespace FiresRPGmaker.UI
             // Dialogue takes both pages: hide the NPC setup, show the dialogue list on the left. Tabs stay pinned.
             FindRec(_leftPage, "SetupGroup")?.gameObject.SetActive(!dlg);
             FindRec(_leftPage, "DialogueListGroup")?.gameObject.SetActive(dlg);
+            if (dlg && _dlgGroup != null) { LiftDialogueGroupUnderHeader(); _dlgLiftFrames = DialogueLiftFrames; }
             if (!dlg) { _bookOptionPopup?.Close(); if (_optionPopup != null) _optionPopup.gameObject.SetActive(false); _editingOptionIndex = -1; }
             // Dressing tab: wire the working dressing logic onto the book's own parchment grid, then load gear +
             // open the player inventory. Leaving the tab closes the inventory.
@@ -925,7 +1318,7 @@ namespace FiresRPGmaker.UI
                 try { _dressingCtrl.WireFromCodegen(screen); _dressingWired = true; }
                 catch (Exception ex) { Debug.LogError("[NpcBookController] wire dressing: " + ex); return; }
             }
-            // 0.0.644 (R-1015S: "Set Patrol Route still missing"): Show() runs the Dressing re-layout, which places this button
+            // Show() runs the Dressing re-layout, which places this button
             // under the preview - so it must exist BEFORE Show (on the first open it was created after, and the layout saw null)
             if (!_patrolBtnAdded)
             {
@@ -1030,6 +1423,9 @@ namespace FiresRPGmaker.UI
             Ph("Container_ModelOverrideInput", "creature prefab, e.g. Greydwarf - empty = human");
             var idle = Tog(_leftPage, "AllowIdleWander_chk");
             if (idle != null) idle.isOn = FiresCore.Bridge.NpcCompanionBridge.GetIdleWander(_npc.gameObject) ?? _npc.allowIdleWandering;
+            // the baked caption is the raw node name
+            if (idle != null) foreach (var lt in idle.GetComponentsInChildren<TMP_Text>(true)) if (lt != null && IsRawKeyText(lt.text)) lt.text = IdleWanderText;
+            RelabelRawTexts(_leftPage);
             var head = FindRec(_leftPage, "Header")?.GetComponent<TMP_Text>();
             if (head != null) head.text = "Configure NPC: " + (string.IsNullOrEmpty(_npc.displayNameOverride) ? _npc.npcProfileName : _npc.displayNameOverride);
         }
@@ -1037,7 +1433,6 @@ namespace FiresRPGmaker.UI
         // The explicit left-page NPC Type selector. Selecting a type updates the NPC's type (in memory) and
         // re-shows the Profile field/list for that type, so the left page and the matching module tab agree.
         private bool _npcTypeDdWired;
-        // 0.0.641 (Fire: "change the NPC's model in the dressing room, with the same selection of models as Fire's Character Creator"):
         // the Model Override field gets a picker - reused from the Profile field's ProfileDD (the arrow picks, the input shows the
         // name) - listing exactly FCC's FccApi.AllowedModels() (no second list). A pick fills the input and applies at once
         // (ApplySetup: ApplyModelOverride + SaveToZDO), so the NPC re-skins and the Dressing preview re-frames.
@@ -1054,11 +1449,30 @@ namespace FiresRPGmaker.UI
             catch (Exception ex) { Debug.LogWarning("[NpcBookController] FccApi.AllowedModels: " + (ex.InnerException ?? ex).Message); }
             return null;
         }
+        // Core 0.2.659 FiresCore.Npc.ExternalModels.Available() (ModelOption{Prefab, Label, Source}; empty without the mod). By reflection, so an
+        // older Core just lists FCC's models. The prefab name is the value (it goes straight into the Model Override field).
+        internal static List<string> ExternalModelPrefabs()
+        {
+            var list = new List<string>();
+            try
+            {
+                var m = Type.GetType("FiresCore.Npc.ExternalModels, FiresUnifiedCore", false)?.GetMethod("Available", Type.EmptyTypes);
+                if (m?.Invoke(null, null) is System.Collections.IEnumerable all)
+                    foreach (var o in all)
+                    {
+                        var p = o?.GetType().GetField("Prefab")?.GetValue(o) as string ?? o?.GetType().GetProperty("Prefab")?.GetValue(o) as string;
+                        if (!string.IsNullOrEmpty(p) && !list.Contains(p)) list.Add(p);
+                    }
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcBookController] ExternalModels.Available: " + (ex.InnerException ?? ex).Message); }
+            return list;
+        }
         private void EnsureModelDropdown()
         {
             if (_npc == null || _leftPage == null) return;
-            var models = FccModels();
-            if (models == null) return;   // no FCC: the free-text field stays as before
+            var models = FccModels() ?? new List<string>();
+            var external = ExternalModelPrefabs();   // Creatures of Origins etc. (Core ExternalModels), after FCC's
+            if (models.Count == 0 && external.Count == 0) return;   // nothing to pick: the free-text field stays as before
             var input = InputIn(_leftPage, "Container_ModelOverrideInput");
             var profDd = FindRec(_leftPage, "ProfileDD")?.GetComponent<TMP_Dropdown>();
             var profC = FindRec(_leftPage, "Container_ProfileInput") as RectTransform;
@@ -1080,14 +1494,16 @@ namespace FiresRPGmaker.UI
                     _modelDd.SetValueWithoutNotify(0);
                     if (string.IsNullOrEmpty(picked)) return;
                     input.SetTextWithoutNotify(picked == HumanModel ? "" : picked);
-                    Debug.Log($"[NpcBookController] model picked from FCC's list: '{picked}' for {_npc.GetDisplayName()}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] model picked from FCC's list: '{picked}' for {_npc.GetDisplayName()}");
                     ApplySetup();
                 });
-                Debug.Log($"[NpcBookController] Model Override picker: {models.Count} model(s) from FccApi.AllowedModels()");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] Model Override picker: {models.Count} model(s) from FccApi.AllowedModels()");
             }
-            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData("—"), new TMP_Dropdown.OptionData(HumanModel) };
+            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData(PickCaption), new TMP_Dropdown.OptionData(HumanModel) };
             foreach (var m in models.OrderBy(m => m)) opts.Add(new TMP_Dropdown.OptionData(m));
+            foreach (var m in external) if (!models.Contains(m)) opts.Add(new TMP_Dropdown.OptionData(m));
             _modelDd.ClearOptions(); _modelDd.AddOptions(opts); _modelDd.SetValueWithoutNotify(0);
+            MakeFieldPicker(_modelDd, input);   // the field is the dropdown (NPC Type look)
         }
         private const string HumanModel = "(human)";
 
@@ -1113,7 +1529,7 @@ namespace FiresRPGmaker.UI
                 if (dd == null || _npc == null) return;
                 string picked = idx >= 0 && idx < dd.options.Count ? dd.options[idx].text : null;
                 if (!Enum.TryParse(picked, out NpcType t)) return;
-                // [release] audit #8: the pick only fills the form; ApplySetup commits the type and the profile.
+                // The pick only fills the form; ApplySetup commits the type and the profile.
                 SetInput(_leftPage, "Container_ProfileInput", _npc.GetProfileForType(t));
                 EnsureProfileDropdown("LeftPage", _leftPage, "Container_ProfileInput", t, null);
             });
@@ -1212,7 +1628,7 @@ namespace FiresRPGmaker.UI
             string name = GetScreenInput("Trader", "Trader Profile_C")?.Trim();
             if (string.IsNullOrEmpty(name)) { Msg("Enter a trader profile name"); return; }
             string trades = (GetScreenInput("Trader", "Trades") ?? "").Trim();
-            // [release] audit #6: numbers are checked (blank = default; -1 = unlimited for stock and max gold).
+            // Numbers are checked (blank = default; -1 = unlimited for stock and max gold).
             if (!TryNumField("Trader", "Stock_C", "Stock", -1, -1, out int stock)
                 || !TryNumField("Trader", "Restock (h)_C", "Restock (h)", 0, 0, out int restockH)
                 || !TryNumField("Trader", "Max Gold_C", "Max gold", -1, -1, out int maxGold)
@@ -1327,7 +1743,7 @@ namespace FiresRPGmaker.UI
         {
             string name = GetScreenInput("Banker", "Banker Profile_C")?.Trim();
             if (string.IsNullOrEmpty(name)) { SetBankerStatus("Enter a banker profile name"); Msg("Enter a banker profile name"); return; }
-            // [release] audit #6: interest and each currency cap are checked before anything is written.
+            // Interest and each currency cap are checked before anything is written.
             string interest = GetScreenInput("Banker", "Interest %/min_C")?.Trim();
             if (!TryFloatField("Banker", "Interest %/min_C", "Interest", 0f, 0f, out float interestN)) { SetBankerStatus("Interest must be a number, 0 or more"); return; }
             var sb = new StringBuilder();
@@ -1384,7 +1800,7 @@ namespace FiresRPGmaker.UI
         {
             string name = GetScreenInput("Gambler", "Profile Name_C")?.Trim();
             if (string.IsNullOrEmpty(name)) { Msg("Enter a gambler profile name"); return; }
-            if (!TryNumField("Gambler", "Max Rolls_C", "Max rolls", 1, 1, out int maxRolls)) return;   // [release] audit #6
+            if (!TryNumField("Gambler", "Max Rolls_C", "Max rolls", 1, 1, out int maxRolls)) return;
             var games = new List<string>();
             if (GetToggle("Gambler", "Cards_chk")) games.Add(GamblerGames.Cards);
             if (GetToggle("Gambler", "Bones_chk")) games.Add(GamblerGames.Bones);
@@ -1430,7 +1846,7 @@ namespace FiresRPGmaker.UI
         // ════════════════════════════ TRANSMOG ══════════════════════════════
         private void PopulateTransmog()
         {
-            // 0.0.559: [wishbone] Transmog setup page opens over the book (no Edit button on the prefab)
+            // Transmog setup page opens over the book (no Edit button on the prefab)
             Screens.PlayerPanels.TransmogAdminPanel.Show(string.IsNullOrEmpty(_npc.transmogProfile) ? "default" : _npc.transmogProfile);
             string name = _npc.transmogProfile;
             SetScreenInput("Transmog", "TmProfile", name);
@@ -1453,7 +1869,7 @@ namespace FiresRPGmaker.UI
                 if (string.IsNullOrEmpty(app)) continue;
                 string slot = RowCell(row, "SlotCell")?.Trim(); if (string.IsNullOrEmpty(slot)) slot = "Helmet";
                 string cur = RowCell(row, "CurrencyCell")?.Trim(); if (string.IsNullOrEmpty(cur)) cur = "Coins";
-                // [release] audit #6: a negative or non-number price stopped nothing and became 0 (free).
+                // A negative or non-number price stopped nothing and became 0 (free).
                 if (!TryNumText(RowCell(row, "PriceCell"), app + " price", 0, 0, out int price)) { UpdateTransmogStatus(null); return; }
                 if (!ItemPrefabExists(app) && !unknown.Contains(app)) unknown.Add(app);
                 if (!ItemPrefabExists(cur) && !unknown.Contains(cur)) unknown.Add(cur);
@@ -1685,6 +2101,11 @@ namespace FiresRPGmaker.UI
             {
                 // Fresh NPC with no quest yet — seed the id field from the profile so the first Save has a key,
                 // and leave the rest blank for authoring.
+                // 0.0.813 (Fire 10-31, fresh profile: the quest page "already has a quest for wolves filled out ... I assumed that
+                // was an example"; saving it made a real wolf_hunt quest with "spawn pack" / "give title" commands): the UI bundle's
+                // input fields carry baked example TEXT, and this branch never cleared it, so Save wrote it. Every field is
+                // emptied now; the examples show only as the greyed hints (ApplyQuestHints), which are never saved.
+                ClearQuestForm();
                 if (!string.IsNullOrEmpty(profileName)) SetScreenInput("Quest", "Profile ID_C", questId ?? profileName);
             }
             ApplyQuestHints();
@@ -1768,7 +2189,7 @@ namespace FiresRPGmaker.UI
             SetScreenInput("Quest", "On Start Event_C", LifecycleJoinBook(def, "OnAcceptQuest"));
             SetScreenInput("Quest", "On Complete_C", LifecycleJoinBook(def, "OnCompleteQuest"));
             SetScreenInput("Quest", "Preview PNG_C", def.PreviewImage ?? "");
-            Debug.Log($"[NpcBookController] '{questId}' loaded from synced quest DB (no raw cfg block on this machine)");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] '{questId}' loaded from synced quest DB (no raw cfg block on this machine)");
         }
 
         private static string LifecycleJoinBook(global::FiresRPGmaker.Modules.Quest.QuestDefinition def, string key)
@@ -1832,6 +2253,7 @@ namespace FiresRPGmaker.UI
             QuestArrowItemRightClick.OnRightPick = OnQuestArrowRightClick;
 
             RefreshQuestIdArrow();
+            MakeFieldPicker(_questIdArrowDd, idNode.GetComponentInChildren<TMP_InputField>(true));   // the field is the dropdown
             _questIdArrowDd.onValueChanged.AddListener(idx =>
             {
                 if (_questIdArrowDd == null || idx <= 0) return;
@@ -1911,14 +2333,42 @@ namespace FiresRPGmaker.UI
                 float acLeft = ac[0].x; float acCy = (ac[0].y + ac[1].y) * 0.5f;
                 float gap = (dc[1].y - dc[0].y) * 0.5f;
                 acNode.position += new Vector3((descTextRight + gap) - acLeft, descCy - acCy, 0f);
-                Debug.Log($"[NpcBookController] quest layout: shiftX={shiftX:F1} acScale={scale:F2} descTextRight={descTextRight:F1} acPos={acNode.position}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] quest layout: shiftX={shiftX:F1} acScale={scale:F2} descTextRight={descTextRight:F1} acPos={acNode.position}");
             }
             else
             {
                 // No caption found — leave AC where the bake put it rather than guessing.
                 Debug.LogWarning("[NpcBookController] quest layout: 'Quest Description' caption not found — Auto-Complete left in place");
             }
+            MakeAutoCompleteClickable(acNode);
         }
+
+        // 0.0.814 (Fire 10-31: "the autocomplete checkbox does not work either in our admin book UI"): the layout above parks the
+        // toggle on the "Quest Description" caption row, where the description input (later in the hierarchy, drawn on top) covers
+        // it, so clicks landed on the text field and the box never flipped. The toggle gets its own canvas sorted above the page
+        // with its own raycaster (the same way Core lifts its dock grips), and every flip logs one line.
+        private void MakeAutoCompleteClickable(RectTransform acNode)
+        {
+            if (acNode == null) return;
+            try
+            {
+                var pageCanvas = acNode.GetComponentInParent<Canvas>();
+                var c = acNode.GetComponent<Canvas>() ?? acNode.gameObject.AddComponent<Canvas>();
+                c.overrideSorting = true;
+                c.sortingOrder = (pageCanvas != null ? pageCanvas.sortingOrder : 0) + 50;
+                if (acNode.GetComponent<GraphicRaycaster>() == null) acNode.gameObject.AddComponent<GraphicRaycaster>();
+                var tog = acNode.GetComponent<Toggle>();
+                if (tog != null)
+                {
+                    tog.interactable = true;
+                    tog.onValueChanged.RemoveListener(OnAutoCompleteChanged);
+                    tog.onValueChanged.AddListener(OnAutoCompleteChanged);
+                }
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] Auto-Complete toggle lifted above the description field (sorting {c.sortingOrder}, toggle {(tog != null ? "found" : "MISSING")})");
+            }
+            catch (Exception ex) { Debug.LogWarning("[NpcBookController] Auto-Complete toggle lift failed: " + ex.Message); }
+        }
+        private void OnAutoCompleteChanged(bool on) => global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] Auto-Complete toggled {(on ? "ON" : "OFF")}");
 
         // "Add Quest" dropdown in Type's old slot: every saved quest; pick → load into the editor.
         private void EnsureAllQuestsDropdown(Transform scr)
@@ -1955,7 +2405,7 @@ namespace FiresRPGmaker.UI
             if (_questIdArrowDd == null) return;
             _questArrowIds.Clear();
             _questArrowLabelToId.Clear();
-            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData("—") };
+            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData(PickCaption) };
             var qm = global::FiresRPGmaker.Modules.Quest.QuestManager.Instance;
             string prof = _npc?.questProfile;
             if (!string.IsNullOrEmpty(prof))
@@ -1986,7 +2436,7 @@ namespace FiresRPGmaker.UI
         {
             if (_allQuestsDd == null) return;
             _allQuestIds.Clear();
-            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData("—") };
+            var opts = new List<TMP_Dropdown.OptionData> { new TMP_Dropdown.OptionData(PickCaption) };
             var qm = global::FiresRPGmaker.Modules.Quest.QuestManager.Instance;
             var all = qm != null ? qm.GetAllQuests() : new List<(string QuestId, string Name)>();
             foreach (var q in all.OrderBy(q => string.IsNullOrEmpty(q.Name) ? q.QuestId : q.Name, StringComparer.OrdinalIgnoreCase))
@@ -2131,6 +2581,23 @@ namespace FiresRPGmaker.UI
                              : $"Saved quest '{questId}' (library only — no profile changed)");
         }
 
+        // 0.0.813: the authoring fields ApplyQuestHints describes, emptied (the hints stay as placeholders)
+        private static readonly string[] s_questFields =
+        {
+            "Profile ID_C", "Quest Name_C", "Desc", "Target_C", "Amount_C", "Min Lvl_C", "Cooldown Days_C", "Limit Mins_C",
+            "Rewards_C", "Required_C", "On Start Event_C", "On Complete_C", "Preview PNG_C",
+        };
+        private void ClearQuestForm()
+        {
+            int cleared = 0;
+            foreach (var f in s_questFields)
+            {
+                string was = GetScreenInput("Quest", f);
+                if (!string.IsNullOrEmpty(was)) { SetScreenInput("Quest", f, ""); cleared++; }
+            }
+            if (cleared > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] new quest page: cleared {cleared} field(s) of baked example text (hints stay greyed, never saved)");
+        }
+
         // P1 hint pass: every quest field teaches its grammar while empty.
         private void ApplyQuestHints()
         {
@@ -2214,9 +2681,10 @@ namespace FiresRPGmaker.UI
             if (string.IsNullOrEmpty(type)) type = "Kill";
             if (type.Equals("Go To", StringComparison.OrdinalIgnoreCase)) type = "Move";
             bool autocomplete = GetToggle("Quest", "Auto-Complete_chk");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] saving quest: Autocomplete = {(autocomplete ? "true" : "false")} (toggle {(Tog(Screen("Quest"), "Auto-Complete_chk") != null ? "found" : "MISSING")})");   // 0.0.814 round-trip proof
             string desc = GetScreenInput("Quest", "Desc")?.Trim() ?? "";
             string target = GetScreenInput("Quest", "Target_C")?.Trim() ?? "";
-            // [release] audit #3: blank number fields wrote "QuestTarget = Wolf," / "CooldownDays = ". Blank = the default now;
+            // Blank number fields wrote "QuestTarget = Wolf," / "CooldownDays = ". Blank = the default now;
             // text or a negative number stops the save with the field named.
             if (!TryNumField("Quest", "Amount_C", "Amount", 1, 1, out int amountN)
                 || !TryNumField("Quest", "Min Lvl_C", "Min level", 0, 0, out int minLvlN)
@@ -2225,6 +2693,7 @@ namespace FiresRPGmaker.UI
             string amount = amountN.ToString(), minLvl = minLvlN.ToString(), cooldown = cooldownN.ToString(), timeLimit = timeLimitN.ToString();
             string rewards = GetScreenInput("Quest", "Rewards_C")?.Trim() ?? "";
             string required = GetScreenInput("Quest", "Required_C")?.Trim() ?? "";
+            if (global::FiresRPGmaker.Modules.Quest.QuestManager.IsPlaceholderRequirement(required)) required = "";   // 0.0.812: a "-" placeholder is saved as no requirement
             string onStart = GetScreenInput("Quest", "On Start Event_C")?.Trim() ?? "";
             string onComplete = GetScreenInput("Quest", "On Complete_C")?.Trim() ?? "";
             string preview = GetScreenInput("Quest", "Preview PNG_C")?.Trim() ?? "";
@@ -2419,6 +2888,7 @@ namespace FiresRPGmaker.UI
                 HookRow(row.transform, "EditButton", () => OpenOptionPopup(index));
                 HookRow(row.transform, "RemoveButton", () => { if (index < _dlgOptions.Count) { _dlgOptions.RemoveAt(index); RebuildOptionRows(); SetDlgDirty(); } });
             }
+            if (_shell != null) { RaiseSmallText(); ApplyReadability(); }   // rows made after the shell pass get the kit body size
             ReflowScroll(content);
         }
 
@@ -2445,7 +2915,7 @@ namespace FiresRPGmaker.UI
         // recolored to parchment + positioned right of the book — instead of the old baked OptionPopup.
         private void OpenOptionPopup(int index)
         {
-            Debug.Log($"[NpcBookController] OpenOptionPopup({index}) — options={_dlgOptions.Count}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] OpenOptionPopup({index}) — options={_dlgOptions.Count}");
             if (index < 0 || index >= _dlgOptions.Count) return;
             _editingOptionIndex = index;
             if (_bookOptionPopup == null)
@@ -2560,7 +3030,7 @@ namespace FiresRPGmaker.UI
             try
             {
                 string cfg = DialogueSyncRPC.SerializeDialogueToCfg(d);
-                // [release] audit #5: the file name is lowercased, as Delete uses (a mixed-case file could never be deleted).
+                // The file name is lowercased, as Delete uses (a mixed-case file could never be deleted).
                 DialogueSyncRPC.PushDialogueToServer("legacy/" + SanitizeFileName(d.UID.ToLowerInvariant()) + ".cfg", cfg);
             }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveDialogue: " + ex.Message); Msg("Save failed"); return; }
@@ -2577,7 +3047,7 @@ namespace FiresRPGmaker.UI
             DeleteDialogueByUid(uid);
         }
 
-        // [release] audit #5: Delete asks first: the first press arms it ("press Delete again"), a second press on the same
+        // Delete asks first: the first press arms it ("press Delete again"), a second press on the same
         // UID within DeleteConfirmSeconds deletes.
         private const float DeleteConfirmSeconds = 4f;
         private string _dlgDeleteArmedUid;
@@ -2697,7 +3167,7 @@ namespace FiresRPGmaker.UI
             SetInputPlaceholder("Buffers", "BufferProfile", "buff profile name - build its buffs in the Buff Builder");
         }
 
-        // [release] audit #4: the Buff Builder opens on the profile typed on the Buffers tab (or the NPC's own), not empty.
+        // The Buff Builder opens on the profile typed on the Buffers tab (or the NPC's own), not empty.
         private string BufferProfileForEdit()
         {
             string p = GetScreenInput("Buffers", "BufferProfile")?.Trim();
@@ -2724,7 +3194,7 @@ namespace FiresRPGmaker.UI
         {
             string profile = _npc.mailProfile;
             SetScreenInput("Mail", "Recipient_C", profile);
-            // [release] audit #1: the post cost / wait come from the server's MarketPlace.cfg (MarketCfgSync).
+            // The post cost / wait come from the server's MarketPlace.cfg (MarketCfgSync).
             EnsureMarketCfg(PopulateMail);
             string mcfg = global::FiresRPGmaker.Managers.MarketCfgSync.Current();
             if (mcfg != null)
@@ -2817,7 +3287,7 @@ namespace FiresRPGmaker.UI
             string recipient = GetScreenInput("Mail", "Recipient_C")?.Trim();
             if (string.IsNullOrEmpty(recipient)) recipient = _npc.mailProfile;
             if (string.IsNullOrEmpty(recipient)) { Msg("Enter a recipient/profile"); return; }
-            if (!TryNumField("Mail", "Wait (s)_C", "Wait (s)", -1, 0, out int waitS)) return;   // [release] audit #6; blank = instant
+            if (!TryNumField("Mail", "Wait (s)_C", "Wait (s)", -1, 0, out int waitS)) return;   // blank = instant
             string sender = GetScreenInput("Mail", "Sender_C")?.Trim() ?? "";
             string topic = GetScreenInput("Mail", "MailTopic")?.Trim() ?? "";
             string body = (GetScreenInput("Mail", "MailBody") ?? "").Replace("\r", "").Replace("\n", "\\n");
@@ -2833,7 +3303,7 @@ namespace FiresRPGmaker.UI
                 MailProfileManager.SaveProfile(recipient, string.Join(Environment.NewLine, lines));
             }
             catch (Exception ex) { Debug.LogError("[NpcBookController] SaveMail: " + ex.Message); }
-            // [release] audit #1: onto the server's copy, only these two keys. Not received yet = the mail is saved, the settings wait.
+            // Onto the server's copy, only these two keys. Not received yet = the mail is saved, the settings wait.
             string mcfg = global::FiresRPGmaker.Managers.MarketCfgSync.Current();
             if (mcfg != null)
             {
@@ -2853,7 +3323,7 @@ namespace FiresRPGmaker.UI
         // watcher re-syncs on Save().
         private void PopulateMarketplace()
         {
-            // [release] audit #1: the SERVER's MarketPlace.cfg (MarketCfgSync), never the admin's local file on a dedi client.
+            // The SERVER's MarketPlace.cfg (MarketCfgSync), never the admin's local file on a dedi client.
             EnsureMarketCfg(PopulateMarketplace);
             string text = global::FiresRPGmaker.Managers.MarketCfgSync.Current();
             if (text != null)
@@ -2877,7 +3347,7 @@ namespace FiresRPGmaker.UI
 
         private void SaveMarketplace()
         {
-            // [release] audit #1 + #6: edits the server's copy (only the keys this tab shows; every other line kept), numbers checked.
+            // Edits the server's copy (only the keys this tab shows; every other line kept), numbers checked.
             string text = global::FiresRPGmaker.Managers.MarketCfgSync.Current();
             if (text == null) { _marketCfgAsked = false; EnsureMarketCfg(null); Msg("Still waiting for the server's marketplace settings; try Save again in a moment"); return; }
             if (!TryNumField("Marketplace", "Item Slot Limit_C", "Item slot limit", 15, 0, out int limit)
@@ -2903,7 +3373,7 @@ namespace FiresRPGmaker.UI
         // ── cfg write helpers ────────────────────────────────────────────────
         private static string MarketplaceCfgPath => Path.Combine(Paths.ConfigPath, "Marketplace", "MarketPlace.cfg");
 
-        // [release] audit #1: MarketPlace.cfg through MarketCfgSync. A client asks the server once per book session; when the
+        // MarketPlace.cfg through MarketCfgSync. A client asks the server once per book session; when the
         // reply arrives the tab that asked is filled again (its fields stay as they are until then).
         private bool _marketCfgAsked;
         private Action _marketCfgRefill;
@@ -3123,7 +3593,7 @@ namespace FiresRPGmaker.UI
             }
             EnsureProfileDropdown(_activeTab, Screen(_activeTab), pi.node, type, name =>
             {
-                // Picking a saved profile loads it into the form only. [release] audit #8: the NPC used to be pointed at it
+                // Picking a saved profile loads it into the form only. The NPC used to be pointed at it
                 // (type + profile, in memory) before Apply/Save; now the form is filled from it and the NPC is put back,
                 // so the tab's Save (or the left page's Apply) is what commits it.
                 string oldProfile = _npc.GetProfileForType(type);
@@ -3145,6 +3615,7 @@ namespace FiresRPGmaker.UI
             var dd = FindRec(scope, "ProfileDD")?.GetComponent<TMP_Dropdown>();
             if (dd == null || input == null) return;
             PopulateProfileDropdown(dd, NpcController.GetProfileNamesForType(type));
+            MakeFieldPicker(dd, input);   // the field is the dropdown (NPC Type look)
             if (_profileDd.TryGetValue(key, out var wired) && wired == dd) return;
             _profileDd[key] = dd;
             dd.onValueChanged.AddListener(idx =>
@@ -3160,7 +3631,7 @@ namespace FiresRPGmaker.UI
         private static void PopulateProfileDropdown(TMP_Dropdown dd, IEnumerable<string> names)
         {
             var sorted = (names ?? Enumerable.Empty<string>()).Where(n => !string.IsNullOrEmpty(n)).OrderBy(n => n).ToList();
-            var opts = new List<TMP_Dropdown.OptionData>(sorted.Count + 1) { new TMP_Dropdown.OptionData("—") };
+            var opts = new List<TMP_Dropdown.OptionData>(sorted.Count + 1) { new TMP_Dropdown.OptionData(PickCaption) };
             foreach (var n in sorted) opts.Add(new TMP_Dropdown.OptionData(n));
             dd.ClearOptions();
             dd.AddOptions(opts);
@@ -3228,6 +3699,7 @@ namespace FiresRPGmaker.UI
             row.SetActive(true);
             var le = row.GetComponent<LayoutElement>() ?? row.AddComponent<LayoutElement>();
             if (le.preferredHeight <= 0f) le.preferredHeight = 30f;
+            if (_shell != null) RaiseSmallText();   // dynamically added rows get the kit body size
             return row;
         }
 
@@ -3392,6 +3864,61 @@ namespace FiresRPGmaker.UI
                 inp.customCaretColor = true;
                 if (inp.caretColor.a <= 0f) inp.caretColor = new Color(0.20f, 0.13f, 0.05f, 1f);
             }
+            // Every input / dropdown / checkbox box gets the kit's slot border (FiresTokens.Hairline, the same 1 px line the kit slots use)
+            int wells = 0;
+            foreach (var sel in root.GetComponentsInChildren<Selectable>(true))
+            {
+                if (!(sel is TMP_InputField || sel is TMP_Dropdown || sel is Toggle)) continue;
+                if (sel.GetComponentInParent<TMP_Dropdown>(true) != null && !(sel is TMP_Dropdown)) continue;   // a dropdown's option rows
+                var g = sel.targetGraphic as Image;
+                if (g == null || g.GetComponent<Outline>() != null) continue;
+                var o = g.gameObject.AddComponent<Outline>();
+                o.effectColor = FiresCore.UI.Shell.Kit.FiresTokens.Hairline; o.effectDistance = new Vector2(1f, -1f);
+                wells++;
+            }
+            if (wells > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] field wells: {wells} input/dropdown/checkbox box(es) given the kit border");
+        }
+
+        // player-facing text only, never a raw node / config key on screen.
+        private const string PickCaption = "";   // the pickers' no-op first row is blank; the field shows the value
+        private const string IdleWanderText = "Wander when idle";
+        private static readonly Dictionary<string, string> s_friendly = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "AllowIdleWander_chk", "Idle wander" }, { "AllowIdleWander", IdleWanderText },
+            { "Auto-Complete_chk", "Auto-complete" },
+            { "Cards_chk", "Cards" }, { "Bones_chk", "Bones" }, { "Runes_chk", "Runes" }, { "Wheel_chk", "Wheel" },
+        };
+        internal static string FriendlyFieldLabel(string node) => node != null && s_friendly.TryGetValue(node, out var v) ? v : null;
+        // a text that is a raw key: a node name with "_chk" / " chk", or one CamelCase word of 2+ humps (AllowIdleWander)
+        internal static bool IsRawKeyText(string t)
+        {
+            if (string.IsNullOrWhiteSpace(t)) return false;
+            t = t.Trim();
+            if (t.EndsWith("_chk", StringComparison.Ordinal) || t.EndsWith(" chk", StringComparison.Ordinal)) return true;
+            if (!System.Text.RegularExpressions.Regex.IsMatch(t, "^[A-Z][a-zA-Z]+$")) return false;
+            int humps = 0; for (int i = 1; i < t.Length; i++) if (char.IsUpper(t[i]) && char.IsLower(t[i - 1])) humps++;
+            return humps >= 2 || s_friendly.ContainsKey(t);
+        }
+        // every visible-or-not text under root that is a raw key gets its friendly name (or a spaced, capitalised form)
+        internal static int RelabelRawTexts(Transform root)
+        {
+            if (root == null) return 0;
+            int n = 0;
+            foreach (var t in root.GetComponentsInChildren<TMP_Text>(true))
+            {
+                if (t == null || !IsRawKeyText(t.text) || t.GetComponentInParent<TMP_InputField>(true) != null || t.GetComponentInParent<TMP_Dropdown>(true) != null) continue;   // never a typed value or a picked name
+                string raw = t.text.Trim();
+                string f = FriendlyFieldLabel(raw);
+                if (f == null)
+                {
+                    string s = raw.Replace("_chk", "").Replace(" chk", "");
+                    s = System.Text.RegularExpressions.Regex.Replace(s, "(?<=[a-z])(?=[A-Z])", " ").Replace('_', ' ').Trim();
+                    f = s.Length > 1 ? char.ToUpperInvariant(s[0]) + s.Substring(1).ToLowerInvariant() : s;
+                }
+                t.text = f; n++;
+            }
+            if (n > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[NpcBookController] {n} raw key text(s) under '{root.name}' replaced by player-facing labels");
+            return n;
         }
 
         // ── node lookup helpers (recursive by name; resilient to nesting) ────
@@ -3417,7 +3944,7 @@ namespace FiresRPGmaker.UI
         private void SetScreenInput(string tab, string container, string val) { var i = InputIn(Screen(tab), container); if (i != null) i.text = val ?? ""; }
         private string GetScreenInput(string tab, string container) { var i = InputIn(Screen(tab), container); return i != null ? i.text : null; }
 
-        // [release] audit #3 / #6: a whole-number field. Blank = def; text, or below min, fails with the field named in the message.
+        // A whole-number field. Blank = def; text, or below min, fails with the field named in the message.
         private bool TryNumField(string tab, string container, string label, int def, int min, out int value)
         {
             return TryNumText(GetScreenInput(tab, container), label, def, min, out value);
@@ -3484,7 +4011,7 @@ namespace FiresRPGmaker.UI
 
         // Checkboxes have no checkmark graphic, so give each Toggle a color swap on its box for visible state.
         private static readonly Color CHK_ON = new Color(0.60f, 0.44f, 0.16f, 0.95f);
-        private static readonly Color CHK_OFF = new Color(0.22f, 0.15f, 0.07f, 0.45f);
+        private static readonly Color CHK_OFF = new Color(0.22f, 0.15f, 0.07f, 1f);   // opaque
         private void WireToggleVisuals()
         {
             WireToggleVisual(Tog(_leftPage, "AllowIdleWander_chk"));
@@ -3495,6 +4022,9 @@ namespace FiresRPGmaker.UI
         private void WireToggleVisual(Toggle t)
         {
             if (t == null) return;
+            // Core's kit ON/OFF switch (KitControls via KitControlsAdapter) replaces the box when
+            // Core has it; the Toggle stays the value holder, so SetToggle / GetToggle and every save path are unchanged
+            if (t.GetComponent<KitSwapped>() != null || KitControlsAdapter.Kitize(t)) return;
             var box = t.targetGraphic as Image;
             if (box == null) return;
             UnityEngine.Events.UnityAction<bool> recolor = on => box.color = on ? CHK_ON : CHK_OFF;
@@ -3560,7 +4090,7 @@ namespace FiresRPGmaker.UI
         private void Msg(string m)
         {
             try { MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, m); } catch { }
-            Debug.Log("[NpcBookController] " + m);
+            global::FiresRPGmaker.FiresLogger.LogDebug("[NpcBookController] " + m);
         }
     }
 }

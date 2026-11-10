@@ -15,36 +15,38 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
 {
     /// <summary>
     /// Auto-initializes a hammer-placed static NPC.
-    /// 
+    ///
     /// When a "StaticNpc" prefab is placed via the hammer, this component runs on Start()
     /// and sets up the NPC as a stationed quest NPC at its placed position. This bypasses
     /// the normal companion pipeline (spawn companion -> claim -> Shift+P to station).
-    /// 
+    ///
     /// On first placement, the NPC gets randomized appearance and equipment matching
     /// the same style as companion NPCs (random Viking name, gender, hair, skin, eye
     /// color, scale, armor, and weapons appropriate for the biome).
-    /// 
+    ///
     /// Static NPCs are ownerless and server-authoritative. Their configuration lives
     /// in the SavedNPCs folder on the server. The ZDO "npc_initialized" flag prevents
     /// re-running first-time setup on subsequent loads.
-    /// 
+    ///
     /// Any connected player can read and display the NPC; only admins can edit via Shift+E.
     /// </summary>
     public class StaticNpcInitializer : MonoBehaviour
     {
         private ZNetView _nview;
         private Quaternion _placementRotation;
-        private const float OwnerInitWait = 3f;   // 0.0.587: how long the owning client waits for a server first-init before doing it
-        private Vector3 _awakePosition;   // 0.0.509
+        private const float OwnerInitWait = 3f;   // how long the owning client waits for a server first-init before doing it
+        private Vector3 _awakePosition;
         private string _creationStack;
 
         private void Awake()
         {
             _nview = GetComponent<ZNetView>();
+            // 0.0.837: the 0.0.829-0.0.836 StaticNpcAnimProbe is removed (cause proven and fixed in 0.0.836: ApplyBodyFromZDO rebinds
+            // the animator; its [StaticNpc][anim] Info line stays).
 
             // Ghost/placement tracer: logs EVERY instance the moment it exists — ghosts (invalid
             // nview) included — so a placed-but-never-initialized body can't hide.
-            Debug.Log($"[GhostDiag:awake] '{gameObject.name}' pos={transform.position} activeInHierarchy={gameObject.activeInHierarchy} " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GhostDiag:awake] '{gameObject.name}' pos={transform.position} activeInHierarchy={gameObject.activeInHierarchy} " +
                       $"nviewValid={_nview != null && _nview.IsValid()}");
 
             // Creator fingerprint (frames only, no file info — cheap): every legitimate body creator is
@@ -60,7 +62,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             {
                 var zdo = _nview.GetZDO();
                 if (zdo != null)
-                    { _placementRotation = zdo.GetRotation(); _awakePosition = zdo.GetPosition(); }   // 0.0.509: the spawn spot, before anyone can possess it
+                    { _placementRotation = zdo.GetRotation(); _awakePosition = zdo.GetPosition(); }   // the spawn spot, before anyone can possess it
             }
 
             // CRITICAL: Disable all components that fight to control rotation/position.
@@ -100,7 +102,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             StartCoroutine(DelayedInit());
         }
 
-        // 0.0.589 (Round B, the lead: placement -> anchor stored took ~15 s on a dedi): the client's 10 s npc_initialized poll below
+        // The client's 10 s npc_initialized poll below
         // is a RELOG guard. A body this client has JUST placed has no other machine that will set the flag, so it skips the poll.
         internal static float s_localPlaceAt = -100f;
         private const float JustPlacedWindow = 3f;
@@ -122,7 +124,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
 
         private IEnumerator DelayedInit()
         {
-            float initStart = Time.realtimeSinceStartup;   // 0.0.589: timings in the FRESH / FIRST-INIT lines
+            float initStart = Time.realtimeSinceStartup;   // timings in the FRESH / FIRST-INIT lines
             // Wait for ZNetScene and networking to be ready
             while (ZNetScene.instance == null)
                 yield return null;
@@ -150,7 +152,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 bool justPlaced = !isServerLocal && _nview != null && _nview.IsValid() && JustPlacedByMe(_nview.GetZDO());
                 if (justPlaced)
                 {
-                    Debug.Log($"[StaticNpc] {_nview.GetZDO().m_uid} was just placed by this client: the relog poll is skipped");   // 0.0.589
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] {_nview.GetZDO().m_uid} was just placed by this client: the relog poll is skipped");
                 }
                 else if (!isServerLocal)
                 {
@@ -186,7 +188,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
 
             // ZDO-lifecycle diagnostic (see StaticNpcZdoDiagnostics): every body materialization logs its
             // persistence contract so a later vanish can be correlated against DestroyZDO traces.
-            Debug.Log("[StaticNpcZdoDiag] body materialized - " + StaticNpcZdoDiagnostics.Describe(zdo));
+            global::FiresRPGmaker.FiresLogger.LogDebug("[StaticNpcZdoDiag] body materialized - " + StaticNpcZdoDiagnostics.Describe(zdo));
 
             // Anti-duplication (server, both paths): a hammer-delete makes the anchor respawn the body, then
             // an undo restores the original — TWO bodies sharing one anchor guid. The anchor owns exactly one;
@@ -213,7 +215,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 // visuals is provable: if these are populated here but the NPC still shows wrong, the loss is
                 // downstream (a clobbering SaveToZDO / a parallel respawn body); if they're EMPTY here, the
                 // migrator's ZDO writes didn't persist to the .db. Either way the log names which.
-                Debug.Log(string.Format("[StaticNpcInitializer][persist] RESTORE '{0}' pos=({1:F0},{2:F0}) " +
+                global::FiresRPGmaker.FiresLogger.LogDebug(string.Format("[StaticNpcInitializer][persist] RESTORE '{0}' pos=({1:F0},{2:F0}) " +
                     "name='{3}' type={4} dialogue='{5}' trader='{6}' quest='{7}' fashionJson={8}B model='{9}' hair='{10}' server={11}",
                     gameObject.name, transform.position.x, transform.position.z,
                     zdo.GetString("npc_name_override", ""), zdo.GetInt("npc_type", 0),
@@ -226,22 +228,22 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 // still empty until a later coroutine loads the ZDO ~1.5s on, so without this the NPC arms no
                 // weapon AND is left KINEMATIC (can't walk → dragged). Loading here makes both reads see the
                 // real data immediately. The ZDO is intact (server-owned; static NPCs skip the logout-destroy).
-                yield return WaitOutPossession(zdo);   // 0.0.509: never set up (and re-anchor) a body a player is driving
+                yield return WaitOutPossession(zdo);   // never set up (and re-anchor) a body a player is driving
                 GetComponent<NpcController>()?.LoadFromZDO();
                 EnsureCompanionNpcComponents(zdo);
                 // Organic migration: a pre-anchor body that loads on the server gets its anchor here.
-                // 0.0.585: also on the owning client (it asks the server; see EnsureAnchorForBody), so a body placed on a dedicated
-                // server before 0.0.585 - or one whose reply was lost - gets its anchor on its next owned load.
-                Debug.Log($"[StaticNpc] init path RESTORE on {(isServer ? "server" : "client")} for {zdo.m_uid}: owner {zdo.IsOwner()}, anchor guid '{zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")}'");   // 0.0.586
+                // also on the owning client (it asks the server; see EnsureAnchorForBody), so a body placed on a dedicated
+                // server by an older build - or one whose reply was lost - gets its anchor on its next owned load.
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] init path RESTORE on {(isServer ? "server" : "client")} for {zdo.m_uid}: owner {zdo.IsOwner()}, anchor guid '{zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")}'");
                 if (isServer || zdo.IsOwner()) EnsureAnchorForBody(zdo, organicMigration: isServer);
-                StartCoroutine(RestoreAppearanceFromZDO(zdo));
+                StartCoroutine(ApplyBodyFromZDO(zdo, "load"));   // 0.0.836: the one appearance method
                 // Organic template-icon backfill (client): once the body is dressed, capture the
                 // hammer icon for pre-icon templates. Cheap no-op when the icon already exists.
                 if (!isServer) StartCoroutine(BackfillIconWhenDressed());
                 yield break;
             }
 
-            yield return WaitOutPossession(zdo);   // 0.0.509
+            yield return WaitOutPossession(zdo);
 
             // CRITICAL: Always set up the companion NPC component stack on EVERY machine
             // (client and server). Without this, clients never get CompanionNpcModule,
@@ -253,11 +255,11 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // the ZDO (may be partial on brand-new placement - server will write it shortly).
             if (!isServer)
             {
-                // 0.0.586 (R-BARS-A: 0.0.585's request never fired): a FRESH body on a client left here before ever reaching
+                // A FRESH body on a client left here before ever reaching
                 // EnsureAnchorForBody. On a dedicated server nothing else instantiates it ("server will write it shortly" never
                 // happens), so the owning client asks the server for its anchor.
-                Debug.Log($"[StaticNpc] init path FRESH on client for {zdo.m_uid}: owner {zdo.IsOwner()}, anchor guid '{zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")}' (+{Time.realtimeSinceStartup - initStart:F1} s after Start)");
-                // 0.0.587 (the lead: one authority per body): on a dedicated server nothing else ever runs first-init, so the OWNER
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] init path FRESH on client for {zdo.m_uid}: owner {zdo.IsOwner()}, anchor guid '{zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")}' (+{Time.realtimeSinceStartup - initStart:F1} s after Start)");
+                // One authority per body: on a dedicated server nothing else ever runs first-init, so the OWNER
                 // does, after OwnerInitWait s. Whoever sets npc_initialized first wins: a server / listen host that initialized it
                 // meanwhile shows up here as npc_initialized=true, and this client steps aside.
                 bool ownerInits = false;
@@ -266,16 +268,16 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                     yield return new WaitForSeconds(OwnerInitWait);
                     if (_nview == null || !_nview.IsValid()) yield break;
                     if (zdo.GetBool("npc_initialized", false))
-                        Debug.Log($"[StaticNpc] first-init for {zdo.m_uid} already done by another machine: this client steps aside");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] first-init for {zdo.m_uid} already done by another machine: this client steps aside");
                     else if (zdo.IsOwner()) ownerInits = true;
                 }
                 if (!ownerInits)
                 {
                     if (zdo.IsOwner()) EnsureAnchorForBody(zdo);
-                    StartCoroutine(RestoreAppearanceFromZDO(zdo));
+                    StartCoroutine(ApplyBodyFromZDO(zdo, "client fresh"));   // 0.0.836: the one appearance method
                     yield break;
                 }
-                Debug.Log($"[StaticNpc] FIRST-INIT on the owning client for {zdo.m_uid} (no server instance after {OwnerInitWait:0} s: dedicated server; +{Time.realtimeSinceStartup - initStart:F1} s after Start)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] FIRST-INIT on the owning client for {zdo.m_uid} (no server instance after {OwnerInitWait:0} s: dedicated server; +{Time.realtimeSinceStartup - initStart:F1} s after Start)");
                 // falls through into the shared first-init below; its last step (EnsureAnchorForBody) asks the server for the anchor
             }
 
@@ -349,7 +351,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // ZDO that IS the durable record. From here on the keeper guarantees the body exists.
             EnsureAnchorForBody(zdo);
 
-            Debug.Log($"[StaticNpcInitializer] Initialized stationed quest NPC at {transform.position}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] Initialized stationed quest NPC at {transform.position}");
 
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft,
                 "Static Quest NPC placed. Use Shift+E to configure.");
@@ -395,7 +397,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 if (ZNet.instance == null || bodyZdo == null) return;
                 if (!ZNet.instance.IsServer())
                 {
-                    // 0.0.585: off-server (a client on a dedicated server, where the server never instantiates this body) the OWNER
+                    // off-server (a client on a dedicated server, where the server never instantiates this body) the OWNER
                     // asks the server to mint it. Was a silent return, so dedi-placed static NPCs never got an anchor.
                     if (bodyZdo.IsOwner() && string.IsNullOrEmpty(bodyZdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")))
                     {
@@ -457,7 +459,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 global::FiresCore.Bridge.NpcAnchorBridge.InvokeCaptureToAnchor(bodyZdo, anchorZdo);
                 anchorZdo.SetConnection(ZDOExtraData.ConnectionType.Spawned, bodyZdo.m_uid);
 
-                Debug.Log($"[StaticNpcInitializer] minted anchor {guid} at {anchorPos} for '{gameObject.name}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] minted anchor {guid} at {anchorPos} for '{gameObject.name}'");
             }
             catch (System.Exception ex)
             {
@@ -474,6 +476,12 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
         private static bool TryProbeSurface(Vector3 pos, out Vector3 feet)
         {
             int mask = LayerMask.GetMask("Default", "static_solid", "piece", "terrain", "Default_small");
+            // 0.0.772 (halo ring): on a ring the feet are found along -up (the ring floor); off it, straight down as before
+            if (global::FiresRPGmaker.Utilities.RingUp.OnRing(pos, out Vector3 ringUp))
+            {
+                if (Physics.Raycast(pos + ringUp * 1.5f, -ringUp, out var rhit, 8f, mask, QueryTriggerInteraction.Ignore)) { feet = rhit.point; global::FiresRPGmaker.Utilities.RingUp.Proof("static NPC feet", pos, ringUp); return true; }
+                feet = pos; return false;
+            }
             if (Physics.Raycast(pos + Vector3.up * 1.5f, Vector3.down, out var hit, 8f, mask, QueryTriggerInteraction.Ignore))
             {
                 feet = new Vector3(pos.x, hit.point.y, pos.z);
@@ -507,7 +515,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                     anchorZdo.SetPosition(feet);
                     keeper.transform.position = feet;
                     bodyZdo.Set("npc_placed_anchor", feet);
-                    Debug.Log($"[StaticNpcInitializer] healed anchor height {guid}: {anchorPos} -> {feet}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] healed anchor height {guid}: {anchorPos} -> {feet}");
                     return;
                 }
             }
@@ -524,7 +532,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
         /// This method configures the runtime instance so it behaves like a companion that
         /// was stationed via Shift+P, with the sole restriction that it cannot be unstated.
         /// </summary>
-        // 0.0.509 (the lead 18:3x, possession_test 3/4: "walked 9.4 m off its anchor; Core: walked in 0.0 s"): the anchor a static
+        // The anchor a static
         // NPC is stationed at is where it was PLACED: npc_placed_anchor (written once at placement), else npc_stationed_pos, else
         // the spot the body was spawned at (read in Awake, before anyone could possess it). Never the live body's position.
         private Vector3 PlacedAnchor(ZDO zdo)
@@ -594,7 +602,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             if (idleBehavior == null)
             {
                 idleBehavior = gameObject.AddComponent<CompanionIdleBehavior>();
-                Debug.Log($"[StaticNpcInitializer] Added CompanionIdleBehavior to {gameObject.name}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] Added CompanionIdleBehavior to {gameObject.name}");
             }
 
             // --- CompanionNpcModule: configure as static stationed NPC ---
@@ -602,7 +610,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             if (npcModule == null)
             {
                 npcModule = gameObject.AddComponent<CompanionNpcModule>();
-                Debug.Log($"[StaticNpcInitializer] Added CompanionNpcModule to {gameObject.name}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] Added CompanionNpcModule to {gameObject.name}");
             }
 
             npcModule.isStationedAsNpc = true;
@@ -623,7 +631,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // Use _placementRotation captured in Awake() from the ZDO - transform.rotation
             // cannot be trusted since Character/AI systems may have overwritten it.
             npcModule.isStationedAsNpc = true;
-            // 0.0.509: a STATIC fixture is stationed at its PLACED anchor, never the live body (a possessed body walked 9 m and
+            // a STATIC fixture is stationed at its PLACED anchor, never the live body (a possessed body walked 9 m and
             // became its own anchor). A wanderer / patrol NPC keeps the live spot as before: the placed anchor would teleport it
             // home from mid-route on every load.
             bool fixtureNow = !npcModule.allowIdleWandering
@@ -665,7 +673,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             string visualYaw = visualT != null
                 ? visualT.localRotation.eulerAngles.y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
                 : "<no Visual>";
-            Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            global::FiresRPGmaker.FiresLogger.LogDebug(string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "[StaticNpc][rot] '{0}' zdoYaw={1:F1} finalTransformYaw={2:F1} visualLocalYaw={3} pos=({4:F0},{5:F0})",
                 gameObject.name, _placementRotation.eulerAngles.y, transform.rotation.eulerAngles.y,
                 visualYaw, transform.position.x, transform.position.z));
@@ -683,7 +691,10 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // same CompanionIdleBehavior. Enabling only on wandering here would clobber the enable that
             // NpcController.SyncPatrolAssignment set 0.5s earlier (this init runs at ~1s) — that's exactly
             // why patrol didn't auto-resume on relog. Keep it enabled whenever a route is assigned.
-            idleBehavior.enabled = willMove;   // wandering OR on a patrol route (computed above)
+            // 0.0.833 (Fire 11-06 "they dont look at us"): always enabled - Core 0.2.1186's CompanionIdleBehavior runs ONLY the head
+            // look-at for a static fixture (no wander / route) and its full idle life otherwise. Was enabled = willMove, so a fixture
+            // never turned its head.
+            idleBehavior.enabled = true;
             if (npcModule.allowIdleWandering)
             {
                 // Wander is clamped around the ANCHOR (the durable placement record), not wherever the
@@ -767,7 +778,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 {
                     rb.constraints = RigidbodyConstraints.FreezeRotation;
                     rb.isKinematic = false;
-                    rb.useGravity = true;
+                    if (!global::FiresRPGmaker.Utilities.RingUp.OnRing(transform.position)) rb.useGravity = true;   // 0.0.773 ([visual]): on a halo ring HaloFrame owns the body's gravity (useGravity off); setting it leaks world gravity for a step
                 }
             }
 
@@ -775,7 +786,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             // aiSkipTarget) or a mover on THIS spawn, and expose the exact willMove inputs. A migrated
             // non-patrol NPC that shows willMove=true, or AI enabled after this, is the "NPC dodges/looks at
             // enemies on relog" bug — this line names the cause (bad willMove data) vs a downstream re-enable.
-            Debug.Log(string.Format(
+            global::FiresRPGmaker.FiresLogger.LogDebug(string.Format(
                 "[StaticNpc][ai] '{0}' willMove={1} (wander={2} hasRoute={3} route='{4}') static={5} -> aiSkip={6} companionAI={7} monsterAI={8}",
                 gameObject.name, willMove,
                 npcModule != null && npcModule.allowIdleWandering,
@@ -786,7 +797,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
                 companionAI != null && companionAI.enabled,
                 mai != null && mai.enabled));
 
-            // 0.0.567 ([generator] 10-10, Fire's ai-guard warnings on Sigyn/Fulla): tell Core's ai-guard the stage is applied,
+            // Tell Core's ai-guard the stage is applied,
             // so it judges the AI from here on rather than the prefab's still-on AI at load. By reflection until Core 0.2.390
             // is the minimum; an older Core keeps its 15 s window.
             if (npcModule != null) s_markStaticStageApplied?.Invoke(npcModule, null);
@@ -812,7 +823,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             var idleBehavior = GetComponent<CompanionIdleBehavior>();
             if (idleBehavior != null)
             {
-                idleBehavior.enabled = willMove;
+                idleBehavior.enabled = true;   // 0.0.833: Core gates the fixture to head look-at only
                 if (npcModule != null && npcModule.allowIdleWandering)
                 {
                     var zdo = _nview != null && _nview.IsValid() ? _nview.GetZDO() : null;
@@ -829,7 +840,7 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
         /// the live dressed NPC). SavedNpcManager skips it instantly when an icon already exists.</summary>
         private IEnumerator BackfillIconWhenDressed()
         {
-            yield return new WaitForSeconds(4f);   // RestoreAppearanceFromZDO + gear visuals settle
+            yield return new WaitForSeconds(4f);   // ApplyBodyFromZDO + gear visuals settle
             try
             {
                 var ctrl = GetComponent<NpcController>();
@@ -903,9 +914,9 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             RandomizeEquipment(zdo, npcController);
 
             // --- Apply visuals after a short delay to let NpcVisEquipment initialize ---
-            StartCoroutine(ApplyAppearance(zdo));
+            StartCoroutine(ApplyBodyFromZDO(zdo, "fresh placement"));   // 0.0.836: the one appearance method
 
-            Debug.Log($"[StaticNpcInitializer] Randomized NPC: {vikingName}, Female={isFemale}, Scale={scale:F2}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] Randomized NPC: {vikingName}, Female={isFemale}, Scale={scale:F2}");
         }
 
         /// <summary>
@@ -980,19 +991,20 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
         }
 
         /// <summary>
-        /// Applies the randomized appearance to the NpcVisEquipment after it has initialized.
+        /// 0.0.836 ([ghost], Fire 11-06: "why do we have multiple paths to do the same things with different timing?" - ONE method per
+        /// job). The ONE body appearance method for a static NPC: fresh placement (RandomizeNpc) and every (re)load (RESTORE, client
+        /// FRESH) both run it, same calls, same order, same 1.5 s wait. It replaces ApplyAppearance (fresh) + RestoreAppearanceFromZDO
+        /// (load), which differed only in timing context and the saved-fashion step. It ends the way Core's BodyModelSwap ends a body
+        /// change: Animator.Rebind(), so the animator drives the rebuilt skeleton (Fire's frozen placed NPCs: probe v3 showed the
+        /// animator's time running while Hips never moved). Hips is sampled before / after the rebind: one Info line per body.
         /// </summary>
-        private IEnumerator ApplyAppearance(ZDO zdo)
+        private IEnumerator ApplyBodyFromZDO(ZDO zdo, string path)
         {
             // Wait for NpcVisEquipment to finish its own delayed init
             yield return new WaitForSeconds(1.5f);
 
             var visEquip = GetComponent<NpcVisEquipment>();
-            if (visEquip == null)
-            {
-                Debug.LogWarning("[StaticNpcInitializer] No NpcVisEquipment found, cannot apply appearance");
-                yield break;
-            }
+            if (visEquip == null) { Debug.LogWarning($"[StaticNpcInitializer] No NpcVisEquipment on '{name}' ({path}): appearance not applied"); yield break; }
 
             int modelIndex = zdo.GetInt(ZDOVars.s_modelIndex, 0);
             string hair = zdo.GetString("npc_hair", "");
@@ -1004,83 +1016,57 @@ namespace FiresRPGmaker.Modules.Companions.NpcMode
             visEquip.SetHairColor(hairColorVec);
             visEquip.SetSkinColor(skinColorVec);
             visEquip.SetEyeColor(new Color(eyeColorVec.x, eyeColorVec.y, eyeColorVec.z));
-            // Set the body MODEL via NpcVisEquipment (and clear any vanilla hair/beard), but route HAIR and
-            // BEARD through the SAME fixed NpcFashionManager bone-binding pipeline companions use. The vanilla
-            // VisEquipment.SetHairItem path needs m_isPlayer=true + an active update loop and mis-scales NPC
-            // hair (the 100x "block out the sun" bug we fixed for companions); static NPCs now share the fixed
-            // pipeline so they get correctly-sized hair/beard.
+            // The body MODEL via NpcVisEquipment (clearing vanilla hair/beard); HAIR and BEARD through the same NpcFashionManager
+            // bone-binding pipeline companions use (the vanilla VisEquipment hair path mis-scales NPC hair).
             visEquip.SetAppearance(modelIndex, "", "");
             string beardForGender = modelIndex == 1 ? "" : beard;
             string npcHairColor = NpcFashionManager.ColorToString(new Color(hairColorVec.x, hairColorVec.y, hairColorVec.z));
             FiresCore.Bridge.NpcFashionBridge.ApplyHair(gameObject, hair, npcHairColor);
             FiresCore.Bridge.NpcFashionBridge.ApplyBeard(gameObject, beardForGender, npcHairColor);
 
-            // Re-load NpcController from ZDO so it picks up the randomized equipment
-            // (NpcController.PerformStartInitialization runs earlier and reads empty ZDO)
+            // Re-load NpcController from ZDO so it picks up the persisted / randomized equipment
             var npcController = GetComponent<NpcController>();
             if (npcController != null)
             {
                 npcController.LoadFromZDO();
-                if (npcController.HasAnyEquipment())
-                {
-                    npcController.ApplyVisualEquipment();
-                }
+                if (npcController.HasAnyEquipment()) npcController.ApplyVisualEquipment();
             }
 
-            // Restore scale — visual-only (kg parity). Root scaling compounded with the fashion
-            // ModelScale into scale² giants; ApplyModelScale owns the single application point.
-            float scale = zdo.GetFloat("npc_scale", 1f);
-            NpcFashionManager.ApplyModelScale(npcController, scale);
+            // Scale - visual-only (kg parity), the single application point.
+            NpcFashionManager.ApplyModelScale(npcController, zdo.GetFloat("npc_scale", 1f));
 
-            Debug.Log($"[StaticNpcInitializer] Applied appearance and equipment visuals");
-        }
-
-        /// <summary>
-        /// Restores appearance from ZDO for already-initialized NPCs (e.g. on world reload).
-        /// </summary>
-        private IEnumerator RestoreAppearanceFromZDO(ZDO zdo)
-        {
-            // Wait for NpcVisEquipment to finish its own delayed init
-            yield return new WaitForSeconds(1.5f);
-
-            var visEquip = GetComponent<NpcVisEquipment>();
-            if (visEquip == null) yield break;
-
-            int modelIndex = zdo.GetInt(ZDOVars.s_modelIndex, 0);
-            string hair = zdo.GetString("npc_hair", "");
-            string beard = zdo.GetString("npc_beard", "");
-            Vector3 hairColorVec = zdo.GetVec3(ZDOVars.s_hairColor, Vector3.one);
-            Vector3 skinColorVec = zdo.GetVec3(ZDOVars.s_skinColor, Vector3.one);
-            Vector3 eyeColorVec = zdo.GetVec3("npc_eyeColor", new Vector3(0.4f, 0.3f, 0.2f));
-
-            visEquip.SetHairColor(hairColorVec);
-            visEquip.SetSkinColor(skinColorVec);
-            visEquip.SetEyeColor(new Color(eyeColorVec.x, eyeColorVec.y, eyeColorVec.z));
-            // Set the body MODEL via NpcVisEquipment (and clear any vanilla hair/beard), but route HAIR and
-            // BEARD through the SAME fixed NpcFashionManager bone-binding pipeline companions use. The vanilla
-            // VisEquipment.SetHairItem path needs m_isPlayer=true + an active update loop and mis-scales NPC
-            // hair (the 100x "block out the sun" bug we fixed for companions); static NPCs now share the fixed
-            // pipeline so they get correctly-sized hair/beard.
-            visEquip.SetAppearance(modelIndex, "", "");
-            string beardForGender = modelIndex == 1 ? "" : beard;
-            string npcHairColor = NpcFashionManager.ColorToString(new Color(hairColorVec.x, hairColorVec.y, hairColorVec.z));
-            FiresCore.Bridge.NpcFashionBridge.ApplyHair(gameObject, hair, npcHairColor);
-            FiresCore.Bridge.NpcFashionBridge.ApplyBeard(gameObject, beardForGender, npcHairColor);
-
-            // Re-load NpcController from ZDO so it picks up the persisted equipment
-            var npcController = GetComponent<NpcController>();
-            if (npcController != null)
+            // The admin's Dressing-room look (npc_fashion_json) is the final word on every (re)materialization; a fresh placement
+            // has none yet, so this step is skipped there.
+            string fashion = zdo.GetString("npc_fashion_json", "");
+            if (npcController != null && !string.IsNullOrEmpty(fashion))
             {
-                npcController.LoadFromZDO();
-                if (npcController.HasAnyEquipment())
-                {
-                    npcController.ApplyVisualEquipment();
-                }
+                try { NpcFashionManager.ApplyFashionJsonToNpc(fashion, npcController); global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] saved fashion re-applied for '{npcController.GetDisplayName()}' ({fashion.Length} B)"); }
+                catch (System.Exception ex) { Debug.LogWarning("[StaticNpcInitializer] fashion re-apply failed: " + ex.Message); }
             }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpcInitializer] body appearance applied ({path})");
+            // No outfit re-write here: Core's bag carries the gear, so Core's inventory load rebuilds the body dressed.
 
-            // Restore scale — visual-only (kg parity), same single application point as fresh init.
-            float scale = zdo.GetFloat("npc_scale", 1f);
-            NpcFashionManager.ApplyModelScale(npcController, scale);
+            // The body changed: re-bind the animator to it (Core BodyModelSwap's own last step), with the Hips proof.
+            yield return new WaitForSeconds(0.5f);   // the gear / fashion applies above settle
+            var zanim = GetComponent<ZSyncAnimation>();
+            var anim = zanim != null ? HarmonyLib.Traverse.Create(zanim).Field("m_animator").GetValue<Animator>() : null;
+            if (anim == null) anim = GetComponentInChildren<Animator>();
+            string who = npcController?.GetDisplayName() ?? name;
+            string owner = _nview != null && _nview.IsValid() && _nview.IsOwner() ? "here" : "other peer";
+            if (anim == null || anim.runtimeAnimatorController == null) { global::FiresRPGmaker.FiresLogger.LogInfo($"[StaticNpc][anim] '{who}' ({path}, owner {owner}): no animator to rebind"); yield break; }
+            Transform hips = anim.isHuman && anim.avatar != null && anim.avatar.isValid ? anim.GetBoneTransform(HumanBodyBones.Hips) : null;
+            Quaternion b0 = hips != null ? hips.localRotation : Quaternion.identity;
+            yield return new WaitForSeconds(0.5f);
+            Quaternion b1 = hips != null ? hips.localRotation : Quaternion.identity;
+            bool movingBefore = hips != null && Quaternion.Angle(b0, b1) > 0.01f;
+            anim.Rebind();
+            if (anim.isHuman && anim.avatar != null && anim.avatar.isValid) hips = anim.GetBoneTransform(HumanBodyBones.Hips);
+            yield return new WaitForSeconds(0.25f);
+            Quaternion a0 = hips != null ? hips.localRotation : Quaternion.identity;
+            yield return new WaitForSeconds(0.5f);
+            Quaternion a1 = hips != null ? hips.localRotation : Quaternion.identity;
+            bool movingAfter = hips != null && Quaternion.Angle(a0, a1) > 0.01f;
+            global::FiresRPGmaker.FiresLogger.LogInfo($"[StaticNpc][anim] '{who}' ({path}, owner {owner}): animator rebound after the body change - Hips {(hips == null ? "not found" : (movingBefore ? "MOVING" : "FROZEN") + " before, " + (movingAfter ? "MOVING" : "FROZEN") + " after")}");
         }
     }
 }

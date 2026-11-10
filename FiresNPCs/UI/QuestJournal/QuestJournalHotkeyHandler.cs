@@ -31,6 +31,12 @@ if (_instance == this)
 
    private void Update()
      {
+     // 0.0.828 (perf pass): nothing to do unless the key went down this frame; the state checks below only run then
+     var perfCfg = ConfigManager.Instance;
+     if ((perfCfg?.configPerfHotkeyGate?.Value ?? false) && perfCfg.configQuestJournalHotkey != null
+         && !FiresCore.Input.FiresKeys.GetKeyDown(perfCfg.configQuestJournalHotkey.Value.MainKey))
+         return;
+
      // Don't process hotkeys if certain conditions aren't met
       if (!CanProcessHotkey())
            return;
@@ -110,7 +116,7 @@ if (_instance == this)
 
      var go = new GameObject("QuestJournalHotkeyHandler");
            go.AddComponent<QuestJournalHotkeyHandler>();
-            Debug.Log("[QuestJournalHotkeyHandler] Created hotkey handler");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[QuestJournalHotkeyHandler] Created hotkey handler");
         }
     }
 }

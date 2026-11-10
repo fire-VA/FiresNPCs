@@ -37,10 +37,10 @@ namespace FiresRPGmaker
                         Debug.LogError($"[DebugRecipeDumper] dumprecipes exception: {ex}");
                         args.Context.AddString($"[FiresRPGmaker] dumprecipes error: {ex.Message}");
                     }
-                });
+                }, isCheat: true);
 
             _commandRegistered = true;
-            Debug.Log("[DebugRecipeDumper] Console command registered: dumprecipes");
+            // Debug.Log("[DebugRecipeDumper] Console command registered: dumprecipes");
         }
 
         private static void DumpAllRecipes(Terminal.ConsoleEventArgs args)

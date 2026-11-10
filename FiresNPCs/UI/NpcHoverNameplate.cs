@@ -32,6 +32,25 @@ namespace FiresRPGmaker.UI
         private void Awake()
         {
             _npc = GetComponent<NpcController>();
+            // 0.0.828 (perf pass, Fire 11-05: per-frame checks become events): the plate only draws in the HoverName style, so with
+            // any other style (the default is HealthBar) this per-NPC LateUpdate sleeps; a change of the style wakes it.
+            var cm = ConfigManager.Instance;
+            if (cm?.configStaticNpcNameplateMode != null && (cm.configPerfNameplateSleeps?.Value ?? true))
+            {
+                _styleEntry = cm.configStaticNpcNameplateMode;
+                _styleEntry.SettingChanged += OnStyleChanged;
+                OnStyleChanged(null, null);
+            }
+        }
+
+        private BepInEx.Configuration.ConfigEntry<StaticNpcNameplateMode> _styleEntry;
+
+        private void OnStyleChanged(object sender, System.EventArgs e)
+        {
+            if (this == null || _styleEntry == null) return;
+            bool on = _styleEntry.Value == StaticNpcNameplateMode.HoverName;
+            if (!on && _go != null && _go.activeSelf) _go.SetActive(false);
+            enabled = on;
         }
 
         private void LateUpdate()
@@ -112,6 +131,7 @@ namespace FiresRPGmaker.UI
 
         private void OnDestroy()
         {
+            if (_styleEntry != null) _styleEntry.SettingChanged -= OnStyleChanged;
             if (_go != null) Destroy(_go);
         }
     }

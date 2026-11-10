@@ -70,9 +70,8 @@ namespace FiresRPGmaker.Modules.Marketplace
 
         // profileName is retained for call-site compatibility but ignored — the market is global now.
         /// <summary>The key the server files the local player's listings under: the platform user id (Core OwnerKeys,
-        /// kg parity), parsed the way the listing rows are sent (MarketplaceNetwork ParseId). 0.0.532: the UI compared
-        /// rows with Player.GetPlayerID() (the save-file id), so My Listings was empty for every non-admin and nobody
-        /// could cancel their own listing. Falls back to the player id when the platform id isn't numeric.</summary>
+        /// kg parity), parsed the way the listing rows are sent (MarketplaceNetwork ParseId), not
+        /// Player.GetPlayerID() (the save-file id), which would hide a player's own listings. Falls back to the player id when the platform id isn't numeric.</summary>
         internal static long LocalSellerKey()
         {
             try
@@ -204,7 +203,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 catch (System.Exception ex) { Debug.LogError("[MarketplaceListingManager] " + kv.Key + ": " + ex.Message); }
             }
             int totalRows = _listingsByProfile.Values.Sum(v => v.Count);
-            Debug.Log("[MarketplaceListingManager] Loaded " + totalRows + " sample listing(s) across " + _listingsByProfile.Count + " profile(s)");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[MarketplaceListingManager] Loaded " + totalRows + " sample listing(s) across " + _listingsByProfile.Count + " profile(s)");
         }
 
         public static string GetProfileFolder() => MarketplacePaths.GetFolder(MarketplacePaths.Marketplace);

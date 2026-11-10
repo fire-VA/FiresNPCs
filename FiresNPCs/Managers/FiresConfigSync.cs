@@ -25,8 +25,18 @@ namespace FiresRPGmaker.Managers
                 pkg.Write(folder);
                 pkg.Write(fileName);
                 pkg.Write(content ?? string.Empty);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_SyncFiles", pkg);
-                Debug.Log($"[ConfigSync] pushed {folder}/{fileName} ({(content ?? string.Empty).Length} chars) to server");
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_SyncFiles"), "FiresRPGmaker_SyncFiles", pkg);
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[ConfigSync] pushed {folder}/{fileName} ({(content ?? string.Empty).Length} chars) to server");
+
+                // The saving admin's own QuestManager would otherwise never have
+                // it: a pure client reads these folders ONLY from the synced store, and the server leaves the sender out of the re-broadcast
+                // (ServerConfigFileWatcher.MarkFileAsAdminSynced). Put what was just pushed into this client's store, as the broadcast would,
+                // so the saving admin sees the save at once (callers reload right after the push). Same keys as DialogueSyncRPC's receive.
+                if (FiresConfigFiles.UseStore)
+                {
+                    SyncedConfigStore.Apply(folder, fileName, content);
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[ConfigSync] {folder}/{fileName}: this client's synced copy updated ({(content ?? string.Empty).Length} chars) - the server does not echo a save back to its sender");
+                }
             }
             catch (Exception ex)
             {

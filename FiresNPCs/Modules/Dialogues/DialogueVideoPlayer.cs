@@ -54,7 +54,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
                 var closer = _host.AddComponent<VideoCloser>();
                 closer.Init(player, vpType.GetProperty("isPlaying"));
-                Debug.Log($"[DialogueVideo] playing {url} (volume {volume:0.00})");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DialogueVideo] playing {url} (volume {volume:0.00})");
             }
             catch (Exception ex)
             {

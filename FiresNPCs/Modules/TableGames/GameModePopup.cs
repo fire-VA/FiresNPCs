@@ -14,9 +14,8 @@ namespace FiresRPGmaker.Modules.TableGames
     /// </summary>
     public static class GameModePopup
     {
-        // 0.0.556 (Fire saw tests stuck twice; "Esc — never mind" did nothing): the overlay holds the input block, so vanilla's
-        // Escape → menu path never runs and nothing closed it. An EscWatcher on the overlay now closes it (and the overlay) on
-        // Escape. Tests get IsOpen / Close() / Pick(label or index) — the same paths a click takes.
+        // The overlay holds the input block, so vanilla's Escape → menu path never runs; Core's overlay handles Escape.
+        // Tests get IsOpen / Close() / Pick(label or index) — the same paths a click takes.
         private static FiresMinigameOverlay s_overlay;
         private static (string Label, string Sub, Action Pick)[] s_options;
 
@@ -62,8 +61,8 @@ namespace FiresRPGmaker.Modules.TableGames
             var overlay = FiresMinigameOverlay.Create("FiresGameModePopup", 6700);
             if (overlay == null || options == null || options.Length == 0) return;
             s_overlay = overlay; s_options = options;
-            // 0.0.557: Esc is Core's now (FiresMinigameOverlay, Core 0.2.380): it closes this overlay; OnClosed below clears our state.
-            // (0.0.556's own EscWatcher is gone, so one press closes exactly one thing.)
+            // Esc belongs to Core's FiresMinigameOverlay: it closes this overlay and OnClosed below clears our state,
+            // so one press closes exactly one thing.
             overlay.OnClosed += () => { if (s_overlay == overlay) { s_overlay = null; s_options = null; } };
             global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[GameModePopup] '{title}' open with {options.Length} option(s): {string.Join(" | ", System.Linq.Enumerable.Select(options, o => o.Label))}");
 
@@ -91,7 +90,7 @@ namespace FiresRPGmaker.Modules.TableGames
                 b.targetGraphic = btn;
                 var cols = b.colors; cols.highlightedColor = new Color(1.25f, 1.2f, 1.05f); cols.pressedColor = new Color(0.85f, 0.8f, 0.7f); b.colors = cols;
                 int idx = i;
-                btn.gameObject.name = "Option_" + i;   // 0.0.556: stable names for tests (Option_0 = the first option)
+                btn.gameObject.name = "Option_" + i;   // stable names for tests (Option_0 = the first option)
                 b.onClick.AddListener(() => Pick(idx));
 
                 var lbl = NewTxt(btn.rectTransform, opt.Label, 19, new Color(0.98f, 0.92f, 0.78f));

@@ -375,7 +375,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             float betY = human ? 28f : top ? -32f : -86f;
             float chipX = human ? -158f : top ? 158f : -30f;
             // The bet text (120 wide, centred, left-aligned) starts 6 px right of the 22 px chip stack; the old fixed X
-            // put "bet 20" on the chips' edge (Fire 10-08: Sigrid's chip overlapped its text).
+            // put "bet 20" on the chips' edge (Sigrid's chip overlapped its text).
             float betX = chipX + 11f + 6f + 60f;
             s.bet = NewTxt(holder, "", 14, new Color(1f, 0.85f, 0.5f));
             Place(s.bet.rectTransform, 120, 20, betX, betY); s.bet.alignment = TextAlignmentOptions.MidlineLeft;   // number sits clear to the right of the chip stack
@@ -457,6 +457,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             _betSlider.direction = Slider.Direction.LeftToRight;
             _betSlider.wholeNumbers = true;
             _betSlider.onValueChanged.AddListener(v => { if (!_sliderGuard && MyTurn) SetBet(Mathf.RoundToInt(v)); });
+            global::FiresRPGmaker.UI.KitControlsAdapter.Kitize(_betSlider, "0", 1f, null, needRange: true);   // Core kit slider (config-window look); range/enabled via SetRange/Interactable, baked kept on Core < 0.2.644
 
             // Time bank — radial countdown by the Fold button.
             _timerBg = NewImg(rt, "TimerBg", FiresRoundedSkin.RoundedSprite(24, new Color(0.07f, 0.055f, 0.04f, 0.95f), new Color(0.62f, 0.42f, 0.16f, 0.8f), 1), Image.Type.Sliced);
@@ -467,7 +468,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             _timerFill.fillOrigin = (int)Image.Origin360.Top;
             _timerFill.fillClockwise = false;
             Place(_timerFill.rectTransform, 42, 42, -412, 8);
-            // Light with a dark outline: readable over the gold fill AND the dark disc (Fire 10-08: the "3" was hidden).
+            // Light with a dark outline: readable over the gold fill AND the dark disc (the "3" was hidden).
             _timerText = NewTxt(rt, "", 15, new Color(1f, 0.96f, 0.84f));
             _timerText.fontStyle = FontStyles.Bold;
             _timerText.outlineWidth = 0.25f;
@@ -699,7 +700,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
         private void SetBetInput()
         {
             if (_betInput != null) _betInput.SetTextWithoutNotify(_betAmount.ToString());
-            if (_betSlider != null) { _sliderGuard = true; _betSlider.SetValueWithoutNotify(_betAmount); _sliderGuard = false; }
+            if (_betSlider != null) { _sliderGuard = true; _betSlider.SetValueWithoutNotify(_betAmount); global::FiresRPGmaker.UI.KitControlsAdapter.Sync(_betSlider); _sliderGuard = false; }   // kit slider follows
         }
 
         // ── showdown theater: aggressor shows first, losers may muck, uncontested winner may show ────────────────
@@ -966,7 +967,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
                 var g = _game.Seats[i]; var v = _seats[View(i)];
                 int di = View(i);
                 v.name.text = di == 0 ? g.Name : g.Name + "\n<color=#8BE28B>" + g.Chips + "</color>";   // stack in green, online-style
-                // A fold shows once: the action line already reads "Fold" (Fire 10-08: Hakon showed "FOLD" and "Fold").
+                // A fold shows once: the action line already reads "Fold" (Hakon showed "FOLD" and "Fold").
                 bool actionShown = v.action != null && !string.IsNullOrEmpty(g.LastAction);
                 v.bet.text = g.Bet > 0 ? "bet " + g.Bet
                     : g.Folded ? (actionShown ? "" : "<color=#E8D06A>FOLD</color>")
@@ -1162,13 +1163,13 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels.Minigames
             foreach (var pb in _presetBtns) SetInteractable(pb, canRaise);
             if (_betSlider != null)
             {
-                _betSlider.interactable = canRaise;
+                global::FiresRPGmaker.UI.KitControlsAdapter.SetInteractable(_betSlider, canRaise);   // kit Interactable (baked .interactable when not swapped)
                 if (canRaise)
                 {
                     _sliderGuard = true;
-                    _betSlider.minValue = _net ? _netMin : _game.MinRaiseTo(me);
-                    _betSlider.maxValue = _net ? _netMax : _game.MaxRaiseTo(me);
+                    global::FiresRPGmaker.UI.KitControlsAdapter.SetRange(_betSlider, _net ? _netMin : _game.MinRaiseTo(me), _net ? _netMax : _game.MaxRaiseTo(me));   // baked + kit range (kit re-clamps, no callback)
                     _betSlider.SetValueWithoutNotify(Mathf.Clamp(_betAmount, _betSlider.minValue, _betSlider.maxValue));
+                    global::FiresRPGmaker.UI.KitControlsAdapter.Sync(_betSlider);
                     _sliderGuard = false;
                 }
             }

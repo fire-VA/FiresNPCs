@@ -15,7 +15,7 @@ namespace FiresRPGmaker.UI
     {
         private static GameObject _dialogueEntryPrefab;
    private static GameObject _questEntryPrefab;
-  
+
         // Cached background sprite
         private static Sprite _backgroundSprite;
    private static bool _backgroundLoaded;
@@ -23,13 +23,6 @@ namespace FiresRPGmaker.UI
         public static AssetBundle UIAssetBundle { get; set; }
 
         #region Font Helper
-
-        private static TextMeshProUGUI CreateTMPText(GameObject go)
-        {
-   var tmp = go.AddComponent<TextMeshProUGUI>();
-      GUIManager.ApplyGameFont(tmp);
-    return tmp;
-        }
 
         public static void ApplyFontsToHierarchy(GameObject root)
         {
@@ -45,28 +38,28 @@ namespace FiresRPGmaker.UI
         {
    if (_backgroundLoaded)
            return _backgroundSprite;
-    
+
    _backgroundLoaded = true;
        _backgroundSprite = LoadBackgroundFromAssetBundle();
-     
+
          if (_backgroundSprite != null)
           {
-      Debug.Log($"[UIPrefabFactory] Loaded background sprite: npcuibkg");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[UIPrefabFactory] Loaded background sprite: npcuibkg");
             }
             else
             {
         Debug.LogWarning("[UIPrefabFactory] Background sprite 'npcuibkg' not found in asset bundle");
      }
- 
+
             return _backgroundSprite;
         }
-    
+
         private static Sprite LoadBackgroundFromAssetBundle()
         {
   var bundle = FiresRPGmaker.assetBundle;
      if (bundle == null)
                 return null;
-     
+
    string[] searchPaths = {
        "Assets/Custom/VAitems/Icons/npcuibkg",
     "Assets/Custom/VAitems/Icons/npcuibkg.png",
@@ -76,7 +69,7 @@ namespace FiresRPGmaker.UI
             "npcuibkg",
                 "npcuibkg.png"
    };
-          
+
             foreach (var path in searchPaths)
     {
       try
@@ -84,10 +77,10 @@ namespace FiresRPGmaker.UI
         var sprite = bundle.LoadAsset<Sprite>(path);
        if (sprite != null)
               {
-       Debug.Log($"[UIPrefabFactory] Found background sprite at path: {path}");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[UIPrefabFactory] Found background sprite at path: {path}");
      return sprite;
          }
-  
+
            var texture = bundle.LoadAsset<Texture2D>(path);
             if (texture != null)
  {
@@ -97,7 +90,7 @@ namespace FiresRPGmaker.UI
       new Vector2(0.5f, 0.5f),
        100f);
          sprite.name = "npcuibkg";
-       Debug.Log($"[UIPrefabFactory] Created sprite from texture at path: {path}");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[UIPrefabFactory] Created sprite from texture at path: {path}");
    return sprite;
         }
 }
@@ -106,21 +99,21 @@ namespace FiresRPGmaker.UI
        Debug.LogWarning($"[UIPrefabFactory] Error loading background from {path}: {ex.Message}");
          }
     }
-       
+
             var managerSprite = VAMiscAssetManager.GetSprite("npcuibkg");
         if (managerSprite != null)
      {
- Debug.Log("[UIPrefabFactory] Found background sprite via VAMiscAssetManager");
+ global::FiresRPGmaker.FiresLogger.LogDebug("[UIPrefabFactory] Found background sprite via VAMiscAssetManager");
  return managerSprite;
           }
-  
+
  return null;
   }
-        
+
         public static void ApplyBackgroundSprite(Image image)
    {
             if (image == null) return;
-   
+
             var sprite = GetBackgroundSprite();
             if (sprite != null)
    {
@@ -133,11 +126,11 @@ namespace FiresRPGmaker.UI
        image.color = new Color(0.08f, 0.08f, 0.1f, 0.95f);
             }
         }
-      
+
    public static void ApplyBackgroundToPanel(GameObject panel)
         {
     if (panel == null) return;
-       
+
        var backgroundTransform = panel.transform.Find("Background");
             if (backgroundTransform != null)
      {
@@ -145,27 +138,27 @@ namespace FiresRPGmaker.UI
       if (backgroundImage != null)
                 {
   ApplyBackgroundSprite(backgroundImage);
-       Debug.Log("[UIPrefabFactory] Applied background sprite to Background object");
+       global::FiresRPGmaker.FiresLogger.LogDebug("[UIPrefabFactory] Applied background sprite to Background object");
    return;
               }
             }
-        
+
    var images = panel.GetComponentsInChildren<Image>(true);
        foreach (var img in images)
    {
         if (img.gameObject.name.Equals("Background", StringComparison.OrdinalIgnoreCase))
       {
          ApplyBackgroundSprite(img);
-        Debug.Log($"[UIPrefabFactory] Applied background sprite to: {img.gameObject.name}");
+        global::FiresRPGmaker.FiresLogger.LogDebug($"[UIPrefabFactory] Applied background sprite to: {img.gameObject.name}");
         return;
      }
        }
-   
+
    var rootImage = panel.GetComponent<Image>();
             if (rootImage != null)
         {
                 ApplyBackgroundSprite(rootImage);
-         Debug.Log("[UIPrefabFactory] Applied background sprite to root panel");
+         global::FiresRPGmaker.FiresLogger.LogDebug("[UIPrefabFactory] Applied background sprite to root panel");
             }
         }
 
@@ -183,7 +176,7 @@ namespace FiresRPGmaker.UI
 
          if (_dialogueEntryPrefab != null)
  {
-    Debug.Log("[UIPrefabFactory] Loaded DialogueEntryPrefab from asset bundle");
+    global::FiresRPGmaker.FiresLogger.LogDebug("[UIPrefabFactory] Loaded DialogueEntryPrefab from asset bundle");
       return _dialogueEntryPrefab;
           }
 
@@ -201,7 +194,7 @@ namespace FiresRPGmaker.UI
 
       if (_questEntryPrefab != null)
             {
-          Debug.Log("[UIPrefabFactory] Loaded QuestEntryPrefab from asset bundle");
+          global::FiresRPGmaker.FiresLogger.LogDebug("[UIPrefabFactory] Loaded QuestEntryPrefab from asset bundle");
       return _questEntryPrefab;
             }
 
@@ -243,7 +236,7 @@ namespace FiresRPGmaker.UI
                 var asset = firesAssets.LoadAsset<GameObject>(path);
      if (asset != null)
       {
-   Debug.Log($"[UIPrefabFactory] Found prefab at path: {path}");
+   global::FiresRPGmaker.FiresLogger.LogDebug($"[UIPrefabFactory] Found prefab at path: {path}");
   return asset;
        }
    }

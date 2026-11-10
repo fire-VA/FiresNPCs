@@ -113,7 +113,7 @@ namespace FiresRPGmaker.UI
             w.SubHeader("Common Hotkeys");
             w.Bullet("E — Interact with an NPC, chest, workbench, etc.");
             w.Bullet("J — Open the Quest Journal (configurable in Hotkeys.QuestJournalKey)");
-            w.Bullet("L — Open the Leaderboard & Achievements panel (Hotkeys.LeaderboardKey)");
+            w.Bullet("Player > Leaderboard in the hub (F1), or set Hotkeys.LeaderboardKey (unbound by default)");
             w.Bullet("Tab (while typing in chat) — cycle chat channels");
             w.Bullet("Escape — close any open Verdant's Ascent panel");
             w.Paragraph("Companion controls (Hold R / Hold H radials, Shift+MMB ping) are documented in " +
@@ -455,7 +455,7 @@ namespace FiresRPGmaker.UI
         {
             w.Header("Guilds");
 
-            // 0.0.527 (Fire 10-08): RPG Maker's own guild module is removed. Guilds come from FiresGuilds (or VikingLands.Core).
+            // RPG Maker's own guild module is removed. Guilds come from FiresGuilds (or VikingLands.Core).
             if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
             {
                 w.Paragraph("Guilds on this installation come from " + global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildOwner + ".");
@@ -619,6 +619,7 @@ namespace FiresRPGmaker.UI
             w.Bullet("MoveSpeedMultiplier=m — walk, run and swim speed x m");
             w.Bullet("Gravity=g (-10 to 10) — 1 = normal, 0 = weightless, 0.5 = half, 3 = three times, negative pulls you up "
                 + "(you hover 25 m above the ground). Players only; swimming and climbing keep their own physics; no fall damage below 1");
+            w.Bullet("Winter (or Winter=0..1) — snow builds up here with the seasons and the weather, up to that amount (needs Dynamic snow on in Fires Core). Fires and dug paths clear it; paths fill back in, faster in a blizzard.");
             w.Bullet("FirstPerson — the camera is forced to first person inside (zooming out is ignored); your own camera "
                 + "comes back when you leave. Valcast camera modes still take over while they run. Applies to everyone, admins too");
             w.Bullet("Scale=s (0.25 to 4) — your size: 0.5 = half, 2 = double. Everyone sees it. Speed, jump and reach stay normal; "
@@ -768,7 +769,7 @@ namespace FiresRPGmaker.UI
 
             w.SubHeader("Hotkeys");
             w.Bullet("QuestJournalKey — Quest Journal hotkey (default: J; chords like J + LeftAlt supported)");
-            w.Bullet("LeaderboardKey — Leaderboard hotkey (default: L; chords supported)");
+            w.Bullet("LeaderboardKey — Leaderboard hotkey (unbound by default; chords supported)");
             w.Bullet("Set any of them to None to disable.");
             w.Divider();
 
@@ -933,7 +934,7 @@ namespace FiresRPGmaker.UI
             w.SubHeader("General");
             w.Bullet("E — Interact with an NPC, chest, workbench, sign, etc.");
             w.Bullet("J — Open the Quest Journal (Hotkeys.QuestJournalKey)");
-            w.Bullet("L — Open the Leaderboard panel (Hotkeys.LeaderboardKey)");
+            w.Bullet("Player > Leaderboard in the hub, or Hotkeys.LeaderboardKey (unbound by default)");
             w.Bullet("Escape — Close any Verdant's Ascent panel");
             w.Paragraph("The J / G / L hotkeys support multi-key CHORDS (e.g. L + LeftAlt) — set them " +
                 "in the F8 config window: click the key box, press your combination, click Apply.");
@@ -1599,11 +1600,11 @@ namespace FiresRPGmaker.UI
         {
             w.Header("Leaderboard & Achievements");
             w.Paragraph("The server tracks per-player stats (kills, deaths, building, harvesting, and more) " +
-                "and a configurable achievement set. Press L to see where you stand.");
+                "and a configurable achievement set. Open Player > Leaderboard to see where you stand.");
             w.Divider();
 
             w.SubHeader("The Panel");
-            w.Bullet("L (Hotkeys.LeaderboardKey) — open the leaderboard");
+            w.Bullet("Player > Leaderboard in the hub, or Hotkeys.LeaderboardKey (unbound by default)");
             w.Bullet("Stats tab — ranked standings per stat category");
             w.Bullet("Achievements tab — your achievement progress and score");
             w.Bullet("firesnpcs_leaderboard / firesnpcs_achievements — open either tab by command");

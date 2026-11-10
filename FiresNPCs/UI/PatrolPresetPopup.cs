@@ -87,7 +87,7 @@ namespace FiresRPGmaker.UI
             {
                 // A slider track under the cursor begins a drag.
                 for (int i = 0; i < _sliders.Count; i++)
-                    if (_sliders[i].Slider != null && Contains(_sliders[i].Slider.GetComponent<RectTransform>(), mouse))
+                    if (_sliders[i].Slider != null && _sliders[i].Slider.GetComponent<KitSwapped>() == null && Contains(_sliders[i].Slider.GetComponent<RectTransform>(), mouse))   // kit sliders take their own pointer events
                     { _dragSlider = i; DriveSlider(i, mouse); return; }
                 // A curve handle under the cursor begins a drag.
                 for (int i = 0; i < _curveHandles.Count; i++)
@@ -206,6 +206,7 @@ namespace FiresRPGmaker.UI
             _content.offsetMin = _content.offsetMax = Vector2.zero;
 
             _open = true;
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(this, "PatrolPreset", prect);   // Core's live panel
         }
 
         // ── screen: preset list ─────────────────────────────────────────────
@@ -492,11 +493,16 @@ namespace FiresRPGmaker.UI
             var slider = UIBuilderHelper.CreateSlider(_content, caption + "Slider", new Vector2(min.x, min.y),
                 new Vector2(max.x, (min.y + max.y) * 0.5f), lo, hi, Mathf.Clamp(value, lo, hi), null);
 
-            _sliders.Add(new SliderZone
+            var zone = new SliderZone
             {
                 Slider = slider, Min = lo, Max = hi,
                 Set = v => { set(v); if (label != null) label.text = $"{caption}: {readout()}"; },
-            });
+            };
+            _sliders.Add(zone);
+            // Core kit slider (config-window look); kit drag sets slider.value -> model + live preview, release commits.
+            // The manual hit-test in Update skips swapped sliders so the kit gets its own pointer events.
+            if (slider != null && KitControlsAdapter.Kitize(slider, "0.00", 0.01f, Commit))
+                slider.onValueChanged.AddListener(v => { zone.Set?.Invoke(v); LivePreview(); });
             if (label != null) label.text = $"{caption}: {readout()}";
         }
 

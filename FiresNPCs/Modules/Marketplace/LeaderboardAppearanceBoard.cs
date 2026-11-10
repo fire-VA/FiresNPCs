@@ -44,7 +44,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var pkg = new ZPackage();
                 pkg.Write(name);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RequestRpc, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RequestRpc), RequestRpc, pkg);
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] RequestAppearance failed: {ex.Message}"); }
         }

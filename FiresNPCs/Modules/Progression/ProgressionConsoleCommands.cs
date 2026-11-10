@@ -7,10 +7,10 @@ namespace FiresRPGmaker.Modules.Progression
 {
     /// <summary>
     /// Adds console commands for managing private keys and custom player keys.
-    /// 
+    ///
     /// Private key commands (boss progression):
     ///   va_setprivatekey, va_removeprivatekey, va_listprivatekeys, va_resetprivatekeys, va_bosscount
-    /// 
+    ///
     /// Custom player key commands (ZDO int + EWP sync):
     ///   va_addcustomkey, va_removecustomkey, va_listcustomkeys
     ///   - No args = targets yourself (auto-resolved steam ID)

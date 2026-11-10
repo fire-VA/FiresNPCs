@@ -69,7 +69,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 try { LoadOne(kv.Key, kv.Value); }
                 catch (System.Exception ex) { Debug.LogError("[TransmogProfileManager] " + kv.Key + ": " + ex.Message); }
             }
-            Debug.Log("[TransmogProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
+            global::FiresRPGmaker.FiresLogger.LogDebug("[TransmogProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
                       + " transmog(s) across " + _byProfile.Count + " profile(s)");
         }
 
@@ -185,7 +185,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 _initialized = false;
                 EnsureLoaded();
                 global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Transmogrifications", safe + ".cfg", content);
-                Debug.Log($"[TransmogProfileManager] Saved transmog profile '{name}' -> {file}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[TransmogProfileManager] Saved transmog profile '{name}' -> {file}");
             }
             catch (System.Exception ex) { Debug.LogError("[TransmogProfileManager] SaveProfile failed: " + ex.Message); }
         }

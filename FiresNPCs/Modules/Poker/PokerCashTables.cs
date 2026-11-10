@@ -52,7 +52,7 @@ namespace FiresRPGmaker.Modules.Poker
             pkg.Write(local.GetPlayerID());
             pkg.Write(local.GetPlayerName() ?? "");
             pkg.Write(tablePiece.GetZDO().m_uid);
-            ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcJoin, pkg);
+            ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcJoin), RpcJoin, pkg);
         }
 
         private static void RPC_JoinResult(long sender, ZPackage pkg)
@@ -73,15 +73,34 @@ namespace FiresRPGmaker.Modules.Poker
             if (!IsServer || pkg == null) return;
             try
             {
-                long playerId = pkg.ReadLong();
-                string name = pkg.ReadString();
+                long claimedPlayerId = pkg.ReadLong();
+                pkg.ReadString();   // client-sent name: ignored (spoofable)
                 ZDOID uid = pkg.ReadZDOID();
+
+                // Security (audit 10-23): identity comes from the routed sender only. The seat id is the sender's
+                // own character playerID (read from its ZDO), the name is the peer's, and the bank owner is the
+                // server-derived economy key (the same key the Banker deposits under).
+                long playerId = global::FiresRPGmaker.Modules.Marketplace.EconomySenderGuard.SenderPlayerId(sender);
+                if (playerId == 0L || playerId != claimedPlayerId)
+                {
+                    Debug.LogWarning($"[PokerCash] join refused for sender {sender}: player id {claimedPlayerId} is not the sender's character ({playerId})");
+                    Reply(sender, false, "Couldn't verify your character — try again.");
+                    return;
+                }
+                string name = global::FiresRPGmaker.Modules.Marketplace.EconomySenderGuard.SenderName(sender);
+                if (!IsRealTableNearSender(sender, uid, out string tableWhy))
+                {
+                    Debug.LogWarning($"[PokerCash] join refused for sender {sender}: table {uid} {tableWhy}");
+                    Reply(sender, false, "Stand at the poker table to sit down.");
+                    return;
+                }
                 string tableId = "pokercash_" + uid;
 
                 string currency = Currency;
                 int buyIn = BuyIn;
                 int hash = currency.GetStableHashCode();
-                string owner = playerId.ToString();
+                string owner = global::FiresCore.Identity.OwnerKeys.ResolveEconomyOwner(sender, playerId);
+                _ownerByPlayerId[playerId] = owner;
 
                 var session = FiresTableNet.Get(tableId);
                 var host = session?.Host as PokerNetHost;
@@ -113,7 +132,14 @@ namespace FiresRPGmaker.Modules.Poker
                 {
                     var humans = new List<FiresTableSeat> { new FiresTableSeat { Id = playerId, Name = name, Seat = 0 } };
                     host = new PokerNetHost(humans, buyIn, BigBlind, new System.Random(), 4, cash: true, currency: currency);
-                    host.OnCashOut = (pid, stack) => { if (stack > 0) BankRepository.Deposit(pid.ToString(), hash, stack); };
+                    // Pay back into the SAME bank key the buy-in came from (seat ids are playerIDs, bank keys are owner keys).
+                    host.OnCashOut = (pid, stack) =>
+                    {
+                        // Kept after a cash-out: a player who leaves mid-hand is paid again for the showdown residual, which must
+                        // reach the same account (one entry per player who ever sat, rewritten on rejoin).
+                        string to = OwnerFor(pid);
+                        if (stack > 0) BankRepository.Deposit(to, hash, stack);
+                    };
                     session = FiresTableNet.Open(tableId, PokerNetHost.CashGameKey, host);
                     if (session == null)
                     {
@@ -136,6 +162,34 @@ namespace FiresRPGmaker.Modules.Poker
             {
                 Debug.LogError("[PokerCash] join failed: " + ex);
             }
+        }
+
+        /// <summary>How close (metres) the sender's character must be to the placed table it joins.</summary>
+        private const float TableJoinRadius = 8f;   // interact range + table size + server-side position lag
+        /// <summary>The placed poker table piece (ChessTablePiece Def "piece_fires_pokertable", Interact = 3).</summary>
+        private const string PokerTablePrefab = "piece_fires_pokertable";
+        private static readonly int PokerTablePrefabHash = PokerTablePrefab.GetStableHashCode();
+
+        // Seat playerID -> the economy owner key its buy-in was withdrawn from (server-side; cash-out pays it back there).
+        private static readonly Dictionary<long, string> _ownerByPlayerId = new Dictionary<long, string>();
+
+        private static string OwnerFor(long playerId) =>
+            _ownerByPlayerId.TryGetValue(playerId, out var o) && !string.IsNullOrEmpty(o) ? o : playerId.ToString();
+
+        // The ZDOID must be a live placed poker table (its prefab carries PokerTableInteractable) within reach of the sender.
+        private static bool IsRealTableNearSender(long sender, ZDOID uid, out string why)
+        {
+            why = "";
+            var zdo = uid.IsNone() || ZDOMan.instance == null ? null : ZDOMan.instance.GetZDO(uid);
+            if (zdo == null) { why = "does not exist"; return false; }
+            // Prefab-hash check (no ZNetScene/bundle needed, so it holds on a dedicated server too).
+            if (zdo.GetPrefab() != PokerTablePrefabHash)
+            { why = "is not a poker table"; return false; }
+            if (!global::FiresRPGmaker.Modules.Marketplace.EconomySenderGuard.TryGetSenderPosition(sender, out var pos))
+            { why = "- sender position unknown"; return false; }
+            if (Vector3.Distance(pos, zdo.GetPosition()) > TableJoinRadius)
+            { why = $"is more than {TableJoinRadius} m from the sender"; return false; }
+            return true;
         }
 
         private static void Reply(long sender, bool ok, string msg)

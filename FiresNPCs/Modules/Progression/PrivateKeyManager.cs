@@ -75,7 +75,7 @@ namespace FiresRPGmaker.Modules.Progression
         private static Dictionary<long, HashSet<string>> _serverKeys = new Dictionary<long, HashSet<string>>();
 
         // -- State --
-        private static bool _rpcsRegistered;
+        private static ZRoutedRpc _rpcsRegisteredOn;
         private static bool _initialized;
 
         // ==============================================================
@@ -106,7 +106,7 @@ namespace FiresRPGmaker.Modules.Progression
 
         /// <summary>
         /// The world's view of a key. With private keys on, a boss key never reaches the global list, so a boss key
-        /// counts as "global" when a player near the local player holds it (Fire 10-13: the highest progression of
+        /// counts as "global" when a player near the local player holds it (the highest progression of
         /// the players in range). Other keys read the global list.
         /// </summary>
         public static bool HasGlobalKey(string key)
@@ -195,7 +195,7 @@ namespace FiresRPGmaker.Modules.Progression
             key = key.ToLower();
             if (!_privateKeys.Add(key)) return;
 
-            Debug.Log($"[PrivateKeyManager] Added private key: {key}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] Added private key: {key}");
             SendKeyToServer(key);
             MirrorKeyToEwp(key);
         }
@@ -206,14 +206,14 @@ namespace FiresRPGmaker.Modules.Progression
             key = key.ToLower();
             if (!_privateKeys.Remove(key)) return;
 
-            Debug.Log($"[PrivateKeyManager] Removed private key: {key}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] Removed private key: {key}");
             SendRemoveKeyToServer(key);
         }
 
         public static void ResetPrivateKeys()
         {
             _privateKeys.Clear();
-            Debug.Log("[PrivateKeyManager] Reset all private keys");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[PrivateKeyManager] Reset all private keys");
             SendAllKeysToServer();
         }
 
@@ -234,11 +234,29 @@ namespace FiresRPGmaker.Modules.Progression
             // Block all boss keys from global - they go to private instead
             if (BossKeyOrder.ContainsKey(key)) return true;
 
-            // If blocking all global keys, check allow list
+            // If blocking all global keys, check allow list. 0.0.771: "all" means all VANILLA progression keys only (defeated_* /
+            // killed* and the boss list); any other key is another mod's own state (FAT's halo arc, FDM's "zone starts empty", ...)
+            // and always passes - blocking it silently broke those mods on servers running this setting.
             if (cfg.BlockAllGlobalKeys)
-                return cfg.AllowedGlobalKeys.Count == 0 || !cfg.AllowedGlobalKeys.Contains(key);
+            {
+                if (!IsVanillaProgressionKey(key)) return false;
+                bool block = cfg.AllowedGlobalKeys.Count == 0 || !cfg.AllowedGlobalKeys.Contains(key);
+                if (block && s_blockLogged.Add(key))
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[Progression] BlockAllGlobalKeys: global key '{key}' blocked (a vanilla progression key, not in AllowedGlobalKeys); it goes to private keys instead");
+                return block;
+            }
 
             return false;
+        }
+
+        private static readonly HashSet<string> s_blockLogged = new HashSet<string>();
+
+        /// <summary>A vanilla progression key: a boss/creature defeat (defeated_*, killed*) or a known boss key. Keys are lower-case here.</summary>
+        public static bool IsVanillaProgressionKey(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return false;
+            return key.StartsWith("defeated_", StringComparison.Ordinal) || key.StartsWith("killed", StringComparison.Ordinal)
+                || BossKeyOrder.ContainsKey(key);
         }
 
         /// <summary>
@@ -308,7 +326,7 @@ namespace FiresRPGmaker.Modules.Progression
                     _privateKeys.Add(ek);
             }
 
-            Debug.Log($"[PrivateKeyManager] Loaded {_privateKeys.Count} private keys for {player.GetPlayerName()}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] Loaded {_privateKeys.Count} private keys for {player.GetPlayerName()}");
         }
 
         public static void SaveToPlayer(Player player)
@@ -341,7 +359,7 @@ namespace FiresRPGmaker.Modules.Progression
         // RPC networking
         // ==============================================================
 
-        // The server owns every player's keys (0.0.572, Fire 10-13): it grants them, stores them per world
+        // The server owns every player's keys: it grants them, stores them per world
         // (BepInEx\config\FiresRPGmaker\PrivateKeys\<world>.txt, inside the game folder) and pushes them to the
         // owning client, which keeps a copy in m_customData for offline play. A client's own edits (va_ console
         // commands) reach the store only when the client is an admin; anything else is answered with the server's set.
@@ -355,11 +373,15 @@ namespace FiresRPGmaker.Modules.Progression
 
         public static void RegisterRPCs()
         {
-            if (_rpcsRegistered) return;
-            _rpcsRegistered = true;
+            // Guard by the ZRoutedRpc instance: every connection builds a new one, so a rejoined client (or a client that
+            // later hosted) needs its handlers registered again.
+            if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(_rpcsRegisteredOn)) return;
+            _rpcsRegisteredOn = ZRoutedRpc.instance;
+            int n = 0;
 
             try
             {
+                n = 5;
                 ZRoutedRpc.instance.Register<string>(RPC_ClientSetKey, RPC_OnSetPrivateKey);
                 ZRoutedRpc.instance.Register<string>(RPC_ClientRemoveKey, RPC_OnRemovePrivateKey);
                 ZRoutedRpc.instance.Register(RPC_ClientResetKeys, RPC_OnResetPrivateKeys);
@@ -372,13 +394,15 @@ namespace FiresRPGmaker.Modules.Progression
                     ZRoutedRpc.instance.Register<string, long>(RPC_ServerAddKey, RPC_OnServerAddKey);
                     ZRoutedRpc.instance.Register<string, long>(RPC_ServerRemoveKey, RPC_OnServerRemoveKey);
                     ZRoutedRpc.instance.Register<string, Vector3>(RPC_ServerBossDefeated, RPC_OnServerBossDefeated);
+                    n += 4;
                     LoadServerStore();
                 }
             }
             catch
             {
-                Debug.Log("[PrivateKeyManager] RPCs already registered, skipping");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[PrivateKeyManager] RPCs already registered, skipping");
             }
+            global::FiresRPGmaker.Managers.RpcRegistration.Logged("PrivateKeyManager", n);
         }
 
         private static void SendKeyToServer(string key)
@@ -421,19 +445,105 @@ namespace FiresRPGmaker.Modules.Progression
         private static void RPC_OnServerBossDefeated(long sender, string key, Vector3 position)
         {
             key = (key ?? "").ToLower();
-            if (ShouldBlockPrivateKey(key)) { Debug.LogWarning($"[PrivateKeyManager] boss report for '{key}' from {sender} refused: not a private key"); return; }
-            // The reporter owns the boss, so it is near it; a report from far away is not a kill it ran.
-            var peer = ZNet.instance.GetPeer(sender);
-            var zdo = peer != null ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
-            if (zdo != null && (zdo.GetPosition() - position).sqrMagnitude > ReportRange * ReportRange)
+            const string rpc = RPC_ServerBossDefeated;
+            if (ShouldBlockPrivateKey(key)) { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, $"'{key}' is not a private key"); return; }
+            // Rate limit per sender: one boss death is one report.
+            float now = Time.realtimeSinceStartup;
+            PruneBossReports(now);
+            if (_lastBossReport.TryGetValue(sender, out float last) && now - last < MinSecondsBetweenBossReports)
+            { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, $"reports faster than one per {MinSecondsBetweenBossReports:0}s"); return; }
+            // (stamped only after every proof check passes, below: a refused report must not block a genuine one)
+            // The reporter owns the boss, so it is near it; a report from far away (or from a sender whose
+            // character the server cannot see) is not a kill it ran. Fail closed on an unknown character.
+            if (!global::FiresRPGmaker.Managers.RpcSender.SenderPosition(sender, out Vector3 senderPos))
+            { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, "the reporter's character is not loaded on the server"); return; }
+            if ((senderPos - position).sqrMagnitude > ReportRange * ReportRange)
+            { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, $"the reporter is {Vector3.Distance(senderPos, position):0} m from the boss (max {ReportRange:0})"); return; }
+            // Proof of the creature: the key must belong to a creature prefab (Character.m_defeatSetGlobalKey) and a
+            // ZDO of that prefab must still be at the spot (the death RPC arrives before the owner's ZDO destroy).
+            // Admins skip the proof: an admin's 'setkey' is centred on the admin with no creature.
+            bool admin = global::FiresRPGmaker.Managers.RpcSender.IsServerSelf(sender) || AdminSyncing.IsAdmin(sender);
+            if (!admin)
             {
-                Debug.LogWarning($"[PrivateKeyManager] boss report for '{key}' from {sender} refused: the reporter is {Vector3.Distance(zdo.GetPosition(), position):0} m from the boss (max {ReportRange:0})");
-                return;
+                var prefabs = PrefabsSettingKey(key);
+                if (prefabs == null)
+                {
+                    if (BossKeyOrder.ContainsKey(key)) { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, $"no creature prefab sets '{key}'"); return; }
+                    // A non-creature key (set by other game code): only centred on the reporter itself.
+                    if ((senderPos - position).sqrMagnitude > NonCreatureKeyRange * NonCreatureKeyRange)
+                    { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, $"non-creature key '{key}' not centred on the reporter"); return; }
+                }
+                else if (!CreatureZdoNear(prefabs, position, BossProofRange))
+                { global::FiresRPGmaker.Managers.RpcSender.Refuse(rpc, sender, $"no {string.Join("/", prefabs)} near the reported death of '{key}'"); return; }
             }
+            _lastBossReport[sender] = now;
             ServerGrantNear(key, position, DefaultProgressionRadius, $"reported by {sender}");
         }
 
+        /// <summary>Entries older than this are dropped on each report (covers disconnected peers).</summary>
+        private const float BossReportPruneSeconds = 300f;
+
+        private static void PruneBossReports(float now)
+        {
+            if (_lastBossReport.Count == 0) return;
+            List<long> old = null;
+            foreach (var kv in _lastBossReport)
+                if (now - kv.Value > BossReportPruneSeconds) (old ??= new List<long>()).Add(kv.Key);
+            if (old != null) foreach (var k in old) _lastBossReport.Remove(k);
+        }
+
         private const float ReportRange = 200f;
+        /// <summary>How close a ZDO of the key's creature prefab must be to the reported death position.</summary>
+        private const float BossProofRange = 60f;
+        /// <summary>A key no creature sets may only be reported at the reporter's own position (setkey-style).</summary>
+        private const float NonCreatureKeyRange = 10f;
+        /// <summary>Minimum seconds between two boss reports from one sender.</summary>
+        private const float MinSecondsBetweenBossReports = 10f;
+        private static readonly Dictionary<long, float> _lastBossReport = new Dictionary<long, float>();
+        private static Dictionary<string, HashSet<string>> _keyToPrefabs;
+
+        /// <summary>Creature prefab names whose death sets <paramref name="key"/> (built once from ZNetScene); null if none.</summary>
+        private static HashSet<string> PrefabsSettingKey(string key)
+        {
+            if (_keyToPrefabs == null && ZNetScene.instance != null)
+            {
+                var map = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var go in ZNetScene.instance.m_prefabs)
+                {
+                    var c = go != null ? go.GetComponent<Character>() : null;
+                    if (c == null || string.IsNullOrEmpty(c.m_defeatSetGlobalKey)) continue;
+                    string k = c.m_defeatSetGlobalKey.ToLower();
+                    if (!map.TryGetValue(k, out var set)) map[k] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    set.Add(go.name);
+                }
+                _keyToPrefabs = map;
+            }
+            return _keyToPrefabs != null && _keyToPrefabs.TryGetValue(key, out var s) ? s : null;
+        }
+
+        /// <summary>True when the server knows a ZDO of one of <paramref name="prefabs"/> within range of the position.</summary>
+        private static bool CreatureZdoNear(HashSet<string> prefabs, Vector3 position, float range)
+        {
+            if (ZDOMan.instance == null) return false;
+            var hashes = new HashSet<int>();
+            foreach (var p in prefabs) hashes.Add(p.GetStableHashCode());
+            var list = new List<ZDO>();
+            ZDOMan.instance.FindSectorObjects(ZoneSystem.GetZone(position), new SimulationDistance(1, 0), list);
+            float r2 = range * range;
+            foreach (var z in list)
+                if (z != null && hashes.Contains(z.GetPrefab()) && (z.GetPosition() - position).sqrMagnitude <= r2) return true;
+            return false;
+        }
+
+        /// <summary>Keys a client may bring in on first join: known progression keys only.</summary>
+        private static bool IsImportableKey(string key)
+        {
+            if (ShouldBlockPrivateKey(key)) return false;
+            if (BossKeyOrder.ContainsKey(key)) return true;
+            var cfg = ProgressionConfig.Instance;
+            if (cfg != null && (cfg.EnforcedPrivateKeys.Contains(key) || cfg.AllowedPrivateKeys.Contains(key))) return true;
+            return PrefabsSettingKey(key) != null;
+        }
 
         private static void ServerGrantNear(string key, Vector3 position, float radius, string why)
         {
@@ -457,11 +567,12 @@ namespace FiresRPGmaker.Modules.Progression
             }
             SaveServerStore();
             BroadcastBossTiers();
-            Debug.Log($"[PrivateKeyManager] '{key}' at ({position.x:0},{position.z:0}) {why}: granted to {granted.Count} player(s) within {radius:0} m: {string.Join(", ", granted)}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] '{key}' at ({position.x:0},{position.z:0}) {why}: granted to {granted.Count} player(s) within {radius:0} m: {string.Join(", ", granted)}");
         }
 
         private static void RPC_OnServerSetKeys(long sender, string keys, long playerId)
         {
+            if (!global::FiresRPGmaker.Managers.RpcSender.ResolvedOrDeferredCall(RPC_ServerSetKeys, sender, () => RPC_OnServerSetKeys(sender, keys, playerId))) return;   // sent from SpawnPlayer before SetCharacterID: wait for the character
             if (!SenderOwns(sender, playerId)) return;
             if (_serverKeys.TryGetValue(playerId, out var stored))
             {
@@ -470,16 +581,23 @@ namespace FiresRPGmaker.Modules.Progression
             }
             else
             {
-                // First time on this world: the character's own keys are taken in once (worlds from before 0.0.572).
-                _serverKeys[playerId] = ParseKeySet(keys);
+                // First time on this world: the character's own keys are taken in once (worlds from before server-held keys).
+                var imported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var k in ParseKeySet(keys))
+                {
+                    if (IsImportableKey(k)) imported.Add(k);
+                    else global::FiresRPGmaker.Managers.RpcSender.Refuse(RPC_ServerSetKeys, sender, $"key '{k}' is not an importable progression key");
+                }
+                _serverKeys[playerId] = imported;
                 SaveServerStore();
-                Debug.Log($"[PrivateKeyManager] first join of player {playerId}: took in {_serverKeys[playerId].Count} key(s) from the character");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] first join of player {playerId}: took in {_serverKeys[playerId].Count} key(s) from the character");
             }
             BroadcastBossTiers();
         }
 
         private static void RPC_OnServerAddKey(long sender, string key, long playerId)
         {
+            if (!global::FiresRPGmaker.Managers.RpcSender.ResolvedOrDeferredCall(RPC_ServerAddKey, sender, () => RPC_OnServerAddKey(sender, key, playerId))) return;
             if (!SenderOwns(sender, playerId)) return;
             if (!AdminSyncing.IsAdmin(sender) && sender != ZRoutedRpc.instance.m_id)
             {
@@ -492,6 +610,7 @@ namespace FiresRPGmaker.Modules.Progression
 
         private static void RPC_OnServerRemoveKey(long sender, string key, long playerId)
         {
+            if (!global::FiresRPGmaker.Managers.RpcSender.ResolvedOrDeferredCall(RPC_ServerRemoveKey, sender, () => RPC_OnServerRemoveKey(sender, key, playerId))) return;
             if (!SenderOwns(sender, playerId)) return;
             if (!AdminSyncing.IsAdmin(sender) && sender != ZRoutedRpc.instance.m_id)
             {
@@ -509,7 +628,8 @@ namespace FiresRPGmaker.Modules.Progression
             if (ZRoutedRpc.instance != null && sender == ZRoutedRpc.instance.m_id) return true;
             var peer = ZNet.instance?.GetPeer(sender);
             var zdo = peer != null ? ZDOMan.instance.GetZDO(peer.m_characterID) : null;
-            if (zdo == null) return true;   // character not spawned on the server yet: nothing to compare with
+            // Fail closed: with no character on the server there is nothing to prove the claim with.
+            if (zdo == null) { global::FiresRPGmaker.Managers.RpcSender.Refuse("PrivateKey SenderOwns", sender, $"no character loaded for the sender (claimed player {playerId})"); return false; }
             long own = zdo.GetLong(ZDOVars.s_playerID);
             if (own == playerId) return true;
             Debug.LogWarning($"[PrivateKeyManager] {sender} sent keys for player {playerId} but plays {own}; refused");
@@ -546,14 +666,14 @@ namespace FiresRPGmaker.Modules.Progression
             string path = StorePath();
             try
             {
-                if (!System.IO.File.Exists(path)) { Debug.Log($"[PrivateKeyManager] no private key store yet ({path})"); return; }
+                if (!System.IO.File.Exists(path)) { global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] no private key store yet ({path})"); return; }
                 foreach (var line in System.IO.File.ReadAllLines(path))
                 {
                     int eq = line.IndexOf('=');
                     if (eq <= 0 || !long.TryParse(line.Substring(0, eq), out long id)) continue;
                     _serverKeys[id] = ParseKeySet(line.Substring(eq + 1));
                 }
-                Debug.Log($"[PrivateKeyManager] loaded private keys of {_serverKeys.Count} player(s) from {path}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] loaded private keys of {_serverKeys.Count} player(s) from {path}");
             }
             catch (Exception ex) { Debug.LogWarning($"[PrivateKeyManager] could not read {path}: {ex.Message}"); }
         }
@@ -577,35 +697,51 @@ namespace FiresRPGmaker.Modules.Progression
         {
             key = key.ToLower();
             if (!_privateKeys.Add(key)) return;
-            Debug.Log($"[PrivateKeyManager] Received private key: {key}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] Received private key: {key}");
             MirrorKeyToEwp(key);
         }
 
-        private static void RPC_OnSetPrivateKey(long sender, string key) => AddLocal(key);
+        // Every client handler below accepts only the server (or this machine on a host).
+        private static bool FromServer(string rpc, long sender)
+        {
+            if (DialogueSyncRPC.IsFromServer(sender)) return true;
+            DialogueSyncRPC.RefuseNotServer(rpc, sender);
+            return false;
+        }
+
+        private static void RPC_OnSetPrivateKey(long sender, string key)
+        {
+            if (!FromServer(RPC_ClientSetKey, sender)) return;
+            AddLocal(key);
+        }
 
         private static void RPC_OnRemovePrivateKey(long sender, string key)
         {
-            if (_privateKeys.Remove((key ?? "").ToLower())) Debug.Log($"[PrivateKeyManager] Server removed private key: {key}");
+            if (!FromServer(RPC_ClientRemoveKey, sender)) return;
+            if (_privateKeys.Remove((key ?? "").ToLower())) global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] Server removed private key: {key}");
         }
 
         private static void RPC_OnResetPrivateKeys(long sender)
         {
+            if (!FromServer(RPC_ClientResetKeys, sender)) return;
             _privateKeys.Clear();
-            Debug.Log("[PrivateKeyManager] Server reset all private keys");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[PrivateKeyManager] Server reset all private keys");
         }
 
         private static void RPC_OnSyncKeys(long sender, string csv)
         {
+            if (!FromServer(RPC_ClientSyncKeys, sender)) return;
             _privateKeys.Clear();
             foreach (var k in ParseKeySet(csv)) if (!ShouldBlockPrivateKey(k)) _privateKeys.Add(k);
             var cfg = ProgressionConfig.Instance;
             if (cfg != null) foreach (var ek in cfg.EnforcedPrivateKeys) _privateKeys.Add(ek);
             if (Player.m_localPlayer != null) SaveToPlayer(Player.m_localPlayer);
-            Debug.Log($"[PrivateKeyManager] keys from the server: {_privateKeys.Count} ({string.Join(",", _privateKeys)})");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[PrivateKeyManager] keys from the server: {_privateKeys.Count} ({string.Join(",", _privateKeys)})");
         }
 
         private static void RPC_OnBossTiers(long sender, string payload)
         {
+            if (!FromServer(RPC_ClientBossTiers, sender)) return;
             _bossTiers.Clear();
             foreach (var part in (payload ?? "").Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
             {
@@ -643,7 +779,7 @@ namespace FiresRPGmaker.Modules.Progression
             _serverKeys.Clear();
             _bossTiers.Clear();
             _serverStoreLoaded = false;
-            _rpcsRegistered = false;
+            _rpcsRegisteredOn = null;
             _initialized = false;
         }
     }

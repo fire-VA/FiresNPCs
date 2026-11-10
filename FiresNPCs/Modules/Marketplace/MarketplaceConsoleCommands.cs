@@ -36,7 +36,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     args.Context.AddString("[firesnpcs] reloaded " + count + " module(s) for '" + which + "'.");
                 },
                 optionsFetcher: () => new System.Collections.Generic.List<string>
-                { "gambler", "marketplace", "achievement", "leaderboard", "mail", "transmog", "banker", "all" });
+                { "gambler", "marketplace", "achievement", "leaderboard", "mail", "transmog", "banker", "all" }, isCheat: true);
 
             new Terminal.ConsoleCommand("firesnpcs_dice",
                 "[diceCount=2] - preview the 'Casting the Bones' dice minigame (client UI; no reward, no cost).",
@@ -79,9 +79,10 @@ namespace FiresRPGmaker.Modules.Marketplace
                     args.Context?.AddString("[firesnpcs] runes minigame opened.");
                 });
 
+#if FIRES_TESTS
             new Terminal.ConsoleCommand("firesnpcs_pokertest",
                 "verify the Texas Hold'em hand evaluator (prints PASS/FAIL + a sample showdown).",
-                args => args.Context?.AddString(global::FiresRPGmaker.Modules.Poker.PokerTest.Run()));
+                args => args.Context?.AddString(global::FiresRPGmaker.Modules.Poker.PokerTest.Run()), isCheat: true);
 
             new Terminal.ConsoleCommand("firesnpcs_chesstest",
                 "[depth=4] - verify the chess move generator via perft (exact start-position node counts).",
@@ -89,7 +90,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                 {
                     int d = args.Length > 1 && int.TryParse(args[1], out var c) ? c : 4;
                     args.Context?.AddString(global::FiresRPGmaker.Modules.Chess.ChessPerft.Run(d));
-                });
+                }, isCheat: true);
+#endif
 
             new Terminal.ConsoleCommand("firesnpcs_chess",
                 "[depth] - open the chess board vs the AI (no arg = Chess/Difficulty config; depth 1-12 forces a fixed search depth).",
@@ -100,9 +102,11 @@ namespace FiresRPGmaker.Modules.Marketplace
                     args.Context?.AddString("[firesnpcs] chess board opened (" + (d > 0 ? "AI depth " + d : "difficulty config") + ").");
                 });
 
+#if FIRES_TESTS
             new Terminal.ConsoleCommand("firesnpcs_fanoronatest",
                 "verify the Fanorona rules engine (setup, captures, chains, playouts).",
-                args => args.Context?.AddString(global::FiresRPGmaker.Modules.Fanorona.FanoronaTest.Run()));
+                args => args.Context?.AddString(global::FiresRPGmaker.Modules.Fanorona.FanoronaTest.Run()), isCheat: true);
+#endif
 
             new Terminal.ConsoleCommand("firesnpcs_fanorona",
                 "[depth=3] - open the Fanorona board vs the AI (depth 1-5 sets strength).",
@@ -113,13 +117,14 @@ namespace FiresRPGmaker.Modules.Marketplace
                     args.Context?.AddString("[firesnpcs] fanorona board opened (AI depth " + d + ").");
                 });
 
+#if FIRES_TESTS
             new Terminal.ConsoleCommand("firesnpcs_pokersim",
                 "[hands=20] - simulate all-AI Hold'em to verify the betting engine (chip conservation + last-hand log).",
                 args =>
                 {
                     int n = args.Length > 1 && int.TryParse(args[1], out var c) ? c : 20;
                     args.Context?.AddString(global::FiresRPGmaker.Modules.Poker.PokerTest.Sim(n));
-                });
+                }, isCheat: true);
 
             new Terminal.ConsoleCommand("firesnpcs_pokerdup",
                 "[hands=500] - verify no card is ever dealt twice (or left undealt) across a run of all-AI hands.",
@@ -127,7 +132,8 @@ namespace FiresRPGmaker.Modules.Marketplace
                 {
                     int n = args.Length > 1 && int.TryParse(args[1], out var c) ? c : 500;
                     args.Context?.AddString(global::FiresRPGmaker.Modules.Poker.PokerTest.SimDup(n));
-                });
+                }, isCheat: true);
+#endif
 
             new Terminal.ConsoleCommand("firesnpcs_poker",
                 "[startChips=1000] - open the Texas Hold'em table vs AI (client UI).",
@@ -182,13 +188,13 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "[optional path to Marketplace\\Configs] - copy KG Marketplace .cfg files into FiresRPGmaker folders + reload",
                 args =>
                 {
-                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // 0.0.505: admin only
+                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // admin only
                     string src = args.Length > 1 ? string.Join(" ", args.Args, 1, args.Args.Length - 1)
                                                  : @"C:\Program Files (x86)\Steam\steamapps\common\Valheim dedicated server\BepInEx\config\Marketplace\Configs";
                     int copied = ImportKGConfigs(src, line => args.Context.AddString("[firesnpcs] " + line));
                     int reloaded = ReloadModule("all");
                     args.Context.AddString("[firesnpcs] imported " + copied + " KG file(s) from '" + src + "', reloaded " + reloaded + " module(s).");
-                });
+                }, isCheat: true);
 
             // Admin raw-file loop. Regular clients never hold config files (server data arrives
             // in-memory); an admin who wants to edit raw .cfg files pulls the server tree to local
@@ -202,7 +208,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     if (ZNet.instance.IsServer()) { args.Context?.AddString("[firesnpcs] you ARE the server - the files under config/FiresRPGmaker are already the canonical tree."); return; }
                     ZRoutedRpc.instance?.InvokeRoutedRPC(ZRoutedRpc.instance.GetServerPeerID(), "FiresRPGmaker_PullConfigs", new ZPackage());
                     args.Context?.AddString("[firesnpcs] pull requested - files will land under config/FiresRPGmaker/ over the next seconds (admin only; non-admins get nothing).");
-                });
+                }, isCheat: true);
 
             new Terminal.ConsoleCommand("firesnpcs_push_configs",
                 "<folder|all> - (admin) push local FiresRPGmaker config file(s) back to the server (folders: Quests, QuestProfiles, QuestEvents, Dialogues, Traders, ServerInfos, Bankers, Gamblers, Transmogrifications, Mail, Buffers, BufferProfiles, LeaderboardAchievements, Territories)",
@@ -236,7 +242,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                         }
                     }
                     args.Context?.AddString("[firesnpcs] pushed " + pushed + " file(s) to the server (admin-validated there; server hot-reloads + rebroadcasts).");
-                });
+                }, isCheat: true);
 
             // Force-regenerate example.cfg files from the latest in-code templates. Wipes user edits to
             // example.cfg specifically — useful when a sample profile's header (e.g. [basic] -> [example])
@@ -245,11 +251,11 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "- delete every config\\firesnpcs\\<module>\\example.cfg and regenerate the latest sample",
                 args =>
                 {
-                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // 0.0.505: admin only
+                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // admin only
                     int deleted = DeleteExampleFiles();
                     int reloaded = ReloadModule("all"); // triggers WriteExampleProfile for each missing example
                     args.Context.AddString("[firesnpcs] reset " + deleted + " example.cfg file(s), reloaded " + reloaded + " module(s).");
-                });
+                }, isCheat: true);
 
             // Probe the LIVE world (creatures, pickables, build categories, skills) and write baseline
             // AutoGen_*.cfg achievement files in the owner's tier style. Overwrites only AutoGen_* files.
@@ -257,11 +263,11 @@ namespace FiresRPGmaker.Modules.Marketplace
                 "[optional profile name=server] - probe the live game (monsters/pickables/skills/build categories) + write baseline AutoGen_*.cfg achievements",
                 args =>
                 {
-                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // 0.0.505: admin only
+                    if (global::FiresRPGmaker.Modules.Territories.TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[firesnpcs]")) return;   // admin only
                     string profile = args.Length > 1 ? args[1] : "server";
                     string result = AchievementGenerator.Generate(profile, line => args.Context.AddString("[firesnpcs] " + line));
                     args.Context.AddString("[firesnpcs] " + result);
-                });
+                }, isCheat: true);
 
             // Roll the leaderboard season: archive the current board as a finished season and wipe it for a new
             // one. Past seasons stay viewable via the in-panel season selector. Server-authoritative + admin-gated.
@@ -274,7 +280,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     args.Context?.AddString(ZNet.instance.IsServer()
                         ? "[firesnpcs] season rolled — the live board was archived and reset."
                         : "[firesnpcs] requested a season roll from the server (requires admin); the board will refresh shortly.");
-                });
+                }, isCheat: true);
 
             // Full factory reset: WIPE all leaderboard scores/skills/deaths/appearance AND the whole season history,
             // resetting to season 1 like a brand-new install. Keeps achievement definitions (.cfg). Unlike newseason
@@ -289,7 +295,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     args.Context?.AddString(ZNet.instance.IsServer()
                         ? "[firesnpcs] leaderboard fully wiped — fresh season 1, boards cleared for all connected clients."
                         : "[firesnpcs] requested a full leaderboard wipe from the server (requires admin); boards will clear shortly.");
-                });
+                }, isCheat: true);
 
             // Preview a firesbooks 3D book (default the animated opening book) rendered live to a centered panel —
             // for confirming the render/animation/orientation before wiring the book into the quest journal.
@@ -326,7 +332,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         public static int ImportKGConfigs(string srcRoot, System.Action<string> log = null)
         {
             int n = 0;
-            void Say(string s) { (log ?? (l => UnityEngine.Debug.Log("[firesnpcs_import_kg] " + l)))(s); }
+            void Say(string s) { (log ?? (l => global::FiresRPGmaker.FiresLogger.LogDebug("[firesnpcs_import_kg] " + l)))(s); }
             if (string.IsNullOrEmpty(srcRoot) || !System.IO.Directory.Exists(srcRoot))
             { Say("source folder not found: " + srcRoot); return 0; }
             foreach (var (kg, ours) in _kgFolderMap)

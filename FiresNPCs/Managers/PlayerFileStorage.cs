@@ -11,7 +11,7 @@ namespace FiresRPGmaker.Modules.Vault
     /// <summary>
     /// Centralized helper for player vault file I/O.
     /// VERSION: 2.1.0 - Hardened: atomic File.Replace + .bak rotation + JSON validation.
-    /// 
+    ///
     /// This class handles ALL file I/O for player vault data:
     /// - Ensures Unknown_* files are purged
     /// - Prevents saving files with the Unknown_ prefix
@@ -33,7 +33,7 @@ namespace FiresRPGmaker.Modules.Vault
         // Filenames we've already dumped a caller stack for (one-shot, avoids per-tick spam).
         private static readonly System.Collections.Generic.HashSet<string> _rejectStackDumped =
             new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        
+
         /// <summary>
         /// Gets the players directory path. Computed fresh each time to handle edge cases.
         /// </summary>
@@ -52,7 +52,7 @@ namespace FiresRPGmaker.Modules.Vault
                 }
             }
         }
-        
+
         /// <summary>
         /// Called once at startup to log the version and verify the module is loaded.
         /// </summary>
@@ -60,17 +60,17 @@ namespace FiresRPGmaker.Modules.Vault
         {
             try
             {
-                Debug.Log($"[PlayerFileStorage] VERSION: {VERSION}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[PlayerFileStorage] VERSION: {VERSION}");
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[PlayerFileStorage] Failed to log VERSION: {ex.Message}");
             }
-            
+
             try
             {
                 var dir = PlayersDir;
-                Debug.Log($"[PlayerFileStorage] PlayersDir: {dir ?? "NULL"}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[PlayerFileStorage] PlayersDir: {dir ?? "NULL"}");
             }
             catch (Exception ex)
             {
@@ -87,14 +87,14 @@ namespace FiresRPGmaker.Modules.Vault
             {
                 var dir = PlayersDir;
                 if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
-                
+
                 var unknowns = Directory.GetFiles(dir, "Unknown_*.json");
                 foreach (var u in unknowns)
                 {
                     try
                     {
                         File.Delete(u);
-                        Debug.Log($"[PlayerFileStorage] Removed invalid player file {Path.GetFileName(u)}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[PlayerFileStorage] Removed invalid player file {Path.GetFileName(u)}");
                     }
                     catch (Exception ex)
                     {
@@ -111,7 +111,7 @@ namespace FiresRPGmaker.Modules.Vault
         /// <summary>
         /// Atomically saves the given JSON to the specified file path, skipping any Unknown_* files.
         /// Returns true if the save succeeded.
-        /// 
+        ///
         /// This is the ONLY method that should write player vault files.
         ///
         /// Crash-safety guarantees:
@@ -130,6 +130,7 @@ namespace FiresRPGmaker.Modules.Vault
         /// </summary>
         public static bool SavePlayerFile(string filePath, string json)
         {
+            VaultStatSaver.Drain();   // 0.0.800: queued background vault writes land first (order kept)
             // Validate inputs
             if (string.IsNullOrEmpty(filePath))
             {
@@ -307,7 +308,7 @@ namespace FiresRPGmaker.Modules.Vault
             try { File.Delete(filePath); } catch { }
             File.Move(tmpFile, filePath);
         }
-        
+
         /// <summary>
         /// Loads a player file and returns the JSON content, or null if not found/error.
         ///
@@ -322,6 +323,7 @@ namespace FiresRPGmaker.Modules.Vault
         /// </summary>
         public static string LoadPlayerFile(string filePath)
         {
+            VaultStatSaver.Drain();   // 0.0.800: queued background vault writes land first (order kept)
             try
             {
                 if (string.IsNullOrEmpty(filePath))
@@ -392,7 +394,7 @@ namespace FiresRPGmaker.Modules.Vault
                 return null;
             }
         }
-        
+
         /// <summary>
         /// Checks if a player file exists.
         /// </summary>
@@ -407,12 +409,13 @@ namespace FiresRPGmaker.Modules.Vault
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Finds a player file by player ID. Returns the full path or null if not found.
         /// </summary>
         public static string FindPlayerFileById(long playerId)
         {
+            VaultStatSaver.Drain();   // 0.0.800: queued background vault writes land first (order kept)
             try
             {
                 var dir = PlayersDir;
@@ -442,21 +445,22 @@ namespace FiresRPGmaker.Modules.Vault
 
             return null;
         }
-        
+
         /// <summary>
         /// Deletes a player file.
         /// </summary>
         public static bool DeletePlayerFile(string filePath)
         {
+            VaultStatSaver.Drain();   // 0.0.800: queued background vault writes land first (order kept)
             try
             {
                 if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
                 {
                     return false;
                 }
-                
+
                 File.Delete(filePath);
-                Debug.Log($"[PlayerFileStorage v{VERSION}] Deleted: {Path.GetFileName(filePath)}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[PlayerFileStorage v{VERSION}] Deleted: {Path.GetFileName(filePath)}");
                 return true;
             }
             catch (Exception ex)

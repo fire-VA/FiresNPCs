@@ -30,18 +30,17 @@ namespace FiresRPGmaker.UI.Screens
         private static RawImage _previewImage;
         private static GameObject _imageContainer;
         private static TMP_Text _contentText;
-        private static TMP_Text _sizeButtonText;
         private static GameObject _scrollArea;
 
         // Version number - increment this to force panel recreation after code changes
-        private const int PANEL_VERSION = 14;
+        private const int PANEL_VERSION = 15;   // 0.0.833: no size button, registered when shown
         private static int _createdVersion = 0;
 
         private static string RuntimeSpritesFolder => Path.Combine(FiresCore.Storage.FiresConfigPaths.QuestSprites);
 
-        // Size state
-        private enum PanelSize { Large, Medium, Small }
-        private static PanelSize _currentSize = PanelSize.Large;
+        // 0.0.833 (Fire 11-06): the L/M/S size button is gone (its localScale was overridden by Core's live-panel scale, so it never
+        // worked); the panel height now follows its content instead.
+        private const float MinHeight = 200f, MaxHeight = 600f, TextOnlyChrome = 80f;
 
         /// <summary>
         /// Shows the info panel to the player.
@@ -126,6 +125,13 @@ namespace FiresRPGmaker.UI.Screens
             // Show and center
             _panelInstance.SetActive(true);
             CenterPanel();
+            FitToContent(imageLoaded);
+            // 0.0.833 (Fire 11-06: "opening ... halfway off screen"): registered with Core when SHOWN, one frame later on a
+            // screen-sized canvas (CoreUiBridge.MakeLivePanelWhenShown). It was registered at creation on a canvas built that same
+            // frame (0x0), so Core committed the bottom-left corner as its spot. Core keeps a saved spot; a missing one or one
+            // entirely off screen opens at this centred spot.
+            var host = _panelInstance.GetComponent<InfoPlayerPanelEscapeHandler>();
+            if (host != null) global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(host, "InfoNpc", _panelInstance.GetComponent<RectTransform>(), 56f);
             GUIManager.BlockInput(true);
         }
 
@@ -179,7 +185,7 @@ namespace FiresRPGmaker.UI.Screens
         {
             if (_panelInstance != null && _createdVersion != PANEL_VERSION)
             {
-                Debug.Log($"[InfoNpcPlayerPanel] Panel version mismatch ({_createdVersion} vs {PANEL_VERSION}), recreating...");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[InfoNpcPlayerPanel] Panel version mismatch ({_createdVersion} vs {PANEL_VERSION}), recreating...");
                 DestroyPanel();
             }
 
@@ -381,11 +387,7 @@ namespace FiresRPGmaker.UI.Screens
             // Close button (top-right)
             CreateCloseButton(_panelInstance);
 
-            // Size button (top-left)
-            CreateSizeButton(_panelInstance);
-
-            // 0.0.655 (UI audit): Core's live panel moves / resizes / saves the window by a top strip (no own InfoPanelDragHandler)
-            { var prt = _panelInstance.GetComponent<RectTransform>(); global::FiresRPGmaker.UI.CoreUiBridge.RegisterLivePanel("FiresRPGmaker:InfoNpc", "rpgmaker.infonpc", prt, global::FiresRPGmaker.UI.CoreUiBridge.HeaderStrip(prt, 56f), "NPC info", "FiresRPGmaker"); }
+            // (UI audit): Core's live panel moves / resizes / saves the window by a top strip; 0.0.833: registered in Show (see there)
 
             // Escape handler
             _panelInstance.AddComponent<InfoPlayerPanelEscapeHandler>();
@@ -405,7 +407,7 @@ namespace FiresRPGmaker.UI.Screens
             }
 
             _panelInstance.SetActive(false);
-            Debug.Log($"[InfoNpcPlayerPanel] Created player info panel (version {PANEL_VERSION}) with scroll + hyperlink support");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[InfoNpcPlayerPanel] Created player info panel (version {PANEL_VERSION}) with scroll + hyperlink support");
         }
 
         private static void CreateCloseButton(GameObject panel)
@@ -451,83 +453,32 @@ namespace FiresRPGmaker.UI.Screens
             UIBuilderHelper.ApplyValheimFont(xText);
         }
 
-        private static void CreateSizeButton(GameObject panel)
+        // 0.0.833 (Fire 11-06: "the dialogue ui doesnt correctly size to the content"): a text-only page sizes the panel to its
+        // header + text (MinHeight..MaxHeight at 1080p, the existing scroll beyond that); a page with an image keeps the full height.
+        // Header and text area use fixed offsets, so a short panel keeps its header readable. One Debug line per fit.
+        private static void FitToContent(bool imageLoaded)
         {
-            var buttonGO = new GameObject("SizeButton");
-            buttonGO.transform.SetParent(panel.transform, false);
-
-            var buttonRect = buttonGO.AddComponent<RectTransform>();
-            buttonRect.anchorMin = new Vector2(0, 1);
-            buttonRect.anchorMax = new Vector2(0, 1);
-            buttonRect.pivot = new Vector2(0, 1);
-            buttonRect.sizeDelta = new Vector2(40, 40);
-            buttonRect.anchoredPosition = new Vector2(5, -5);
-
-            var buttonImg = buttonGO.AddComponent<Image>();
-            buttonImg.color = Color.clear;
-            buttonImg.raycastTarget = true;
-
-            var handler = buttonGO.AddComponent<InfoPlayerPanelSizeHandler>();
-            handler.OnClicked = OnSizeClicked;
-            buttonGO.transform.SetAsLastSibling();
-
-            var sizeGO = new GameObject("SizeText");
-            sizeGO.transform.SetParent(buttonGO.transform, false);
-            var sizeRect = sizeGO.AddComponent<RectTransform>();
-            sizeRect.anchorMin = Vector2.zero;
-            sizeRect.anchorMax = Vector2.one;
-            sizeRect.offsetMin = Vector2.zero;
-            sizeRect.offsetMax = Vector2.zero;
-            _sizeButtonText = sizeGO.AddComponent<TextMeshProUGUI>();
-            _sizeButtonText.text = "L";
-            _sizeButtonText.fontSize = 18;
-            _sizeButtonText.color = new Color(0.8f, 0.6f, 0.4f, 0.8f);
-            _sizeButtonText.alignment = TextAlignmentOptions.Center;
-            _sizeButtonText.raycastTarget = false;
-            UIBuilderHelper.ApplyValheimFont(_sizeButtonText);
-        }
-
-        private static void OnSizeClicked()
-        {
-            _currentSize = _currentSize switch
+            if (_panelInstance == null || _scrollArea == null) return;
+            var panel = _panelInstance.GetComponent<RectTransform>();
+            var scroll = _scrollArea.GetComponent<RectTransform>();
+            var header = _headerText != null ? _headerText.rectTransform : null;
+            if (panel == null || scroll == null) return;
+            if (imageLoaded)
             {
-                PanelSize.Large => PanelSize.Medium,
-                PanelSize.Medium => PanelSize.Small,
-                PanelSize.Small => PanelSize.Large,
-                _ => PanelSize.Large
-            };
-
-            ApplySize();
-            UpdateSizeText();
-        }
-
-        private static void ApplySize()
-        {
-            if (_panelInstance == null) return;
-
-            float scale = _currentSize switch
-            {
-                PanelSize.Small => 0.75f,
-                PanelSize.Medium => 0.9f,
-                PanelSize.Large => 1f,
-                _ => 1f
-            };
-
-            _panelInstance.transform.localScale = new Vector3(scale, scale, 1f);
-        }
-
-        private static void UpdateSizeText()
-        {
-            if (_sizeButtonText != null)
-            {
-                _sizeButtonText.text = _currentSize switch
-                {
-                    PanelSize.Small => "S",
-                    PanelSize.Medium => "M",
-                    PanelSize.Large => "L",
-                    _ => "L"
-                };
+                panel.sizeDelta = new Vector2(panel.sizeDelta.x, MaxHeight);
+                if (header != null) { header.anchorMin = new Vector2(0.05f, 0.90f); header.anchorMax = new Vector2(0.95f, 0.98f); header.offsetMin = header.offsetMax = Vector2.zero; }
+                return;
             }
+            if (header != null) { header.anchorMin = new Vector2(0.05f, 1f); header.anchorMax = new Vector2(0.95f, 1f); header.offsetMin = new Vector2(0f, -56f); header.offsetMax = new Vector2(0f, -8f); }
+            scroll.anchorMin = new Vector2(0.05f, 0f); scroll.anchorMax = new Vector2(0.95f, 1f);
+            scroll.offsetMin = new Vector2(0f, 16f); scroll.offsetMax = new Vector2(0f, -64f);
+            Canvas.ForceUpdateCanvases();
+            var content = _blocksRoot as RectTransform;
+            float contentH = content != null ? LayoutUtility.GetPreferredHeight(content) : 0f;
+            float h = Mathf.Clamp(contentH + TextOnlyChrome, MinHeight, MaxHeight);
+            panel.sizeDelta = new Vector2(panel.sizeDelta.x, h);
+            Canvas.ForceUpdateCanvases();
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[InfoNpcPlayerPanel] sized to content: text {contentH:0} -> panel height {h:0} (min {MinHeight:0}, max {MaxHeight:0}{(contentH + TextOnlyChrome > MaxHeight ? ", scrolls" : "")})");
         }
 
         private static void CenterPanel()
@@ -794,7 +745,7 @@ namespace FiresRPGmaker.UI.Screens
             // self-close on Escape here, so the panel is still open when the hook intercepts the menu open.
             // SPACEBAR closes it (owner request; info panel has no text field, so a direct self-close is safe).
             if (gameObject.activeSelf && Input.GetKeyDown(KeyCode.Space)
-                && !FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
+                && !FiresCore.Input.FiresInputBlock.IsTyping()) // typing gate
             {
                 InfoNpcPlayerPanel.Hide();
             }
@@ -813,25 +764,12 @@ namespace FiresRPGmaker.UI.Screens
     }
 
     /// <summary>
-    /// Size button handler for player info panel.
-    /// </summary>
-    public class InfoPlayerPanelSizeHandler : MonoBehaviour, UnityEngine.EventSystems.IPointerClickHandler
-    {
-        public Action OnClicked;
-
-        public void OnPointerClick(UnityEngine.EventSystems.PointerEventData eventData)
-        {
-            OnClicked?.Invoke();
-        }
-    }
-
-    /// <summary>
     /// Detects clicks on TMP &lt;link&gt; tags in the info panel text and opens the URL.
-    /// 
+    ///
     /// Usage in info text:
     ///   &lt;link="https://discord.gg/xxx"&gt;&lt;color=#5865F2&gt;&lt;u&gt;Join our Discord&lt;/u&gt;&lt;/color&gt;&lt;/link&gt;
     ///   &lt;link="https://example.com"&gt;&lt;u&gt;Visit website&lt;/u&gt;&lt;/link&gt;
-    /// 
+    ///
     /// The link ID (the value in quotes after link=) is used as the URL.
     /// Wrap link text in &lt;u&gt; for underline to make it look clickable.
     /// </summary>
@@ -869,7 +807,7 @@ namespace FiresRPGmaker.UI.Screens
             if (linkId.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 linkId.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                Debug.Log($"[InfoNpcPlayerPanel] Opening link: {linkId}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[InfoNpcPlayerPanel] Opening link: {linkId}");
                 Application.OpenURL(linkId);
             }
             else

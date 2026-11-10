@@ -24,7 +24,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         // Static "any panel open" registry — read by GUIManager.IsCustomPanelOpen so the existing
         // PlayerInputPatches block movement/camera/M-key while one of these panels is on screen.
         private static int _openCount;
-        // 0.0.634 ([seasons]' ui_tour: Esc/pause stayed blocked after the NPC book): the counter only drops in Close(), so a panel
+        // the counter only drops in Close(), so a panel
         // hidden any other way (its book page closed, its canvas deactivated or destroyed) left it > 0 and GUIManager.IsCustomPanelOpen
         // true for good, so Menu_Update_MutexPostfix shut every pause menu. Judge by what is really on screen; heal the counter.
         public static bool AnyOpen
@@ -70,7 +70,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         /// CloseButton) are bound/wired. Panels bind their own named children + clone row templates here.</summary>
         protected virtual void BindPrefab(GameObject panelRoot) { }
 
-        /// <summary>0.0.564: the builders bake "✕" (U+2715), which the game font lacks (renders as an empty box). Swap to "×" (U+00D7, in AveriaSans) at runtime.</summary>
+        /// <summary>the builders bake "✕" (U+2715), which the game font lacks (renders as an empty box). Swap to "×" (U+00D7, in AveriaSans) at runtime.</summary>
         public static void FixCloseGlyph(Component close)
         {
             if (close == null) return;
@@ -83,6 +83,44 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         protected virtual void BuildContent(RectTransform contentArea) { }
         protected virtual void OnOpen(string profileName, string npcDisplayName) { }
 
+        // "it stays centered by default but it should be dragable all of them should" + "They should all have corner
+        // handlers for resizing too"): every player module panel (banker, mail, transmog, marketplace, leaderboard, achievement, buffer,
+        // gambler) is a Core live panel - header drag + corner resize, spot and size saved per player, through Core's one implementation
+        // (CoreUiBridge.RegisterLivePanel). Registered once, a frame after the first show (a new overlay canvas is not screen-sized in
+        // its first frame - the trader sat 3/4 off-screen from that), with a default fit-to-screen scale; centred stays the default only.
+        private bool _livePanelRegistered, _livePanelPending;
+        private void RegisterLivePanelWhenSized()
+        {
+            if (_livePanelRegistered || _livePanelPending || _panelGo == null || !isActiveAndEnabled) return;
+            _livePanelPending = true;
+            StartCoroutine(RegisterLiveNextFrame());
+        }
+        private System.Collections.IEnumerator RegisterLiveNextFrame()
+        {
+            yield return null;
+            _livePanelPending = false;
+            if (_livePanelRegistered || _panelGo == null) yield break;
+            _livePanelRegistered = true;
+            var prt = _panelGo.transform as RectTransform;
+            if (prt == null) yield break;
+            Canvas.ForceUpdateCanvases();
+            var crt = _canvasGo != null ? _canvasGo.transform as RectTransform : null;
+            if (crt != null && crt.rect.height > 1f && prt.rect.height > 1f)
+            {
+                float fit = Mathf.Min(1f, 0.85f * crt.rect.height / prt.rect.height, 0.9f * crt.rect.width / Mathf.Max(1f, prt.rect.width));
+                if (fit < 0.999f) prt.localScale = new Vector3(fit, fit, 1f);
+            }
+            string key = PanelTitle ?? GetType().Name;
+            bool ok = global::FiresRPGmaker.UI.CoreUiBridge.RegisterLivePanel("FiresRPGmaker:" + key, "rpgmaker." + key.ToLowerInvariant().Replace(" ", ""),
+                prt, global::FiresRPGmaker.UI.CoreUiBridge.HeaderStrip(prt, 48f), key, "FiresRPGmaker");
+            try
+            {
+                var c = new Vector3[4]; prt.GetWorldCorners(c);
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[{key}Panel] live panel (drag + corner resize) {(ok ? "registered" : "NOT registered (Core too old?)")}: drawn ({c[0].x:0},{c[0].y:0})-({c[2].x:0},{c[2].y:0}) on {Screen.width}x{Screen.height}, scale {prt.localScale.x:0.##}");
+            }
+            catch { }
+        }
+
         public void Open(string profileName, string npcDisplayName)
         {
             EnsureBuilt();
@@ -91,6 +129,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             OnOpen(profileName, npcDisplayName);
             if (_canvasGo != null) _canvasGo.SetActive(true);
             _panelGo.SetActive(true);
+            RegisterLivePanelWhenSized();
             if (!_opened)
             {
                 _opened = true;
@@ -107,7 +146,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         public void Close()
         {
             if (_panelGo != null) _panelGo.SetActive(false);
-            // Hide the whole canvas too: a closed panel must not leave an active (empty) root canvas behind (round 21).
+            // Hide the whole canvas too: a closed panel must not leave an active (empty) root canvas behind.
             if (_canvasGo != null) _canvasGo.SetActive(false);
             if (_opened)
             {
@@ -117,7 +156,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
             if (_openCount == 0)
             {
-                try { GUIManager.BlockInput(false); } catch { }
+                // the NPC book (or another Fires UI) can still be up under this panel: keep the shared block then (Transmog close froze the cursor)
+                try { bool keep = GUIManager.IsCustomPanelOpen(); global::FiresRPGmaker.FiresLogger.LogDebug($"[Panels] last module panel closed: input block {(keep ? "kept (a Fires panel is still open)" : "released")}"); if (!keep) GUIManager.BlockInput(false); } catch { }
             }
         }
 
@@ -167,7 +207,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
 
             BuildCanvas();
-            _panelGo = Object.Instantiate(prefab, _canvasGo.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panelGo);   // 0.0.614
+            _panelGo = Object.Instantiate(prefab, _canvasGo.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panelGo);
             _panelGo.name = PanelTitle + "Panel";
             _panelGo.SetActive(false);
 
@@ -175,7 +215,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _subtitleText = FindTmp(root, "SubtitleText");
             var close = FindBtn(root, "CloseButton");
             if (close != null) { close.onClick.RemoveAllListeners(); close.onClick.AddListener(Close); }
-            FixCloseGlyph(close);   // 0.0.564
+            FixCloseGlyph(close);
 
             try { BindPrefab(_panelGo); }
             catch (System.Exception ex) { Debug.LogError("[" + PanelTitle + "Panel] BindPrefab threw — panel may be partially wired: " + ex); }

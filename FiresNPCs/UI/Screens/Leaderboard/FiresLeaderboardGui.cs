@@ -15,7 +15,7 @@ namespace FiresRPGmaker.UI.Leaderboard
         private const string ViewRanking = "ranking";
         private const string ViewAchievements = "achievements";
         private const string ViewProgression = "progression";
-        private const string ViewSeasons = "seasons";   // 0.0.601
+        private const string ViewSeasons = "seasons";
         private const string DetailViewMode = "player_details";
 
         private const float BaseWindowWidth = 1120f;
@@ -65,7 +65,7 @@ namespace FiresRPGmaker.UI.Leaderboard
             _instance.OpenInternal();
         }
 
-        /// <summary>0.0.602 ([wishbone]'s FCT leaderboard_golden step; CONTRACT, add-only): opens the window on a tab - "progression" |
+        /// <summary>opens the window on a tab - "progression" |
         /// "seasons" | "ranking" (case-insensitive; anything else = ranking), the same as clicking that tab. Logs "[Leaderboard] tab
         /// &lt;t&gt; shown". Returns false when the window could not open (no InventoryGui yet).</summary>
         public static bool OpenOnTab(string tab)
@@ -142,6 +142,39 @@ namespace FiresRPGmaker.UI.Leaderboard
             RebuildCanvasView(true);
         }
 
+        // ---- hosted mode. The same window (tiles, preview,
+        // summary, season ranking, tabs) is parented into the Core hub page's rect and stretched to fill it, instead of sitting centred
+        // over the vanilla HUD. OpenHosted / CloseHosted are called by LeaderboardHubModule.OnShow / OnHide; a later standalone open
+        // (hotkey) moves the window back to its vanilla parent.
+        private RectTransform _host;
+        private Transform _vanillaParent;
+        private bool Hosted => _host != null;
+
+        public static void OpenHosted(RectTransform host)
+        {
+            if (host == null) return;
+            EnsureInstance();
+            if (_instance == null) return;
+            if (IsVisible) _instance.CloseInternal();
+            _instance._host = host;
+            _instance.OpenInternal();
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Leaderboard] hosted in the hub page: {(IsVisible ? "open" : "NOT open")}, {host.rect.width:0}x{host.rect.height:0}");
+        }
+
+        public static void CloseHosted()
+        {
+            if (_instance == null || !_instance.Hosted) return;
+            if (IsVisible) _instance.CloseInternal();
+            _instance._host = null;
+        }
+
+        private void ApplyParent()
+        {
+            if (_canvasRoot == null) return;
+            Transform want = Hosted ? (Transform)_host : _vanillaParent;
+            if (want != null && _canvasRoot.transform.parent != want) _canvasRoot.transform.SetParent(want, false);
+        }
+
         public static void Toggle()
         {
             EnsureInstance();
@@ -180,6 +213,7 @@ namespace FiresRPGmaker.UI.Leaderboard
                 IsVisible = false;
                 return;
             }
+            ApplyParent();   // hub page or the vanilla window spot
 
             SyncCanvasRootLayout(true);
             _adapter.Open(OnBoardChanged);
@@ -203,7 +237,8 @@ namespace FiresRPGmaker.UI.Leaderboard
 
         private void Update()
         {
-            if (IsVisible && !IsGameplayContextReady())
+            if (Hosted && (_host == null || !_host.gameObject.activeInHierarchy)) { CloseHosted(); return; }   // the hub page closed
+            if (IsVisible && !Hosted && !IsGameplayContextReady())
             {
                 CloseInternal();
                 return;
@@ -244,7 +279,7 @@ namespace FiresRPGmaker.UI.Leaderboard
         private void OnGUI()
         {
             if (!IsVisible) return;
-            _windowRect = CenterRect(BaseWindowWidth * WindowScale, BaseWindowHeight * WindowScale);
+            if (!Hosted) _windowRect = CenterRect(BaseWindowWidth * WindowScale, BaseWindowHeight * WindowScale);
             if (EnsureCanvasUiReady())
             {
                 SyncCanvasRootLayout(true);

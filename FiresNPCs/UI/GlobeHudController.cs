@@ -69,7 +69,7 @@ namespace FiresRPGmaker.UI
         private readonly List<GlobeValuePopup> _popups = new List<GlobeValuePopup>();
         private readonly GlobeMotionSampler _motion = new GlobeMotionSampler();
         private readonly GlobeHoverTooltip _tooltip = new GlobeHoverTooltip();
-        private GlobeFoodRow _foodRow;   // 0.0.582
+        private GlobeFoodRow _foodRow;
         private readonly System.Collections.Generic.Dictionary<GlobeResource, int> _lastPulsePct = new System.Collections.Generic.Dictionary<GlobeResource, int>();
 
         private Player _localPlayer;
@@ -108,7 +108,7 @@ namespace FiresRPGmaker.UI
 
             if (Hud.instance == null)
             {
-                Debug.Log("[GlobeHud] Hud not ready, deferring initialization");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[GlobeHud] Hud not ready, deferring initialization");
                 var tempObj = new GameObject("GlobeHudDeferredInit");
                 var init = tempObj.AddComponent<DeferredInit>();
                 init.StartCoroutine(init.WaitForHud());
@@ -127,7 +127,7 @@ namespace FiresRPGmaker.UI
             go.transform.SetParent(Hud.instance.transform, false);
             _instance = go.AddComponent<GlobeHudController>();
 
-            Debug.Log("[GlobeHud] Initialized");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[GlobeHud] Initialized");
         }
 
         /// <summary>Logout: the Hud and its vanilla bars are being destroyed with us, so there is nothing to restore.</summary>
@@ -196,6 +196,7 @@ namespace FiresRPGmaker.UI
 
         private void Update()
         {
+            SaveDockSizeIfDue();
             if (!_hudReady) return;
 
             if (_localPlayer == null || !_localPlayer)
@@ -220,7 +221,7 @@ namespace FiresRPGmaker.UI
 
             // Enable raycast on the root image only during reposition mode
             if (_rootImage != null && !_isDragging)
-                _rootImage.raycastTarget = false;   // 0.0.655: the dock's layout mode grabs it, not the globes
+                _rootImage.raycastTarget = false;   // Core hit-tests the whole element itself
 
             // Show/hide wireframe with resize mode
             if (_wireframeRoot != null && _wireframeRoot.activeSelf != _isResizeMode)
@@ -237,10 +238,24 @@ namespace FiresRPGmaker.UI
                 return;
             }
 
+            // 0.0.799 (lead 10-30: GlobeHudController.Update was RPGM's top per-frame cost, ~55 us a frame): Debug split of where it goes,
+            // before any trim (log-prove first). One line every 10 s.
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             HideVanillaHud();
+            long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
             AnimateLiquid();
+            long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
             _foodRow?.Tick(_localPlayer, ConfigManager.Instance.configGlobeFoodRow.Value);
+            long t3 = System.Diagnostics.Stopwatch.GetTimestamp();
+            _splitHide += t1 - t0; _splitLiquid += t2 - t1; _splitFood += t3 - t2; _splitFrames++;
+            if (Time.unscaledTime >= _splitNext)
+            {
+                double f = 1000.0 / System.Diagnostics.Stopwatch.Frequency, n = System.Math.Max(1, _splitFrames);
+                if (_splitNext > 0f) global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[GlobeHudCost] {_splitFrames} frame(s): liquid {_splitLiquid * f / n * 1000:0.0} us, food row {_splitFood * f / n * 1000:0.0} us, hide vanilla {_splitHide * f / n * 1000:0.0} us per frame");
+                _splitNext = Time.unscaledTime + 10f; _splitHide = _splitLiquid = _splitFood = 0; _splitFrames = 0;
+            }
         }
+        private long _splitHide, _splitLiquid, _splitFood; private int _splitFrames; private float _splitNext;
 
         #endregion
 
@@ -267,7 +282,7 @@ namespace FiresRPGmaker.UI
             {
                 var view = _views[index];
                 view.Read(_localPlayer);
-                // 0.0.584 globe states (OFF = today's look); FULL's strength scales with the overfill (the lead)
+                // globe states (OFF = today's look); FULL's strength scales with the overfill
                 view.StatesOn = config.configGlobeStates.Value;
                 if (view.StatesOn)
                     view.States.Update(now, dt, view.Current, view.Max, view.Resource == GlobeResource.Adrenaline ? 0f : OverfillStrength(view),
@@ -286,7 +301,7 @@ namespace FiresRPGmaker.UI
             _tooltip.Tick(_views, _localPlayer, config.configGlobeInventoryTooltips.Value, now);
         }
 
-        // 0.0.582 ([generator] + Fire's overfill pulse): base = max minus what food adds right now (vanilla's own m_foods values), so
+        // base = max minus what food adds right now (vanilla's own m_foods values), so
         // class, gear and other mods' bonuses count as base. strength = smoothstep(clamp01(log2(max/base) / log2(6))): 2x ~0.39, 5x ~0.90.
         // Eitr only with a base of 1+; Adrenaline never. One Debug line when a globe's strength moves by 5 %+.
         private float OverfillStrength(GlobeView view)
@@ -331,7 +346,7 @@ namespace FiresRPGmaker.UI
         /// <summary>Called by GlobeHudInteractionHandler on drag start.</summary>
         public void OnDragStart(Vector2 mousePosition)
         {
-            return;   // 0.0.655 (UI audit): Core's HUD dock ("rpgmaker.globes") is the only mover; the own drag is retired
+            return;   // Core's HUD dock ("rpgmaker.globes") is the only mover; the own drag is retired
             if (!_isRepositionMode || _isResizeMode) return;
             _isDragging = true;
             if (_rootRect != null)
@@ -341,7 +356,7 @@ namespace FiresRPGmaker.UI
         /// <summary>Called by GlobeHudInteractionHandler during drag.</summary>
         public void OnDragMove(Vector2 mousePosition)
         {
-            return;   // 0.0.655: retired (Core dock)
+            return;   // retired (Core dock)
             if (!_isDragging || !_isRepositionMode) return;
             if (_rootRect == null) return;
             _rootRect.position = mousePosition + _dragOffset;
@@ -359,7 +374,7 @@ namespace FiresRPGmaker.UI
         /// <summary>Called by GlobeHudInteractionHandler on double-click.</summary>
         public void OnDoubleClick()
         {
-            return;   // 0.0.655: the own resize wireframe is retired (Core dock grip)
+            return;   // the own resize wireframe is retired (Core dock grip)
             if (!_isRepositionMode) return;
             SetResizeMode(!_isResizeMode);
         }
@@ -539,7 +554,7 @@ namespace FiresRPGmaker.UI
 
         public void ResetPositionAndScale()
         {
-            // 0.0.655: no PlayerPrefs any more (Core dock)
+            // no PlayerPrefs any more (Core dock)
             PlayerPrefs.Save();
 
             if (_rootRect != null)
@@ -551,7 +566,7 @@ namespace FiresRPGmaker.UI
 
         private void SavePositionAndScale()
         {
-            return;   // 0.0.655 (UI audit): the dock saves the layout; no PlayerPrefs
+            return;   // the dock saves the layout; no PlayerPrefs
             if (_rootRect == null) return;
 
             var pos = _rootRect.anchoredPosition;
@@ -566,7 +581,7 @@ namespace FiresRPGmaker.UI
             PlayerPrefs.Save();
         }
 
-        // 0.0.604 (Fire 10-15 via the lead, Core 0.2.522 HUD layout): the globe HUD becomes the dockable HUD element
+        // the globe HUD becomes the dockable HUD element
         // "rpgmaker.globes" via FiresShell.RegisterHudElement (reflected: older Cores keep the globes' own drag/resize). Core sets only
         // position + localScale; while it owns them, the globes' own drag / resize / save step aside. Registered once, after the
         // saved position is loaded, so the first default is where the globes are today.
@@ -574,30 +589,157 @@ namespace FiresRPGmaker.UI
         private void RegisterWithDock()
         {
             if (_dockOwned || _rootRect == null) return;
-            try
-            {
-                var shell = System.Type.GetType("FiresCore.UI.Shell.FiresShell, FiresUnifiedCore", false);
-                // 0.0.608 ([lead] 10-15): the options type is FiresCore.UI.Shell.HudElementOptions, not ...Dock...; take it from the method itself.
-                var reg = shell == null ? null : System.Linq.Enumerable.FirstOrDefault(shell.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static), m => m.Name == "RegisterHudElement" && m.GetParameters().Length == 3 && m.GetParameters()[0].ParameterType == typeof(string) && m.GetParameters()[1].ParameterType == typeof(RectTransform));
-                var optType = reg?.GetParameters()[2].ParameterType;
-                if (reg == null) { Debug.Log("[GlobeHud] Core has no HUD dock (RegisterHudElement, 0.2.522+): the globes keep their own drag/resize"); return; }
-                var opt = System.Activator.CreateInstance(optType);
-                optType.GetField("Owner")?.SetValue(opt, "FiresRPGmaker");
-                optType.GetField("Label")?.SetValue(opt, "Globes");
-                optType.GetField("Resizable")?.SetValue(opt, true);
-                reg.Invoke(null, new object[] { "rpgmaker.globes", _rootRect, opt });
-                _dockOwned = true;
-                if (_isRepositionMode) SetResizeMode(false);
-                Debug.Log("[GlobeHud] registered with Core's HUD dock as 'rpgmaker.globes' (layout mode moves/scales it; own drag/resize off)");
+            // ScalePerAxis = the old OnSideDrag model, done by
+            // Core - side grips change ONLY localScale.x or .y of the whole root, corners both (clamp 0.3..2.5 in Core). No re-layout, no new math.
+            // A width / height re-layout squashed the left globe and moved the liquids out of their rings, so the WHOLE globe HUD scales proportionally with
+            // one uniform scale (Core's grip, no SizeChanged), so every globe, the bar and the food row keep their proportions and never
+            // squash. Still a LIVE element (drag any time, grip revealed on double-click). Drag area = the whole drawn element (Core's own
+            // hit test), not a thin bar image. The legacy [Globe HUD] Width / Height keys are ignored.
+            if (_rootImage != null) _rootImage.raycastTarget = false;
+            _dockOwned = CoreUiBridge.RegisterHud("rpgmaker.globes", _rootRect, "Globes", "FiresRPGmaker", resizable: true,
+                liveEdit: true, dragHandle: null, revealOnDoubleClick: true, scalePerAxis: true, hitBounds: BuildHitBounds());   // per-axis scale via Core
+            if (_dockOwned && _isRepositionMode) SetResizeMode(false);
+            if (_dockOwned)   // retire the pre-Core drag handler + 8-handle wireframe, so the
+            {                  // EventSystem hands every drag / click on the globes to Core's 4 per-axis grips
+                var oldHandler = _root != null ? _root.GetComponent<GlobeHudInteractionHandler>() : null;
+                if (oldHandler != null) Destroy(oldHandler);
+                if (_wireframeRoot != null) { _wireframeRoot.transform.SetParent(null, false); Destroy(_wireframeRoot); _wireframeRoot = null; }
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] old drag handler {(oldHandler != null ? "retired" : "absent")}; wireframe retired; Core grips only");
             }
-            catch (System.Exception ex) { _dockOwned = false; Debug.LogWarning("[GlobeHud] HUD dock registration failed, keeping own drag/resize: " + (ex.InnerException ?? ex).Message); }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] {(_dockOwned ? "live Core HUD element 'rpgmaker.globes' (drag any time, per-axis scale as 0.0.582: side grips X or Y, corner both; grip on double-click)" : "Core HUD dock not available (older Core)")}; size {_rootRect.sizeDelta.x:0}x{_rootRect.sizeDelta.y:0}, scale {_rootRect.localScale.x:0.00}");
+        }
+
+        // (Core 0.2.603 HudElementOptions.HitBounds: a stray transparent child stretched Core's measured bounds to
+        // 570x650, so the grip sat far from the art): a graphic-less child rect that wraps ONLY the globe art - the bar (the root's own rect)
+        // and the four globes - computed once at build in root-local units, so it scales and moves with the root.
+        private RectTransform BuildHitBounds()
+        {
+            if (_rootRect == null) return null;
+            var existing = _rootRect.Find("GlobeHitBounds") as RectTransform;
+            if (existing != null) return existing;
+            // union only the DRAWN art - enabled Images with
+            // visible alpha, skipping full-size layers (>= 90% of the root on both axes), each trimmed by its sprite's transparent padding
+            Vector2 min = new Vector2(float.MaxValue, float.MaxValue), max = new Vector2(float.MinValue, float.MinValue);
+            var c = new Vector3[4]; var used = new List<string>();
+            Vector2 rs = _rootRect.rect.size;
+            foreach (var im in _rootRect.GetComponentsInChildren<Image>(false))
+            {
+                if (im == null || !im.enabled || im.color.a < 0.05f || im.sprite == null) continue;
+                var irt = im.rectTransform;
+                irt.GetWorldCorners(c);
+                Vector2 a = _rootRect.InverseTransformPoint(c[0]), b = _rootRect.InverseTransformPoint(c[2]);
+                Vector2 lo = Vector2.Min(a, b), hi = Vector2.Max(a, b), sz = hi - lo;
+                if (sz.x >= rs.x * 0.9f && sz.y >= rs.y * 0.9f) continue;
+                if (sz.x < 2f || sz.y < 2f) continue;
+                try
+                {
+                    var pad = UnityEngine.Sprites.DataUtility.GetPadding(im.sprite);   // l, b, r, t in sprite pixels
+                    var sr = im.sprite.rect.size;
+                    if (sr.x > 0 && sr.y > 0)
+                    {
+                        lo += new Vector2(sz.x * pad.x / sr.x, sz.y * pad.y / sr.y);
+                        hi -= new Vector2(sz.x * pad.z / sr.x, sz.y * pad.w / sr.y);
+                    }
+                }
+                catch { }
+                if (hi.x <= lo.x || hi.y <= lo.y) continue;
+                min = Vector2.Min(min, lo); max = Vector2.Max(max, hi);
+                used.Add($"{im.name} {hi.x - lo.x:0}x{hi.y - lo.y:0}");
+            }
+            if (used.Count == 0) { Debug.LogWarning("[GlobeHud] hit bounds: no drawn Images found - using the root"); return null; }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] hit bounds images ({used.Count}): {string.Join(", ", used)}");
+            var go = new GameObject("GlobeHitBounds", typeof(RectTransform));
+            var rt = (RectTransform)go.transform; rt.SetParent(_rootRect, false);
+            rt.anchorMin = rt.anchorMax = _rootRect.pivot; rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = max - min; rt.anchoredPosition = (min + max) * 0.5f;
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] hit bounds (drawn art): {rt.sizeDelta.x:0}x{rt.sizeDelta.y:0} at {rt.anchoredPosition} (root-local; root rect {_rootRect.rect.width:0}x{_rootRect.rect.height:0})");
+            return rt;
+        }
+
+        // ---- width / height resize ----
+        private struct ChildHome { public RectTransform Rt; public bool Right; public float Edge, CenterYFrac; public Vector2 Size; }
+        private readonly List<ChildHome> _homes = new List<ChildHome>();
+        private Vector2 _nativeSize;
+        private static BepInEx.Configuration.ConfigEntry<float> s_width, s_height;
+        private Vector2 _sizePending; private float _sizeDue = -1f;
+
+        private void CaptureLayout()
+        {
+            _homes.Clear();
+            _nativeSize = _rootRect.rect.size;
+            float w = Mathf.Max(1f, _nativeSize.x), h = Mathf.Max(1f, _nativeSize.y);
+            foreach (Transform c in _rootRect)
+            {
+                if (!(c is RectTransform rt)) continue;
+                var corners = new Vector3[4]; rt.GetWorldCorners(corners);
+                Vector2 a = _rootRect.InverseTransformPoint(corners[0]), b = _rootRect.InverseTransformPoint(corners[2]);
+                // root-local, pivot bottom-left: x from 0..w, y from 0..h
+                a -= _rootRect.rect.min; b -= _rootRect.rect.min;
+                float cx = (a.x + b.x) * 0.5f;
+                bool right = cx > w * 0.5f;
+                _homes.Add(new ChildHome { Rt = rt, Right = right, Edge = right ? w - a.x : a.x, CenterYFrac = ((a.y + b.y) * 0.5f) / h, Size = b - a });
+            }
+            if (s_width == null)
+            {
+                s_width = global::FiresRPGmaker.FiresRPGmaker.Instance.Config.Bind("Globe HUD", "Width", 0f, "Globe HUD width set by the layout resize grip (0 = the art's own width).");
+                s_height = global::FiresRPGmaker.FiresRPGmaker.Instance.Config.Bind("Globe HUD", "Height", 0f, "Globe HUD height set by the layout resize grip (0 = the art's own height).");
+                global::FiresRPGmaker.RpgConfigUi.Apply(global::FiresRPGmaker.FiresRPGmaker.Instance.Config);   // late bind: tag it (hidden)
+            }
+        }
+
+        private void ApplySavedSize()
+        {
+            float w = s_width != null && s_width.Value > 1f ? s_width.Value : _nativeSize.x;
+            float h = s_height != null && s_height.Value > 1f ? s_height.Value : _nativeSize.y;
+            RelayoutGlobes(new Vector2(w, h));
+        }
+
+        // The globes and the food row keep their native size; each stays the same distance from ITS side (left or right) and at the same
+        // height fraction; the bar (the root's Image) fills the new width / height.
+        private void RelayoutGlobes(Vector2 size)
+        {
+            if (_rootRect == null) return;
+            _rootRect.sizeDelta = size;
+            foreach (var hm in _homes)
+            {
+                if (hm.Rt == null) continue;
+                float x0 = hm.Right ? size.x - hm.Edge : hm.Edge;
+                float y0 = hm.CenterYFrac * size.y - hm.Size.y * 0.5f;
+                hm.Rt.anchorMin = hm.Rt.anchorMax = Vector2.zero;
+                hm.Rt.sizeDelta = hm.Size;
+                hm.Rt.anchoredPosition = new Vector2(x0 + hm.Size.x * hm.Rt.pivot.x, y0 + hm.Size.y * hm.Rt.pivot.y);
+            }
+        }
+
+        private void OnDockSize(Vector2 size)
+        {
+            RelayoutGlobes(size);
+            _sizePending = size; _sizeDue = Time.unscaledTime + 0.5f;   // saved once the drag rests (BepInEx rewrites the cfg per set)
+        }
+
+        private void ResetDockSize()
+        {
+            _sizeDue = -1f;
+            if (s_width != null) s_width.Value = 0f;
+            if (s_height != null) s_height.Value = 0f;
+            RelayoutGlobes(_nativeSize);
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] size reset to the art's own {_nativeSize.x:0}x{_nativeSize.y:0} (Core layout Reset)");
+        }
+
+        private void SaveDockSizeIfDue()
+        {
+            if (_sizeDue < 0f || Time.unscaledTime < _sizeDue) return;
+            _sizeDue = -1f;
+            if (s_width != null) s_width.Value = _sizePending.x;
+            if (s_height != null) s_height.Value = _sizePending.y;
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] size saved {_sizePending.x:0}x{_sizePending.y:0} (Core grip)");
         }
 
         private void LoadPositionAndScale()
         {
             if (_rootRect == null) return;
 
-            // 0.0.655 (UI audit): the default spot only; Core's dock applies the saved layout when it registers
+            // the default spot only; Core's dock applies the saved layout when it registers
             var pos = DefaultPosition;
             float scaleX = MIN_SCALE, scaleY = MIN_SCALE;
 
@@ -685,7 +827,7 @@ namespace FiresRPGmaker.UI
             if (_vanillaAdrenalineBarRoot != null) count++;
             if (_vanillaFoodBarRoot != null) count++;
 
-            Debug.Log($"[GlobeHud] Captured {count}/6 vanilla HUD element references");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] Captured {count}/6 vanilla HUD element references");
         }
 
         #endregion
@@ -696,7 +838,7 @@ namespace FiresRPGmaker.UI
         {
             // From FiresRPGmaker's OWN bundle first. Core's VAMiscAssetManager reads the one shared UIBuilderHost.AssetBundle,
             // which FiresCompanions overwrites with its bundle when it loads after us, so since 09-28 the globe looked in the
-            // wrong bundle and never built ("Prefab ... not found"; Fire, hand test 4, 10-08). The shared path stays as a fallback.
+            // wrong bundle and never built. The shared path stays as a fallback.
             var prefab = LoadOwnPrefab() ?? VAMiscAssetManager.LoadUIPrefab(PREFAB_NAME);
             if (prefab == null)
             {
@@ -750,15 +892,15 @@ namespace FiresRPGmaker.UI
             _foodRow = new GlobeFoodRow(_root.transform);
 
             // Build the wireframe overlay (hidden by default)
-            // 0.0.655 (UI audit): no own resize wireframe (Core dock grip)
+            // no own resize wireframe (Core dock grip)
 
             LoadPositionAndScale();
-            RegisterWithDock();   // 0.0.604: hand the globes to Core's HUD dock (layout mode) when the Core has it
+            RegisterWithDock();   // hand the globes to Core's HUD dock (layout mode) when the Core has it
 
             _root.SetActive(false);
             _hudReady = true;
 
-            Debug.Log($"[GlobeHud] UI built - {_views.Count} liquid globes, shaders {_views[0].Fill.material.shader.name}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[GlobeHud] UI built - {_views.Count} liquid globes, shaders {_views[0].Fill.material.shader.name}");
         }
 
         private static GameObject LoadOwnPrefab()

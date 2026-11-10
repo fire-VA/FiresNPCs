@@ -24,7 +24,7 @@ namespace FiresRPGmaker.Managers
         private readonly Dictionary<string, FileSystemWatcher> _watchers = new Dictionary<string, FileSystemWatcher>();
         private readonly Dictionary<string, DateTime> _lastEventTimes = new Dictionary<string, DateTime>();
         private readonly object _lockObj = new object();
-        
+
         // Track files recently written by admin sync to avoid re-broadcasting to the sender
         // Key: normalized file path, Value: (timestamp, sender peer UID)
         private readonly Dictionary<string, (DateTime time, long senderUid)> _adminSyncedFiles = new Dictionary<string, (DateTime, long)>(StringComparer.OrdinalIgnoreCase);
@@ -63,19 +63,23 @@ namespace FiresRPGmaker.Managers
         // Per-folder reload debounce: tracks when we last reloaded each folder to avoid
         // reloading the same subsystem dozens of times when multiple files arrive at once
         private readonly Dictionary<string, Coroutine> _pendingReloads = new Dictionary<string, Coroutine>(StringComparer.OrdinalIgnoreCase);
-        
+
         // Debounce settings
         private const float DebounceDelaySeconds = 2f;
         private const int MinEventIntervalMs = 500;
-        
+        private const float ReadRetryDelaySeconds = 0.5f;
+        private const float FolderReloadDebounceSeconds = 1f;
+        private const float ClientHandlerSettleSeconds = 0.25f;
+        private const float ManifestPollIntervalSeconds = 0.1f;
+
         // Base config directory
         private static string BaseConfigDir => Path.Combine(Paths.ConfigPath, "FiresRPGmaker");
-        
+
         // Folders to watch
         private static readonly string[] WatchedFolders = new[]
         {
             "Quests",
-            "QuestProfiles", 
+            "QuestProfiles",
             "QuestEvents",
             "Dialogues",
             "Traders",
@@ -91,7 +95,7 @@ namespace FiresRPGmaker.Managers
             "LeaderboardAchievements",
             "Factions",
             "UILayouts",
-            "PatrolRoutes"   // 0.0.505: admin patrol-route saves (Core 0.2.308 push) reload + rebroadcast
+            "PatrolRoutes"   // Admin patrol-route saves (Core 0.2.308 push) reload + rebroadcast
         };
 
         /// <summary>
@@ -189,7 +193,7 @@ namespace FiresRPGmaker.Managers
             if (FiresRPGmaker.Instance != null) FiresRPGmaker.Instance.StartCoroutine(MainThreadPump());
             _instance.SetupWatchers();
             _instance._isInitialized = true;
-            
+
             FiresLogger.LogVerbose("[FiresRPGmaker] ServerConfigFileWatcher initialized - watching config folders");
         }
 
@@ -407,7 +411,7 @@ namespace FiresRPGmaker.Managers
                 // Debounce check
                 string key = fullPath.ToLowerInvariant();
                 var now = DateTime.UtcNow;
-                
+
                 lock (_lockObj)
                 {
                     if (_lastEventTimes.TryGetValue(key, out var lastTime))
@@ -419,16 +423,16 @@ namespace FiresRPGmaker.Managers
                 }
 
                 string fileName = Path.GetFileName(fullPath);
-                
+
                 if (FiresLogger.VerboseEnabled)
                     FiresLogger.LogVerbose($"[FiresRPGmaker] Config file change detected: {folderName}/{fileName} ({changeType})");
 
                 // Use coroutine for debounced processing
                 if (FiresRPGmaker.Instance != null)
                 {
-                    // 0.0.534: this runs on the FileSystemWatcher's thread. Starting a coroutine here touched Unity from a
-                    // background thread, which intermittently froze the dedi's main thread (round 15, 06:29: MAIN THREAD
-                    // SILENT 2000+ s right after a territory push). Queue it; the main-thread pump starts it.
+                    // This runs on the FileSystemWatcher's thread. Starting a coroutine here touched Unity from a
+                    // background thread, which intermittently froze the dedi's main thread (the main thread went
+                    // silent for minutes right after a territory push). Queue it; the main-thread pump starts it.
                     _mainThreadQueue.Enqueue(() => FiresRPGmaker.Instance?.StartCoroutine(ProcessFileChangeDelayed(folderName, fullPath, fileName, changeType)));
                 }
             }
@@ -459,7 +463,7 @@ namespace FiresRPGmaker.Managers
             // Read file content (empty if deleted)
             string content = string.Empty;
             bool readSucceeded = false;
-            
+
             if (changeType != WatcherChangeTypes.Deleted && File.Exists(fullPath))
             {
                 // First attempt
@@ -478,12 +482,12 @@ namespace FiresRPGmaker.Managers
             {
                 readSucceeded = true; // Empty content is correct for deleted files
             }
-            
+
             // Retry if first attempt failed
             if (!readSucceeded && changeType != WatcherChangeTypes.Deleted)
             {
-                yield return new WaitForSeconds(0.5f);
-                
+                yield return new WaitForSeconds(ReadRetryDelaySeconds);
+
                 if (File.Exists(fullPath))
                 {
                     try
@@ -522,7 +526,7 @@ namespace FiresRPGmaker.Managers
             // Check if this file was recently synced by an admin client
             string fileKey = Path.Combine(folderName, fileName).ToLowerInvariant();
             long excludeSender = -1;
-            
+
             lock (_lockObj)
             {
                 if (_adminSyncedFiles.TryGetValue(fileKey, out var syncInfo))
@@ -531,14 +535,14 @@ namespace FiresRPGmaker.Managers
                     if ((DateTime.UtcNow - syncInfo.time).TotalSeconds < AdminSyncExpirySeconds)
                     {
                         excludeSender = syncInfo.senderUid;
-                        Debug.Log($"[FiresRPGmaker] Config change from admin sync - will exclude sender {excludeSender} from broadcast: {folderName}/{fileName}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Config change from admin sync - will exclude sender {excludeSender} from broadcast: {folderName}/{fileName}");
                     }
                     // Remove the entry (one-time use)
                     _adminSyncedFiles.Remove(fileKey);
                 }
             }
 
-            Debug.Log($"[FiresRPGmaker] Processing config change: {folderName}/{fileName} ({changeType})");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Processing config change: {folderName}/{fileName} ({changeType})");
 
             // SavedNPCs uses its own dedicated RPC format - let SavedNpcManager handle everything
             if (folderName.Equals("SavedNPCs", StringComparison.OrdinalIgnoreCase))
@@ -571,7 +575,7 @@ namespace FiresRPGmaker.Managers
                     }
                 }
 
-                Debug.Log($"[FiresRPGmaker] Broadcasted UILayout '{fileName}' to {peers?.Count ?? 0} client(s)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Broadcasted UILayout '{fileName}' to {peers?.Count ?? 0} client(s)");
                 return;
             }
 
@@ -613,7 +617,7 @@ namespace FiresRPGmaker.Managers
 
         private IEnumerator DebouncedReloadCoroutine(string folderKey)
         {
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(FolderReloadDebounceSeconds);
             _pendingReloads.Remove(folderKey);
             ExecuteReload(folderKey);
         }
@@ -628,7 +632,7 @@ namespace FiresRPGmaker.Managers
                         if (QuestManager.Instance != null)
                         {
                             QuestManager.Instance.LoadQuestDatabase();
-                            Debug.Log($"[FiresRPGmaker] Reloaded quest database; count={QuestManager.Instance.GetAllQuests().Count}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Reloaded quest database; count={QuestManager.Instance.GetAllQuests().Count}");
                             // Every ready peer; diff-sync skips the admin who pushed it, whose DB already matches.
                             var peers = ZNet.instance?.GetPeers();
                             if (peers != null)
@@ -642,22 +646,22 @@ namespace FiresRPGmaker.Managers
                         if (QuestManager.Instance != null)
                         {
                             QuestManager.Instance.LoadQuestProfiles();
-                            Debug.Log("[FiresRPGmaker] Reloaded quest profiles");
+                            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Reloaded quest profiles");
                         }
                         break;
 
                     case "questevents":
-                        Debug.Log("[FiresRPGmaker] QuestEvents folder changed; clients will receive updated files");
+                        global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] QuestEvents folder changed; clients will receive updated files");
                         break;
 
                     case "dialogues":
                         try
                         {
-                            var initField = typeof(DialogueCodex).GetField("_initialized", 
+                            var initField = typeof(DialogueCodex).GetField("_initialized",
                                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
                             if (initField != null) initField.SetValue(null, false);
                             DialogueCodex.Init();
-                            Debug.Log($"[FiresRPGmaker] Reloaded dialogues; count={DialogueCodex.Dialogues.Count}");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Reloaded dialogues; count={DialogueCodex.Dialogues.Count}");
                         }
                         catch (Exception ex)
                         {
@@ -671,24 +675,24 @@ namespace FiresRPGmaker.Managers
 
                     case "serverinfos":
                         global::FiresRPGmaker.UI.Screens.InfoNpcScreenController.ReloadCache();
-                        Debug.Log("[FiresRPGmaker] Reloaded ServerInfos cache");
+                        global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Reloaded ServerInfos cache");
                         break;
 
                     case "traders":
                         TraderProfileManager.Reset();
                         TraderProfileManager.Initialize();
-                        Debug.Log($"[FiresRPGmaker] Reloaded trader profiles; count={TraderProfileManager.GetAllProfileNames().Count()}");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Reloaded trader profiles; count={TraderProfileManager.GetAllProfileNames().Count()}");
                         break;
 
                     case "savednpcs":
                         SavedNpcManager.Reload();
-                        Debug.Log($"[FiresRPGmaker] Reloaded SavedNPCs from disk");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Reloaded SavedNPCs from disk");
                         break;
 
                     case "buffers":
                     case "bufferprofiles":
                         global::FiresRPGmaker.Modules.Buffer.BufferManager.Reload();
-                        Debug.Log("[FiresRPGmaker] Reloaded buffer configs from disk");
+                        global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Reloaded buffer configs from disk");
                         break;
 
                     case "bankers":
@@ -707,7 +711,7 @@ namespace FiresRPGmaker.Managers
                         global::FiresRPGmaker.Modules.Marketplace.AchievementProfileManager.ReloadAll();
                         global::FiresRPGmaker.Modules.Marketplace.LeaderboardProfileManager.ReloadAll();
                         break;
-                    case "patrolroutes":   // 0.0.505
+                    case "patrolroutes":
                         FiresCore.Npc.Patrol.PatrolRouteManager.Reset();
                         FiresCore.Npc.Patrol.PatrolRouteManager.Initialize();
                         break;
@@ -747,7 +751,7 @@ namespace FiresRPGmaker.Managers
                 {
                     if (peer == null || !peer.IsReady()) continue;
 
-                    // 0.0.532: the pushing admin gets the file too. A pure client reads only its in-memory store, never its own
+                    // The pushing admin gets the file too. A pure client reads only its in-memory store, never its own
                     // disk, so skipping the sender meant an admin never saw their own pushed dialogue / quest / profile edit
                     // until a reconnect. (Subfolder pushes only worked because the exclusion key's slashes didn't match.)
                     if (excludeSender > 0 && peer.m_uid == excludeSender) skippedCount++; // counted for the log line, still sent
@@ -764,7 +768,7 @@ namespace FiresRPGmaker.Managers
                 }
 
                 string skipMsg = skippedCount > 0 ? $" (incl. the pushing admin)" : "";
-                Debug.Log($"[FiresRPGmaker] Broadcasted {folderName}/{fileName} to {successCount} clients{skipMsg}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Broadcasted {folderName}/{fileName} to {successCount} clients{skipMsg}");
             }
             catch (Exception ex)
             {
@@ -898,9 +902,9 @@ namespace FiresRPGmaker.Managers
         private IEnumerator SendAllConfigsToClientCoroutine(long peerUid)
         {
             // Small delay to let the client finish registering its routed-RPC handlers
-            // before we start firing at it. 250 ms is empirically sufficient; the old
-            // 1 s value was a conservative guess and added a flat 750 ms to every login.
-            yield return new WaitForSeconds(0.25f);
+            // before we start firing at it. 250 ms is empirically sufficient; 1 s added
+            // a flat 750 ms to every login.
+            yield return new WaitForSeconds(ClientHandlerSettleSeconds);
 
             // Diff-sync: ask the client up front for a manifest of every cfg-folder
             // we're about to iterate. Firing all requests in parallel lets replies
@@ -1094,8 +1098,8 @@ namespace FiresRPGmaker.Managers
                 {
                     if (FiresCore.UI.UILayoutSyncRPC.TryGetPeerManifest(peerUid, out clientManifest))
                         break;
-                    yield return new WaitForSeconds(0.1f);
-                    waited += 0.1f;
+                    yield return new WaitForSeconds(ManifestPollIntervalSeconds);
+                    waited += ManifestPollIntervalSeconds;
                 }
 
                 int sent = 0, skipped = 0;
@@ -1184,7 +1188,7 @@ namespace FiresRPGmaker.Managers
             _lastEventTimes.Clear();
             _isInitialized = false;
 
-            Debug.Log("[FiresRPGmaker] ServerConfigFileWatcher disposed");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] ServerConfigFileWatcher disposed");
         }
 
         /// <summary>
@@ -1198,13 +1202,13 @@ namespace FiresRPGmaker.Managers
         public static void MarkFileAsAdminSynced(string folderName, string fileName, long senderUid)
         {
             if (_instance == null || !_instance._isInitialized) return;
-            
+
             string fileKey = Path.Combine(folderName, fileName).ToLowerInvariant();
-            
+
             lock (_instance._lockObj)
             {
                 _instance._adminSyncedFiles[fileKey] = (DateTime.UtcNow, senderUid);
-                
+
                 // Clean up old entries while we're here
                 var keysToRemove = new List<string>();
                 foreach (var kvp in _instance._adminSyncedFiles)
@@ -1219,7 +1223,7 @@ namespace FiresRPGmaker.Managers
                     _instance._adminSyncedFiles.Remove(key);
                 }
             }
-            
+
             if (FiresLogger.VerboseEnabled)
                 FiresLogger.LogVerbose($"[FiresRPGmaker] Marked file as admin-synced: {folderName}/{fileName} from sender {senderUid}");
         }

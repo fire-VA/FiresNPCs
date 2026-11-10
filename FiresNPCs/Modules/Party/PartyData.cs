@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -110,13 +110,23 @@ namespace FiresRPGmaker.Modules.Party
 
         public static bool VerboseLogging = false;
 
+        // Saves the spawn gate has not written yet (latest per player).
+        private sealed class Pending { public int Ver; public string Json; }
+        private static readonly Dictionary<Player, Pending> s_pending = new Dictionary<Player, Pending>();
+        private static int s_pendingVer;
+        private const float SaveGateTimeout = 30f;
+
         // ------------------------------ READ --------------------------
 
         public static bool TryGetParty(Player player, out PartyData party)
         {
             party = null;
             if (player == null || player.m_customData == null) return false;
-            if (!player.m_customData.TryGetValue(CustomDataKey, out string json) || string.IsNullOrEmpty(json))
+            // A save not yet written
+            // (the spawn gate defers it) is what the next read sees, so a read-modify-save never starts from stale m_customData.
+            string json;
+            if (s_pending.TryGetValue(player, out var pend)) json = pend.Json;
+            else if (!player.m_customData.TryGetValue(CustomDataKey, out json) || string.IsNullOrEmpty(json))
                 return false;
 
             try
@@ -164,14 +174,20 @@ namespace FiresRPGmaker.Modules.Party
             string capturedJson = json;
             int memberCount = party.Members.Count;
             string playerName = SafePlayerName(player);
-            PlayerSpawnGate.RunWhenReady(player, 30f, p =>
+            // Core's gate drains its queue back-to-front, so two saves queued while the player is not ready (teleporting)
+            // ran NEWEST first and the older one won. Each save gets a version; only the latest pending one is written.
+            int ver = ++s_pendingVer;
+            s_pending[player] = new Pending { Ver = ver, Json = capturedJson };
+            PlayerSpawnGate.RunWhenReady(player, SaveGateTimeout, p =>
             {
                 try
                 {
                     if (p.m_customData == null) return;
+                    if (!s_pending.TryGetValue(p, out var cur) || cur.Ver != ver) return;   // superseded (a newer save or a clear)
+                    s_pending.Remove(p);
                     p.m_customData[CustomDataKey] = capturedJson;
                     if (VerboseLogging)
-                        Debug.Log($"{LogPrefix} Wrote party ({memberCount} members, {capturedJson.Length} bytes) for {playerName}.");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"{LogPrefix} Wrote party ({memberCount} members, {capturedJson.Length} bytes) for {playerName}.");
                 }
                 catch (Exception ex)
                 {
@@ -184,6 +200,7 @@ namespace FiresRPGmaker.Modules.Party
         public static bool ClearParty(Player player)
         {
             if (player == null || player.m_customData == null) return false;
+            s_pending.Remove(player);   // a clear also cancels any deferred save
             try
             {
                 if (player.m_customData.ContainsKey(CustomDataKey))

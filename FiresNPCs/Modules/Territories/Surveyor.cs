@@ -10,25 +10,25 @@ namespace FiresRPGmaker.Modules.Territories
     /// <summary>
     /// Admin-only auto marker that writes legacy territory cfg entries while an admin walks a path.
     /// Automatically places 15m radius circles every 10m along your path.
-    /// 
+    ///
     /// Command Format: startmarking Name[,R,G,B,flags]
-    /// 
+    ///
     /// Parameters (comma-separated):
     ///   Name  - Territory name (required)
     ///   R,G,B - Color values 0-255 (optional, default: 255,0,0 red)
     ///   flags - Territory flags separated by | (optional, default: None)
-    /// 
+    ///
     /// Examples:
     ///   startmarking DangerPath
     /// startmarking SafeRoad,0,255,0
     ///   startmarking RestrictedPath,255,0,0,NoMonsters|NoBuild
     ///   startmarking SpeedTrail,0,0,255,MoveSpeedMultiplier=1.5
-    /// 
+    ///
     /// Usage:
     ///   1. Run: startmarking MyPath,R,G,B,flags
     ///   2. Walk along the desired path
     ///   3. Run: stopmarking
-    /// 
+    ///
     /// Output: Config/FiresRPGmaker/Territories/legacy/AutoMarker.cfg
     /// </summary>
     [HarmonyPatch]
@@ -63,18 +63,18 @@ namespace FiresRPGmaker.Modules.Territories
                 "    startmarking DangerPath\n" +
                 "    startmarking SafeRoad,0,255,0\n" +
                 "    startmarking RestrictedPath,255,0,0,NoMonsters|NoBuild",
-                StartCommand);
+                StartCommand, isCheat: true);
 
             new Terminal.ConsoleCommand("stopmarking",
                 "Stop auto territory path marking and save the path.",
-                StopCommand);
+                StopCommand, isCheat: true);
         }
 
         private static void StartCommand(Terminal.ConsoleEventArgs args)
         {
             try
             {
-                if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[Surveyor]")) return;   // 0.0.504
+                if (TerritoryFileSync.RefuseIfNotAdmin(args.Context, "[Surveyor]")) return;
                 if (Player.m_localPlayer == null)
                 {
                     args.Context.AddString("[Surveyor] No local player");
@@ -233,7 +233,7 @@ namespace FiresRPGmaker.Modules.Territories
                 lines.Add("ALL");
 
                 File.WriteAllLines(_filePath, lines);
-                TerritoryFileSync.Saved(_filePath);   // 0.0.504: each marked node reaches the server on a dedi client
+                TerritoryFileSync.Saved(_filePath);   // Each marked node reaches the server on a dedi client
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Marked node {_count}");
             }
             catch (Exception ex)

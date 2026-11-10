@@ -98,8 +98,9 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <!-- FiresUnifiedCore - VanillaAssetResolver consumed via BepInDependency. -->
+    <!-- 0.0.842: compile against a pinned copy of the LIVE Core DLL (valheimRip2\_core_pin_rpgm, see PIN.txt there; refresh it from the rig at every RPGM freeze), not the old _scratch_core793 build. Resolves from _rpgS_ghost\0NNN and FiresNPCs\FiresNPCs alike. -->
     <Reference Include="FiresUnifiedCore">
-      <HintPath>..\..\FiresUnifiedCore\FiresUnifiedCore\bin\Release\FiresUnifiedCore.dll</HintPath>
+      <HintPath>..\..\_core_pin_rpgm\FiresUnifiedCore.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System.Xml.Linq" />
@@ -152,25 +153,31 @@
     <Compile Include="GlobalUsings.cs" />
     <Compile Include="Ascend.cs" />
     <Compile Include="RpgMakerApi.cs" />
+    <Compile Include="RpgMapApi.cs" />
+    <Compile Include="Modules\WorldPins\WorldPins.cs" />
     <Compile Include="Modules\Party\Bridge\PartyGroupProvider.cs" />
     <Compile Include="Modules\Party\PartyData.cs" />
     <Compile Include="Modules\Party\PartyManager.cs" />
     <Compile Include="Debug\DebugPrefabDumper.cs" />
     <Compile Include="Debug\DebugRecipeDumper.cs" />
     <Compile Include="Debug\DebugTools.cs" />
-    <Compile Include="Debug\FiresNpcsTest.cs" />
+    <Compile Include="UI\Screens\Leaderboard\LeaderboardKitSkin.cs" />
     <Compile Include="Debug\StaticNpcZdoDiagnostics.cs" />
     <Compile Include="Debug\StaticNpcGhostDiagnostics.cs" />
     <Compile Include="Managers\ChroniclesOfTime.cs" />
     <Compile Include="Managers\ConfigManager.cs" />
     <Compile Include="Managers\ConfigMoves.cs" />
+    <Compile Include="Managers\GroupHudOwned.cs" />
+    <Compile Include="Managers\RpcRegistration.cs" />
     <Compile Include="Managers\PlayerFileStorage.cs" />
     <Compile Include="Managers\QuestManager.cs" />
     <Compile Include="Managers\FiresConfigSync.cs" />
     <Compile Include="Managers\FiresConfigMigration.cs" />
     <Compile Include="Managers\QuestTimerManager.cs" />
     <Compile Include="Managers\SavedNpcManager.cs" />
+    <Compile Include="Managers\RpcSender.cs" />
     <Compile Include="Managers\NpcTemplatePieces.cs" />
+    <Compile Include="Managers\NpcTemplatePresetKind.cs" />
     <Compile Include="Managers\NpcTemplateAppearance.cs" />
     <Compile Include="UI\ContextMenu\NpcBodyContextProvider.cs" />
     <Compile Include="Managers\ServerConfigFileWatcher.cs" />
@@ -203,6 +210,11 @@
     <Compile Include="Modules\Compat\VikingCoreCompat.cs" />
     <Compile Include="Modules\Dialogues\EwpDataBridge.cs" />
     <Compile Include="Modules\Territories\TerritoryOwnership.cs" />
+    <Compile Include="Modules\Territories\TerritoryAccess.cs" />
+    <Compile Include="Modules\Territories\TerritoryAccess.Raid.cs" />
+    <Compile Include="Modules\Territories\TerritoryAccess.Fire.cs" />
+    <Compile Include="Modules\Territories\TerritoryAccess.OwnerEdit.cs" />
+    <Compile Include="Modules\Territories\TerritoryAccess.Stands.cs" />
     <Compile Include="Modules\Territories\TerritoryPurchase.cs" />
     <Compile Include="Modules\Progression\PrivateKeyManager.cs" />
     <Compile Include="Modules\Progression\ProgressionConfig.cs" />
@@ -219,6 +231,7 @@
     <Compile Include="Modules\Companions\NpcMode\StaticNpcRespawnManager.cs" />
     <Compile Include="Integration\NpcBridgeProviders.cs" />
     <Compile Include="Integration\NpcAnchorDataBridge.cs" />
+    <Compile Include="Integration\DressingPreviewApi.cs" />
     <Compile Include="Modules\Compendium\CompendiumDiscoveryTracker.cs" />
     <Compile Include="Modules\Compendium\CompendiumEntries.cs" />
     <Compile Include="Modules\Compendium\CompendiumManager.cs" />
@@ -237,17 +250,19 @@
     <Compile Include="Modules\Quest\QuestLifecycleDispatcher.cs" />
     <Compile Include="Modules\RpgVanillaHooks.cs" />
     <Compile Include="Modules\Marketplace\API_ClientSide.cs" />
-    <Compile Include="Debug\ParityTestCommands.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.MissingFlagPatches.cs" />
     <Compile Include="Modules\Territories\DeepNorthEnvironment.cs" />
     <Compile Include="Modules\Territories\OutlineSurveyor.cs" />
     <Compile Include="Modules\Territories\MinimapColumn.cs" />
     <Compile Include="Modules\Territories\TerritoryQuickEdit.cs" />
+    <Compile Include="Modules\Territories\TerritoryMapModeProbe.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintModels.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintCommit.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintDriver.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryPaintPalette.cs" />
     <Compile Include="Modules\Territories\Paint\TerritoryAdminEdit.cs" />
+    <Compile Include="Modules\Territories\Studio\TerritoryStudioOps.cs" />
+    <Compile Include="Modules\Companions\NpcMode\NpcStudioOps.cs" />
     <Compile Include="Modules\Territories\Surveyor.cs" />
     <Compile Include="Modules\Territories\TerritoryDrawer.cs" />
     <Compile Include="Modules\Territories\TerritoryEntryReporter.cs" />
@@ -256,14 +271,27 @@
     <Compile Include="UI\QuestTrackerHud.cs" />
     <Compile Include="UI\DraggableHud.cs" />
     <Compile Include="UI\FiresKitBookSkin.cs" />
+    <Compile Include="UI\RpgConfigUi.cs" />
     <Compile Include="UI\FiresStatsSections.cs" />
     <Compile Include="Modules\Territories\TerritoryLedger.cs" />
+    <Compile Include="Modules\Territories\TerritoryLedgerApi.cs" />
+    <Compile Include="Modules\Territories\TerritoryLedgerEdit.cs" />
+    <Compile Include="Modules\Territories\TerritoryLedgerPiece.cs" />
+    <Compile Include="Modules\Territories\TerritorySeals.cs" />
+    <Compile Include="Modules\Territories\TerritorySealItems.cs" />
+    <Compile Include="Modules\Territories\Ledger\TerritoryLedgerWindow.cs" />
+    <Compile Include="Modules\Territories\Ledger\TerritoryLedgerUi.cs" />
     <Compile Include="Modules\Territories\TerritoryApi.cs" />
+    <Compile Include="Modules\Territories\TerritoryBiomes.cs" />
+    <Compile Include="Modules\Territories\TerritoryBiomeBlend.cs" />
+    <Compile Include="Modules\Territories\TerritoryRegen.cs" />
+    <Compile Include="Modules\Territories\TerritoryBiomeProbe.cs" />
     <Compile Include="Modules\Territories\TerritoryMapOverlay.cs" />
     <Compile Include="Modules\Territories\TerritoryModels.cs" />
     <Compile Include="Modules\Territories\TerritoryPvpDamagePatches.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.Environment.cs" />
+    <Compile Include="Modules\Territories\TerritorySnowFeed.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.Spawners.cs" />
     <Compile Include="Modules\Territories\TerritoryRuntime.Physics.cs" />
     <Compile Include="Modules\Territories\TerritoryFileSync.cs" />
@@ -276,6 +304,9 @@
     <Compile Include="Modules\Vault\Treasury.cs" />
     <Compile Include="Modules\Vault\VaultApi.cs" />
     <Compile Include="Modules\Vault\VaultOfKnowledge.cs" />
+    <Compile Include="Modules\Vault\VaultStatSaver.cs" />
+    <Compile Include="Modules\Diagnostics\RpgFrameCost.cs" />
+    <Compile Include="Modules\Diagnostics\VisEquipmentProbe.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\PlayerInventoryService.cs" />
     <Compile Include="Services\QuestStatusService.cs" />
@@ -287,6 +318,8 @@
     <Compile Include="UI\DialogueManager.cs" />
     <Compile Include="UI\GlobeHudController.cs" />
     <Compile Include="UI\CoreUiBridge.cs" />
+    <Compile Include="UI\BookArtBounds.cs" />
+    <Compile Include="UI\ImguiWindowSpot.cs" />
     <Compile Include="UI\GlobeHud\GlobeHoverTooltip.cs" />
     <Compile Include="UI\GlobeHud\GlobeLiquidSlosh.cs" />
     <Compile Include="UI\GlobeHud\GlobeMotionSampler.cs" />
@@ -302,14 +335,20 @@
     <Compile Include="UI\NpcBookShell.cs" />
     <Compile Include="UI\BookOptionPopup.cs" />
     <Compile Include="UI\PatrolRecorder.cs" />
+    <Compile Include="UI\PatrolReplayTimeline.cs" />
+    <Compile Include="UI\PatrolReplayCapture.cs" />
+    <Compile Include="UI\NpcReplayPlayer.cs" />
     <Compile Include="UI\PatrolRoutePopup.cs" />
     <Compile Include="UI\PatrolPointPopup.cs" />
     <Compile Include="UI\PatrolPresetPopup.cs" />
     <Compile Include="UI\Screens\Patrol\PatrolEditorPanel.cs" />
     <Compile Include="UI\Screens\Patrol\PatrolMapView.cs" />
     <Compile Include="UI\Map\LiveMap.cs" />
+    <Compile Include="UI\Map\LiveMapApi.cs" />
+    <Compile Include="UI\Map\LiveMiniMap.cs" />
     <Compile Include="UI\Map\CutawayService.cs" />
     <Compile Include="UI\CutawayCornerWidget.cs" />
+    <Compile Include="UI\KitControlsAdapter.cs" />
     <Compile Include="UI\Screens\Patrol\PatrolEditorDriver.cs" />
     <Compile Include="UI\PatrolRouteSync.cs" />
     <Compile Include="UI\ContextMenu\PatrolNodeContextProvider.cs" />
@@ -346,6 +385,8 @@
     <Compile Include="UI\Screens\DressingRoomScreenController.Fashion.cs" />
     <Compile Include="UI\Screens\DressingRoomScreenController.Pet.cs" />
     <Compile Include="UI\Screens\DressingThreePanel.cs" />
+    <Compile Include="Utilities\CharacterVisualsSignal.cs" />
+    <Compile Include="Utilities\RingUp.cs" />   <!-- 0.0.772 halo ring up -->
     <Compile Include="UI\FiresDressingSidePanel.cs" />
     <Compile Include="UI\FiresDressingInventoryGrid.cs" />
     <Compile Include="UI\Screens\StubPlayerUIController.cs" />
@@ -359,14 +400,12 @@
     <Compile Include="Modules\Poker\PokerHandEval.cs" />
     <Compile Include="Modules\Poker\PokerGame.cs" />
     <Compile Include="Modules\Poker\PokerAI.cs" />
-    <Compile Include="Modules\Poker\PokerTest.cs" />
     <Compile Include="Modules\Poker\PokerLobby.cs" />
     <Compile Include="Modules\Poker\PokerNetHost.cs" />
     <Compile Include="Modules\Poker\PokerNetClient.cs" />
     <Compile Include="Modules\Poker\PokerCashTables.cs" />
     <Compile Include="Modules\Chess\ChessBoard.cs" />
     <Compile Include="Modules\Chess\ChessMoveGen.cs" />
-    <Compile Include="Modules\Chess\ChessPerft.cs" />
     <Compile Include="Modules\Chess\ChessAI.cs" />
     <Compile Include="Modules\Chess\ChessTablePiece.cs" />
     <Compile Include="Modules\Chess\ChessBoardVisual.cs" />
@@ -379,7 +418,6 @@
     <Compile Include="Modules\TableGames\QueueDockChip.cs" />
     <Compile Include="Modules\Fanorona\FanoronaEngine.cs" />
     <Compile Include="Modules\Fanorona\FanoronaAI.cs" />
-    <Compile Include="Modules\Fanorona\FanoronaTest.cs" />
     <Compile Include="UI\Screens\Player\Minigames\ChessTableGame.cs" />
     <Compile Include="UI\Screens\Player\Minigames\FanoronaTableGame.cs" />
     <Compile Include="UI\Screens\Player\Minigames\PokerTableGame.cs" />
@@ -387,14 +425,15 @@
     <Compile Include="UI\Screens\Player\AchievementPlayerPanel.cs" />
     <Compile Include="UI\Screens\Player\LeaderboardPlayerPanel.cs" />
     <Compile Include="UI\Screens\Leaderboard\LeaderboardInventoryTab.cs" />
+    <Compile Include="UI\Screens\Leaderboard\LeaderboardHubModule.cs" />
     <Compile Include="UI\Screens\Player\MailPlayerPanel.cs" />
     <Compile Include="UI\Screens\Player\TransmogPlayerPanel.cs" />
     <Compile Include="Modules\Marketplace\GamblerProfileManager.cs" />
-    <Compile Include="Debug\SprintVerifyCommands.cs" />
     <Compile Include="Modules\Marketplace\DiscordWebhooks.cs" />
     <Compile Include="Modules\Marketplace\MarketplaceGlobals.cs" />
     <Compile Include="Modules\Marketplace\MarketplaceListingManager.cs" />
     <Compile Include="Modules\Marketplace\MarketplaceNetwork.cs" />
+    <Compile Include="Modules\Marketplace\EconomySenderGuard.cs" />
     <Compile Include="Modules\Marketplace\AchievementProfileManager.cs" />
     <Compile Include="Modules\Marketplace\AchievementCatalogue.cs" />
     <Compile Include="Modules\Marketplace\AchievementCompletion.cs" />
@@ -424,8 +463,6 @@
     <Compile Include="Modules\Marketplace\MarketplaceConsoleCommands.cs" />
     <Compile Include="Modules\Marketplace\MarketplacePaths.cs" />
     <Compile Include="Modules\Migration\KgNpcMigrator.cs" />
-    <Compile Include="Modules\Migration\RpgMakerMigrateTest.cs" />
-    <Compile Include="Modules\Migration\RpgMakerMigrateProof.cs" />
     <Compile Include="UI\Screens\Player\BankerPlayerPanel.cs" />
     <Compile Include="Modules\Marketplace\LeaderboardTracker.cs" />
     <Compile Include="Modules\Marketplace\LeaderboardServerFeed.cs" />
@@ -671,4 +708,30 @@
     <Content Include="Debug\DebugRefs\VALHEIM_SPRITES_REFERENCE.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- Rig-only test commands: the test files stay out of the public repo. When they are present the build includes them and defines FIRES_TESTS. -->
+  <PropertyGroup Condition="Exists('Debug\TerritoryToolsTest.cs')">
+    <DefineConstants>$(DefineConstants);FIRES_TESTS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('Debug\TerritoryToolsTest.cs')">
+    <Compile Include="Debug\ChatScrollTest.cs" />
+    <Compile Include="Debug\DressingProofTest.cs" />
+    <Compile Include="Debug\FiresNpcsTest.cs" />
+    <Compile Include="Debug\NpcDamageTest.cs" />
+    <Compile Include="Debug\NpcStaleRecordTest.cs" />
+    <Compile Include="Debug\StudioOpsTest.cs" />
+    <Compile Include="Debug\RpgLeaderboardUiTest.cs" />
+    <Compile Include="Debug\RpgNpcBookCloseTest.cs" />
+    <Compile Include="Debug\RpgNpcFireListTest.cs" />
+    <Compile Include="Debug\RpgUiTourTest.cs" />
+    <Compile Include="Debug\TerritoryToolsTest.cs" />
+    <Compile Include="Debug\TerritoryLedgerTest.cs" />
+    <Compile Include="Debug\TerritoryLedgerSealTest.cs" />
+    <Compile Include="Modules\Poker\PokerTest.cs" />
+    <Compile Include="Modules\Chess\ChessPerft.cs" />
+    <Compile Include="Modules\Fanorona\FanoronaTest.cs" />
+    <Compile Include="Modules\Migration\RpgMakerMigrateTest.cs" />
+    <Compile Include="Modules\Migration\RpgMakerMigrateProof.cs" />
+    <Compile Include="Debug\ParityTestCommands.cs" />
+    <Compile Include="Debug\SprintVerifyCommands.cs" />
+  </ItemGroup>
 </Project>

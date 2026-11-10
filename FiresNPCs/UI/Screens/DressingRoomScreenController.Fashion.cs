@@ -47,14 +47,14 @@ namespace FiresRPGmaker.UI.Screens
                 labels.Add(anim.Label);
             }
             _animationValues[dropdown] = values;
-            AttachAnimHover(dropdown);   // 0.0.600: hover an entry = play it on the live preview
+            AttachAnimHover(dropdown);   // hover an entry = play it on the live preview
             dropdown.ClearOptions();
             dropdown.AddOptions(labels);
             dropdown.value = 0;
             dropdown.RefreshShownValue();
         }
 
-        // 0.0.600: TMP_Dropdown clones its template "Item" for every option, naming each "Item {index}: {label}". A hover component on the
+        // TMP_Dropdown clones its template "Item" for every option, naming each "Item {index}: {label}". A hover component on the
         // template therefore lands on every option; it maps the option back to its catalog key and asks the preview to play it.
         // Leaving the list (pointer exit / the list closing) returns the preview to the SELECTED entry.
         private void AttachAnimHover(TMP_Dropdown dropdown)
@@ -145,7 +145,7 @@ namespace FiresRPGmaker.UI.Screens
             foreach (var key in FiresCore.Audio.FiresCustomAudioStore.Clips.Keys)
                 if (!options.Contains(key)) options.Add(key);
 
-            // 0.0.546 ([visual]'s snd2 "no clip"): PlaySound already falls back to any loaded game clip by name
+            // ([visual]'s snd2 "no clip"): PlaySound already falls back to any loaded game clip by name
             // (ResolveClipCached), but the dropdown only listed the NPC's own and the custom clips, so it was empty on a rig
             // with no custom files. Add the loaded game clips, sorted, after the custom ones.
             var gameClips = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);

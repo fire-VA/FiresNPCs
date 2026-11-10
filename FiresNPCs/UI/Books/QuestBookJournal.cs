@@ -55,7 +55,7 @@ namespace FiresRPGmaker.UI.Books
         private static string _npcName;
         private static List<QuestDefinition> _npcQuests;
 
-        // 0.0.635 (R-1015F pause menu blocked: ModUiRegistry.IsAnyOpen): this canvas can sit inside the NPC book shell, which hides it by
+        // this canvas can sit inside the NPC book shell, which hides it by
         // deactivating a PARENT, so activeSelf stayed true after the book closed and every pause menu was shut. Judge what is on screen.
         public static bool IsOpen => _built && _canvas != null && _canvas.activeInHierarchy;
         public static void Toggle() { if (IsOpen) Close(); else Open(); }
@@ -126,6 +126,10 @@ namespace FiresRPGmaker.UI.Books
             view.Show("FiresBook_Opening");
             if (_bookRaw != null) _bookRaw.texture = view.Texture;
             _canvas.SetActive(true);
+            // 0.0.809 (Fire 10-31: "proper resize handlers in their bottom right corner like our other ui's ... increase the size of all
+            // the elements"): the journal is one of Core's live panels, the same path BookViewWindow / the patrol popups use. Its
+            // bottom-right handle scales the whole panel (text included), Core remembers the size and place per player.
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(_canvas.GetComponent<QuestBookCursorKeeper>(), "QuestJournal", _panel.GetComponent<RectTransform>());
             if (_uiCam != null) _uiCam.enabled = true;
             _showCompleted = false; _selected = null;
             PopulateToc();
@@ -175,7 +179,7 @@ namespace FiresRPGmaker.UI.Books
             c.renderMode = RenderMode.ScreenSpaceCamera; c.worldCamera = _uiCam; c.planeDistance = 10f; c.sortingOrder = 6300;
             var s = _canvas.GetComponent<CanvasScaler>(); s.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; s.referenceResolution = new Vector2(1920f, 1080f); s.matchWidthOrHeight = 1f;
 
-            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panel);   // 0.0.614
+            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panel);
             var rt = _panel.GetComponent<RectTransform>(); rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero; rt.localScale = Vector3.one;
 
             Bind(_panel.transform);
@@ -194,6 +198,21 @@ namespace FiresRPGmaker.UI.Books
         {
             go.layer = layer;
             for (int i = 0; i < go.transform.childCount; i++) SetLayerRecursive(go.transform.GetChild(i).gameObject, layer);
+        }
+
+        // 0.0.815: moves objects added under the canvas after the build (Core's grip / drag strip) onto the journal's camera layer
+        private static bool s_relayerLogged;
+        internal static void RelayerAdded()
+        {
+            if (_canvas == null) return;
+            int moved = 0;
+            foreach (var t in _canvas.GetComponentsInChildren<Transform>(true))
+                if (t.gameObject.layer != _uiLayer) { t.gameObject.layer = _uiLayer; moved++; }
+            if (moved > 0 && !s_relayerLogged)
+            {
+                s_relayerLogged = true;
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestBookJournal] moved {moved} added object(s) (Core's resize grip / drag strip) onto the journal's camera layer {_uiLayer} so they draw");
+            }
         }
 
         private static void Bind(Transform t)
@@ -256,7 +275,7 @@ namespace FiresRPGmaker.UI.Books
                     float hdrH = hdrTopL - hdrBotL;
                     float delta = (pvBotL - hdrH * 0.45f) - hdrTopL;   // heading top sits a small gap below the preview
                     detailsHdr.rectTransform.localPosition += new Vector3(0f, delta, 0f);
-                    Debug.Log($"[QuestBookJournal] DETAILS caption lifted delta={delta:F1} (pvBot={pvBotL:F1} hdrTop={hdrTopL:F1} hdrH={hdrH:F1})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestBookJournal] DETAILS caption lifted delta={delta:F1} (pvBot={pvBotL:F1} hdrTop={hdrTopL:F1} hdrH={hdrH:F1})");
                 }
             }
             catch (Exception ex) { Debug.LogWarning("[QuestBookJournal] DETAILS caption lift failed: " + ex.Message); }
@@ -411,7 +430,7 @@ namespace FiresRPGmaker.UI.Books
                 {
                     var vp = _tocContent.parent as RectTransform;
                     var r0 = _rows[0].transform as RectTransform;
-                    Debug.Log($"[QuestBookJournal] toc rects viewport={vp?.rect.size} content={_tocContent.rect.size} row0={r0?.rect.size} row0pos={r0?.anchoredPosition}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestBookJournal] toc rects viewport={vp?.rect.size} content={_tocContent.rect.size} row0={r0?.rect.size} row0pos={r0?.anchoredPosition}");
                 }
             }
             Highlight();
@@ -449,7 +468,11 @@ namespace FiresRPGmaker.UI.Books
             {
                 var p = Player.m_localPlayer;
                 if (p == null || string.IsNullOrEmpty(_selected)) return false;
-                return QuestManager.Instance?.HasQuest(p.GetPlayerID(), _selected) ?? false;
+                // 0.0.807 (Fire 10-31, a player: "when I try to accept the quest, click it and nothing happen"): Accept writes
+                // ActiveQuestStore, so the book reads it too; a quest active there but not yet in the vault copy showed "Accept"
+                // and every click was silently skipped
+                return global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.HasQuest(_selected)
+                    || (QuestManager.Instance?.HasQuest(p.GetPlayerID(), _selected) ?? false);
             }
             catch { return false; }
         }
@@ -488,7 +511,7 @@ namespace FiresRPGmaker.UI.Books
             bool ok = wasActive
                 ? global::FiresRPGmaker.UI.Screens.QuestInteractionScreenController.AbandonQuestCore(def)
                 : global::FiresRPGmaker.UI.Screens.QuestInteractionScreenController.AcceptQuestCore(def);
-            if (!ok) return;
+            if (!ok) { UpdateNpcActionButton(); ShowDetails(def); return; }   // 0.0.807: a refused click redraws the book from the store
             bool expectActive = !wasActive;
             if (_tocToggleLabel != null) _tocToggleLabel.text = expectActive ? "Abandon Quest" : "Accept Quest";   // optimistic; held until the vault converges
             ShowDetails(def);
@@ -536,7 +559,7 @@ namespace FiresRPGmaker.UI.Books
             try { global::FiresRPGmaker.Modules.Quest.QuestLifecycleDispatcher.OnCompleted(def, data, player); } catch { }
 
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"Quest completed: {def.Name ?? def.QuestId}");
-            Debug.Log($"[QuestPipe] TurnIn OK {def.QuestId}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPipe] TurnIn OK {def.QuestId}");
             PopulateToc();
             ShowDetails(null);
         }
@@ -764,7 +787,19 @@ namespace FiresRPGmaker.UI.Books
         }
         private void OnDisable() { try { FiresCore.UI.InputBlock.Block(false); } catch { } try { FiresCore.UI.CrosshairRaycast.Restore(_cross); } catch { } Hide(false); }
         private void OnGUI() { if (!QuestBookJournal.IsOpen) return; Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
-        private void Update() { if (!QuestBookJournal.IsOpen) return; if (Input.GetKeyDown(KeyCode.Escape)) { QuestBookJournal.Close(); return; } try { FiresCore.UI.CrosshairRaycast.Reassert(_cross); } catch { } Hide(true); }
+        private void Update()
+        {
+            if (!QuestBookJournal.IsOpen) return;
+            if (Input.GetKeyDown(KeyCode.Escape)) { QuestBookJournal.Close(); return; }
+            try { FiresCore.UI.CrosshairRaycast.Reassert(_cross); } catch { }
+            Hide(true);
+            // 0.0.815 (Fire 10-31: "the resize handler also never shows up", holding Alt+Shift): the journal draws through its own UI
+            // camera that renders ONLY its private layer (cullingMask = 1 << _uiLayer). Core's live-panel grip + drag strip are created
+            // later as new children on the default layer, so that camera never drew them. Anything added under the canvas is moved
+            // onto the journal's layer, twice a second while open.
+            if (Time.unscaledTime >= _relayerAt) { _relayerAt = Time.unscaledTime + 0.5f; QuestBookJournal.RelayerAdded(); }
+        }
+        private float _relayerAt;
         private void Hide(bool hidden) { if (_crossGo == null && global::Hud.instance != null) _crossGo = F(global::Hud.instance.transform, "crosshair"); if (_crossGo != null && _crossGo.activeSelf == hidden) _crossGo.SetActive(!hidden); }
         private static GameObject F(Transform r, string n) { if (r == null) return null; if (r.name == n) return r.gameObject; for (int i = 0; i < r.childCount; i++) { var c = F(r.GetChild(i), n); if (c != null) return c; } return null; }
     }

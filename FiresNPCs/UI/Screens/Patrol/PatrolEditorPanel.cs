@@ -40,7 +40,7 @@ namespace FiresRPGmaker.UI.Screens.Patrol
 
         private static readonly string[] _shapeNames = { "Flat", "EaseInOut", "Arch", "Ramp" };
 
-        // 0.0.635 (R-1015F pause menu blocked: ModUiRegistry.IsAnyOpen): this canvas can sit inside the NPC book shell, which hides it by
+        // this canvas can sit inside the NPC book shell, which hides it by
         // deactivating a PARENT, so activeSelf stayed true after the book closed and every pause menu was shut. Judge what is on screen.
         public static bool IsOpen => _built && _canvas != null && _canvas.activeInHierarchy;
 
@@ -64,6 +64,7 @@ namespace FiresRPGmaker.UI.Screens.Patrol
             LoadWork();
             if (!PatrolRouteVisualizer.IsShowing(route)) PatrolRouteVisualizer.Show(route);
             _canvas.SetActive(true);
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(_canvas.GetComponent<CursorKeeper>(), "PatrolEditor", _panel != null ? _panel.GetComponent<RectTransform>() : null);   // Core's live panel
             // Free the cursor + suppress player input while open (opened from the world, where there's no
             // InventoryGui to do it) so the EventSystem drives our buttons/sliders/dropdowns. Mirrors the popups.
             FiresCore.Bridge.ModUiRegistry.Register("FiresPatrolEditorPanel", () => IsOpen, Close, () => _canvas);
@@ -93,7 +94,7 @@ namespace FiresRPGmaker.UI.Screens.Patrol
             var canvas = _canvas.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 6200;
             var scaler = _canvas.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1920f, 1080f); scaler.matchWidthOrHeight = 0.5f;
 
-            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panel);   // 0.0.614
+            _panel = UnityEngine.Object.Instantiate(prefab, _canvas.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panel);
             var rt = _panel.GetComponent<RectTransform>();
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero;
 
@@ -174,13 +175,7 @@ namespace FiresRPGmaker.UI.Screens.Patrol
             _mustHitBtnLabel = Tmp(Find(t, "MustHitButton")?.transform, "Label");
             _mustHitImg = Find(t, "MustHitButton")?.GetComponent<Image>();
 
-            // draggable by the header strip
-            var header = Find(t, "Header");
-            if (header != null)
-            {
-                var drag = header.GetComponent<global::FiresRPGmaker.UI.Screens.PopupDragHandler>() ?? header.AddComponent<global::FiresRPGmaker.UI.Screens.PopupDragHandler>();
-                drag.target = _panel.GetComponent<RectTransform>();
-            }
+            // Core's live panel replaces the local drag handler
 
             Click(t, "CloseButton", Close);
             Click(t, "StopToggleButton", ToggleStop);
@@ -480,6 +475,8 @@ namespace FiresRPGmaker.UI.Screens.Patrol
             var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
             up.callback.AddListener(_ => onRelease());
             trig.triggers.Add(up);
+            // Core's kit slider over the baked one (same onValueChanged bindings; release -> the same commit)
+            if (global::FiresRPGmaker.UI.KitControlsAdapter.Kitize(s, "0.00", 0f, onRelease)) { var v = s.transform.parent != null ? s.transform.parent.Find(s.name + "Value") : null; if (v != null) v.gameObject.SetActive(false); }
         }
 
         private static void SetInteractable(Selectable s, bool on) { if (s != null) s.interactable = on; }

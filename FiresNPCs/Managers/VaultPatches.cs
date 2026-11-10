@@ -62,7 +62,7 @@ namespace FiresRPGmaker.Modules.Vault
                             if (playerData == null) continue;
 
                             // Ensure player name is set
-                            if (!string.IsNullOrEmpty(playerName) && 
+                            if (!string.IsNullOrEmpty(playerName) &&
                                 (string.IsNullOrEmpty(playerData.PlayerName) || playerData.PlayerName == "Unknown"))
                             {
                                 playerData.PlayerName = playerName;
@@ -97,7 +97,7 @@ namespace FiresRPGmaker.Modules.Vault
                     Debug.LogWarning($"[FiresRPGmaker] Failed to save server vault data during world save: {exServer.Message}");
                 }
 
-                Debug.Log("[FiresRPGmaker] Vault data flushed to JSON during ZNet.Save()");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Vault data flushed to JSON during ZNet.Save()");
             }
             catch (Exception ex)
             {
@@ -121,20 +121,20 @@ namespace FiresRPGmaker.Modules.Vault
             {
                 // Indicate a player is joining so periodic saves can be skipped briefly
                 try { VaultOfKnowledge.Instance.NotifyPlayerJoining(); } catch { }
-                
+
                 // At OnNewConnection time, peer.m_uid is often 0 and peer.m_playerName is empty.
                 // We can only reliably get the Steam ID from the socket at this point.
                 string platformId = peer.m_socket?.GetHostName() ?? string.Empty;
-                
+
                 // Store platformId for later use when we have proper peer info
                 // Don't create vault entries yet - wait for RPC_PeerInfo or OnSpawned
                 if (!string.IsNullOrEmpty(platformId))
                 {
-                    Debug.Log($"[FiresRPGmaker] OnNewConnection: Captured platformId={platformId} (peer not fully initialized yet, will process on spawn)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] OnNewConnection: Captured platformId={platformId} (peer not fully initialized yet, will process on spawn)");
                 }
                 else
                 {
-                    Debug.Log("[FiresRPGmaker] OnNewConnection: No platformId available yet");
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] OnNewConnection: No platformId available yet");
                 }
             }
             catch (Exception ex)
@@ -143,7 +143,7 @@ namespace FiresRPGmaker.Modules.Vault
             }
         }
     }
-    
+
     // Hook into RPC_PeerInfo which is called when the peer sends their character info
     // At this point we have: peer.m_uid (valid), peer.m_playerName, peer.m_characterID
     [HarmonyPatch(typeof(ZNet), "RPC_PeerInfo")]
@@ -166,22 +166,22 @@ namespace FiresRPGmaker.Modules.Vault
                         break;
                     }
                 }
-                
+
                 if (peer == null)
                 {
                     Debug.LogWarning("[FiresRPGmaker] RPC_PeerInfo: Could not find peer for RPC");
                     return;
                 }
-                
+
                 long peerUid = peer.m_uid;
                 string playerName = peer.m_playerName;
                 string platformId = peer.m_socket?.GetHostName() ?? string.Empty;
-                
+
                 // At RPC_PeerInfo time, we may not have m_characterID yet (that comes with character spawn)
                 // But we have peerUid and playerName which is enough to set up the vault entry
-                
-                Debug.Log($"[FiresRPGmaker] RPC_PeerInfo: peerUid={peerUid}, playerName={playerName}, platformId={platformId}");
-                
+
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] RPC_PeerInfo: peerUid={peerUid}, playerName={playerName}, platformId={platformId}");
+
                 if (peerUid == 0)
                 {
                     Debug.LogWarning("[FiresRPGmaker] RPC_PeerInfo: peerUid is still 0, deferring to OnSpawned");
@@ -197,7 +197,7 @@ namespace FiresRPGmaker.Modules.Vault
                     try { FiresCore.Storage.LeaderboardRepository.EnsureRow(playerName.Trim(), playerName); }
                     catch (Exception lex) { Debug.LogWarning($"[FiresRPGmaker] Leaderboard GetOrCreate on connect failed: {lex.Message}"); }
                 }
-                
+
                 // We don't have playerId yet (character not spawned), but we can send quest files now.
                 //
                 // TIMING NOTE: this fires at RPC_PeerInfo time — T+0 of the connection, before
@@ -214,18 +214,11 @@ namespace FiresRPGmaker.Modules.Vault
                         // Profiles get the same reliable always-send treatment as the DB — the folder
                         // diff-sync above was leaving clients with 0 profiles ("no quests available").
                         try { QuestManager.Instance.BroadcastQuestProfilesToPeer(peerUid); } catch { }
-                        Debug.Log($"[FiresRPGmaker] Sent quest files and QuestDB to peer {peerUid} ({playerName}) eagerly at RPC_PeerInfo");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Sent quest files and QuestDB to peer {peerUid} ({playerName}) eagerly at RPC_PeerInfo");
                     }
 
-                    // REMOVED: ServerConfigFileWatcher.SendAllConfigsToClient(peerUid);
-                    // This was sending ALL config files (Quests, Dialogues, Territories, NPCs, etc.)
-                    // EVERY login, causing massive bandwidth waste and connection issues.
-                    // Individual systems should handle their own smart sync:
-                    // - Territories: Already has delta sync with file hashing
-                    // - Quests: Sent above (TODO: add delta sync like territories)
-                    // - Dialogues: TODO - add delta sync
-                    // - NPCs: TODO - only send on first login or when changed
-                    // - UILayouts: TODO - only send when changed
+                    // Not every config file is pushed here on login: sending them all every login wasted
+                    // bandwidth and caused connection issues, so each system syncs its own files.
                 }
                 catch (Exception exSend)
                 {
@@ -297,8 +290,8 @@ namespace FiresRPGmaker.Modules.Vault
                 if (ZNet.instance != null && ZNet.instance.IsServer())
                 {
                     if (FiresLogger.VerboseEnabled)
-                        Debug.Log("[FiresRPGmaker] Player_OnSpawned_LoadVaultData: host detected — skipping client-side announce/request (server-side ServerUpdateVault covers it)");
-                    // 0.0.532: the host's own player still needs its client-local active-quest store. This return used to
+                        global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Player_OnSpawned_LoadVaultData: host detected — skipping client-side announce/request (server-side ServerUpdateVault covers it)");
+                    // The host's own player still needs its client-local active-quest store. This return used to
                     // skip ActiveQuestStore.Load (RunLoadVaultData), so on a host or in single player the store never loaded:
                     // a book accept flipped back after 6 s, no tracker row appeared and kills never counted. Load only
                     // reads the player's own m_customData, so it doesn't race the server path above.
@@ -400,7 +393,7 @@ namespace FiresRPGmaker.Modules.Vault
                     // Fallback: no host MB to drive the coroutine, send immediately.
                     try
                     {
-                        ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.Everybody, "FiresRPGmaker_Vault_RequestPlayerData", reqPkg);
+                        ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Vault_RequestPlayerData"), "FiresRPGmaker_Vault_RequestPlayerData", reqPkg);
                     }
                     catch (Exception exReqImmediate)
                     {
@@ -408,7 +401,7 @@ namespace FiresRPGmaker.Modules.Vault
                     }
                 }
 
-                Debug.Log("[FiresRPGmaker] Local player announced Vault data on spawn (request staggered 250ms)");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Local player announced Vault data on spawn (request staggered 250ms)");
             }
             catch (Exception ex)
             {
@@ -416,9 +409,11 @@ namespace FiresRPGmaker.Modules.Vault
             }
         }
 
+        private const float VaultRequestDelaySeconds = 0.25f;
+
         private static IEnumerator DeferredVaultRequest(ZPackage reqPkg)
         {
-            yield return new WaitForSeconds(0.25f);
+            yield return new WaitForSeconds(VaultRequestDelaySeconds);
 
             if (ZRoutedRpc.instance == null)
             {
@@ -428,7 +423,7 @@ namespace FiresRPGmaker.Modules.Vault
 
             try
             {
-                ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.Everybody, "FiresRPGmaker_Vault_RequestPlayerData", reqPkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Vault_RequestPlayerData"), "FiresRPGmaker_Vault_RequestPlayerData", reqPkg);
             }
             catch (Exception exReq)
             {
@@ -484,7 +479,7 @@ namespace FiresRPGmaker.Modules.Vault
                     peer = ZNet.instance.GetPeerByPlayerName(playerName);
                 }
                 catch { peer = null; }
-                
+
                 if (peer != null)
                 {
                     var platformId = peer.m_socket?.GetHostName() ?? string.Empty;
@@ -500,7 +495,7 @@ namespace FiresRPGmaker.Modules.Vault
                         var adminList = ZNet.instance.GetAdminList();
                         if (adminList != null)
                         {
-                            if ((!string.IsNullOrEmpty(platformId) && adminList.Contains(platformId)) || 
+                            if ((!string.IsNullOrEmpty(platformId) && adminList.Contains(platformId)) ||
                                 (!string.IsNullOrEmpty(peer.m_playerName) && adminList.Contains(peer.m_playerName)))
                             {
                                 data.IsAdmin = true;
@@ -511,22 +506,22 @@ namespace FiresRPGmaker.Modules.Vault
 
                     // If there was a pending request from this peer, respond now
                     VaultOfKnowledge.Instance.ProcessPendingRequestForPeer(peer.m_uid, playerId);
-                    
+
                     // Ensure client has quest DB: send all quest files to this peer
                     try
                     {
                         if (global::FiresRPGmaker.Modules.Quest.QuestManager.Instance != null)
                         {
                             global::FiresRPGmaker.Modules.Quest.QuestManager.Instance.SendAllQuestFilesToPeer(peer.m_uid);
-                            Debug.Log($"[FiresRPGmaker] Sent quest files to peer {peer.m_uid} on spawn");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Sent quest files to peer {peer.m_uid} on spawn");
                         }
                     }
-                    catch (Exception exSend) 
-                    { 
-                        Debug.LogWarning($"[FiresRPGmaker] Failed to send quest files on spawn to {peer.m_uid}: {exSend.Message}"); 
+                    catch (Exception exSend)
+                    {
+                        Debug.LogWarning($"[FiresRPGmaker] Failed to send quest files on spawn to {peer.m_uid}: {exSend.Message}");
                     }
-                    
-                    Debug.Log($"[FiresRPGmaker] OnSpawned: Player {playerName} (ID {playerId}) connected from {data.PlatformId}, admin={data.IsAdmin}");
+
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] OnSpawned: Player {playerName} (ID {playerId}) connected from {data.PlatformId}, admin={data.IsAdmin}");
                 }
                 else if (player == Player.m_localPlayer)
                 {
@@ -536,7 +531,7 @@ namespace FiresRPGmaker.Modules.Vault
                     data.Platform = ZNet.m_onlineBackend.ToString();
                     data.IsAdmin = FiresCore.Sync.AdminSyncing.IsLocalAdmin();
                     VaultOfKnowledge.Instance.ProcessPendingRequestForPeer(ZNet.GetUID(), playerId);
-                    Debug.Log($"[FiresRPGmaker] OnSpawned: host player {playerName} (ID {playerId}) as {data.PlatformId}, admin={data.IsAdmin}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] OnSpawned: host player {playerName} (ID {playerId}) as {data.PlatformId}, admin={data.IsAdmin}");
                 }
                 else
                 {
@@ -569,7 +564,7 @@ namespace FiresRPGmaker.Modules.Vault
                         if (disk?.Companions != null && disk.Companions.Count > 0)
                         {
                             data.Companions = disk.Companions;
-                            Debug.Log($"[FiresRPGmaker] OnSpawned: restored {disk.Companions.Count} companion(s) from disk before vault save (post-respawn / cross-session preservation)");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] OnSpawned: restored {disk.Companions.Count} companion(s) from disk before vault save (post-respawn / cross-session preservation)");
                         }
                     }
                 }
@@ -582,7 +577,7 @@ namespace FiresRPGmaker.Modules.Vault
                 // This ensures the JSON file is created with the correct player name
                 VaultOfKnowledge.Instance.SavePlayerData(playerId, data);
 
-                Debug.Log($"[FiresRPGmaker] Saved vault entry for player {data.PlayerName} (ID {playerId}) on server spawn");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Saved vault entry for player {data.PlayerName} (ID {playerId}) on server spawn");
             }
             catch (Exception ex)
             {
@@ -634,8 +629,8 @@ namespace FiresRPGmaker.Modules.Vault
                     {
                         Debug.LogWarning($"[FiresRPGmaker] Failed to save server vault data on disconnect: {exSrv.Message}");
                     }
-                    
-                    Debug.Log($"[FiresRPGmaker] Cleaned up pending requests for disconnected peer {peer.m_uid} (player data already saved by periodic/explicit saves)");
+
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Cleaned up pending requests for disconnected peer {peer.m_uid} (player data already saved by periodic/explicit saves)");
                 }
                 catch (Exception exInner)
                 {

@@ -83,12 +83,118 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _tabBar = FindRect(t, "TabBar");
             _tabTemplate = Find(t, "TabTemplate");
             if (_tabTemplate != null) _tabTemplate.SetActive(false);
+
+            // the play
+            // area's parent gets a solid kit Panel backing as its first child (drawn under everything in it)
+            var body = _grid != null ? _grid.parent as RectTransform : null;
+            if (body != null && body != root.transform && body.Find("Fires_BodyBacking") == null)
+            {
+                var bk = new GameObject("Fires_BodyBacking", typeof(RectTransform), typeof(Image));
+                var brt = (RectTransform)bk.transform; brt.SetParent(body, false); brt.SetAsFirstSibling();
+                brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one; brt.offsetMin = brt.offsetMax = Vector2.zero;
+                var bi = bk.GetComponent<Image>(); bi.color = FiresCore.UI.Shell.Kit.FiresTokens.Panel; bi.raycastTarget = false;
+            }
+            // the box under the text that
+            // names the rewards gets the profile's reward list (filled per open in RefreshRewardBox)
+            _rewardBox = null;
+            foreach (var tx in root.GetComponentsInChildren<TMP_Text>(true))
+            {
+                if (tx == null || tx == _descriptionText || (_grid != null && tx.transform.IsChildOf(_grid))) continue;
+                if ((tx.text ?? "").IndexOf("reward", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                var host = tx.transform.parent as RectTransform;
+                if (host == null || host == root.transform) continue;
+                // the list drew over the left column's "You can win" line while the
+                // "Possible Rewards" box stayed empty): the header's parent is the whole Content, so stretching over it put the list top-left.
+                // The list goes INSIDE the box under the header: the largest Image among the header's siblings that lies below it and overlaps
+                // its x range (found by world rect, so it holds at any resolution). No box found = right of the header, never over the left.
+                var box = RewardBoxUnder(tx.rectTransform, host);
+                var go = new GameObject("Fires_RewardList", typeof(RectTransform), typeof(TextMeshProUGUI));
+                var rt = (RectTransform)go.transform; rt.SetParent(box != null ? box : host, false);
+                if (box != null) { rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = new Vector2(16f, 14f); rt.offsetMax = new Vector2(-16f, -14f); }
+                else
+                {
+                    var h = tx.rectTransform;
+                    rt.anchorMin = new Vector2(h.anchorMin.x, 0f); rt.anchorMax = new Vector2(h.anchorMax.x, h.anchorMin.y);
+                    rt.offsetMin = new Vector2(h.offsetMin.x, 14f); rt.offsetMax = new Vector2(h.offsetMax.x, -14f);
+                }
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[GamblerPanel] 0.0.737 reward list inside '{(box != null ? box.name : host.name + " (no box found: under the header)")}'");
+                _rewardBox = go.GetComponent<TextMeshProUGUI>();
+                _rewardBox.fontSize = 16f; _rewardBox.color = FiresCore.UI.Shell.Kit.FiresTokens.Text; _rewardBox.alignment = TextAlignmentOptions.TopLeft;
+                _rewardBox.enableWordWrapping = true; _rewardBox.raycastTarget = false;
+                if (tx.font != null) _rewardBox.font = tx.font;
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[GamblerPanel] reward list placed under '{host.name}' (header '{tx.text}')");
+                break;
+            }
+        }
+
+        private static RectTransform RewardBoxUnder(RectTransform header, RectTransform host)
+        {
+            try
+            {
+                Canvas.ForceUpdateCanvases();
+                var hc = new Vector3[4]; header.GetWorldCorners(hc);
+                RectTransform best = null; float bestArea = 0f;
+                foreach (Transform c in host)
+                {
+                    if (c == header || !(c is RectTransform crt) || c.GetComponent<Image>() == null || !c.gameObject.activeSelf) continue;
+                    var cc = new Vector3[4]; crt.GetWorldCorners(cc);
+                    bool below = cc[1].y <= hc[0].y + 2f;                                   // its top at or under the header's bottom
+                    bool overlapsX = cc[2].x > hc[0].x + 2f && cc[0].x < hc[2].x + 400f;     // starts near the header's column
+                    float area = (cc[2].x - cc[0].x) * (cc[1].y - cc[0].y);
+                    if (below && overlapsX && Mathf.Abs(cc[0].x - hc[0].x) < 60f && area > bestArea) { best = crt; bestArea = area; }
+                }
+                return best;
+            }
+            catch { return null; }
+        }
+
+        // the rewards are written ONCE, in the Possible Rewards box; the one-line "You can win" copy in the
+        // left column is off. A one-time Debug dump of the panel's rects names the card row / header for the next alignment pass.
+        private bool _dumped;
+        private void DumpLayoutOnce(Transform root)
+        {
+            if (_dumped || !FiresCore.Logging.FiresLogger.DebugEnabled) return;
+            _dumped = true;
+            try
+            {
+                Canvas.ForceUpdateCanvases();
+                var sb = new System.Text.StringBuilder("[GamblerPanel] layout:");
+                void Walk(Transform t, int depth)
+                {
+                    if (depth > 4 || !(t is RectTransform r) || !t.gameObject.activeInHierarchy) return;
+                    var w = new Vector3[4]; r.GetWorldCorners(w);
+                    sb.Append($" | {new string('.', depth)}{t.name} ({w[0].x:0},{w[0].y:0})-({w[2].x:0},{w[2].y:0})");
+                    foreach (Transform c in t) Walk(c, depth + 1);
+                }
+                Walk(root, 0);
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug(sb.ToString());
+            }
+            catch { }
+        }
+
+        private TextMeshProUGUI _rewardBox;
+        private void RefreshRewardBox(GamblerProfile profile)
+        {
+            if (_rewardBox == null) return;
+            if (profile == null || profile.Rewards.Count == 0) { _rewardBox.text = "This gambler has no prizes set up yet."; return; }
+            var sb = new System.Text.StringBuilder();
+            foreach (var it in profile.Rewards)
+            {
+                string name = it.Prefab;
+                try { var p = ObjectDB.instance?.GetItemPrefab(it.Prefab)?.GetComponent<ItemDrop>(); if (p != null && Localization.instance != null) name = Localization.instance.Localize(p.m_itemData.m_shared.m_name); } catch { }
+                sb.Append(name).Append("  x").Append(it.Min);
+                if (it.Max != it.Min) sb.Append('-').Append(it.Max);
+                sb.Append('\n');
+            }
+            _rewardBox.text = sb.ToString();
         }
 
         protected override void OnOpen(string profileName, string npcDisplayName)
         {
             _profileName = profileName;
             var profile = GamblerProfileManager.GetProfile(profileName);
+            RefreshRewardBox(profile);
+            if (_panelGo != null) DumpLayoutOnce(_panelGo.transform);
             BuildTabs(profile);
             string first = profile != null && profile.Games.Count > 0 ? profile.Games[0] : GamblerGames.Cards;
             SelectGame(first);
@@ -190,6 +296,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         private void RefreshOdds(GamblerProfile profile)
         {
             if (_descriptionText == null) return;
+            // the rewards are written once, in the Possible Rewards box; this line only carries "You won ..."
+            if (_rewardBox != null) { _descriptionText.text = ""; return; }
             var sb = new System.Text.StringBuilder("You can win:  ");
             for (int i = 0; i < profile.Rewards.Count; i++)
             {
@@ -586,7 +694,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 pkg.Write(player.GetPlayerName() ?? "");
                 pkg.Write(qty);
                 pkg.Write(displayName);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, Modules.Marketplace.DiscordWebhooks.GamblerWinRpc, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(Modules.Marketplace.DiscordWebhooks.GamblerWinRpc), Modules.Marketplace.DiscordWebhooks.GamblerWinRpc, pkg);   // (client->server RPCs target the server)
 
                 if (Modules.Marketplace.MarketplaceGlobals.GamblerEnableWinNotifications)
                 {

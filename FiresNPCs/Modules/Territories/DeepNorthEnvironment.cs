@@ -16,13 +16,13 @@ internal static class DeepNorthEnvironment
         private static Material _crystalLeviathanMat;
         private static bool _envRegistered;
 
-        // 10-05 ([ghost], Fire: "the deep north might be from fires npcs"): this used to APPEND its own "DeepNorth_Setup"
-        // biome setup in EnvMan.Awake. The location lists add the real Deep North setup ("Deep north", with its music and
-        // weathers) later, in ZoneSystem.Start, and vanilla keeps only the FIRST setup per biome. So the real one was thrown
-        // away (vanilla's ERROR "EnvSetup Deep north sets music, but is already defined previously in DeepNorth_Setup") and
-        // the Deep North ran on this single freezing env with no music. Now: the env is registered in Awake (every EnvMan,
-        // every world), and our entry JOINS whichever Deep North setup the game appends. A setup of our own is made only if
-        // none exists once ZoneSystem.Start has added every location list.
+        // This used to APPEND its own "DeepNorth_Setup" biome setup in EnvMan.Awake. The location lists add the real Deep
+        // North setup ("Deep north", with its music and weathers) later, in ZoneSystem.Start, and vanilla keeps only the
+        // FIRST setup per biome. So the real one was thrown away (vanilla's ERROR "EnvSetup Deep north sets music, but is
+        // already defined previously in DeepNorth_Setup") and the Deep North ran on this single freezing env with no music.
+        // Now: the env is registered in Awake (every EnvMan, every world), and our entry JOINS whichever Deep North setup
+        // the game appends. A setup of our own is made only if none exists once ZoneSystem.Start has added every location
+        // list.
         [HarmonyPatch(typeof(EnvMan), "Awake")]
         [HarmonyPostfix]
         private static void EnvMan_Awake_Postfix(EnvMan __instance)
@@ -128,8 +128,8 @@ try
         }
 
         // Valheim 1.0 lerps EnvSetup.m_auroraColors every FixedUpdate (EnvMan.InterpolateEnvironment); this hand-built env
-        // left it null, so Utils.Gradient.Lerp threw a NullReferenceException there every frame (H1, 2026-10-01: 3,891 on the
-        // client in four minutes). It borrows a vanilla environment's aurora; with none, an invisible one.
+        // left it null, so Utils.Gradient.Lerp threw a NullReferenceException there every frame. It borrows a vanilla
+        // environment's aurora; with none, an invisible one.
         private static Gradient AuroraFrom(EnvMan envMan)
         {
             var source = envMan.m_environments.FirstOrDefault(e => e != null && e.m_name != EnvName && e.m_auroraColors != null);

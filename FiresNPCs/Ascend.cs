@@ -23,17 +23,27 @@ using FiresCore.Lifecycle;
 namespace FiresRPGmaker
 {
     [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
-    [BepInDependency("com.Fire.FiresUnifiedCore", BepInDependency.DependencyFlags.HardDependency)]
+    [BepInDependency("com.Fire.FiresUnifiedCore", "0.2.775")]   // 0.0.769: the Territory Ledger window needs Core's KitWindow
     [BepInDependency("com.Fire.FiresWayshrines", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("com.Fire.VAInventory", BepInDependency.DependencyFlags.SoftDependency)]
     public class FiresRPGmaker : FiresMod<FiresRPGmaker>
     {
         public const string PluginGUID = "com.Fire.FiresRPGmaker";
         public const string PluginName = "FiresRPGmaker";
-        public const string PluginVersion = "0.0.659";
+        public const string PluginVersion = "0.0.846";   // 0.0.846 ([classes-ui] 11-10, Fire): the live map no longer marks doors (route map only); TestDoorCount expects 0 there
+        // 0.0.845:   // 0.0.845 ([ghost], [classes-ui] 11-08): the territory paint's FAT biome-panel lookup is quiet (assembly scan + GetType(name, false)): no HarmonyX "Could not find type named VerdantsAscent.Terrain.Zones.FatBiomeMapTool" Warning when FiresAdminTerrain is not installed; Info says "FiresAdminTerrain not installed". // 0.0.844 ([ghost], Fire 11-08 shots 605/606): live map / cutaway opens on All levels (was the player's level); Roofs off also hides each roof's snow cap (WearNTear m_snow / m_snowWorn / m_snowBroken, inactive ones included) with forceRenderingOff for the map capture only. Debug: "[LiveMap] roofs toggle OFF: ... + N roof snow-cap renderer(s)". // 0.0.843 ([ghost], Fire 11-08): large map header Auto (default) / Live map / Default. Auto = the painted map down to vanilla's closest zoom; zooming further in (only with the view centre in the loaded area) crossfades into the live view, zooming out fades it back; soft edge, no gold ring. Key [Live map] "Auto live map when zoomed in" (default on, read live; off = vanilla's zoom floor only). // 0.0.842 ([ghost] 11-07): build only, compiled against the pinned LIVE Core 0.2.1198 (FABE9551DD96) instead of the old Core 793 scratch build, so a changed Core API fails at compile time, not at runtime. No code change. // 0.0.841 ([ghost], log sweep 11-07): Dressing preview reads VisEquipment item hashes as prefab names (no more hair "0"); GetBodyModel falls back to vanilla VisEquipment.m_bodyModel and names the object when it fails; classic book with kit book OFF logs Debug, not Warning.
+        // was:   // 0.0.838 ([ghost], Fire 11-07): book grip bounds = the pixels that differ from va_background4's OPAQUE backdrop (0.0.837 alpha scan found the whole sprite); screen-space proof line.
+        // was:   // 0.0.837 ([ghost], Fire 11-07): NPC book resize grip on the opaque book art inside the sprite; StaticNpcAnimProbe removed.
+        // was:   // 0.0.836 ([ghost], Fire 11-06 one method per job + frozen placed NPCs): ONE static NPC appearance method (ApplyBodyFromZDO) for fresh placement and every load - ApplyAppearance + RestoreAppearanceFromZDO deleted - ending in Animator.Rebind() like Core's BodyModelSwap, Hips before/after in one Info line. (0.0.835 withdrawn.)// 0.0.834 ([ghost], Fire 11-06 "still no resize handlers"): the NPC book's grip bounds follow the BookBackground art (aspect-fitted sprite), not the pages' content boxes (605x428 put the grip inside the right page).// 0.0.833 ([ghost], Fire 11-06): NPC info panel registers with Core when shown (opened half off screen), sizes to its text, L/M/S button removed; static NPCs keep CompanionIdleBehavior enabled for the head look-at (Core 0.2.1186 runs only that on fixtures); probe v3 (Hips early/late/end-of-frame, LateUpdate writers, skeleton paths, false FLIPs fixed).// 0.0.832 ([ghost], lead 11-06 probe v2, proof only): per-second + end probe lines add renderer visibility/bounds, animator state/normalizedTime/IsInTransition and the Hips bone rotation.// 0.0.831 ([ghost], Fire 11-06 book grip): the NPC book hands Core its ART rect (pages / kit window) as HitBounds, so the live-panel grip sits on the book (needs Core 1185 for always-shown).// 0.0.830 ([ghost], lead 11-06 log levels): probe load / FLIP / 30 s summary at Info, the per-second repeat at Debug.// 0.0.829 ([ghost], Fire 11-06 placed NPCs frozen / T-pose after load): Info probe per placed NPC, animator state on load + every 1 s for 30 s, the frame it flips; no fix yet (cause first).// 0.0.828 ([ghost], perf pass): NPC hover nameplate sleeps unless its style is on; client patrol key reads only on a ZDO change; quest + leaderboard hotkeys check state only on key press (keys in [Performance], ON). 0.0.827 ([ghost], Fire): biome painting moved to FAT's own panel; no territory stroke while that panel is open
+        // 0.0.826:   // 0.0.826 ([ghost], Fire): repeating and test-only lines go to Debug, useful Info stays
+        // 0.0.824:   // 0.0.824 ([ghost], Fire): test and state-changing commands need devcommands; recovercompanion asks the server first, so no second copy
+        // 0.0.823:   // 0.0.823 ([ghost], Fire): recurring log lines are real Debug
+        // 0.0.819:   // 0.0.819 ([ghost], Fire): biome mode on the territory map, through FAT
+        // 0.0.818:   // 0.0.818 ([classes-ui] for [ghost]: two more territory measure lines, no fix); 0.0.817 ([classes-ui] for [ghost]: territory measure lines only, no fix); 0.0.816 ([ghost], Fire 11-02 config list): the [Companions] billboard, Companions.Behavior (8) and Companions.Persistence (2) keys leave RPGmaker for FiresCompanions; NpcConfigBridge chains with Companions' (either load order reaches both mods' keys); [Leaderboard] Batch stat writes moves here from Core (value copied once). Live map stays (NPC routes use it). was 0.0.815:0.0.815 ([ghost], Fire 10-31 minimal profile: "NullReferenceException at FootStep.Start ()" when the Static NPC hammer ghost appears): vanilla's FootStep is removed from the NPC placement ghost in a SetupPlacementGhost postfix (client only), before its Start; placed NPCs keep footsteps; and (Fire: "the resize handler also never shows up", holding Alt+Shift) the quest journal moves objects added under its canvas (Core's live-panel grip + drag strip) onto its private camera layer - its UI camera renders only that layer, so the grip was never drawn. was 0.0.814: 0.0.814([ghost], Fire 10-31; supersedes the never-deployed 0.0.813): a quest page with no quest loaded clears the UI bundle's baked example text (examples only as greyed hints, never saved); a valid starter quest "example_wolf_hunt" (Kill Wolf x10, Coins 50, no commands) ships in Quests\ExampleQuests.cfg, created only when missing, never overwriting; and ("the autocomplete checkbox does not work either in our admin book UI"):the quest page's Auto-Complete toggle, parked on the description caption row, sat under the description input and never got the click - it now has its own canvas above the page + raycaster; one line per flip and one per save (the saved Autocomplete value). was 0.0.813:0.0.813 ([ghost], Fire 10-31 fresh profile: the NPC book's quest page "already has a quest for wolves filled out"): a quest page with no quest loaded clears every field - the UI bundle's baked example text was left in the inputs and Save wrote it as a real quest; examples now show only as the greyed hints, never saved. was 0.0.812:0.0.812 ([ghost], Fire 10-31: the wolves example quest kept "-" in Requirements; saved unchanged, nobody could accept it): a placeholder-only requirement ("-", "—", "none", ...) is no requirement - QuestManager.CheckRequirements skips it (fixes quests already saved with it) and the NPC book saves it as empty. was 0.0.811:0.0.811 ([ghost], Hexium compatibility check on 0.0.810): the five JToken.ToString(Formatting.None) calls in NpcTemplatePresetKind use ToString(Formatting, params JsonConverter[]) - the one-argument overload is not in the game's Newtonsoft.Json (client or dedicated server) and would throw at runtime; same output. was 0.0.810:0.0.810 ([ghost], Fire 10-31 minimal server, RPGmaker without FiresCompanions: "we can spawn the static npc, we just need to be able to have it on the hammer" / "why is it pulling from two different prefabs? make it correct"): ONE prefab - the hammer places the bundle StaticNpc itself (the one spawn uses and every placed body loads as); the hammer-only clone of FiresCompanions' CompanionNpc is gone (without Companions it did not exist, so nothing was on the hammer). One-shot line "[BuildMenu] N NPC piece(s) on the 'Hammer' table ...". was 0.0.809:0.0.809 ([ghost], Fire 10-31 minimal-server shot of the 1.0 build menu): pieces with no Piece.m_usage flag get the one matching their category (NPC pieces -> Misc) - 1.0's Categories list files pieces by m_usage, not m_category, so the NPCs showed under "Show All" only; the quest journal and the NPC / quest editor book are Core live panels (bottom-right grip scales the whole panel, saved per player). was 0.0.808:0.0.808 ([ghost], Fire 10-31 minimal server without FAP: "[Warning: HarmonyX] AccessTools.TypeByName: Could not find type named VerdantsAscent.Api.FapPresets"): every optional-mod type lookup (FAP FapPresets, FAT FatApi, EBM baked pieces, leaderboard canvas types) goes through the quiet QuietTypes.Find, so an absent optional mod prints no HarmonyX warning; one Debug line where it matters. was 0.0.807:0.0.807 ([ghost], Fire 10-31 for a player running RPGmaker alone): without FAP the NPC pieces go on the hammer's vanilla Misc tab (the custom category had no tab - search only); the quest book reads the same active-quest store Accept writes, and an already-active accept shows "Quest already active!" and redraws the book (was a silent no-op). was 0.0.806:0.0.806 ([ghost], Fire 10-31 "spread between frames and budgeted" - "may require some testing"; all three default OFF until their A/B): [Territories] Spread map overlay paint (the 209 ms overlay pass runs as a Core FrameBudgetScheduler coroutine, ~2 ms per frame, one upload at the end); [Territories] Write territory cache in the background (the sync's disk write on a pool thread, newest snapshot wins); [Vault] Serialize received vault data in the background (the 36 ms receive JSON on a pool thread). Debug timing per phase: [TerritoryOverlay] paint, [TerritorySync] chunk / final chunk, [VaultReceive]. was 0.0.805:0.0.805 ([ghost], Fire 10-31 event-driven / cache rule, same behaviour only): BaseAI.UpdateAI null guard uses a FieldRef; the territory HUD's Minimap.m_mode field is looked up once (was every Minimap.Update); the static-NPC nameplate patch reuses its one NpcController lookup. was 0.0.804:0.0.804 ([ghost], lead 10-31; Fire: "group hud is toggled on, but not showing"): the group HUD settings are owned here - [UI.Hud] GroupHud Show / MaxRowsPerColumn / Columns / DefaultPosX / DefaultPosY are handed to Core (CoreSettings.Provide, Core 0.2.1069+ reads them) and a value saved in Core's cfg is copied once; the dead [Companions] ShowGroupHud copy is removed. was 0.0.803:Debug [VisProbe] (key [Debug] VisEquipmentProbe, default OFF, not even patched when off): VisEquipment.CustomUpdate + Character.FixedUpdate cost per kind of body, top 5, slot re-equips per second - proof for the RPGWorld VisEquipment cost; FrameCostProbe now defaults OFF. 0.0.802: NPC templates as the Studio E-window preset kind "npc" (FapPresets.RegisterKind, by reflection) from the SERVER's own template store, filled once by "upload my templates to the server" (admin-only, capped, server-named files); placement and the preset Apply share NpcTemplatePlacedSwapper.WriteAppearance. 0.0.801: the 6 asset bundles load from files next to the DLL (LoadFromFile, embedded copy only as fallback), key General.LoadBundlesFromFiles ON - about 130 MB less RAM. 0.0.800: the debounced vault save writes its file on a background worker (snapshot on the main thread, other file reads/writes wait for it), key Vault.BackgroundVaultWrites ON. 0.0.799: Debug [GlobeHudCost] split of GlobeHudController.Update (liquid / food row / hide vanilla per frame, every 10 s) before the trim. 0.0.798: Debug [RpgFrameCost] - RPGM's own MonoBehaviour Update/LateUpdate/FixedUpdate/OnGUI timed, top 10 by ms/s every 10 s (key Debug.FrameCostProbe). 0.0.797: vault stat FILE saves debounced (one per player per 5 s + world save / logout / quit), key Vault.DebounceStatSaves ON; per-kill Info line now Debug. 0.0.796: Debug [PerfProbe] timing in the kill / skill RPC handlers (RecordStat, RecordSkill, UpdateStat), no behaviour change. 0.0.795: territory map overlay redrawn after the territory load (host showed 0 territories; key Territories.RedrawMapOverlayAfterLoad, default ON); WorldPins Debug timing. 0.0.794: shared world pins (World Studio WP7): server-held, on every map, RpgMapApi ListPins / AddPin / RemovePin for Studio Link. 0.0.793: QuestTracker + GlobeFood fonts resolved once + cached, LegacyRuntime.ttf before Arial.ttf (Unity 6). 0.0.792: territory HUD font resolved once + cached (Unity 6: Arial.ttf threw every Minimap frame), LegacyRuntime.ttf fallback. 0.0.791: NoDeathPenalty HardDeath prefix scoped to Player.OnDeath (the "No skill drain" icon blinked every frame inside the territory). 0.0.790: territory box never self-placed while in Core's minimap column (both UIs); on-load day/time overlap check, reattach to the column when detached + overlapping. 0.0.789: BiomeBlend GetBiomeHeight postfix: FAT check via compiled getter (no per-call boxing), bounds test first; Debug cost line every 30 s. 0.0.788: rpgm_studio_test pre-cleans leftover test NPCs/territories; NPC restore checks the spot before writing the record; refusals name the blocking anchor. 0.0.787: NPC Snapshot serializes its record via Vector3Converter (was a self-reference loop); rpgm_studio_test never goes silent on a throw. 0.0.786: TerritoryStudioOps (server-side World Studio territory ops, internal; not wired yet)
+        // was 0.0.785:   // 0.0.783: the live minimap re-renders only after the player moved > 0.5 m or turned (capped at its FPS), else once a second; Debug renders/s line. 0.0.782: 0.0.782: the live map Roofs toggle also hides EBM baked roofs (EbmRoofs.HideRoofsFor, by reflection, map camera only); roof rule = EBM's ("roof", not "wall_roof"). 0.0.781: 0.0.781: live map doors drawn as a thin bar along the wall (true local collider extents, no diamond); Debug proof line on the Roofs toggle (what it hid, and the non-piece renderers over roofs). 0.0.780: 0.0.780 (round #6a): live map levels also count EBM's baked floor pieces (EbmBakedPieces.Near, they have no live object); a homestead focus is held 1 s after the map opens (vanilla put its zoom back). 0.0.779 0.0.779 (Fire 10-27 shots 582): the live map draws EBM's baked stand-ins (renders after EBM's draws); levels from storey floor heights, not 2 m slices of the whole view; renders only on a view change (fps cap) or once a second. 0.0.778 0.0.778 (Fire 10-27 shot 569): the live render stays pinned to the world while the map is dragged or zoomed (overlay uvRect follows the view between renders); "[LiveMap] pieces in range ..." proof line for missing building pieces. 0.0.777 0.0.777 (Fire 10-27 shot 556): LiveMapApi.SetHomesteadMode hides the collapsed Territory pill while Core's homestead map shows; LiveMapApi.DockAnchor for its docked Job Board. 0.0.776 0.0.776 (Fire 10-27 homestead map): LiveMapApi.Focus(center, width, cutaway) for Core 0.2.856+ opens the live map centred on a base. 0.0.775 0.0.775 (Fire 10-27: "doors show incorrectly, we should be marking the frame not the door itself"): the live map and live minimap draw every door closed in its frame (the leaf in its prefab's closed rotation for the map render only, put back the same frame). 0.0.774 0.0.774 ([seasons] for Fire's deep snow): a territory made, edited or removed at runtime refreshes FAT's deep-ground colour at once (Core SnowField.InvalidateBaseCache, then FatApi.RefreshBiomeOverrides, by name; an older Core: FAT asked again 10 s later). 0.0.773 0.0.773 ([visual]: HaloFrame owns NPC body gravity on a ring): StaticNpcInitializer / NpcController no longer set useGravity = true while the body is in a halo ring field (that leaked world gravity for a physics step). 0.0.772 (Fire 10-24, halo ring: gravity / up re-targeted): one RingUp helper (Core GravityUp.InField by reflection; world up off a ring, unchanged there) for territory gravity zones + room capsule, territory spawners (ring floor along -up, upright to the ring), DeepNorth ocean ice + ground paint standing down on a ring, ice-rock ray, static NPC feet snap, NPC anchor facing, the patrol-node and anchor grab tools, dialogue spawns / drops, and pet follow / perch. Proof: "[RingUp] ... on a halo ring" (Debug).
         // ConfigSync's minimum for connecting clients: a FIXED constant, raised only when a synced key's name, type or meaning changes
         // (0.0.571 moved synced keys to new sections). Not PluginVersion, which forced every update in lockstep.
-        private const string MinimumSyncVersion = "0.0.571";
+        private const string MinimumSyncVersion = "0.0.763";   // 0.0.763: mail attachments carry item fidelity (escrow returns); 0.0.762: party messages carry the server-stamped sender and NPC re-dress goes through the server, so older clients would silently lose both
 
         public static AssetBundle assetBundle;
         public static AssetBundle uiBundle;
@@ -50,7 +60,6 @@ namespace FiresRPGmaker
 
         private readonly System.Action<bool> _refreshConfigLockOnAdminChange =
             _ => ConfigManager.Instance?.OnConfigLockChanged();
-        private static ILogHandler _originalLogHandler;
         internal static BepInEx.Logging.ManualLogSource Log;
         private static long _bundleLoadMs;
         private static Modules.Party.Bridge.PartyGroupProvider _groupProvider;
@@ -84,30 +93,31 @@ namespace FiresRPGmaker
          {
         DisplayName = PluginName,
         CurrentVersion = PluginVersion,
-          MinimumRequiredVersion = MinimumSyncVersion   // 0.0.571: a fixed constant, raised only when a synced key changes
+          MinimumRequiredVersion = MinimumSyncVersion   // A fixed constant, raised only when a synced key changes
  };
 
    configSync.lockedConfigChanged += ConfigManager.Instance.OnConfigLockChanged;
             AdminSyncing.AdminStatusChanged += _refreshConfigLockOnAdminChange;
 
-            global::FiresRPGmaker.Managers.ConfigMoves.PreBind(Config);   // 0.0.571: merged sections, moved before any bind
+            global::FiresRPGmaker.Managers.ConfigMoves.PreBind(Config);   // Merged sections, moved before any bind
             ConfigManager.Instance.Initialize(Config);
             try { global::FiresRPGmaker.Modules.Pets.PetVisual.BindConfig(Config); } catch { }
-            // 0.0.561: [wishbone] Pets.Progress joins the first config sync
+            // Pets.Progress joins the first config sync
             try { global::FiresRPGmaker.Modules.Pets.Progress.PetProgress.BindConfig(); } catch (Exception ex) { Logger.LogWarning($"PetProgress.BindConfig: {ex.Message}"); }
             try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.TurnSecondsCfg = Config.Bind("Poker", "PlayerTurnSeconds", 60, new BepInEx.Configuration.ConfigDescription("Seconds a seated human has to act at the poker table before auto-fold (min 10).", new BepInEx.Configuration.AcceptableValueRange<int>(10, 600))); } catch { }
+            try { global::FiresRPGmaker.Modules.Marketplace.MarketplaceNetwork.ListingLifetimeDaysCfg = Config.Bind("Marketplace", "ListingLifetimeDays", 7, new BepInEx.Configuration.ConfigDescription("Real days a marketplace listing stays up before its item is mailed back to the seller. 0 = never expire. Read by the server.", new BepInEx.Configuration.AcceptableValueRange<int>(0, 3650))); } catch { }
             try { global::FiresRPGmaker.Modules.Poker.PokerAI.DifficultyCfg = Config.Bind("Poker", "Difficulty", "Medium", new BepInEx.Configuration.ConfigDescription("Poker AI table strength (hot-reloads).", new BepInEx.Configuration.AcceptableValueList<string>("Easy", "Medium", "Hard", "Master"))); } catch { }
             try
             {
-                global::FiresRPGmaker.Modules.Poker.PokerCashTables.CurrencyCfg = Config.Bind("Poker", "CashCurrency", "Coins", "Currency item played at open (cash) tables - bank it with the Banker to buy in.");
+                global::FiresRPGmaker.Modules.Poker.PokerCashTables.CurrencyCfg = Config.Bind("Poker", "CashCurrency", "", "Currency item played at open (cash) tables - bank it with the Banker to buy in. Empty = Coins.");   // 10-20: ships empty (Coins in code)
                 global::FiresRPGmaker.Modules.Poker.PokerCashTables.BuyInCfg = Config.Bind("Poker", "CashBuyIn", 500, new BepInEx.Configuration.ConfigDescription("Open-table buy-in, withdrawn from your bank when you sit down.", new BepInEx.Configuration.AcceptableValueRange<int>(0, 1000000)));
                 global::FiresRPGmaker.Modules.Poker.PokerCashTables.BigBlindCfg = Config.Bind("Poker", "CashBigBlind", 10, new BepInEx.Configuration.ConfigDescription("Open-table big blind.", new BepInEx.Configuration.AcceptableValueRange<int>(1, 100000)));
             }
             catch { }
             try { global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.ChessTableGame.DifficultyCfg = Config.Bind("Chess", "Difficulty", "Medium", new BepInEx.Configuration.ConfigDescription("Chess AI strength (hot-reloads; a firesnpcs_chess depth argument overrides it).", new BepInEx.Configuration.AcceptableValueList<string>("Easy", "Medium", "Hard", "Master"))); } catch { }
             try { global::FiresRPGmaker.UI.Books.FiresBookView.DebugCapture = Config.Bind("General", "BookViewCaptures", false, "Dev tool (off by default): when a 3D book view opens, dump render PNGs + a state file to BepInEx/config/FiresRPGmaker/Debug/BookView. Off avoids the login capture stall + [FiresBookView] log spam.").Value; } catch { }
-            global::FiresRPGmaker.Managers.ConfigMoves.Apply(Config);   // 0.0.571: [Debug] BookViewCaptures -> [General]
-            global::FiresRPGmaker.UI.FiresKitBookSkin.Bind(Config);   // 0.0.592 ([saddles]): [UI] Use classic book UI (default true = today)
+            global::FiresRPGmaker.Managers.ConfigMoves.Apply(Config);   // [Debug] BookViewCaptures -> [General]
+            global::FiresRPGmaker.UI.FiresKitBookSkin.Bind(Config);   // [UI] Use classic book UI (default true = today)
             try
             {
                 global::FiresRPGmaker.UI.Screens.PlayerPanels.Minigames.PokerTableGame.UiScaleCfg = Config.Bind("Poker", "UiScale", 1.0f, new BepInEx.Configuration.ConfigDescription("Poker window scale (drag the corner grip in-game).", new BepInEx.Configuration.AcceptableValueRange<float>(0.6f, 1.6f)));
@@ -134,6 +144,9 @@ namespace FiresRPGmaker
 
             // Restore persisted chat channel preference (client-only, not synced).
             ChatChannelManager.InitConfig(Config);
+
+            // Settings UI tags - after every startup bind and the ConfigSync adds.
+            global::FiresRPGmaker.RpgConfigUi.Apply(Config);
 
         // Load assets AFTER log filter is installed
             LoadAssets();
@@ -274,8 +287,13 @@ namespace FiresRPGmaker
             // Long-range board interact - GameCamera/Hud/Minimap/InventoryGui touches, local-player only.
             "FiresRPGmaker.Modules.TableGames.LongRange_Player_Update_Patch",
             "FiresRPGmaker.Modules.TableGames.LongRange_Hud_Crosshair_Patch",
-            // 0.0.608 Live map: Minimap / Camera / RenderTexture, client only.
+            // Minimap / Camera / RenderTexture, client only.
             "FiresRPGmaker.UI.Map.LiveMap+MinimapStartPatch",
+            "FiresRPGmaker.Modules.WorldPins.WorldPins+ClearOnMapDestroy",
+            "FiresRPGmaker.Modules.WorldPins.WorldPins+KeepWorldPins",
+            "FiresRPGmaker.Modules.WorldPins.WorldPins+ShowOnMapStart",
+            // 0.0.815: the hammer ghost exists only on clients
+            "FiresRPGmaker.Managers.VAPieceManager+StaticNpcGhost_NoFootStep",
         ];
 
         /// <summary>Client-only patch classes FiresMod skips when PatchAll runs on a dedicated server
@@ -289,7 +307,8 @@ namespace FiresRPGmaker
         {
             FiresRPGmakerBanner.Print();
             EmitWorldStartSummary();
-            global::FiresRPGmaker.UI.FiresStatsSections.TryRegister();   // 0.0.596: Core hub Stats cards (no-op before Core 0.2.510)
+            global::FiresRPGmaker.UI.FiresStatsSections.TryRegister();   // Core hub Stats cards (no-op before Core 0.2.510)
+            global::FiresRPGmaker.Managers.NpcTemplatePresetKind.Register();   // Studio preset kind 'npc' (no-op before FAP 1.1.341)
         }
         protected override void TitleScene(bool isFirstBoot) { }
 
@@ -297,7 +316,7 @@ namespace FiresRPGmaker
         {
             try
             {
-                // 0.0.527: RPG Maker's own guild module is removed (Fire 10-08); guilds come from FiresGuilds or VikingLands.Core.
+                // RPG Maker's own guild module is removed; guilds come from FiresGuilds or VikingLands.Core.
                 string guildOwner = global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildOwner ?? "none (install FiresGuilds)";
                 FiresCore.Logging.LoadSummary.For(PluginName).EmitMiniBox("\uD83D\uDCD6 RPG MAKER", new[]
                 {
@@ -345,7 +364,7 @@ namespace FiresRPGmaker
                 Debug.LogWarning($"[FiresRPGmaker] Failed to register SyncFiles RPC: {ex.Message}");
             }
 
-            // 0.0.527 (Fire 10-08): RPG Maker's own guild module is removed. Guilds come from FiresGuilds (or VikingLands.Core);
+            // RPG Maker's own guild module is removed. Guilds come from FiresGuilds (or VikingLands.Core);
             // the guild-dependent features here (the Clan chat channel, dialogue guild conditions) read the owner through
             // FiresCore.Bridge.GuildBridge / RpgMakerApi.
 
@@ -362,6 +381,7 @@ namespace FiresRPGmaker
                     global::FiresRPGmaker.Modules.Factions.FactionChat.EnsureRegistered();
                     global::FiresRPGmaker.Modules.Marketplace.DiscordWebhooks.EnsureRegistered();
                     global::FiresRPGmaker.UI.NpcMapPins.EnsureRegistered();
+                    global::FiresRPGmaker.Modules.WorldPins.WorldPins.EnsureRegistered();
                 }
             }
             catch (Exception ex) { Debug.LogError($"[FiresRPGmaker] Banker/Mail/Market Initialize threw: {ex}"); }
@@ -377,7 +397,7 @@ namespace FiresRPGmaker
         /// Backup registration hook: runs once on Game.Start (server and client). Game.Start fires after ZNet/ZRoutedRpc are
         /// fully wired, so this guarantees the Banker / Mail / Marketplace / Poker / Faction chat / webhook / map pin RPCs are
         /// registered even if FinishInit ran before ZRoutedRpc was available. Each EnsureRegistered / Initialize is idempotent.
-        /// (0.0.527: it no longer registers guilds; RPG Maker's guild module is removed.)
+        /// (It no longer registers guilds; RPG Maker's guild module is removed.)
         /// </summary>
         [HarmonyPatch(typeof(Game), nameof(Game.Start))]
         public static class GameStart_BackupRegistration
@@ -393,6 +413,7 @@ namespace FiresRPGmaker
                     global::FiresRPGmaker.Modules.Factions.FactionChat.EnsureRegistered();
                     global::FiresRPGmaker.Modules.Marketplace.DiscordWebhooks.EnsureRegistered();
                     global::FiresRPGmaker.UI.NpcMapPins.EnsureRegistered();
+                    global::FiresRPGmaker.Modules.WorldPins.WorldPins.EnsureRegistered();
                 }
                 catch (Exception ex) { Debug.LogError($"[FiresRPGmaker] Game.Start backup Banker/Mail/Market Initialize threw: {ex}"); }
             }
@@ -406,6 +427,8 @@ namespace FiresRPGmaker
             configSync.AddConfigEntry(cm.configVerboseLogging);
             configSync.AddConfigEntry(cm.configStaticNpcInvulnerable);
             configSync.AddConfigEntry(cm.configAdminBypassTerritory);
+            configSync.AddConfigEntry(cm.configMaxTerritoriesPerPlayer);
+            configSync.AddConfigEntry(cm.configLedgerPlayerFlags);
             configSync.AddConfigEntry(cm.configTerritoryVisualizers);
             configSync.AddConfigEntry(cm.configTerritoryOverlay);
 
@@ -448,8 +471,6 @@ namespace FiresRPGmaker
             // on whether companions persist across logout, otherwise the dedupe
             // sweep on the server fights with a client still expecting fresh
             // spawns from vault).
-            configSync.AddConfigEntry(cm.configPersistentCompanions);
-            configSync.AddConfigEntry(cm.configKeepZonesLoadedForOfflinePlayers);
 
 
             // Heightmap Override (all synced/server-locked)
@@ -508,7 +529,7 @@ namespace FiresRPGmaker
                 ServerConfigFileWatcher.Shutdown();
             }
             catch { }
-            
+
             // Clear ability FX prefab cache
             try
             {
@@ -532,7 +553,7 @@ namespace FiresRPGmaker
         {
             if (assetBundle != null)
             {
-                Debug.Log($"{PluginName}: AssetBundle already loaded.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{PluginName}: AssetBundle already loaded.");
                 return;
             }
 
@@ -547,7 +568,7 @@ namespace FiresRPGmaker
                 assetBundle = GetAssetBundleFromResources("firesnpcs");
                 if (assetBundle == null) throw new Exception("Bundle not found");
 
-                // 0.0.574 (the lead 10-13, dedi memory): the baked UI panels and the inventory Leaderboards tab are UI only;
+                // The baked UI panels and the inventory Leaderboards tab are UI only;
                 // a dedicated server shows no UI, so it neither loads those two bundles nor installs their hosts.
                 bool headless = FiresCore.Lifecycle.FiresMod.IsDedicatedServer;
                 uiBundle = headless ? null : GetAssetBundleFromResources("firesnpcsui");
@@ -560,6 +581,7 @@ namespace FiresRPGmaker
                 {
                     global::FiresRPGmaker.UI.FiresNpcsUIBuilderHost.Install();
                     global::FiresRPGmaker.UI.Leaderboard.LeaderboardInventoryTab.Register();
+                    global::FiresRPGmaker.UI.Leaderboard.LeaderboardHubModule.Register();   // Player > Leaderboard in the Core hub
                 }
 
                 VAItemManager.LoadItems("Assets/Custom/NPCs/", this);
@@ -593,8 +615,34 @@ namespace FiresRPGmaker
             }
      }
 
+        private static long s_bundleFileBytes; private static int s_bundleFiles, s_bundleEmbedded;
         private AssetBundle GetAssetBundleFromResources(string name)
         {
+            // 0.0.801 (lead 10-30, VMMap of Fire's client: FiresRPGmaker.dll 75 MB resident): the six bundles ship as FILES next to
+            // the DLL and load with AssetBundle.LoadFromFile - no managed byte[] copies, no native in-memory copy, and the embedded
+            // resource pages of the DLL are never touched (so they never become resident). The embedded copy stays as a fallback
+            // when the file is missing (an install without the extras). Key [General] LoadBundlesFromFiles, default ON.
+            try
+            {
+                bool fromFiles = ConfigManager.Instance?.configLoadBundlesFromFiles?.Value ?? true;
+                string dir = System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                string path = string.IsNullOrEmpty(dir) ? null : System.IO.Path.Combine(dir, name);
+                if (fromFiles && path != null && System.IO.File.Exists(path))
+                {
+                    var fromFile = AssetBundle.LoadFromFile(path);
+                    if (fromFile != null)
+                    {
+                        s_bundleFiles++; s_bundleFileBytes += new System.IO.FileInfo(path).Length;
+                        if (s_bundleFiles == 1) Debug.Log($"{PluginName}: asset bundles load from the files next to the DLL: ON (fix 0.0.801, no in-memory copies)");
+                        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Bundles] '{name}' loaded from file ({new System.IO.FileInfo(path).Length / 1048576f:0.0} MB, no in-memory copy) - {s_bundleFiles} from files so far, {s_bundleFileBytes / 1048576f:0.0} MB");
+                        return fromFile;
+                    }
+                    Debug.LogWarning($"{PluginName}: bundle file '{path}' did not load - using the embedded copy");
+                }
+                else if (fromFiles) Debug.LogWarning($"{PluginName}: bundle file '{name}' not found next to the DLL - using the embedded copy (more RAM; deploy the bundle files)");
+            }
+            catch (Exception ex) { Debug.LogWarning($"{PluginName}: bundle file load for '{name}' failed ({ex.Message}) - using the embedded copy"); }
+            s_bundleEmbedded++;
             var assembly = Assembly.GetExecutingAssembly();
             var resourceName = assembly.GetManifestResourceNames()
                 .FirstOrDefault(n => n.EndsWith(name, StringComparison.OrdinalIgnoreCase));
@@ -644,7 +692,7 @@ namespace FiresRPGmaker
                                                    .Select(kvp => kvp.Key).ToList();
                         foreach (var k in dead) namedPrefabsDict.Remove(k);
                         if (dead.Count > 0)
-                            Debug.Log($"{PluginName}: Scrubbed {dead.Count} fake-null entries from ZNetScene.m_namedPrefabs");
+                            global::FiresRPGmaker.FiresLogger.LogDebug($"{PluginName}: Scrubbed {dead.Count} fake-null entries from ZNetScene.m_namedPrefabs");
                     }
                 }
             }
@@ -710,7 +758,7 @@ namespace FiresRPGmaker
                                              .Select(kvp => kvp.Key).ToList();
                     foreach (var k in dead) itemByHashDict.Remove(k);
                     if (dead.Count > 0)
-                        Debug.Log($"{PluginName}: Scrubbed {dead.Count} fake-null entries from ObjectDB.m_itemByHash");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"{PluginName}: Scrubbed {dead.Count} fake-null entries from ObjectDB.m_itemByHash");
                 }
             }
             catch (System.Exception ex)
@@ -752,7 +800,7 @@ namespace FiresRPGmaker
                 if (itemDrop != null && ObjectDB.instance.GetItemPrefab(piece.name) == null)
                 {
                     ObjectDB.instance.m_items.Add(piece);
-  
+
                     var hashDict = (Dictionary<int, GameObject>)typeof(ObjectDB)
      .GetField("m_itemByHash", BindingFlags.Instance | BindingFlags.NonPublic)
    ?.GetValue(ObjectDB.instance);
@@ -780,13 +828,13 @@ if (hashDict != null)
                 yield return new WaitForSeconds(12f);
                 if (!TerritorySyncedState.NeedsRetry) yield break;
                 if (ZNet.instance == null || ZNet.instance.IsServer()) yield break;
-                Debug.Log("[FiresRPGmaker] Territory sync retry - no territories received yet");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Territory sync retry - no territories received yet");
                 TerritorySyncedState.RequestFromServer();
             }
         }
 
         /// <summary>
-        /// Diagnostic for the guild hand-off (FiresGuilds or VikingLands.Core own guilds; 0.0.527 removed RPG Maker's own module):
+        /// Diagnostic for the guild hand-off (FiresGuilds or VikingLands.Core own guilds; removed RPG Maker's own module):
         /// polls Core's guild bridge until the owner resolves the local player's guild, then logs it once. The owner resolves it a
         /// few seconds after spawn (a server round-trip), so a one-shot read at spawn would sample before it arrives.
         /// </summary>
@@ -813,7 +861,7 @@ if (hashDict != null)
 
         private IEnumerator WaitForZNetReady()
         {
-            Debug.Log($"{PluginName}: Waiting for ZNetScene & ObjectDB...");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"{PluginName}: Waiting for ZNetScene & ObjectDB...");
             while (ZNetScene.instance == null || ObjectDB.instance == null)
                 yield return null;
 
@@ -862,8 +910,8 @@ if (hashDict != null)
 
                         // Initialize RuntimeSprites sync for quest preview images
                           global::FiresRPGmaker.UI.QuestJournal.RuntimeSpriteSync.Init();
-                          global::FiresRPGmaker.Modules.Sounds.NpcSoundSync.Init();   // 0.0.544: synced custom NPC sounds
-                          global::FiresRPGmaker.UI.PatrolRouteSync.EnsureRegistered();   // 0.0.544: route key via the server
+                          global::FiresRPGmaker.Modules.Sounds.NpcSoundSync.Init();   // Synced custom NPC sounds
+                          global::FiresRPGmaker.UI.PatrolRouteSync.EnsureRegistered();   // Route key via the server
 
                            if (ZNet.instance != null && !ZNet.instance.IsServer())
                            {
@@ -872,7 +920,7 @@ if (hashDict != null)
                                // Request sprite + UI asset sync from server on first login (deferred to ensure connection is ready)
                                StartCoroutine(DeferredSpriteSyncRequest());
 
-                               // 0.0.527: no guild sync of our own (the module is removed). When a guild mod owns
+                               // No guild sync of our own (the module is removed). When a guild mod owns
                                // guilds, log what it resolves for the local player (a few seconds after spawn: a
                                // server round-trip), so the hand-off is verifiable in the log.
                                if (global::FiresRPGmaker.Modules.Compat.VikingCoreCompat.GuildsDeferred)
@@ -881,7 +929,7 @@ if (hashDict != null)
 
             // Register debug commands now that everything is ready
             DebugTools.RegisterConsoleCommands();
-            
+
 
             AddItemsToObjectDB();
             AddPrefabsToZNetScene(ZNetScene.instance);
@@ -1052,7 +1100,7 @@ if (hashDict != null)
                 Debug.LogWarning($"{PluginName}: Failed to initialize archetype system: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Deferred initialization of RPC handlers if ZRoutedRpc wasn't ready during initial init.
         /// </summary>
@@ -1066,7 +1114,7 @@ if (hashDict != null)
                 yield return new WaitForSeconds(0.5f);
                 elapsed += 0.5f;
             }
-            
+
             if (ZRoutedRpc.instance != null)
             {
                 try
@@ -1155,7 +1203,7 @@ if (hashDict != null)
                 try
                 {
                     if (VaultOfKnowledge.Instance == null) continue;
-                    
+
                     // OPTIMIZATION: Only run periodic saves when players are actually connected
                     // This prevents unnecessary disk writes and log spam when server is empty
                     var allPlayers = Player.GetAllPlayers();
@@ -1178,7 +1226,7 @@ if (hashDict != null)
                     catch { }
 
                     VaultOfKnowledge.Instance.SaveAllDirty();
-                    Debug.Log($"[{PluginName}] Periodic SaveAllDirty executed ({allPlayers.Count} players online)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[{PluginName}] Periodic SaveAllDirty executed ({allPlayers.Count} players online)");
                 }
                 catch (Exception ex)
                 {
@@ -1209,7 +1257,7 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
                 if (FiresRPGmaker.itemPrefabs.Count > 0)
                 {
                     FiresRPGmaker.AddPrefabsToZNetScene(__instance);
-                    Debug.Log($"[FiresRPGmaker] Re-registered {FiresRPGmaker.itemPrefabs.Count} item prefabs to ZNetScene on Awake");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Re-registered {FiresRPGmaker.itemPrefabs.Count} item prefabs to ZNetScene on Awake");
                 }
 
                 // Companion prefab re-registration removed - FiresCompanions owns companion prefabs.
@@ -1263,7 +1311,7 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
          if (FiresRPGmaker.itemPrefabs.Count > 0)
          {
              FiresRPGmaker.AddItemsToObjectDB();
-             Debug.Log($"[FiresRPGmaker] Re-registered items to ObjectDB on Awake");
+             global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Re-registered items to ObjectDB on Awake");
          }
 
 
@@ -1273,7 +1321,7 @@ public static void ZNetScene_Awake_Postfix(ZNetScene __instance)
             if (FiresRPGmaker.piecePrefabs.Count > 0 && ZNetScene.instance != null)
             {
                 VAPieceManager.AddPiecesToHammer();
-                Debug.Log($"[FiresRPGmaker] Re-registered {FiresRPGmaker.piecePrefabs.Count} piece prefabs to hammer on ObjectDB Awake");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Re-registered {FiresRPGmaker.piecePrefabs.Count} piece prefabs to hammer on ObjectDB Awake");
             }
 
             // Check the companion gear table against ObjectDB now, not on the first spawn frame.

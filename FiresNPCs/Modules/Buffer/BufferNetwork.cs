@@ -16,8 +16,8 @@ namespace FiresRPGmaker.Modules.Buffer
     {
         private const string RPC_REQUEST = "FiresRPGmaker_BufferRequest";
         private const string RPC_GRANT = "FiresRPGmaker_BufferGrant";
-        // 0.0.532: registered per ZRoutedRpc instance. A process-wide flag skipped the registration after logging out
-        // to the menu and joining again (a new ZRoutedRpc), so every buff buy after a relog did nothing.
+        // Registered per ZRoutedRpc instance. A process-wide flag would skip the registration after logging out to the
+        // menu and joining again (a new ZRoutedRpc), so every buff buy after a relog would do nothing.
         private static ZRoutedRpc _registeredOn;
 
         [HarmonyPostfix]
@@ -27,6 +27,7 @@ namespace FiresRPGmaker.Modules.Buffer
             _registeredOn = ZRoutedRpc.instance;
             ZRoutedRpc.instance.Register<ZPackage>(RPC_REQUEST, new Action<long, ZPackage>(OnRequest));
             ZRoutedRpc.instance.Register<ZPackage>(RPC_GRANT, new Action<long, ZPackage>(OnGrant));
+            global::FiresRPGmaker.Managers.RpcRegistration.Logged("BufferNetwork", 2);
         }
 
         /// <summary>Client → server: ask to buy/apply a buff that the given profile sells. Pass profileKey empty
@@ -56,7 +57,7 @@ namespace FiresRPGmaker.Modules.Buffer
                 if (buff == null) return;
 
                 // The NPC's profile must actually sell this buff. An empty profile is the admin builder's un-gated apply:
-                // 0.0.532 checks the sender is an admin (or the host itself); before, any player could buff themselves.
+                // the sender must be an admin (or the host itself), else any player could buff themselves.
                 if (string.IsNullOrEmpty(profileKey))
                 {
                     bool admin = sender == ZNet.GetUID() || FiresCore.Sync.AdminSyncing.IsAdmin(sender);
@@ -94,6 +95,8 @@ namespace FiresRPGmaker.Modules.Buffer
 
         private static void OnGrant(long sender, ZPackage pkg)
         {
+            // Only the server's grant counts: it spends items from this player's inventory.
+            if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer(RPC_GRANT, sender); return; }
             try
             {
                 string uniqueName = pkg.ReadString();

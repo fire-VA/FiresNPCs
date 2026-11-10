@@ -9,6 +9,29 @@ namespace FiresRPGmaker.Managers
 {
     public static class VAPieceManager
     {
+        // 0.0.815 (Fire 10-31 minimal profile, 0.0.814: placing a Static NPC logged "NullReferenceException at FootStep.Start ()" as
+        // the hammer ghost appeared): since 0.0.810 the hammer places the bundle StaticNpc, which carries vanilla's FootStep;
+        // FootStep.Start reads the animator / Character / ZNetView without null checks, and on the placement ghost (no ZDO,
+        // physics stripped) it throws. Vanilla's SetupPlacementGhost builds the ghost synchronously, so FootStep is removed from
+        // our NPC ghost here, before its Start; placed NPCs keep theirs (they are separate instances).
+        [HarmonyLib.HarmonyPatch(typeof(Player), "SetupPlacementGhost")]
+        internal static class StaticNpcGhost_NoFootStep
+        {
+            private static bool s_logged;
+            private static void Postfix(Player __instance)
+            {
+                try
+                {
+                    var ghost = __instance != null ? __instance.m_placementGhost : null;
+                    if (ghost == null || ghost.GetComponent<StaticNpcInitializer>() == null && !ghost.name.StartsWith("StaticNpc", StringComparison.Ordinal)) return;
+                    int n = 0;
+                    foreach (var fs in ghost.GetComponentsInChildren<FootStep>(true)) { fs.enabled = false; UnityEngine.Object.Destroy(fs); n++; }
+                    if (n > 0 && !s_logged) { s_logged = true; global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[BuildMenu] NPC placement ghost '{ghost.name}': removed {n} FootStep (it needs a live NPC; placed NPCs keep theirs)"); }
+                }
+                catch (Exception ex) { Debug.LogWarning("[FiresRPGmaker] NPC ghost FootStep removal failed: " + ex.Message); }
+            }
+        }
+
         // All pieces that go in the hammer (from pieces/ folder)
         public static readonly List<string> PieceNames = new List<string>
         {
@@ -30,49 +53,31 @@ namespace FiresRPGmaker.Managers
         public static readonly List<GameObject> NetworkOnlyPrefabs = new List<GameObject>();
 
         /// <summary>
-        /// The GameObject the hammer actually places for "Static Quest NPC" — a runtime clone of
-        /// Core's WORKING CompanionNpc prefab, renamed "StaticNpc". Companions place perfectly and
-        /// static NPCs are the same prefab in Unity, but the firesnpcs bundle's StaticNpc asset is
-        /// rotten (baked Piece + broken body material) — so placement gets companion-parity BY
-        /// CONSTRUCTION: same donor asset, same component stack, plus StaticNpcInitializer. The
-        /// clone keeps the name "StaticNpc" so a placed body's ZDO hash resolves to the (repaired)
-        /// registered bundle prefab on every future zone load — proven working by `spawn StaticNpc`.
-        /// The bundle prefab stays ZNetScene-registered for exactly that resolution; it is no longer
-        /// what the hammer places.
+        /// The GameObject the hammer places for "Static NPC": since 0.0.810 the firesnpcs bundle's StaticNpc prefab itself,
+        /// the same one `spawn StaticNpc` uses and every placed body resolves to on zone load (one prefab, set up in
+        /// LoadPieces, body material repaired in AddPiecesToHammer). Works with or without FiresCompanions.
         /// </summary>
         public static GameObject StaticNpcPiecePrefab { get; private set; }
-        private static GameObject _staticNpcPieceHolder;
 
-        /// <summary>Builds <see cref="StaticNpcPiecePrefab"/> once Core's companion prefabs exist.</summary>
+        /// <summary>Returns <see cref="StaticNpcPiecePrefab"/>: the bundle StaticNpc loaded in LoadPieces.</summary>
         public static GameObject EnsureStaticNpcPiecePrefab()
         {
             if (StaticNpcPiecePrefab != null) return StaticNpcPiecePrefab;
             try
             {
-                var donor = CompanionPrefabManager.GetLoadedCompanionPrefabs()
-                    ?.Find(p => p != null && p.name == "CompanionNpc");
-                if (donor == null)
+                // 0.0.810 (Fire 10-31: "why is it pulling from two different prefabs? make it correct"): ONE prefab. The hammer places
+                // the bundle StaticNpc itself - the prefab `spawn StaticNpc` uses and every placed body's ZDO resolves to on load,
+                // set up once in LoadPieces (SetupNpcPieceDefaults: companion stack, in-place Piece, effect list) and its body material
+                // repaired in AddPiecesToHammer. The old hammer-only clone of FiresCompanions' CompanionNpc is gone: without Companions
+                // it did not exist, so RPGmaker alone had no Static NPC on the hammer at all.
+                var bundleNpc = FiresRPGmaker.piecePrefabs.Find(p => p != null && p.name == "StaticNpc");
+                if (bundleNpc == null)
                 {
-                    Debug.LogWarning($"{FiresRPGmaker.PluginName}: CompanionNpc prefab not loaded — static NPC piece unavailable");
+                    Debug.LogWarning($"{FiresRPGmaker.PluginName}: StaticNpc prefab not loaded from the firesnpcs bundle - static NPC piece unavailable");
                     return null;
                 }
-
-                if (_staticNpcPieceHolder == null)
-                {
-                    _staticNpcPieceHolder = new GameObject("FiresStaticNpcPieceHolder");
-                    _staticNpcPieceHolder.SetActive(false);
-                    UnityEngine.Object.DontDestroyOnLoad(_staticNpcPieceHolder);
-                }
-
-                var clone = FiresCore.Net.NetworkObjectHelper.InstantiateInactiveClone(donor);
-                if (clone == null) return null;
-                clone.name = "StaticNpc";
-                clone.transform.SetParent(_staticNpcPieceHolder.transform, false);
-
-                SetupNpcPieceDefaults(clone, "StaticNpc");
-                StaticNpcPiecePrefab = clone;
-                Debug.Log($"{FiresRPGmaker.PluginName}: built StaticNpc hammer piece from the CompanionNpc donor (companion-parity placement)");
-                return clone;
+                StaticNpcPiecePrefab = bundleNpc;
+                return bundleNpc;
             }
             catch (Exception ex)
             {
@@ -148,7 +153,7 @@ namespace FiresRPGmaker.Managers
                 FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Loaded network-only prefab: {netName}");
             }
 
-            Debug.Log($"{FiresRPGmaker.PluginName}: Loaded {FiresRPGmaker.piecePrefabs.Count} pieces. Failed: {failed}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Loaded {FiresRPGmaker.piecePrefabs.Count} pieces. Failed: {failed}");
         }
 
         /// <summary>
@@ -263,12 +268,13 @@ namespace FiresRPGmaker.Managers
             // Log the category from Unity
             FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: {pieceName} loaded with category={piece.m_category} from Unity");
 
-            
-            
+
+
 
             // Default category for other pieces only if not set in Unity
             if (piece.m_category == Piece.PieceCategory.Max)
                 piece.m_category = Piece.PieceCategory.Furniture;
+            NpcTemplatePieces.EnsureUsage(piece, "RPGmaker piece");   // 0.0.809: listed in 1.0's Categories menu
 
             if (piece.m_craftingStation == null)
             {
@@ -339,6 +345,7 @@ namespace FiresRPGmaker.Managers
             }
 
             piece.m_category = Piece.PieceCategory.Misc;
+            NpcTemplatePieces.EnsureUsage(piece, "NPC piece");   // 0.0.809: listed under Misc. in 1.0's Categories menu
             piece.m_resources = new Piece.Requirement[0];
             piece.m_placeEffect = new EffectList();
 
@@ -434,73 +441,6 @@ namespace FiresRPGmaker.Managers
         }
 
         /// <summary>
-        /// Strips character-related components that cause NullReferenceExceptions on static NPCs.
-        /// These components expect a full Character setup with Animator, AI, etc.
-        /// For future AI NPCs, use a different prefab type that has these properly configured.
-        /// NOTE: We preserve VisEquipment for the Dressing Room feature - it will be configured at runtime.
-        /// </summary>
-        private static void StripCharacterComponents(GameObject prefab)
-        {
-            int stripped = 0;
-
-            // These components require a full Character setup and will crash without it
-            // NOTE: VisEquipment is NOT stripped - we configure it at runtime for NPC equipment display
-            var typesToStrip = new[]
-            {
-                "CharacterAnimEvent",
-                "FootStep",
-                "CharacterDrop",
-                "Growup",
-                "LevelEffects",
-                "RandomAnimation",
-                // AI components - not needed for static NPCs
-                "BaseAI",
-                "MonsterAI",
-                "AnimalAI",
-                "Tameable",
-                "Procreation",
-                // Character/combat - not needed for static quest NPCs
-                "Humanoid",
-                "Character",
-                "CharacterTimedDestruction"
-            };
-
-            foreach (var typeName in typesToStrip)
-            {
-                // Check root and all children
-                var components = prefab.GetComponentsInChildren<Component>(true);
-                foreach (var comp in components)
-                {
-                    if (comp == null) continue;
-                    if (comp.GetType().Name == typeName)
-                    {
-                        FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Stripping {typeName} from {prefab.name}/{comp.gameObject.name}");
-                        UnityEngine.Object.DestroyImmediate(comp);
-                        stripped++;
-                    }
-                }
-            }
-
-            // Also strip Animator if it would cause issues (no controller assigned)
-            var animators = prefab.GetComponentsInChildren<Animator>(true);
-            foreach (var animator in animators)
-            {
-                if (animator != null && animator.runtimeAnimatorController == null)
-                {
-                    FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Stripping orphaned Animator from {prefab.name}/{animator.gameObject.name}");
-                    UnityEngine.Object.DestroyImmediate(animator);
-                    stripped++;
-                }
-            }
-
-            if (stripped > 0)
-            {
-                FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Stripped {stripped} character components from static NPC: {prefab.name}");
-            }
-        }
-
-
-        /// <summary>
         /// Registers every loaded piece prefab with <c>ZNetScene.m_prefabs</c>
         /// and <c>m_namedPrefabs</c> at <c>ZNetScene.Awake</c> time, BEFORE
         /// <c>ZDOMan.Load</c> instantiates persistent ZDOs. Without this,
@@ -581,7 +521,7 @@ namespace FiresRPGmaker.Managers
             }
 
             if (registered > 0)
-                Debug.Log($"{FiresRPGmaker.PluginName}: Pre-registered {registered} piece prefab(s) with ZNetScene before ZDO load");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Pre-registered {registered} piece prefab(s) with ZNetScene before ZDO load");
         }
 
         public static void AddPiecesToHammer()
@@ -670,9 +610,10 @@ namespace FiresRPGmaker.Managers
             // copies (the rotten bundle asset, other injectors) were what the user kept placing:
             // baked tooltip, invisible ghost, dead placement.
             var npcPiece = EnsureStaticNpcPiecePrefab();
+            string npcSource = npcPiece != null ? "the bundle StaticNpc prefab (the one spawn uses)" : "none: StaticNpc not in the firesnpcs bundle";
             int swept = pieceTable.m_pieces.RemoveAll(p => p != null && p.name == "StaticNpc" && p != npcPiece);
             if (swept > 0)
-                Debug.Log($"{FiresRPGmaker.PluginName}: swept {swept} stale StaticNpc piece-table entr(ies)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: swept {swept} stale StaticNpc piece-table entr(ies)");
             if (npcPiece != null && !pieceTable.m_pieces.Contains(npcPiece))
                 pieceTable.m_pieces.Add(npcPiece);
 
@@ -684,16 +625,31 @@ namespace FiresRPGmaker.Managers
             // AFTER this pass — sweep once more when they've had time to run.
             if (npcPiece != null && FiresRPGmaker.Instance != null)
                 FiresRPGmaker.Instance.StartCoroutine(LateStaticNpcSweep(pieceTable, npcPiece));
+
+            // 0.0.810: one-shot INFO proof (the minimal profile logs Info, not Debug)
+            if (!_hammerProofLogged)
+            {
+                _hammerProofLogged = true;
+                var p = npcPiece != null ? npcPiece.GetComponent<Piece>() : null;
+                int npcs = 0;
+                foreach (var x in pieceTable.m_pieces) if (x != null && (x == npcPiece || x.GetComponent<NpcTemplateMarker>() != null)) npcs++;
+                global::FiresRPGmaker.FiresLogger.LogDebug(p != null
+                    ? $"[BuildMenu] {npcs} NPC piece(s) on the '{pieceTable.name}' table: Static NPC from {npcSource}, category {p.m_category}, usage {p.m_usage} (1.0 Categories list)"
+                    : $"[BuildMenu] no Static NPC piece on the '{pieceTable.name}' table: {npcSource}");
+            }
         }
+        private static bool _hammerProofLogged;
+
+        private const float LateStaticNpcSweepDelaySeconds = 8f;
 
         private static System.Collections.IEnumerator LateStaticNpcSweep(PieceTable pieceTable, GameObject keeper)
         {
-            yield return new UnityEngine.WaitForSeconds(8f);
+            yield return new UnityEngine.WaitForSeconds(LateStaticNpcSweepDelaySeconds);
             if (pieceTable == null || pieceTable.m_pieces == null || keeper == null) yield break;
             int swept = pieceTable.m_pieces.RemoveAll(p => p != null && p.name == "StaticNpc" && p != keeper);
             if (!pieceTable.m_pieces.Contains(keeper)) pieceTable.m_pieces.Add(keeper);
             if (swept > 0)
-                Debug.Log($"{FiresRPGmaker.PluginName}: late sweep removed {swept} stale StaticNpc piece-table entr(ies)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: late sweep removed {swept} stale StaticNpc piece-table entr(ies)");
         }
 
         private static void AddPrefabToPieceTable(GameObject piecePrefab, PieceTable pieceTable)
@@ -705,7 +661,7 @@ namespace FiresRPGmaker.Managers
             // "StaticNpc" tiles in the hammer. Keep exactly one entry — ours.
             int dupes = pieceTable.m_pieces.RemoveAll(p => p != null && p != piecePrefab && p.name == piecePrefab.name);
             if (dupes > 0)
-                Debug.Log($"{FiresRPGmaker.PluginName}: removed {dupes} duplicate '{piecePrefab.name}' piece-table entr(ies)");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: removed {dupes} duplicate '{piecePrefab.name}' piece-table entr(ies)");
 
             // Skip if already in piece table
             if (pieceTable.m_pieces.Contains(piecePrefab))

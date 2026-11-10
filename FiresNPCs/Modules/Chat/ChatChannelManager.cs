@@ -35,7 +35,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
         /// <summary>Horizontal / vertical nudge of the chat panel, in pixels. Hot-reloads live.</summary>
         public static ConfigEntry<float> OffsetX;
         public static ConfigEntry<float> OffsetY;
-        public static ConfigEntry<float> PanelWidth, PanelHeight;   // 0.0.657: the chat window size set by Core's resize grip
+        public static ConfigEntry<float> PanelWidth, PanelHeight;   // the chat window size set by Core's resize grip
         /// <summary>Hotkey to toggle chat arrange mode — frees the cursor to drag / resize the panel.</summary>
         public static ConfigEntry<KeyboardShortcut> ArrangeKey;
         /// <summary>Replace the vanilla chat window with the Fires chat panel. Off = untouched vanilla chat.</summary>
@@ -83,7 +83,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
 
                     OnChannelChanged?.Invoke(value);
                     ShowChannelNotification(value);
-                    Debug.Log($"[ChatChannel] Switched to {value}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[ChatChannel] Switched to {value}");
                 }
             }
         }

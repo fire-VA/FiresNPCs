@@ -102,8 +102,9 @@ namespace FiresRPGmaker.Modules.Vault
         }
 
         // Cached reflection for BaseAI.m_nview (protected field - accessed once at class init).
-        private static readonly FieldInfo _baseAI_nview =
-            AccessTools.Field(typeof(BaseAI), "m_nview");
+        // 0.0.805 (Fire 10-31 cache rule): FieldRef, not FieldInfo.GetValue, on every BaseAI.UpdateAI; same field
+        private static readonly AccessTools.FieldRef<BaseAI, ZNetView> _baseAI_nview =
+            AccessTools.FieldRefAccess<BaseAI, ZNetView>("m_nview");
 
         /// <summary>
         /// Guard BaseAI.UpdateAI against a null m_nview.
@@ -118,7 +119,7 @@ namespace FiresRPGmaker.Modules.Vault
         {
             if (__instance == null || !(bool)(UnityEngine.Object)__instance)
                 return false;
-            return _baseAI_nview.GetValue(__instance) != null;
+            return _baseAI_nview(__instance) != null;
         }
     }
 }

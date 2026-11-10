@@ -33,9 +33,10 @@ namespace FiresRPGmaker.Modules.Territories
 
         public static IReadOnlyList<Territory> Territories => _territories;
 
-        // 0.0.574, for TerritoryApi: another mod's area joins / leaves the live list (kept sorted by priority).
-        internal static void AddLive(Territory t) { _territories.Add(t); _territories.Sort((a, b) => b.Priority.CompareTo(a.Priority)); }
-        internal static bool RemoveLive(Territory t) => _territories.Remove(t);
+        // For TerritoryApi: another mod's area joins / leaves the live list (kept sorted by priority).
+        internal static int Version;   // Bumped on every change of the live list (the server lookup index rebuilds on it)
+        internal static void AddLive(Territory t) { Version++; _territories.Add(t); _territories.Sort((a, b) => b.Priority.CompareTo(a.Priority)); }
+        internal static bool RemoveLive(Territory t) { Version++; return _territories.Remove(t); }
 
         public static void Init()
         {
@@ -54,13 +55,30 @@ namespace FiresRPGmaker.Modules.Territories
                 // Apply terrain paint once on server startup so painted ground is ready before players login
      TerritoryRuntime.ApplyAllCustomPaints(clearCache: true);
         sw.Stop();
-       Debug.Log($"[FiresRPGmaker] TerritoryLedger loaded {_territories.Count} territories from legacy cfg in {sw.ElapsedMilliseconds}ms");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] TerritoryLedger loaded {_territories.Count} territories from legacy cfg in {sw.ElapsedMilliseconds}ms");
+                RedrawOverlayAfterLoad("init");
             }
             catch (Exception ex)
             {
          sw.Stop();
      Debug.LogWarning($"[FiresRPGmaker] TerritoryLedger init failed after {sw.ElapsedMilliseconds}ms: {ex.Message}");
      }
+        }
+
+        // 0.0.795 (rounds H + I 10-29): on a host the map overlay applied BEFORE this load ("drew 0 territories") and nothing marked
+        // it dirty afterwards, so the minimap showed no territories. The load now marks the overlay dirty (it coalesces + no-ops when
+        // the pixels would be identical). Key Territories.RedrawMapOverlayAfterLoad, default ON.
+        private static bool _redrawProofLogged;
+        private static void RedrawOverlayAfterLoad(string why)
+        {
+            bool on = global::FiresRPGmaker.Managers.ConfigManager.Instance?.configRedrawOverlayAfterLoad?.Value ?? true;
+            bool dedi = ZNet.instance != null && ZNet.instance.IsDedicated();
+            if (!_redrawProofLogged) { _redrawProofLogged = true; global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Territory overlay redraw after load: {(on ? "ON" : "OFF")} (fix 0.0.795)"); }
+            if (!on || dedi) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TerritoryLedger] overlay redraw after {why} skipped (why: {(dedi ? "dedicated server, no map" : "key off")})"); return; }
+            var sw = Stopwatch.StartNew();
+            try { TerritoryMapOverlay.OnTerritoriesChanged(); }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] overlay redraw after {why} failed: {ex.Message}"); }
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TerritoryLedger] overlay redraw after {why}: {_territories.Count} territories, marked dirty in {sw.ElapsedMilliseconds}ms (why: the overlay may have applied before this load)");
         }
 
         public static void Reload()
@@ -74,19 +92,20 @@ namespace FiresRPGmaker.Modules.Territories
  // Re-apply terrain paint when configs change
  TerritoryRuntime.ApplyAllCustomPaints(clearCache: true);
       sw.Stop();
-  Debug.Log($"[FiresRPGmaker] TerritoryLedger reloaded {_territories.Count} territories in {sw.ElapsedMilliseconds}ms");
+  global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] TerritoryLedger reloaded {_territories.Count} territories in {sw.ElapsedMilliseconds}ms");
+                RedrawOverlayAfterLoad("reload");
          }
-catch (Exception ex) 
-  { 
+catch (Exception ex)
+  {
          sw.Stop();
-     Debug.LogWarning($"[FiresRPGmaker] TerritoryLedger reload failed after {sw.ElapsedMilliseconds}ms: {ex.Message}"); 
+     Debug.LogWarning($"[FiresRPGmaker] TerritoryLedger reload failed after {sw.ElapsedMilliseconds}ms: {ex.Message}");
      }
         }
 
         private static void LoadLegacyTerritories()
         {
    var sw = Stopwatch.StartNew();
-            _territories.Clear();
+            _territories.Clear(); Version++;
         _loggedColorNames.Clear();
         _loggedFlagProblems.Clear();
     var sources = new[] { LegacyDir, OutlinesDir, DrawnDir };
@@ -96,21 +115,21 @@ catch (Exception ex)
         if (!Directory.Exists(dir)) continue;
        foreach (var file in Directory.GetFiles(dir, "*.cfg", SearchOption.AllDirectories))
        {
-          try 
-        { 
-            ParseLegacyFile(file); 
+          try
+        {
+            ParseLegacyFile(file);
         fileCount++;
- } 
-           catch (Exception ex) 
-  { 
-       Debug.LogWarning($"[FiresRPGmaker] Territory parse failed {file}: {ex.Message}"); 
+ }
+           catch (Exception ex)
+  {
+       Debug.LogWarning($"[FiresRPGmaker] Territory parse failed {file}: {ex.Message}");
           }
                 }
  }
-            TerritoryApi.AppendExternal(_territories);   // 0.0.574: other mods' areas survive every reload
+            TerritoryApi.AppendExternal(_territories);   // Other mods' areas survive every reload
             _territories.Sort((a, b) => b.Priority.CompareTo(a.Priority));
  sw.Stop();
-Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_territories.Count} territories in {sw.ElapsedMilliseconds}ms");
+global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_territories.Count} territories in {sw.ElapsedMilliseconds}ms");
   }
 
         private enum InputType
@@ -165,6 +184,15 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                         territory.X = new[] { int.Parse(xyz[0]), int.Parse(xyz[2]) };
                         territory.Y = new[] { int.Parse(xyz[1]), int.Parse(xyz[3]) };
                         break;
+                    case TerritoryShape.Polygon:
+                    {
+                        // "x0,z0,x1,z1,..." on the one coords line; at least 3 points, else the block is skipped (logged once per file)
+                        int n = xyz.Length / 2;
+                        if (n < 3) { Debug.LogWarning($"[FiresRPGmaker] Territory '{currentProfile}': Polygon with {n} point(s) skipped (needs 3+)"); continue; }
+                        territory.X = new int[n]; territory.Y = new int[n];
+                        for (int k = 0; k < n; k++) { territory.X[k] = int.Parse(xyz[2 * k]); territory.Y[k] = int.Parse(xyz[2 * k + 1]); }
+                        break;
+                    }
                 }
 
                 // colors: r,g,b[,a][,true/false]
@@ -194,7 +222,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     territory.Colors.Add(new Color32(r, g, b, a));
                     if (_loggedColorNames.Add(territory.Name))
                     {
-                        Debug.Log($"[FiresRPGmaker] Parsed territory '{territory.Name}' color tokens=[{string.Join(",", nums)}] -> rgba({r},{g},{b},{a})");
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Parsed territory '{territory.Name}' color tokens=[{string.Join(",", nums)}] -> rgba({r},{g},{b},{a})");
                     }
                 }
                 else
@@ -202,6 +230,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     Debug.LogWarning($"[FiresRPGmaker] Territory '{territory.Name}' color line could not parse RGB: {colorLine}");
                 }
 
+                territory.ColorLine = (colorLine ?? "").Trim();   // Kept verbatim for the editor (gradients, "false")
                 // flags (supports optional leading alpha override carried from commands)
                 territory.Flags = TerritoryFlags.None;
                 territory.AdditionalFlags = AdditionalTerritoryFlags.None;
@@ -229,8 +258,8 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
             }
         }
 
-        // 0.0.574: one flags line (the cfg's 4th line, without the alpha override) applied to a territory; shared by the
-        // .cfg parser and TerritoryApi (another mod's areas), so both understand exactly the same flags and values.
+        // One flags line (the cfg's 4th line, without the alpha override) applied to a territory; shared by the .cfg
+        // parser and TerritoryApi (another mod's areas), so both understand exactly the same flags and values.
         internal static void ApplyFlagsLine(Territory territory, string flagsLine, string flagsSource)
         {
             territory.Flags = TerritoryFlags.None;
@@ -240,6 +269,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
 
         private static void ApplyFlagTokens(Territory territory, List<string> flagTokens, string flagsLine, string flagsSource)
         {
+                territory.FlagsLine = (flagsLine ?? "").Trim();   // Kept verbatim for the editor
                 foreach (var flagToken in flagTokens)
                 {
                     var parts = flagToken.Split(new[] { '=' }, 2, StringSplitOptions.None);
@@ -263,13 +293,21 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                         continue;
                     }
 
-                    // ForceSeason=<Spring|Summer|Fall|Winter> / ForceVedrWeather=<environment> (0.0.533, Fire 10-08): line keys,
-                    // applied client-side through Vedr's public API while a player is inside (TerritoryRuntime.ApplyVedr).
+                    // AccessParty= / AccessGuild= / AccessRaid= / AccessOffline= line keys (1/0, true/false; bare = on). Older
+                    // builds report them as unknown tokens and ignore them.
+                    if (TryParseAccessToken(flagName, custom, territory, out var accessProblem))
+                    {
+                        if (accessProblem != null) WarnFlagProblem(territory, flagsSource, flagsLine, accessProblem);
+                        continue;
+                    }
+
+                    // ForceSeason=<Spring|Summer|Fall|Winter> / ForceVedrWeather=<environment>: line keys, applied client-side
+                    // through Vedr's public API while a player is inside (TerritoryRuntime.ApplyVedr).
                     if (flagName.Equals("ForceSeason", StringComparison.OrdinalIgnoreCase)) { territory.ForceSeason = custom; continue; }
                     if (flagName.Equals("ForceVedrWeather", StringComparison.OrdinalIgnoreCase)) { territory.ForceVedrWeather = custom; continue; }
 
-                    // ForSale=<coins> (Fire 10-08): offers the area on the large map ("Buy <Name> for N Coins"); a bare
-                    // ForSale is free. Nothing could set Type/SellPrice before, so the purchase path was unreachable.
+                    // ForSale=<coins>: offers the area on the large map ("Buy <Name> for N Coins"); a bare ForSale is
+                    // free. Nothing could set Type/SellPrice before, so the purchase path was unreachable.
                     if (flagName.Equals(ForSaleFlag, StringComparison.OrdinalIgnoreCase))
                     {
                         int price = 0;
@@ -285,7 +323,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     }
 
                     // JoinOtherServer (kg: send the player to another server on entry) was parsed and never acted on.
-                    // Fire 10-08: not supported in 1.0, so it is reported and left off.
+                    // not supported in 1.0, so it is reported and left off.
                     if (flagName.Equals(nameof(AdditionalTerritoryFlags.JoinOtherServer), StringComparison.OrdinalIgnoreCase))
                     {
                         WarnFlagProblem(territory, flagsSource, flagsLine, "JoinOtherServer is not supported");
@@ -334,12 +372,18 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                 case TerritoryFlags.LimitZoneHeight:
                     return TryAssignOptionalFloat(custom, ref territory.OverridenHeight);
                 case TerritoryFlags.ForceBiome:
-                    if (int.TryParse(custom, NumberStyles.Integer, CultureInfo.InvariantCulture, out var biomeVal) && IsValidBiomeValue(biomeVal))
+                    // A biome NAME is accepted too, and a mod biome Expand World Data registered on this server counts as valid (TerritoryBiomes)
+                    // "<biome>[:<alt>][,<blend metres>]" - an alt biome (vanilla 1.0 AltBiome, "Plains - Heath" or "16:Heath") and the
+                    // blend band (default 32 m)
+                    if (TerritoryBiomes.TryParseForce(custom, out var biomeVal, out var altName, out var blend) && IsValidBiomeValue(biomeVal))
                     {
                         territory.OverridenBiome = biomeVal;
+                        territory.OverridenAltBiome = altName ?? string.Empty;
+                        territory.BiomeBlend = blend;
                         break;
                     }
                     territory.OverridenBiome = 0;
+                    territory.OverridenAltBiome = string.Empty;
                     return false;
                 case TerritoryFlags.MonstersAddStars:
                     return TryAssignOptionalInt(custom, ref territory.AddMonsterLevel);
@@ -377,13 +421,13 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
             return true;
         }
 
-        // 0.0.605 ([lead] 10-15: "Scale '.2' rejected"): a value that PARSES but is outside the supported range is kept, clamped to the
-        // nearest limit (the runtime clamps the same way), and named in one Info line - instead of being thrown away as "invalid".
+        // A value that PARSES but is outside the supported range is kept, clamped to the nearest limit (the runtime clamps the same
+        // way), and named in one Info line - instead of being thrown away as "invalid".
         private static float ClampLogged(Territory t, string key, float v, float min, float max)
         {
             float c = Mathf.Clamp(v, min, max);
             if (!Mathf.Approximately(c, v))
-                Debug.Log($"[FiresRPGmaker] Territory '{t?.Name}': {key} {v.ToString(CultureInfo.InvariantCulture)} is outside {min.ToString(CultureInfo.InvariantCulture)}..{max.ToString(CultureInfo.InvariantCulture)}, using {c.ToString(CultureInfo.InvariantCulture)}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Territory '{t?.Name}': {key} {v.ToString(CultureInfo.InvariantCulture)} is outside {min.ToString(CultureInfo.InvariantCulture)}..{max.ToString(CultureInfo.InvariantCulture)}, using {c.ToString(CultureInfo.InvariantCulture)}");
             return c;
         }
 
@@ -417,15 +461,20 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     return TryAssignOptionalFloat(custom, ref territory.Wind);
                 case AdditionalTerritoryFlags.DropMultiplier:
                     return TryAssignOptionalFloat(custom, ref territory.DropMultiplier);
-                case AdditionalTerritoryFlags.Gravity:   // 0.0.498: -10..10, 1 = vanilla
+                case AdditionalTerritoryFlags.Gravity:   // -10..10, 1 = vanilla
                     if (!TryAssignOptionalFloat(custom, ref territory.Gravity)) return false;
                     territory.Gravity = ClampLogged(territory, "Gravity", territory.Gravity, TerritoryRuntime.GravityMin, TerritoryRuntime.GravityMax);
                     return true;
-                case AdditionalTerritoryFlags.FirstPerson:   // 0.0.505: "FirstPerson" or "FirstPerson=true"; "=false" clears it
+                case AdditionalTerritoryFlags.FirstPerson:   // "FirstPerson" or "FirstPerson=true"; "=false" clears it
                     if (string.IsNullOrWhiteSpace(custom) || custom.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)) return true;
                     if (custom.Trim().Equals("false", StringComparison.OrdinalIgnoreCase)) { territory.AdditionalFlags &= ~AdditionalTerritoryFlags.FirstPerson; return true; }
                     return false;
-                case AdditionalTerritoryFlags.Scale:     // 0.0.498: 0.25..4, 1 = normal
+                case AdditionalTerritoryFlags.Winter:    // "Winter" (cap 1) or "Winter=0..1"
+                    if (string.IsNullOrWhiteSpace(custom)) { territory.WinterCap = 1f; return true; }
+                    if (!TryAssignOptionalFloat(custom, ref territory.WinterCap)) return false;
+                    territory.WinterCap = ClampLogged(territory, "Winter", territory.WinterCap, 0f, 1f);
+                    return true;
+                case AdditionalTerritoryFlags.Scale:     // 0.25..4, 1 = normal
                     if (!TryAssignOptionalFloat(custom, ref territory.Scale)) return false;
                     territory.Scale = ClampLogged(territory, "Scale", territory.Scale, TerritoryRuntime.ScaleMin, TerritoryRuntime.ScaleMax);
                     return true;
@@ -525,7 +574,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                 case 512: // Mistlands
                     return true;
                 default:
-                    return false;
+                    return TerritoryBiomes.IsKnown(val);   // Biomes Expand World Data registered on this server
             }
         }
 
@@ -533,7 +582,7 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
         /// Splits on '|', ';' and ','. Inside a Flag=value a comma only splits when the text after it names a flag,
         /// so multi-value flags (HeightBounds=0,600, PeriodicHeal=1,5, CustomEnvironment=a,b) keep their commas.
         /// </summary>
-        private static List<string> SplitFlagTokens(string flagsLine)
+        internal static List<string> SplitFlagTokens(string flagsLine)   // internal: the flags-line edit splits the same way (ledger v1.1)
         {
             var tokens = new List<string>();
             int tokenStart = 0;
@@ -546,8 +595,8 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
                     insideValue = true;
                     continue;
                 }
-                bool endsToken = character == '|' || character == ';'
-                    || (character == ',' && (!insideValue || NextSegmentNamesFlag(flagsLine, index + 1)));
+                bool endsToken = character == '|'   // ';' inside a value (RevealOnMap=x;z;r, as the help says) ends it only before a flag name, like ','
+                    || ((character == ',' || character == ';') && (!insideValue || NextSegmentNamesFlag(flagsLine, index + 1)));
                 if (!endsToken) continue;
                 AddFlagToken(tokens, flagsLine.Substring(tokenStart, index - tokenStart));
                 tokenStart = index + 1;
@@ -576,9 +625,45 @@ Debug.Log($"[FiresRPGmaker] LoadLegacyTerritories parsed {fileCount} files, {_te
             if (candidate.Length == 0 || !char.IsLetter(candidate[0])) return false;
             if (candidate.Equals(HeightBoundsFlag, StringComparison.OrdinalIgnoreCase)) return true;
             if (candidate.Equals(ForSaleFlag, StringComparison.OrdinalIgnoreCase)) return true;
+            if (IsAccessToken(candidate)) return true;
             if (candidate.Equals("ForceSeason", StringComparison.OrdinalIgnoreCase) || candidate.Equals("ForceVedrWeather", StringComparison.OrdinalIgnoreCase)) return true;
             return (TryParseAdditionalFlag(candidate, out var additionalFlag) && additionalFlag != AdditionalTerritoryFlags.None)
                 || (TryParseTerritoryFlag(candidate, out var territoryFlag) && territoryFlag != TerritoryFlags.None);
+        }
+
+        // ── The four Access...= line keys ─────────────────────────────────────────
+        internal const string AccessPartyFlag = "AccessParty", AccessGuildFlag = "AccessGuild",
+                              AccessRaidFlag = "AccessRaid", AccessOfflineFlag = "AccessOffline";
+
+        private static bool IsAccessToken(string name) =>
+            name.Equals(AccessPartyFlag, StringComparison.OrdinalIgnoreCase) || name.Equals(AccessGuildFlag, StringComparison.OrdinalIgnoreCase)
+            || name.Equals(AccessRaidFlag, StringComparison.OrdinalIgnoreCase) || name.Equals(AccessOfflineFlag, StringComparison.OrdinalIgnoreCase);
+
+        private static bool TryParseAccessToken(string name, string value, Territory territory, out string problem)
+        {
+            problem = null;
+            if (!IsAccessToken(name)) return false;
+            bool on;
+            string v = (value ?? "").Trim();
+            if (v.Length == 0 || v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase) || v.Equals("on", StringComparison.OrdinalIgnoreCase)) on = true;
+            else if (v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)) on = false;
+            else { problem = $"invalid {name} value '{value}' (1 or 0)"; return true; }
+            if (name.Equals(AccessPartyFlag, StringComparison.OrdinalIgnoreCase)) territory.PartyAllowed = on;
+            else if (name.Equals(AccessGuildFlag, StringComparison.OrdinalIgnoreCase)) territory.GuildAllowed = on;
+            else if (name.Equals(AccessRaidFlag, StringComparison.OrdinalIgnoreCase)) territory.RaidProtection = on;
+            else territory.OfflineProtection = on;
+            return true;
+        }
+
+        /// <summary>The Access tokens to write back for a territory; only values that differ from the defaults
+        /// (party/guild off, raid/offline on), so untouched territories keep a byte-identical flags line.</summary>
+        internal static IEnumerable<string> AccessTokens(Territory t)
+        {
+            if (t == null) yield break;
+            if (t.PartyAllowed) yield return AccessPartyFlag + "=1";
+            if (t.GuildAllowed) yield return AccessGuildFlag + "=1";
+            if (!t.RaidProtection) yield return AccessRaidFlag + "=0";
+            if (!t.OfflineProtection) yield return AccessOfflineFlag + "=0";
         }
 
         private static CustomSpawnDef ParseCustomSpawnDef(string custom)

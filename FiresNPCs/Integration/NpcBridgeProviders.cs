@@ -27,12 +27,36 @@ namespace FiresRPGmaker.Integration
         internal static void RegisterAll()
         {
             // config values + admin check (key = ConfigManager field name minus the "config" prefix)
-            NpcConfigBridge.GetFloatValue = (key, fallback) => GetConfigValue(key, fallback);
-            NpcConfigBridge.GetBoolValue = (key, fallback) => GetConfigValue(key, fallback);
+            // 0.0.816: chained, not replaced. FiresCompanions sets the same bridge and now owns the companion keys; whichever loads last
+            // must still reach the other's. A key neither mod has gets the call site's fallback (RPGmaker without Companions).
+            var prevFloat = NpcConfigBridge.GetFloatValue; var prevBool = NpcConfigBridge.GetBoolValue;
+            NpcConfigBridge.GetFloatValue = (key, fallback) => HasKey(key) ? GetConfigValue(key, fallback) : prevFloat != null ? prevFloat(key, fallback) : fallback;
+            NpcConfigBridge.GetBoolValue = (key, fallback) => HasKey(key) ? GetConfigValue(key, fallback) : prevBool != null ? prevBool(key, fallback) : fallback;
             NpcConfigBridge.AdminCheck = () => FiresRPGmaker.Instance?.configSync?.IsAdmin ?? false;
 
             // anchor⇄body payload copier (appearance + module profiles + config) for the NPC anchor system
             NpcAnchorDataBridge.Register();
+
+            // Companions respect NoInteractItems - Core 0.2.680 FiresCore.Npc.CompanionPickupGate.IsBlocked
+            // (Func<Vector3, long, bool>), by reflection so an older Core just has no gate; an existing gate is chained, not replaced
+            try
+            {
+                var gate = System.Type.GetType("FiresCore.Npc.CompanionPickupGate, FiresUnifiedCore", false)?.GetField("IsBlocked",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                if (gate != null && gate.FieldType == typeof(System.Func<UnityEngine.Vector3, long, bool>))
+                {
+                    var prev = gate.GetValue(null) as System.Func<UnityEngine.Vector3, long, bool>;
+                    System.Func<UnityEngine.Vector3, long, bool> mine = (pos, owner) =>
+                    {
+                        try { if (prev != null && prev(pos, owner)) return true; } catch { }
+                        try { return global::FiresRPGmaker.Modules.Territories.TerritoryRuntime.CompanionPickupBlocked(pos, owner); } catch { return false; }
+                    };
+                    gate.SetValue(null, mine);
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[Territories] Core CompanionPickupGate set: companions take no drops inside NoInteractItems territories");
+                }
+                else global::FiresRPGmaker.FiresLogger.LogDebug("[Territories] Core has no CompanionPickupGate (needs 0.2.680+): companion pickups are not territory-checked");
+            }
+            catch (System.Exception ex) { UnityEngine.Debug.LogWarning("[FiresRPGmaker] CompanionPickupGate setup failed: " + ex.Message); }
 
             // anchor orb context menu (Move/Remove) — client-side UI, admin-gated rows + server-gated RPCs
             if (!UnityEngine.Application.isBatchMode)
@@ -75,7 +99,7 @@ namespace FiresRPGmaker.Integration
             // screens belong to FiresCompanions. Static NPCs use the Shift+E admin panel + Dressing
             // Room, not these. Leaving the NpcUiBridge delegates unset (null-safe in Core).
 
-            // COMPANION STORE DE-REGISTERED (RPGMaker decouple, 2026-06-14): FiresRPGmaker no longer
+            // COMPANION STORE DE-REGISTERED: FiresRPGmaker no longer
             // registers its VaultOfKnowledge as the companion persistence provider. Companion ownership
             // now lives entirely in FiresCompanions' kennel (the NpcDormancyBridge provider). While the
             // RPGMaker vault registered CompanionVaultBridge.IsAvailable=true, Core's single restore
@@ -113,6 +137,8 @@ namespace FiresRPGmaker.Integration
                 npc.GetComponent<CompanionController>()?.UpdateCharacterName(name);
         }
 
+        private static bool HasKey(string key) { try { return typeof(ConfigManager).GetField("config" + key)?.GetValue(ConfigManager.Instance) != null; } catch { return false; } }
+
         private static T GetConfigValue<T>(string key, T fallback)
         {
             try
@@ -133,6 +159,7 @@ namespace FiresRPGmaker.Integration
             var module = npc.GetComponent<CompanionNpcModule>();
             if (module == null) return;
             var controller = GetOrCreateNpcControllerWrapper(module);
+            if (controller != null && global::FiresRPGmaker.UI.NpcBookController.ToggleClose(controller)) return;   // Shift+E on the open book closes it
             if (controller != null) global::FiresRPGmaker.UI.NpcBookController.ShowForNpc(controller);   // book UI; old flat panel retired
         }
 

@@ -52,6 +52,7 @@ namespace FiresRPGmaker.Modules.Factions
 
         private bool _open;
         private Rect _rect = new Rect(-1f, -1f, 0f, 0f);
+        private bool _spotLoaded; private Rect _lastSaved;
         private Vector2 _navScroll, _bodyScroll;
         private float _scale;      // whole-window (text + elements) scale via GUI.matrix; 0 = pick a default
         private bool _scaling;     // dragging the bottom-right resize grip
@@ -73,7 +74,7 @@ namespace FiresRPGmaker.Modules.Factions
         {
             if (!_open) return;
             // Escape is owned by the central Menu.Show hook (GUIManager.CloseAllPanels): self-closing here ran a
-            // frame early and let vanilla's pause menu through (round 21).
+            // frame early and let vanilla's pause menu through.
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             // Gate game hotkeys while any IMGUI text control is focused, so typing doesn't leak to the game.
@@ -133,10 +134,12 @@ namespace FiresRPGmaker.Modules.Factions
             {
                 FiresRoundedSkin.Ensure(WindowAlpha);
                 float logW = Screen.width / _scale, logH = Screen.height / _scale;
+                global::FiresRPGmaker.UI.ImguiWindowSpot.LoadOnce("faction.editor", ref _rect, ref _spotLoaded);   // the player's saved spot (its size stays the scale grip's)
                 if (_rect.x < 0f)
                     _rect = new Rect((logW - Size.x) / 2f, Mathf.Max(20f, (logH - Size.y) / 2f), Size.x, Size.y);
                 _rect.width = Size.x; _rect.height = Size.y;
                 _rect = GUILayout.Window(WindowId, _rect, DrawWindow, "", FiresRoundedSkin.Window);
+                global::FiresRPGmaker.UI.ImguiWindowSpot.SaveIfMoved("faction.editor", _rect, ref _lastSaved);
                 _rect.x = Mathf.Clamp(_rect.x, 0f, logW - 80f);
                 _rect.y = Mathf.Clamp(_rect.y, 0f, logH - 40f);
                 FiresRoundedSkin.DrawPendingTooltip();

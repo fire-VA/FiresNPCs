@@ -23,7 +23,7 @@ namespace FiresRPGmaker.Managers
     {
         private static Dictionary<string, SavedNpcData> _savedNpcs = new Dictionary<string, SavedNpcData>(StringComparer.OrdinalIgnoreCase);
         private static bool _initialized;
-        private static bool _rpcsRegistered;
+        private static ZRoutedRpc _rpcsRegisteredOn;
 
         /// <summary>Namespace key used by <see cref="ManifestDiffSync"/>
         /// so the server can query the client's local SavedNPCs/ hashes and skip unchanged entries.</summary>
@@ -69,7 +69,7 @@ namespace FiresRPGmaker.Managers
         /// </summary>
         public static void ResetRPCState()
         {
-            _rpcsRegistered = false;
+            _rpcsRegisteredOn = null;
         }
 
         private const string RPC_NPC_DATA_UPDATE = "FiresRPGmaker_NpcDataUpdate";
@@ -103,14 +103,16 @@ namespace FiresRPGmaker.Managers
         /// </summary>
         public static void RegisterRPCs()
         {
-            if (_rpcsRegistered) return;
-            if (ZRoutedRpc.instance == null) return;
+            // Guard by the ZRoutedRpc instance; the bool was only reset through
+            // Core's NpcHostBridge, so a plain leave + rejoin could keep a client without the NPC data/delete/move handlers.
+            if (!RpcRegistration.Needed(_rpcsRegisteredOn)) return;
 
             ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_DATA_UPDATE, new Action<long, ZPackage>(RPC_OnNpcDataUpdate));
             ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_DATA_DELETE, new Action<long, ZPackage>(RPC_OnNpcDataDelete));
             ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_ANCHOR_MOVE, new Action<long, ZPackage>(RPC_OnNpcAnchorMove));
-            ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_REDRESS, new Action<long, ZPackage>(RPC_OnNpcRedress));   // 0.0.508
-            _rpcsRegistered = true;
+            ZRoutedRpc.instance.Register<ZPackage>(RPC_NPC_REDRESS, new Action<long, ZPackage>(RPC_OnNpcRedress));
+            _rpcsRegisteredOn = ZRoutedRpc.instance;
+            RpcRegistration.Logged("SavedNpcManager", 4);
             FiresLogger.LogVerbose("[SavedNpcManager] Registered NPC data sync RPCs");
         }
 
@@ -142,8 +144,16 @@ namespace FiresRPGmaker.Managers
             return npcId + ".json";
         }
 
+        // NPC ids come over the network and become file names: letters, digits, '_' and '-' only (GenerateNpcId makes
+        // "<hash>_<x>_<y>_<z>"), so no id can reach outside the SavedNPCs folder.
+        private static readonly System.Text.RegularExpressions.Regex SafeNpcIdPattern =
+            new System.Text.RegularExpressions.Regex("^[A-Za-z0-9_-]{1,128}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        internal static bool IsSafeNpcId(string npcId) => !string.IsNullOrEmpty(npcId) && SafeNpcIdPattern.IsMatch(npcId);
+
         private static string NpcFilePath(string npcId)
         {
+            if (!IsSafeNpcId(npcId)) throw new ArgumentException($"unsafe NPC id '{npcId}'");
             return Path.Combine(SavedNpcsFolder, NpcIdToFileName(npcId));
         }
 
@@ -161,7 +171,7 @@ namespace FiresRPGmaker.Managers
 
             WriteNpcFile(npcId, data);
 
-            Debug.Log($"[SavedNpcManager] Saved NPC data: {npcId} - Profile: {data.NpcProfileName}, QuestProfile: {data.QuestProfile}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Saved NPC data: {npcId} - Profile: {data.NpcProfileName}, QuestProfile: {data.QuestProfile}");
         }
 
         /// <summary>
@@ -208,6 +218,27 @@ namespace FiresRPGmaker.Managers
         /// Loads NPC data into an NpcController from the saved store.
         /// Returns true if data was loaded.
         /// </summary>
+        // Records are keyed by the 1 m cell, so a record an earlier NPC left on this cell would dress a
+        // freshly made NPC with the old name and profiles. A body stamped at birth (NpcController.BornTicksKey) never takes a record
+        // last saved before it was born (30 s grace for clock skew); that orphan record is dropped here with one log line. Bodies with
+        // no stamp - every NPC that existed before - load their records exactly as before.
+        private const long OrphanGraceTicks = 30L * TimeSpan.TicksPerSecond;
+        private static bool IsOrphanForFreshBody(UI.NpcController npc, string npcId, SavedNpcData data)
+        {
+            try
+            {
+                var zdo = npc.GetComponent<ZNetView>()?.GetZDO();
+                long born = zdo != null ? zdo.GetLong(UI.NpcController.BornTicksKey, 0L) : 0L;
+                if (born == 0L) return false;
+                long saved = (data.LastModified.Kind == DateTimeKind.Local ? data.LastModified.ToUniversalTime() : data.LastModified).Ticks;
+                if (saved + OrphanGraceTicks >= born) return false;
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] dropped stale saved record {npcId} ('{data.DisplayNameOverride}', saved {data.LastModified:u}) for the NPC made here at {new DateTime(born, DateTimeKind.Utc):u}: a record left by an earlier NPC on this spot is not applied to a new one");
+                RemoveNpc(npcId);
+                return true;
+            }
+            catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] stale-record check failed: {ex.Message}"); return false; }
+        }
+
         public static bool LoadIntoNpc(UI.NpcController npc) =>
             npc != null && LoadIntoNpc(npc, npc.transform.position);
 
@@ -227,6 +258,7 @@ namespace FiresRPGmaker.Managers
             var savedData = GetNpc(npcId);
 
             if (savedData == null) return false;
+            if (IsOrphanForFreshBody(npc, npcId, savedData)) return false;
 
             // Apply saved data to the NPC
             if (!string.IsNullOrEmpty(savedData.NpcProfileName))
@@ -389,7 +421,7 @@ namespace FiresRPGmaker.Managers
             TryCaptureTemplateIcon(npc, snapshot);
             SaveTemplate(templateName, snapshot);
             NpcTemplatePieces.AddOrRefreshTemplateLive(templateName);
-            Debug.Log($"[SavedNpcManager] Saved NPC '{displayName}' to hammer as template '{templateName}'");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Saved NPC '{displayName}' to hammer as template '{templateName}'");
             return templateName;
         }
 
@@ -412,7 +444,7 @@ namespace FiresRPGmaker.Managers
                 Debug.LogWarning($"[SavedNpcManager] Failed to delete template file '{templateName}': {ex.Message}");
             }
             NpcTemplatePieces.RemoveTemplateLive(templateName);
-            if (existed) Debug.Log($"[SavedNpcManager] Deleted NPC template '{templateName}'");
+            if (existed) global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Deleted NPC template '{templateName}'");
             return existed;
         }
 
@@ -442,7 +474,7 @@ namespace FiresRPGmaker.Managers
                 if (png != null && png.Length > 0)
                 {
                     record.IconPng = Convert.ToBase64String(png);
-                    Debug.Log($"[TemplateIcon] captured portrait icon from live NPC '{npc.name}' ({png.Length} bytes)");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[TemplateIcon] captured portrait icon from live NPC '{npc.name}' ({png.Length} bytes)");
                 }
                 else
                 {
@@ -517,7 +549,7 @@ namespace FiresRPGmaker.Managers
                     Debug.LogWarning($"[SavedNpcManager] Failed to delete NPC file: {ex.Message}");
                 }
 
-                Debug.Log($"[SavedNpcManager] Removed saved NPC: {npcId}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Removed saved NPC: {npcId}");
             }
         }
 
@@ -555,6 +587,9 @@ namespace FiresRPGmaker.Managers
             }
         }
 
+        private const float SameCellHorizontalRadius = 1.5f;
+        private const float SameCellVerticalTolerance = 3f;
+
         /// <summary>Two positions count as the same placement cell when they agree horizontally within
         /// 1.5m and vertically within 3m. NEVER compare GenerateNpcId strings for cell identity — the id
         /// rounds to integer meters INCLUDING Y, so feet-pin probes, anchor height healing, and plain
@@ -563,7 +598,7 @@ namespace FiresRPGmaker.Managers
         internal static bool SamePlacementCell(Vector3 a, Vector3 b)
         {
             float dx = a.x - b.x, dz = a.z - b.z;
-            return (dx * dx + dz * dz) <= 1.5f * 1.5f && Mathf.Abs(a.y - b.y) <= 3f;
+            return (dx * dx + dz * dz) <= SameCellHorizontalRadius * SameCellHorizontalRadius && Mathf.Abs(a.y - b.y) <= SameCellVerticalTolerance;
         }
 
         /// <summary>
@@ -600,10 +635,10 @@ namespace FiresRPGmaker.Managers
 
                     DestroyZdoOrInstance(azdo);
                     destroyed++;
-                    Debug.Log($"[AnchorDelete] destroyed anchor {guid} at {azdo.GetPosition()} (requested pos={position} guid={(anchorGuid ?? "<cell match>")})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[AnchorDelete] destroyed anchor {guid} at {azdo.GetPosition()} (requested pos={position} guid={(anchorGuid ?? "<cell match>")})");
                 }
-                if (destroyed > 0)   // 0.0.583 (Fire 10-14, Ulvar: "orb is still there"): the one line Fire asked for
-                    Debug.Log($"[StaticNpc] removed npc and anchor: {destroyed} anchor(s) + linked body at {position} (guid {(anchorGuid ?? "<cell match>")}); clients drop the anchor orb when the anchor ZDO goes");
+                if (destroyed > 0)
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] removed npc and anchor: {destroyed} anchor(s) + linked body at {position} (guid {(anchorGuid ?? "<cell match>")}); clients drop the anchor orb when the anchor ZDO goes");
                 if (destroyed == 0)
                     Debug.LogWarning($"[AnchorDelete] NO anchor matched pos={position} guid={(anchorGuid ?? "<none>")} — " +
                         $"scanned {buf.Count} anchor ZDO(s); an orphaned anchor will keep respawning this NPC");
@@ -663,7 +698,7 @@ namespace FiresRPGmaker.Managers
                 pkg.Write(newPos.x); pkg.Write(newPos.y); pkg.Write(newPos.z);
                 pkg.Write(yawDegrees);   // optional trailing field — old servers never read this far
                 ZRoutedRpc.instance.InvokeRoutedRPC(RPC_NPC_ANCHOR_MOVE, pkg);   // no target == route to server
-                Debug.Log($"[SavedNpcManager] Sent anchor move '{anchorGuid}' → {newPos} yaw={yawDegrees} to server");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Sent anchor move '{anchorGuid}' → {newPos} yaw={yawDegrees} to server");
             }
             catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] anchor-move send failed: {ex.Message}"); }
         }
@@ -728,12 +763,12 @@ namespace FiresRPGmaker.Managers
                 {
                     azdo.SetPosition(newPos);
                     if (!float.IsNaN(yawDegrees))
-                        azdo.Set(global::FiresCore.Npc.Anchor.NpcAnchorFields.Rotation, Quaternion.Euler(0f, yawDegrees, 0f));
+                        azdo.Set(global::FiresCore.Npc.Anchor.NpcAnchorFields.Rotation, global::FiresRPGmaker.Utilities.RingUp.Upright(newPos, yawDegrees));   // 0.0.772: up-aligned on a halo ring
                     var anchorInstance = ZNetScene.instance != null ? ZNetScene.instance.FindInstance(azdo) : null;
                     if (anchorInstance != null)
                     {
                         anchorInstance.transform.position = newPos;
-                        if (!float.IsNaN(yawDegrees)) anchorInstance.transform.rotation = Quaternion.Euler(0f, yawDegrees, 0f);
+                        if (!float.IsNaN(yawDegrees)) anchorInstance.transform.rotation = global::FiresRPGmaker.Utilities.RingUp.Upright(newPos, yawDegrees);
                     }
 
                     // Re-home by RESPAWN, not teleport. The old transform-teleport was written to a
@@ -787,7 +822,7 @@ namespace FiresRPGmaker.Managers
                 }
                 catch (Exception ex) { Debug.LogWarning($"[AnchorMove] saved-record re-key failed: {ex.Message}"); }
 
-                Debug.Log($"[AnchorMove] moved anchor {anchorGuid}: {oldPos} → {newPos}" +
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[AnchorMove] moved anchor {anchorGuid}: {oldPos} → {newPos}" +
                           (float.IsNaN(yawDegrees) ? "" : $" yaw={yawDegrees:F0}°"));
                 return;
             }
@@ -805,7 +840,7 @@ namespace FiresRPGmaker.Managers
                 pkg.Write(anchor.x); pkg.Write(anchor.y); pkg.Write(anchor.z);
                 pkg.Write(anchorGuid ?? "");   // optional trailing field — old servers never read this far
                 ZRoutedRpc.instance.InvokeRoutedRPC(RPC_NPC_DATA_DELETE, pkg);   // no target == route to server
-                Debug.Log($"[SavedNpcManager] Sent NPC delete '{npcId}' (anchor guid {(string.IsNullOrEmpty(anchorGuid) ? "<none>" : anchorGuid)}) to server");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Sent NPC delete '{npcId}' (anchor guid {(string.IsNullOrEmpty(anchorGuid) ? "<none>" : anchorGuid)}) to server");
             }
             catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] delete-to-server failed: {ex.Message}"); }
         }
@@ -843,9 +878,14 @@ namespace FiresRPGmaker.Managers
             {
                 string npcId = pkg.ReadString();
                 float ax = pkg.ReadSingle(), ay = pkg.ReadSingle(), az = pkg.ReadSingle();
-                if (string.IsNullOrEmpty(npcId)) return;
+                if (!IsSafeNpcId(npcId)) { Debug.LogWarning($"[SavedNpcManager] NPC delete refused: unsafe id from peer {sender}"); return; }
 
                 bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
+                if (!isServer && !global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender))
+                {
+                    global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("NpcDataDelete", sender);
+                    return;
+                }
                 if (isServer)
                 {
                     // Destructive + permanent (writes a tombstone the reconciler honors), so verify the
@@ -924,6 +964,7 @@ namespace FiresRPGmaker.Managers
                 int migrated = 0;
                 foreach (var kvp in loaded)
                 {
+                    if (!IsSafeNpcId(kvp.Key)) { Debug.LogWarning($"[SavedNpcManager] legacy NPC '{kvp.Key}' skipped: not a safe file name"); continue; }
                     string filePath = NpcFilePath(kvp.Key);
                     if (!File.Exists(filePath))
                     {
@@ -935,7 +976,7 @@ namespace FiresRPGmaker.Managers
 
                 // Rename old file so migration doesn't run again
                 File.Move(LegacySavedNpcsFile, LegacySavedNpcsFile + ".bak");
-                Debug.Log($"[SavedNpcManager] Migrated {migrated} NPCs from legacy npcs.json to per-NPC files");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Migrated {migrated} NPCs from legacy npcs.json to per-NPC files");
             }
             catch (Exception ex)
             {
@@ -1092,7 +1133,7 @@ namespace FiresRPGmaker.Managers
             // PushTemplateToServer broadcast landed in other clients' position-keyed store as junk
             // ("template_*" ids) without ever becoming usable templates there.
 
-            Debug.Log($"[SavedNpcManager] Saved NPC template: {templateName}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Saved NPC template: {templateName}");
         }
 
         /// <summary>
@@ -1239,7 +1280,7 @@ namespace FiresRPGmaker.Managers
                 pkg.Write(json);
 
                 ZRoutedRpc.instance.InvokeRoutedRPC("FiresRPGmaker_SyncFiles", pkg);
-                Debug.Log($"[SavedNpcManager] Pushed NPC {npcId} to server via SyncFiles RPC");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Pushed NPC {npcId} to server via SyncFiles RPC");
             }
             catch (Exception ex)
             {
@@ -1250,7 +1291,7 @@ namespace FiresRPGmaker.Managers
         /// <summary>
         /// Server broadcasts a single NPC's data to all connected clients.
         /// </summary>
-        private static void BroadcastNpcDataToClients(string npcId, SavedNpcData data)
+        internal static void BroadcastNpcDataToClients(string npcId, SavedNpcData data)   // 0.0.786: internal for NpcStudioOps
         {
             if (ZRoutedRpc.instance == null) return;
             if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
@@ -1276,7 +1317,7 @@ namespace FiresRPGmaker.Managers
                     catch { }
                 }
 
-                Debug.Log($"[SavedNpcManager] Broadcast NPC {npcId} to {peers.Count} clients");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Broadcast NPC {npcId} to {peers.Count} clients");
             }
             catch (Exception ex)
             {
@@ -1338,6 +1379,7 @@ namespace FiresRPGmaker.Managers
             int sent = 0, skipped = 0, missing = 0;
             foreach (var kvp in _savedNpcs)
             {
+                if (!IsSafeNpcId(kvp.Key)) { skipped++; continue; }
                 string relativePath = NpcIdToFileName(kvp.Key);
                 string filePath = NpcFilePath(kvp.Key);
 
@@ -1421,7 +1463,14 @@ namespace FiresRPGmaker.Managers
                 string npcId = pkg.ReadString();
                 string json = pkg.ReadString();
 
-                if (string.IsNullOrEmpty(npcId) || string.IsNullOrEmpty(json)) return;
+                if (!IsSafeNpcId(npcId) || string.IsNullOrEmpty(json)) { Debug.LogWarning($"[SavedNpcManager] NPC data refused: unsafe id or no data from peer {sender}"); return; }
+                bool onServer = ZNet.instance != null && ZNet.instance.IsServer();
+                if (onServer ? !(AdminSyncing.IsAdmin(sender) || global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender))
+                             : !global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender))
+                {
+                    global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("NpcDataUpdate", sender);
+                    return;
+                }
 
                 // Templates are client-local; servers running older builds still broadcast
                 // "template_*" records — drop them (they only ever polluted _savedNpcs).
@@ -1450,7 +1499,7 @@ namespace FiresRPGmaker.Managers
                     QueueNpcFileWrite(NpcFilePath(npcId), json);
 
                 // Try to find any live NPC at this position and refresh it
-                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] client: NPC data {npcId} received from {sender}, refreshing the live NPC");   // 0.0.508 hop line
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] client: NPC data {npcId} received from {sender}, refreshing the live NPC");
                 RefreshLiveNpc(data);
 
                 // Demoted to verbose: one of these fires per NPC per join /
@@ -1481,9 +1530,10 @@ namespace FiresRPGmaker.Managers
                 // Apply saved data to the live NPC WITHOUT triggering a save-back. LoadIntoNpc sets the
                 // properties, then we write the ZDO directly instead of npc.SaveToZDO(), which would push
                 // back to the server and loop.
-                LoadIntoNpc(npc);
                 var zdo = npc.GetComponent<ZNetView>()?.GetZDO();
                 if (zdo == null) return;
+                if (IsOrphanForFreshBody(npc, data.NpcId, data)) return;   // Never write an older NPC's record onto a new one
+                LoadIntoNpc(npc);
 
                 zdo.Set("npc_profile", npc.npcProfileName ?? "");
                 zdo.Set("npc_name_override", npc.displayNameOverride ?? "");
@@ -1506,7 +1556,6 @@ namespace FiresRPGmaker.Managers
                 if (data.FashionJson != null)
                     zdo.Set("npc_fashion_json", data.FashionJson);
 
-                // 0.0.505 (Fire 10-06: "hitting apply in the dressing room did not change the clothing the NPC wore"):
                 // the refresh now RE-DRESSES. Vanilla VisEquipment re-reads its items from the ZDO every update and its
                 // setters only write the ZDO on the owner, so an admin client's local re-dress snapped back and nobody
                 // else ever saw it. Here every peer re-applies the outfit + fashion, and the OWNER (the server on a dedi)
@@ -1519,10 +1568,10 @@ namespace FiresRPGmaker.Managers
             }
         }
 
-        // 0.0.508 (Fire 17:0x: "I would change the clothing the NPC wore, hit Apply, and nothing would happen"): vanilla's
+        // Vanilla's
         // VisEquipment draws every peer from the item hashes in the NPC's ZDO, and only the ZDO OWNER may write them. On a
         // dedicated server the owner is usually a CLIENT (whoever loaded the area first, typically the admin standing there),
-        // not the server, so the 0.0.505 refresh (owner-writes on the server's file reload) often had no owner to run on, and
+        // not the server, so the refresh (owner-writes on the server's file reload) often had no owner to run on, and
         // the admin's local re-dress snapped back. Now the Apply itself sends the outfit straight to the owner (itself when the
         // admin owns it), which writes the hashes at once; every peer renders them. The file push / broadcast still persists it.
         private const string RPC_NPC_REDRESS = "FiresRPGmaker_NpcRedress";
@@ -1543,9 +1592,12 @@ namespace FiresRPGmaker.Managers
             var pkg = new ZPackage();
             pkg.Write(zdo.m_uid);
             foreach (string s in OutfitOf(npc)) pkg.Write(s ?? "");
-            pkg.Write(npc.equipPet ?? "~keep");   // 0.0.559: 10th string = cosmetic pet; "~keep" = not set here (older owners stop reading at 9)
+            pkg.Write(npc.equipPet ?? "~keep");   // 10th string = cosmetic pet; "~keep" = not set here (older owners stop reading at 9)
             long owner = zdo.GetOwner();
-            ZRoutedRpc.instance.InvokeRoutedRPC(owner, RPC_NPC_REDRESS, pkg);
+            // Routed THROUGH the server: it checks the admin and forwards to the owner stamped as itself, so owners
+            // only ever accept the server (a client can't see the admin list). The server sends straight to the owner.
+            long target = ZNet.instance != null && ZNet.instance.IsServer() ? owner : ZRoutedRpc.instance.GetServerPeerID();
+            ZRoutedRpc.instance.InvokeRoutedRPC(target, RPC_NPC_REDRESS, pkg);
             try { npc.ApplyVisualEquipment(); } catch { }
             global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress ({why}) '{npc.GetDisplayName()}': sent to owner {owner} (helmet '{npc.equipHelmet}', chest '{npc.equipChest}')");
         }
@@ -1554,6 +1606,9 @@ namespace FiresRPGmaker.Managers
 
         private static void WriteOutfitHashes(UI.NpcController npc, ZDO zdo)
         {
+            // Core's CompanionInventory writes these hashes from its bag (vanilla equip on the owner); a second writer from the
+            // npc_equip_* names is what disagreed with it after a respawn. Only the cosmetic pet stays ours.
+            if (npc.CoreOwnsGear) { global::FiresRPGmaker.Modules.Pets.NpcPetSlot.WriteOnOwner(npc, "redress"); return; }
             SetItemHash(zdo, ZDOVars.s_helmetItem, npc.equipHelmet);
             SetItemHash(zdo, ZDOVars.s_chestItem, npc.equipChest);
             SetItemHash(zdo, ZDOVars.s_legItem, npc.equipLegs);
@@ -1566,7 +1621,7 @@ namespace FiresRPGmaker.Managers
             zdo.Set("npc_equip_helmet", npc.equipHelmet ?? ""); zdo.Set("npc_equip_chest", npc.equipChest ?? ""); zdo.Set("npc_equip_legs", npc.equipLegs ?? "");
             zdo.Set("npc_equip_shoulder", npc.equipShoulder ?? ""); zdo.Set("npc_equip_utility", npc.equipUtility ?? ""); zdo.Set("npc_equip_righthand", npc.equipRightHand ?? "");
             zdo.Set("npc_equip_lefthand", npc.equipLeftHand ?? ""); zdo.Set("npc_equip_rightback", npc.equipRightBack ?? ""); zdo.Set("npc_equip_leftback", npc.equipLeftBack ?? "");
-            global::FiresRPGmaker.Modules.Pets.NpcPetSlot.WriteOnOwner(npc, "redress");   // 0.0.559
+            global::FiresRPGmaker.Modules.Pets.NpcPetSlot.WriteOnOwner(npc, "redress");
         }
 
         // The owner side: an admin's Apply. Only an admin's request is honoured (the same rule as the SyncFiles push).
@@ -1574,9 +1629,34 @@ namespace FiresRPGmaker.Managers
         {
             try
             {
+                bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
+                if (isServer)
+                {
+                    // Server: only an admin (or the server itself) may re-dress an NPC.
+                    if (!RpcSender.IsServerSelf(sender) && !AdminSyncing.IsAdmin(sender)) { RpcSender.Refuse(RPC_NPC_REDRESS, sender, "not an admin"); return; }
+                }
+                else if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender))
+                {
+                    // Client owner: only the server's (admin-checked) forward counts.
+                    global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer(RPC_NPC_REDRESS, sender);
+                    return;
+                }
+                byte[] raw = pkg.GetArray();
                 var id = pkg.ReadZDOID();
                 var outfit = new string[9];
                 for (int i = 0; i < outfit.Length; i++) outfit[i] = pkg.ReadString();
+                if (isServer)
+                {
+                    // Forward to the NPC's owner when that is a client; the forward's sender is the server.
+                    var nzdo = ZDOMan.instance != null ? ZDOMan.instance.GetZDO(id) : null;
+                    long owner = nzdo != null ? nzdo.GetOwner() : 0L;
+                    if (owner != 0L && owner != ZDOMan.GetSessionID())
+                    {
+                        ZRoutedRpc.instance.InvokeRoutedRPC(owner, RPC_NPC_REDRESS, new ZPackage(raw));
+                        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[SavedNpcManager] redress from admin {sender} forwarded to owner {owner} of {id}");
+                        return;
+                    }
+                }
                 var inst = ZNetScene.instance != null ? ZNetScene.instance.FindInstance(id) : null;
                 var npc = inst != null ? inst.GetComponent<UI.NpcController>() : null;
                 var nview = inst != null ? inst.GetComponent<ZNetView>() : null;
@@ -1585,7 +1665,7 @@ namespace FiresRPGmaker.Managers
                 if (!IsAdminPeer(sender)) { Debug.LogWarning($"[SavedNpcManager] redress from non-admin {sender} refused"); return; }
                 npc.equipHelmet = outfit[0]; npc.equipChest = outfit[1]; npc.equipLegs = outfit[2]; npc.equipShoulder = outfit[3]; npc.equipUtility = outfit[4];
                 npc.equipRightHand = outfit[5]; npc.equipLeftHand = outfit[6]; npc.equipRightBack = outfit[7]; npc.equipLeftBack = outfit[8];
-                if (pkg.GetPos() < pkg.Size()) { string pet = pkg.ReadString(); if (pet != "~keep") npc.equipPet = pet; }   // 0.0.559: pet (absent from older senders)
+                if (pkg.GetPos() < pkg.Size()) { string pet = pkg.ReadString(); if (pet != "~keep") npc.equipPet = pet; }   // Pet (absent from older senders)
                 WriteOutfitHashes(npc, nview.GetZDO());
                 if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null)
                     try { npc.ApplyVisualEquipment(); } catch (Exception ex) { Debug.LogWarning($"[SavedNpcManager] re-dress failed: {ex.Message}"); }
@@ -1607,7 +1687,7 @@ namespace FiresRPGmaker.Managers
         {
             var nview = npc.GetComponent<ZNetView>();
             bool owner = nview != null && nview.IsValid() && nview.IsOwner();
-            if (owner)
+            if (owner && !npc.CoreOwnsGear)   // Core's bag owns the worn gear on these bodies
             {
                 // The authoritative look: the item prefab hashes vanilla's VisEquipment renders from on every peer.
                 SetItemHash(zdo, ZDOVars.s_helmetItem, npc.equipHelmet);
@@ -1764,7 +1844,7 @@ namespace FiresRPGmaker.Managers
         }
 
         private static Dictionary<string, float> _recentServerWrites = new Dictionary<string, float>();
-        private static readonly Dictionary<string, string> _recentServerJson = new Dictionary<string, string>();   // 0.0.508
+        private static readonly Dictionary<string, string> _recentServerJson = new Dictionary<string, string>();
         private const float SERVER_WRITE_COOLDOWN = 2f;
 
         /// <summary>
@@ -1789,7 +1869,7 @@ namespace FiresRPGmaker.Managers
             try
             {
                 string json = File.ReadAllText(filePath);
-                // Debounce: FileSystemWatcher fires several events per write. 0.0.508: only an IDENTICAL file within the window
+                // Debounce: FileSystemWatcher fires several events per write. Only an IDENTICAL file within the window
                 // is a duplicate; a second admin Apply within 2 s (new content) used to be dropped here, never broadcast.
                 float now = Time.realtimeSinceStartup;
                 if (_recentServerWrites.TryGetValue(fileName, out float lastTime) && (now - lastTime) < SERVER_WRITE_COOLDOWN
@@ -1804,7 +1884,7 @@ namespace FiresRPGmaker.Managers
                     _savedNpcs[data.NpcId] = data;
                     BroadcastNpcDataToClients(data.NpcId, data);
                     RefreshLiveNpc(data);
-                    Debug.Log($"[SavedNpcManager] Server reloaded and broadcast NPC: {data.NpcId}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[SavedNpcManager] Server reloaded and broadcast NPC: {data.NpcId}");
                 }
             }
             catch (Exception ex)

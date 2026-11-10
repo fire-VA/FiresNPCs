@@ -22,7 +22,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
     {
         private static MailPlayerPanel _instance;
         private static int _openCount;
-        // 0.0.634: same stale-counter guard as BasePlayerModulePanel.AnyOpen (pause menu blocked after the NPC book)
+        // same stale-counter guard as BasePlayerModulePanel.AnyOpen (pause menu blocked after the NPC book)
         public static bool AnyOpen
         {
             get
@@ -141,6 +141,41 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             }
         }
 
+        // the kit inbox column's wheel scroll, as a real UI scroll handler on the column, so a physical wheel and an
+        // EventSystem scroll event (rpg_pane_shots_test) reach it the same way; row clicks still go to the rows' Buttons.
+        // the inbox column was fitted ONCE
+        // (_kitFitted). This watcher sits on the panel's Background; when its size changes (a corner resize, a resolution change) the column
+        // is fitted again and the rows re-laid in the same frame. Both steps measure from the Background each time, so re-running them is safe.
+        private sealed class KitResizeWatcher : UnityEngine.EventSystems.UIBehaviour
+        {
+            internal MailPlayerPanel Panel;
+            private Vector2 _last;
+            protected override void OnRectTransformDimensionsChange()
+            {
+                if (Panel == null || !KitOn || Panel._envelopeStack == null) return;
+                var size = ((RectTransform)transform).rect.size;
+                if ((size - _last).sqrMagnitude < 1f) return;
+                _last = size;
+                Panel._kitFitted = false;
+                Panel.FitKitColumn();
+                Panel.LayoutKitRows();
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] panel resized to {size.x:0}x{size.y:0}: inbox column refitted");
+            }
+        }
+
+        private sealed class KitScrollSink : MonoBehaviour, UnityEngine.EventSystems.IScrollHandler
+        {
+            internal MailPlayerPanel Panel;
+            public void OnScroll(UnityEngine.EventSystems.PointerEventData e)
+            {
+                if (Panel == null || !KitOn || Panel._envelopeStack == null) return;
+                float before = Panel._kitScroll;
+                Panel._kitScroll -= e.scrollDelta.y * (KIT_ROW + KIT_GAP);
+                Panel.LayoutKitRows();
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] kit inbox scroll {before:0} -> {Panel._kitScroll:0} of {Mathf.Max(0f, Panel._kitContent - Panel._envelopeStack.rect.height):0}");
+            }
+        }
+
         /// <summary>Builds the canvas and instantiates the FiresMailPanel prefab from the
         /// <c>firesnpcsui</c> bundle, then binds every runtime widget to its named child.
         /// Returns false if the bundle is missing or the prefab isn't packed into it — caller
@@ -174,7 +209,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
 
-            _panelGo = Object.Instantiate(prefab, _canvasGo.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panelGo);   // 0.0.614
+            _panelGo = Object.Instantiate(prefab, _canvasGo.transform); global::FiresRPGmaker.UI.NpcBookController.FixNullFonts(_panelGo);
             _panelGo.name = "FiresMailPanel";
             _panelGo.SetActive(false);
 
@@ -191,7 +226,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             _titleText      = FindTmp(root, "Background/TitleBar/TitleText");
             _subtitleText   = FindTmp(root, "Background/TitleBar/SubtitleText");
             _closeButton    = FindBtn(root, "Background/TitleBar/CloseButton");
-            BasePlayerModulePanel.FixCloseGlyph(_closeButton);   // 0.0.564
+            BasePlayerModulePanel.FixCloseGlyph(_closeButton);
             _tabInboxBtn    = FindBtn(root, "Background/TabInbox");
             _tabSendBtn     = FindBtn(root, "Background/TabSend");
 
@@ -204,7 +239,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_envelopeTemplate != null) _envelopeTemplate.SetActive(false);
 
             FitInsideParchment(Find(root, "Background")?.GetComponent<RectTransform>(), Find(root, "Background/ContentArea")?.GetComponent<RectTransform>());
-            // 0.0.557 (Fire: the right-hand detail pane still touched the border): move it 20 px left.
+            // move it 20 px left.
             var detailPane = Find(root, "DetailPane")?.GetComponent<RectTransform>();
             if (detailPane != null) { detailPane.anchoredPosition -= new Vector2(20f, 0f); global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[MailPanel] DetailPane moved 20 px left"); }
 
@@ -228,6 +263,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             {
                 var viewport = attachScroll.transform.Find("Viewport");
                 if (viewport != null) _attachmentsContent = viewport.Find("Content") as RectTransform;
+                if (viewport != null) ClipWithRect(viewport);
             }
 
             _sendTo            = FindInput(root, "Background/ContentArea/SendView/SendTo");
@@ -287,6 +323,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         // ── envelope fan-stack ────────────────────────────────────────────────
 
         private readonly List<GameObject> _envelopeClones = new List<GameObject>();
+        private RectTransform _kitRows;   // the rows viewport under the pinned INBOX header
 
         private void RefreshInbox()
         {
@@ -296,6 +333,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 if (_envelopeClones[i] != null) Destroy(_envelopeClones[i]);
             }
             _envelopeClones.Clear();
+            _kitRows = null;
 
             var inbox = MailNetwork.ClientInbox;
             if (inbox.Count == 0)
@@ -315,6 +353,17 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 return;
             }
 
+            // with the unified look ON the inbox is a contained,
+            // scrollable kit list instead of the parchment envelope fan (which ran past the window's bottom edge).
+            if (KitOn)
+            {
+                BuildKitList(inbox);
+                var keep = _selected != null ? inbox.FirstOrDefault(m => m.Id == _selected.Id) : null;
+                SelectMessage(keep ?? inbox[0]);
+                KitDetail();
+                return;
+            }
+
             // Index 0 of the stack is a static "Inbox" header tab (non-clickable). The real mail
             // starts at index 1 and fans down below it. Sibling order = ASC so later siblings render
             // ON TOP — each envelope covers the one above it below its top strip; the last has nothing
@@ -326,6 +375,211 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             // The reply rebuilds the list with fresh objects each refresh, so re-resolve the selection by Id.
             var toSelect = _selected != null ? inbox.FirstOrDefault(m => m.Id == _selected.Id) : null;
             SelectMessage(toSelect ?? inbox[0]);
+        }
+
+        // ── unified (kit) inbox ───────────────────────────────────────
+        // Rows are clones of the envelope template (they carry SubjectText / SenderText / DateText) with the envelope art swapped
+        // for a rounded kit fill and every decorative child image (stamps, wax seal) off. The column is clipped to the window
+        // (RectMask2D, bottom kept 24 px above the window's own bottom edge) and scrolls with the mouse wheel.
+        private static bool KitOn { get { try { return global::FiresRPGmaker.UI.FiresKitBookSkin.On; } catch { return false; } } }
+        private const float KIT_HEADER = 34f, KIT_ROW = 54f, KIT_GAP = 6f, KIT_MARGIN = 24f;
+        // rows sit KIT_PAD_X inside the column on each side, the first
+        // row KIT_PAD_TOP under the pinned header and the list ends KIT_PAD_BOTTOM above the column bottom; the header text starts at the rows' text.
+        private const float KIT_PAD_X = 10f, KIT_PAD_TOP = 4f, KIT_PAD_BOTTOM = 8f, KIT_HEADER_GAP = 10f, KIT_HEADER_LIFT = 24f;   // the header strip is lifted KIT_HEADER_LIFT above the column top, into the empty band under the tabs; the scroll viewport starts KIT_HEADER_GAP under the header strip (an empty band), rows KIT_PAD_TOP inside it
+        private float _kitScroll, _kitContent;
+        private bool _kitFitted;
+
+        private void BuildKitList(List<MailEntry> inbox)
+        {
+            FitKitColumn();
+            var sel = (_selected != null ? inbox.FirstOrDefault(m => m.Id == _selected.Id) : null) ?? inbox[0];
+
+            var head = new GameObject("KitInboxHeader", typeof(RectTransform));
+            head.transform.SetParent(_envelopeStack, false);
+            _envelopeClones.Add(head);
+            var hrt = (RectTransform)head.transform;
+            hrt.anchorMin = new Vector2(0f, 1f); hrt.anchorMax = new Vector2(1f, 1f); hrt.pivot = new Vector2(0.5f, 1f);
+            hrt.sizeDelta = new Vector2(-2f * (KIT_PAD_X + 12f), KIT_HEADER - 6f);   // text starts where the row text does (row inset + 12)
+            var ht = head.AddComponent<TextMeshProUGUI>();
+            ht.font = global::FiresRPGmaker.UI.NpcBookController.GameFont();
+            // say both
+            ht.text = MailNetwork.ClientUnread > 0 ? $"INBOX  {inbox.Count}  ·  {MailNetwork.ClientUnread} UNREAD" : $"INBOX  {inbox.Count}";
+            ht.fontSize = 15f; ht.characterSpacing = 6f; ht.color = FiresCore.UI.Shell.Kit.FiresTokens.Gold;
+            ht.alignment = TextAlignmentOptions.MidlineLeft; ht.raycastTarget = false;
+
+            // the rows
+            // live in their own viewport that starts at the header's bottom edge and clips there (RectMask2D), so the header never sits on a row.
+            var vpGo = new GameObject("KitRowsViewport", typeof(RectTransform));
+            vpGo.transform.SetParent(_envelopeStack, false);
+            _envelopeClones.Add(vpGo);
+            _kitRows = (RectTransform)vpGo.transform;
+            _kitRows.anchorMin = Vector2.zero; _kitRows.anchorMax = Vector2.one; _kitRows.pivot = new Vector2(0.5f, 1f);
+            _kitRows.offsetMin = Vector2.zero; _kitRows.offsetMax = new Vector2(0f, -(KIT_HEADER - KIT_HEADER_LIFT + KIT_HEADER_GAP));   // header bottom (lifted) + the gap   // a clear gap between the header strip and the clipped list
+            vpGo.AddComponent<RectMask2D>();
+
+            for (int i = 0; i < inbox.Count; i++)
+            {
+                var msg = inbox[i];
+                var clone = Object.Instantiate(_envelopeTemplate, _kitRows != null ? _kitRows : _envelopeStack);   // inside the rows viewport
+                clone.name = "Mail_" + msg.Id;
+                clone.SetActive(true);
+                _envelopeClones.Add(clone);
+                var rt = (RectTransform)clone.transform;
+                rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(0.5f, 1f);
+                rt.sizeDelta = new Vector2(-2f * KIT_PAD_X, KIT_ROW);   // KIT_PAD_X inside the column on each side
+
+                foreach (var child in clone.GetComponentsInChildren<Image>(true)) if (child.gameObject != clone) child.enabled = false;   // stamps, seal
+                var sh = clone.GetComponent<Shadow>(); if (sh != null) Destroy(sh);
+                var img = clone.GetComponent<Image>();
+                bool on = msg.Id == sel.Id;
+                if (img != null)
+                {
+                    img.sprite = FiresCore.UI.Shell.Kit.KitSprites.RoundedFill(10f); img.type = Image.Type.Sliced; img.preserveAspect = false;
+                    img.color = on ? FiresCore.UI.Shell.Kit.FiresTokens.Selected : FiresCore.UI.Shell.Kit.FiresTokens.Well;
+                }
+                if (on)
+                {
+                    var edge = new GameObject("SelectedEdge", typeof(RectTransform), typeof(Image));
+                    edge.transform.SetParent(clone.transform, false);
+                    var ert = (RectTransform)edge.transform; ert.anchorMin = Vector2.zero; ert.anchorMax = Vector2.one; ert.offsetMin = ert.offsetMax = Vector2.zero;
+                    var ei = edge.GetComponent<Image>(); ei.sprite = FiresCore.UI.Shell.Kit.KitSprites.RoundPill(10f, true); ei.type = Image.Type.Sliced;
+                    ei.color = FiresCore.UI.Shell.Kit.FiresTokens.Gold; ei.raycastTarget = false;
+                }
+
+                KitText(FindTmp(clone.transform, "SubjectText"), msg.Subject, 16f, on ? FiresCore.UI.Shell.Kit.FiresTokens.GoldBright : FiresCore.UI.Shell.Kit.FiresTokens.Text, 0f, 0.5f);
+                KitText(FindTmp(clone.transform, "SenderText"), msg.SenderName, 13f, FiresCore.UI.Shell.Kit.FiresTokens.TextMuted, 0.5f, 1f, left: true);
+                KitText(FindTmp(clone.transform, "DateText"), msg.DateString, 13f, FiresCore.UI.Shell.Kit.FiresTokens.TextMuted, 0.5f, 1f, left: false);
+
+                var btn = clone.GetComponent<Button>() ?? clone.AddComponent<Button>();
+                btn.targetGraphic = img;
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(() => { SelectMessage(msg); Refresh(); });
+            }
+            _kitContent = KIT_PAD_TOP + inbox.Count * (KIT_ROW + KIT_GAP) + KIT_PAD_BOTTOM;   // the rows viewport (under the header) holds the rows + top / bottom padding
+            // the pinned header covers rows scrolling up beneath it (an opaque backing in the window's own Panel colour, last sibling)
+            // (a separate object: the header already carries a TMP Graphic, and one GameObject can hold only one Graphic)
+            var back = new GameObject("KitInboxHeaderBack", typeof(RectTransform), typeof(Image));
+            back.transform.SetParent(_envelopeStack, false);
+            _envelopeClones.Add(back);
+            var brt = (RectTransform)back.transform;
+            brt.anchorMin = new Vector2(0f, 1f); brt.anchorMax = new Vector2(1f, 1f); brt.pivot = new Vector2(0.5f, 1f);
+            brt.sizeDelta = new Vector2(-2f * KIT_PAD_X, KIT_HEADER);   // the strip lines up with the rows, not the column edge
+            var bi = back.GetComponent<Image>();
+            var pc = FiresCore.UI.Shell.Kit.FiresTokens.Panel;
+            bi.color = new Color(pc.r, pc.g, pc.b, 1f); bi.raycastTarget = false;
+            back.transform.SetAsLastSibling();
+            head.transform.SetAsLastSibling();
+            LayoutKitRows();
+        }
+
+        // One row text: anchored inside the row (top half = subject across the full width; bottom half = sender left, date right),
+        // one line, ellipsis instead of spilling past the row.
+        private static void KitText(TMP_Text t, string s, float size, Color c, float yMin, float yMax, bool? left = null)
+        {
+            if (t == null) return;
+            t.text = s ?? "";
+            t.font = global::FiresRPGmaker.UI.NpcBookController.GameFont();
+            t.fontSize = size; t.color = c; t.enableWordWrapping = false; t.overflowMode = TextOverflowModes.Ellipsis;
+            var rt = t.rectTransform;
+            float x0 = left == false ? 0.55f : 0f, x1 = left == true ? 0.6f : 1f;
+            rt.anchorMin = new Vector2(x0, yMin); rt.anchorMax = new Vector2(x1, yMax); rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = new Vector2(12f, yMin > 0f ? 2f : 4f); rt.offsetMax = new Vector2(-12f, yMin > 0f ? -4f : -2f);
+            t.alignment = left == false ? TextAlignmentOptions.MidlineRight : TextAlignmentOptions.MidlineLeft;
+        }
+
+        private void LayoutKitRows()
+        {
+            if (_envelopeStack == null) return;
+            float view = _kitRows != null ? _kitRows.rect.height : _envelopeStack.rect.height;   // the rows viewport under the header
+            _kitScroll = Mathf.Clamp(_kitScroll, 0f, Mathf.Max(0f, _kitContent - view));
+            // rows hang from the column's top edge (y = 0 down to -content); scrolling DOWN lifts them, so the start is
+            // +scroll (had -scroll and pushed every row below the clip: an empty list after any scroll).
+            // the header stays at the top (y = 0, drawn
+            // last over an opaque Panel backing); only the rows move, starting under it.
+            float y = _kitScroll - KIT_PAD_TOP;   // rows hang from the viewport top (= the header bottom), padded
+            foreach (var go in _envelopeClones)
+            {
+                if (go == null) continue;
+                var rt = (RectTransform)go.transform;
+                if (go.name == "KitInboxHeader" || go.name == "KitInboxHeaderBack") { rt.anchoredPosition = new Vector2(0f, KIT_HEADER_LIFT); continue; }   // lifted
+                if (go.name == "KitRowsViewport") continue;   // stretched under the header, never moved
+                rt.anchoredPosition = new Vector2(0f, y);
+                y -= KIT_ROW + KIT_GAP;
+            }
+        }
+
+        // The column: same left edge, top where the envelope stack starts, bottom KIT_MARGIN above the window's bottom edge;
+        // clipped so a long inbox scrolls instead of spilling out. Measured in world corners, so it holds at any resolution.
+        private void FitKitColumn()
+        {
+            if (_envelopeStack == null) return;
+            // no mask on the whole column any more (it clipped the lifted header); the rows clip in their own KitRowsViewport
+            { var colMask = _envelopeStack.GetComponent<RectMask2D>(); if (colMask != null) Destroy(colMask); }
+            var sink = _envelopeStack.GetComponent<KitScrollSink>() ?? _envelopeStack.gameObject.AddComponent<KitScrollSink>();
+            sink.Panel = this;
+            // the column needs a raycast target of its own so the wheel reaches it between / below rows
+            if (_envelopeStack.GetComponent<Graphic>() == null) { var hit = _envelopeStack.gameObject.AddComponent<Image>(); hit.color = new Color(0f, 0f, 0f, 0f); }
+            if (_kitFitted) return;
+            var bg = Find(_panelGo.transform, "Background")?.GetComponent<RectTransform>();
+            if (bg == null) return;
+            var watch = bg.GetComponent<KitResizeWatcher>() ?? bg.gameObject.AddComponent<KitResizeWatcher>();   // live refit on resize
+            watch.Panel = this;
+            Canvas.ForceUpdateCanvases();
+            var b = new Vector3[4]; var s = new Vector3[4];
+            bg.GetWorldCorners(b); _envelopeStack.GetWorldCorners(s);
+            float scale = _envelopeStack.lossyScale.y > 0f ? _envelopeStack.lossyScale.y : 1f;
+            float wantBottom = b[0].y + KIT_MARGIN * scale;
+            float delta = (wantBottom - s[0].y) / scale;   // >0: the stack's bottom sits below the wanted line
+            // a stack anchored by its top: grow / shrink its height so the bottom lands on the line
+            var sd = _envelopeStack.sizeDelta;
+            if (Mathf.Abs(_envelopeStack.anchorMin.y - _envelopeStack.anchorMax.y) < 0.0001f)
+            {
+                // point anchors: height h -> h' = h - delta, top edge kept (top = pos + (1 - pivot) * h)
+                float h = sd.y, h2 = Mathf.Max(80f, h - delta);
+                _envelopeStack.sizeDelta = new Vector2(sd.x, h2);
+                _envelopeStack.anchoredPosition += new Vector2(0f, (1f - _envelopeStack.pivot.y) * (h - h2));
+            }
+            else _envelopeStack.offsetMin = new Vector2(_envelopeStack.offsetMin.x, _envelopeStack.offsetMin.y + delta);
+            // the column's right edge stops
+            // 12 px left of the detail pane's left edge (left edge kept).
+            var detail = Find(_panelGo.transform, "DetailPane")?.GetComponent<RectTransform>();
+            if (detail != null)
+            {
+                Canvas.ForceUpdateCanvases();
+                var dc = new Vector3[4]; detail.GetWorldCorners(dc); _envelopeStack.GetWorldCorners(s);
+                float scaleX = _envelopeStack.lossyScale.x > 0f ? _envelopeStack.lossyScale.x : 1f;
+                float over = (s[2].x - (dc[0].x - 12f * scaleX)) / scaleX;   // >0: the column reaches into the gap / pane
+                if (over > 0f)
+                {
+                    if (Mathf.Abs(_envelopeStack.anchorMin.x - _envelopeStack.anchorMax.x) < 0.0001f)
+                    {
+                        var sz = _envelopeStack.sizeDelta;
+                        float w2 = Mathf.Max(120f, sz.x - over);
+                        _envelopeStack.anchoredPosition -= new Vector2(_envelopeStack.pivot.x * (sz.x - w2), 0f);   // left edge = pos - pivot * w, kept
+                        _envelopeStack.sizeDelta = new Vector2(w2, sz.y);
+                    }
+                    else _envelopeStack.offsetMax = new Vector2(_envelopeStack.offsetMax.x - over, _envelopeStack.offsetMax.y);
+                }
+            }
+            _kitFitted = true;
+            Canvas.ForceUpdateCanvases();
+            _envelopeStack.GetWorldCorners(s);
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] kit inbox column fitted: bottom {s[0].y:0} (window bottom {b[0].y:0}, margin {KIT_MARGIN} px), height {_envelopeStack.rect.height:0}");
+        }
+
+        // Detail pane in the kit look: subject one line with ellipsis, body wraps and truncates inside its box, Claim All a kit button.
+        private void KitDetail()
+        {
+            if (_detailSubject != null) { _detailSubject.enableWordWrapping = false; _detailSubject.overflowMode = TextOverflowModes.Ellipsis; }
+            if (_detailFrom != null) { _detailFrom.enableWordWrapping = false; _detailFrom.overflowMode = TextOverflowModes.Ellipsis; }
+            if (_detailBody != null) { _detailBody.enableWordWrapping = true; _detailBody.overflowMode = TextOverflowModes.Ellipsis; }
+            if (_claimAllButton != null)
+            {
+                var img = _claimAllButton.GetComponent<Image>();
+                if (img != null) { img.sprite = FiresCore.UI.Shell.Kit.KitSprites.RoundedFill(10f); img.type = Image.Type.Sliced; img.color = FiresCore.UI.Shell.Kit.FiresTokens.PanelRaised; }
+                var lbl = _claimAllButton.GetComponentInChildren<TMP_Text>(true);
+                if (lbl != null) { lbl.color = FiresCore.UI.Shell.Kit.FiresTokens.Gold; lbl.enableWordWrapping = false; lbl.text = "Claim All"; }
+            }
         }
 
         /// <summary>Builds the static "Inbox" tab as the top envelope (index 0) of the stack. Shows
@@ -403,7 +657,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (subject != null) subject.text = msg.Subject;
             if (sender  != null) sender.text  = msg.SenderName;
             if (date    != null) date.text    = msg.DateString;
-            // 0.0.618 ([lead] R-NIGHT7 shot: white envelope text on the parchment was unreadable): dark ink on the envelope
+            // dark ink on the envelope
             var ink = new Color(0.20f, 0.13f, 0.07f, 1f);
             if (subject != null) subject.color = ink;
             if (sender  != null) sender.color  = new Color(ink.r, ink.g, ink.b, 0.85f);
@@ -425,16 +679,77 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             if (_detailBody    != null) _detailBody.text    = msg.Body;
             ClearAttachments();
             foreach (var att in msg.Attachments) BuildAttachmentRow(att);
+            // say where the rows went, so the next round names the cause
+            if (msg.Attachments.Count > 0)
+            {
+                string where = _attachmentsContent == null ? "NO AttachmentsScroll/Viewport/Content node (rows not built)"
+                    : $"content '{_attachmentsContent.name}' active {_attachmentsContent.gameObject.activeInHierarchy}, {_attachmentsContent.childCount} row(s), size {_attachmentsContent.rect.size}, viewport {(_attachmentsContent.parent as RectTransform)?.rect.size}";
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] '{msg.Subject}': {msg.Attachments.Count} attachment(s) -> {where}");
+            }
             if (_statusText != null) _statusText.text = msg.Attachments.Count + " attachment(s)";
+            if (msg.Attachments.Count > 0) LogAttachmentPlacement(msg.Subject);
+        }
+
+        // name where Content and each
+        // row actually sit against the viewport after layout, plus what could hide them (mask, layout group, label font). Debug only.
+        private void LogAttachmentPlacement(string subject)
+        {
+            try
+            {
+                Canvas.ForceUpdateCanvases();
+                var vp = _attachmentsContent.parent as RectTransform;
+                var v = new Vector3[4]; vp.GetWorldCorners(v);
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"[MailPanel] '{subject}' placement: viewport world ({v[0].x:F0},{v[0].y:F0})-({v[2].x:F0},{v[2].y:F0}) mask {(vp.GetComponent<Mask>() != null ? "Mask" : vp.GetComponent<RectMask2D>() != null ? "RectMask2D" : "none")}");
+                sb.Append($"; content anchors {_attachmentsContent.anchorMin}-{_attachmentsContent.anchorMax} pivot {_attachmentsContent.pivot} pos {_attachmentsContent.anchoredPosition} scale {_attachmentsContent.localScale}");
+                foreach (var comp in _attachmentsContent.GetComponents<Component>()) sb.Append(" +" + comp.GetType().Name);
+                for (int i = 0; i < _attachmentsContent.childCount; i++)
+                {
+                    var r = (RectTransform)_attachmentsContent.GetChild(i);
+                    var k = new Vector3[4]; r.GetWorldCorners(k);
+                    var lbl = r.GetComponentInChildren<TextMeshProUGUI>(true);
+                    sb.Append($"; row {i} '{r.name}' active {r.gameObject.activeInHierarchy} world ({k[0].x:F0},{k[0].y:F0})-({k[2].x:F0},{k[2].y:F0}) font {(lbl != null && lbl.font != null ? lbl.font.name : "NULL")} alpha {(lbl != null ? lbl.color.a : -1f):F2}");
+                }
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug(sb.ToString());
+            }
+            catch (System.Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] placement log failed: {ex.Message}"); }
         }
 
         // ── attachments ───────────────────────────────────────────────────────
 
+        // rpg_mail4, 's placement line: 3 rows active, alpha 1, font set, world rects INSIDE the viewport's (1638,310)-
+        // (2035,425) "mask Mask" - yet the box drew empty): a stencil Mask only clips to what its own Graphic draws; a viewport Image the
+        // kit leaves transparent with cullTransparentMesh on writes no stencil and the Mask hides everything. Clip by rect instead
+        // (RectMask2D needs no graphic). One Debug line names the old Mask's graphic so the round shows which it was.
+        private static void ClipWithRect(Transform viewport)
+        {
+            try
+            {
+                var mask = viewport.GetComponent<Mask>();
+                if (mask == null || viewport.GetComponent<RectMask2D>() != null) return;
+                var g = mask.graphic;
+                var cr = viewport.GetComponent<CanvasRenderer>();
+                string was = g == null ? "no graphic" : $"graphic {g.GetType().Name} enabled {g.enabled}, alpha {g.color.a:0.00}, showMaskGraphic {mask.showMaskGraphic}, cullTransparentMesh {(cr != null && cr.cullTransparentMesh)}";
+                UnityEngine.Object.DestroyImmediate(mask);
+                viewport.gameObject.AddComponent<RectMask2D>();
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] attachments viewport: stencil Mask ({was}) replaced by RectMask2D");
+            }
+            catch (System.Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[MailPanel] attachments viewport clip swap failed: {ex.Message}"); }
+        }
+
         private void ClearAttachments()
         {
             if (_attachmentsContent == null) return;
+            // Destroy waits for the frame end, so the
+            // old rows were still children when the new ones were placed by childCount - below the 74 px box - and the visible old
+            // ones then vanished. Detach first (team rule: kit redraw detaches before Destroy).
             for (int i = _attachmentsContent.childCount - 1; i >= 0; i--)
-                Destroy(_attachmentsContent.GetChild(i).gameObject);
+            {
+                var c = _attachmentsContent.GetChild(i);
+                c.SetParent(null, false);
+                Destroy(c.gameObject);
+            }
+            _attachmentsContent.sizeDelta = new Vector2(_attachmentsContent.sizeDelta.x, 0f);
         }
 
         private void BuildAttachmentRow(MailAttachment att)
@@ -454,6 +769,8 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
             lrt.offsetMin = new Vector2(8f, 0f); lrt.offsetMax = new Vector2(-8f, 0f);
             var tmp = labelGo.AddComponent<TextMeshProUGUI>();
+            tmp.font = global::FiresRPGmaker.UI.NpcBookController.GameFont();   // a code-made TMP has no font -> invisible ("2 attachment(s)", no rows)
+            tmp.enableWordWrapping = false; tmp.overflowMode = TextOverflowModes.Ellipsis;
             tmp.text = att.Prefab + "  x" + att.Count;
             tmp.fontSize = 12f; tmp.color = new Color(0.96f, 0.91f, 0.76f);
             tmp.alignment = TextAlignmentOptions.MidlineLeft;
@@ -464,7 +781,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
 
         // ── actions ───────────────────────────────────────────────────────────
 
-        // 0.0.548 (Fire, stream 10:20: the detail pane + Claim All ran into the parchment's right border): give the content the
+        // give the content the
         // same right margin as its left one inside Background, then pull any Inbox/Send child that still pokes past the content's
         // right edge back inside it. Done once per build, in each node's own parent space; one Debug line with the numbers.
         private static void FitInsideParchment(RectTransform bg, RectTransform content)

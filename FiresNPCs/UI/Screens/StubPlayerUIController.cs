@@ -48,6 +48,7 @@ namespace FiresRPGmaker.UI.Screens
                 ? "No profile assigned. Use the admin panel to set one."
                 : "Profile: " + profileName + "\n\n[Full UI coming in a future update]";
             _panel.SetActive(true);
+            global::FiresRPGmaker.UI.CoreUiBridge.MakeLivePanelWhenShown(this, "StubPanel", _panel.GetComponent<RectTransform>());   // Core's live panel
             try { GUIManager.BlockInput(true); } catch { }
         }
 

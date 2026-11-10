@@ -71,7 +71,7 @@ namespace FiresRPGmaker.Managers
                 FiresLogger.LogVerbose($"{FiresRPGmaker.PluginName}: Loaded item prefab: {itemName} (path: {foundPath}), ItemDrop present: {itemDrop != null}, m_dropPrefab: {(itemDrop.m_itemData.m_dropPrefab != null ? itemDrop.m_itemData.m_dropPrefab.name : "null")}");
             }
 
-            Debug.Log($"{FiresRPGmaker.PluginName}: Loaded {FiresRPGmaker.itemPrefabs.Count} items. Failed: {failed}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Loaded {FiresRPGmaker.itemPrefabs.Count} items. Failed: {failed}");
         }
 
         /// <summary>

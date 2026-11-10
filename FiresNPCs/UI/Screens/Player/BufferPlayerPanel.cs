@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
-    /// <summary>Player-facing buff shop. 10-09 (Fire approved the parchment mockup, Tools\Mockups\rpg_buffer_player_mockup.png):
+    /// <summary>Player-facing buff shop (mockup: Tools\Mockups\rpg_buffer_player_mockup.png):
     /// one table, a row per buff the Buffer NPC's profile sells: icon, name, effect, duration, strength, cost and its own Buy
     /// (greyed with a tooltip when the bag can't pay). Clicking a row shows it on the "Selected" line; the footer shows what
     /// the bag holds of the profile's currencies. Buy routes through the server-authoritative grant
@@ -49,11 +49,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
         /// the dialogue editor popup uses to "Header", moving the whole root.</summary>
         internal static void MakeDraggable(Transform root)
         {
-            var header = root.Find("Header");
-            if (header == null) return;
-            var drag = header.gameObject.GetComponent<global::FiresRPGmaker.UI.Screens.PopupDragHandler>()
-                    ?? header.gameObject.AddComponent<global::FiresRPGmaker.UI.Screens.PopupDragHandler>();
-            drag.target = root.GetComponent<RectTransform>();
+            // Core's live panel replaces the local drag handler (BasePlayerModulePanel registers it)
         }
 
         protected override void BindPrefab(GameObject root)

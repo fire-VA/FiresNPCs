@@ -90,7 +90,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 try { LoadOne(kv.Key, kv.Value); }
                 catch (System.Exception ex) { Debug.LogError("[MailProfileManager] " + kv.Key + ": " + ex.Message); }
             }
-            Debug.Log("[MailProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
+            global::FiresRPGmaker.FiresLogger.LogDebug("[MailProfileManager] Loaded " + _byProfile.Values.Sum(v => v.Count)
                       + " message(s) across " + _byProfile.Count + " profile(s)");
         }
 
@@ -174,7 +174,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 _initialized = false;
                 EnsureLoaded();
                 global::FiresRPGmaker.Managers.FiresConfigSync.PushSavedConfig("Mail", safe + ".cfg", content);
-                Debug.Log($"[MailProfileManager] Saved mail profile '{name}' -> {file}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[MailProfileManager] Saved mail profile '{name}' -> {file}");
             }
             catch (System.Exception ex) { Debug.LogError("[MailProfileManager] SaveProfile failed: " + ex.Message); }
         }

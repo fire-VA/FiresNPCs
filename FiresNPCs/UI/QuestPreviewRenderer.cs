@@ -195,7 +195,7 @@ namespace FiresRPGmaker.UI
                     _camera.Render();
                 StartCoroutine(ReframeAfterDelay());
 
-                Debug.Log($"[QuestPreviewRenderer] Staged '{prefabName}' at {spawnPos}, " +
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestPreviewRenderer] Staged '{prefabName}' at {spawnPos}, " +
                     $"bounds={_stagedBounds.size}, distance={_distance}");
                 return true;
             }
@@ -551,5 +551,5 @@ namespace FiresRPGmaker.UI
         #endregion
     }
 }
-    
+
 

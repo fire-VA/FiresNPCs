@@ -14,7 +14,7 @@ namespace FiresRPGmaker.Modules.Territories
         private static float _nextSpawnerDebugTime;
         private static readonly Dictionary<int, List<CustomSpawnerRuntime>> _customSpawnerRuntime = new();
         private static readonly Dictionary<string, List<CustomSpawnerRuntime>> _customSpawnerRuntimeByName = new(StringComparer.OrdinalIgnoreCase);
-        private static bool _territoryEntryRpcRegistered;
+        private static ZRoutedRpc _territoryEntryRpcOn;   // re-register RPCs per connection
 
         internal static double GetNow() => ZNet.instance != null ? ZNet.instance.GetTimeSeconds() : Time.time;
 
@@ -31,7 +31,7 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 if (Time.time >= _nextSpawnerDebugTime)
                 {
-                    Debug.Log("[FiresRPGmaker] CustomSpawner skipped: territory null");
+                    global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] CustomSpawner skipped: territory null");
                     _nextSpawnerDebugTime = Time.time + 5f;
                 }
                 return;
@@ -49,7 +49,7 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 if (!_loggedSpawnerlessTerritories.Contains(terr.UID))
                 {
-                    Debug.Log($"[FiresRPGmaker] CustomSpawner skipped: territory '{terr.Name}' (UID {terr.UID}) missing EWPSpawner flag; flags={terr.AdditionalFlags}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner skipped: territory '{terr.Name}' (UID {terr.UID}) missing EWPSpawner flag; flags={terr.AdditionalFlags}");
                     _loggedSpawnerlessTerritories.Add(terr.UID);
                 }
                 return;
@@ -57,12 +57,12 @@ namespace FiresRPGmaker.Modules.Territories
 
             if (terr.CustomSpawners == null || terr.CustomSpawners.Count == 0)
             {
-                Debug.Log($"[FiresRPGmaker] CustomSpawner skipped: no spawners configured for territory '{terr.Name}' (UID {terr.UID})");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner skipped: no spawners configured for territory '{terr.Name}' (UID {terr.UID})");
                 return;
             }
             if (ZNet.instance == null || !ZNet.instance.IsServer())
             {
-                Debug.Log("[FiresRPGmaker] CustomSpawner skipped: not running on server");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] CustomSpawner skipped: not running on server");
                 return;
             }
 
@@ -73,7 +73,7 @@ namespace FiresRPGmaker.Modules.Territories
                 {
                     list = byName;
                     _customSpawnerRuntime[terr.UID] = list;
-                    Debug.Log($"[FiresRPGmaker] CustomSpawner reused runtime by name for territory '{terr.Name}' (uid {terr.UID})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner reused runtime by name for territory '{terr.Name}' (uid {terr.UID})");
                 }
             }
 
@@ -114,7 +114,7 @@ namespace FiresRPGmaker.Modules.Territories
 
             if (logEntry)
             {
-                Debug.Log($"[FiresRPGmaker] CustomSpawner entering '{terr.Name}' (UID {terr.UID}) defs={terr.CustomSpawners.Count} player={(player != null ? player.GetPlayerName() : "(no player)")} force={force}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner entering '{terr.Name}' (UID {terr.UID}) defs={terr.CustomSpawners.Count} player={(player != null ? player.GetPlayerName() : "(no player)")} force={force}");
             }
 
             double now = GetNow();
@@ -130,22 +130,22 @@ namespace FiresRPGmaker.Modules.Territories
                 }
                 if (!force && runtime.ActiveCount > 0)
                 {
-                    Debug.Log($"[FiresRPGmaker] CustomSpawner gated by active instances: terr='{terr.Name}' key='{key}' active={runtime.ActiveCount}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner gated by active instances: terr='{terr.Name}' key='{key}' active={runtime.ActiveCount}");
                     continue; // wait until current wave dies
                 }
 
                 double gate = runtime.NextTime;
                 if (!force && now < gate)
                 {
-                    Debug.Log($"[FiresRPGmaker] CustomSpawner on cooldown: terr='{terr.Name}' key='{key}' now={now:F1} gate={gate:F1}");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner on cooldown: terr='{terr.Name}' key='{key}' now={now:F1} gate={gate:F1}");
                     continue;
                 }
 
-                Debug.Log($"[FiresRPGmaker] CustomSpawner firing in territory '{terr.Name}' (UID {terr.UID}) -> prefab={runtime.Def.Prefab}, amt={runtime.Def.Amount}, data={runtime.Def.DataName}, interval={runtime.Def.Interval}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner firing in territory '{terr.Name}' (UID {terr.UID}) -> prefab={runtime.Def.Prefab}, amt={runtime.Def.Amount}, data={runtime.Def.DataName}, interval={runtime.Def.Interval}");
                 var spawned = SpawnCustom(runtime.Def, player, terr, anchor, runtime);
                 runtime.ActiveCount += spawned;
                 runtime.NextTime = double.MaxValue; // will be set when last spawn dies
-                Debug.Log($"[FiresRPGmaker] CustomSpawner spawned {spawned} -> active={runtime.ActiveCount} nextTime=hold key='{key}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner spawned {spawned} -> active={runtime.ActiveCount} nextTime=hold key='{key}'");
             }
         }
 
@@ -165,7 +165,10 @@ namespace FiresRPGmaker.Modules.Territories
                     terr.X != null && terr.X.Length > 0 ? terr.X[0] : anchor.x,
                     anchor.y,
                     terr.Y != null && terr.Y.Length > 0 ? terr.Y[0] : anchor.z);
-            try { Heightmap.GetHeight(center, out var h); center.y = h + 0.5f; } catch { }
+            // 0.0.772 (halo ring): on a ring the floor is found along -up and creatures stand to the ring's up; off it, the heightmap as before
+            bool ring = global::FiresRPGmaker.Utilities.RingUp.OnRing(center, out Vector3 ringUp);
+            if (ring) { if (global::FiresRPGmaker.Utilities.RingUp.Floor(center, out var cf, 20f, 60f, "territory spawner")) center = cf + ringUp * 0.5f; }
+            else { try { Heightmap.GetHeight(center, out var h); center.y = h + 0.5f; } catch { } }
 
             int count = Math.Max(1, def.Amount);
             float radius = terr.Radius > 0 ? terr.Radius * 0.5f : 20f;
@@ -173,12 +176,13 @@ namespace FiresRPGmaker.Modules.Territories
 
             for (int i = 0; i < count; i++)
             {
-                var pos = def.HasPosition
-                    ? center + UnityEngine.Random.insideUnitSphere * 1f
-                    : center + UnityEngine.Random.insideUnitSphere * Math.Max(1f, radius);
-                try { Heightmap.GetHeight(pos, out var h); pos.y = h + 0.5f; } catch { pos.y = center.y; }
+                Vector3 scatter = UnityEngine.Random.insideUnitSphere * (def.HasPosition ? 1f : Math.Max(1f, radius));
+                var pos = center + (ring ? Vector3.ProjectOnPlane(scatter, ringUp) : scatter);
+                if (ring) { if (global::FiresRPGmaker.Utilities.RingUp.Floor(pos, out var pf, 20f, 60f)) pos = pf + ringUp * 0.5f; else pos = center; }
+                else { try { Heightmap.GetHeight(pos, out var h); pos.y = h + 0.5f; } catch { pos.y = center.y; } }
 
-                var rot = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+                float yaw = UnityEngine.Random.Range(0f, 360f);
+                var rot = ring ? global::FiresRPGmaker.Utilities.RingUp.Upright(pos, yaw) : Quaternion.Euler(0f, yaw, 0f);
                 var go = UnityEngine.Object.Instantiate(prefab, pos, rot);
                 go.name = prefab.name;
 
@@ -264,11 +268,11 @@ namespace FiresRPGmaker.Modules.Territories
             {
                 runtime.ActiveCount = 0;
                 runtime.NextTime = GetNow() + (intervalSeconds > 0 ? intervalSeconds : 300d);
-                Debug.Log($"[FiresRPGmaker] CustomSpawner all dead; scheduling next spawn at {runtime.NextTime:F1} key='{GetSpawnerKey(runtime)}' prefab='{runtime.Def?.Prefab}' data='{runtime.Def?.DataName}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner all dead; scheduling next spawn at {runtime.NextTime:F1} key='{GetSpawnerKey(runtime)}' prefab='{runtime.Def?.Prefab}' data='{runtime.Def?.DataName}'");
             }
             else
             {
-                Debug.Log($"[FiresRPGmaker] CustomSpawner instance destroyed but {runtime.ActiveCount} remain key='{GetSpawnerKey(runtime)}' prefab='{runtime.Def?.Prefab}' data='{runtime.Def?.DataName}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner instance destroyed but {runtime.ActiveCount} remain key='{GetSpawnerKey(runtime)}' prefab='{runtime.Def?.Prefab}' data='{runtime.Def?.DataName}'");
             }
         }
 
@@ -325,7 +329,7 @@ namespace FiresRPGmaker.Modules.Territories
                 runtime.Instances.Add(new WeakReference<GameObject>(go));
                 var watcher = go.GetComponent<TerritorySpawnWatcher>() ?? go.AddComponent<TerritorySpawnWatcher>();
                 watcher.SetRuntime(runtime, runtime.Def.Interval > 0f ? runtime.Def.Interval : 300f);
-                Debug.Log($"[FiresRPGmaker] CustomSpawner tracked existing instance '{prefabName}' in terr='{terr.Name}' key='{GetSpawnerKey(runtime)}'");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] CustomSpawner tracked existing instance '{prefabName}' in terr='{terr.Name}' key='{GetSpawnerKey(runtime)}'");
             }
 
             RefreshActiveCount(runtime);
@@ -367,17 +371,28 @@ namespace FiresRPGmaker.Modules.Territories
 
         private static void EnsureTerritoryEntryRpc()
         {
-            if (_territoryEntryRpcRegistered) return;
-            if (ZRoutedRpc.instance == null) return;
+            // re-register RPCs per connection: by instance; the bool was never reset, so after a rejoin it never rebound
+            if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(_territoryEntryRpcOn)) return;
             try
             {
+                _territoryEntryRpcOn = ZRoutedRpc.instance;
                 ZRoutedRpc.instance.Register<long, string, string, string, int, string>("FiresRPGmaker_Territory_ClientEntered", RPC_TerritoryClientEntered);
-                _territoryEntryRpcRegistered = true;
+                global::FiresRPGmaker.Managers.RpcRegistration.Logged("TerritoryClientEntered", 1);
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[FiresRPGmaker] Territory entry RPC register failed: {ex.Message}");
             }
+        }
+
+        /// <summary>Metres of slack for the entry check (the server's copy of the player position lags a little).</summary>
+        private const float TerritoryEntrySlack = 8f;
+
+        private static bool IsInsideWithSlack(Territory terr, Vector3 p, float slack)
+        {
+            if (terr.IsInside2D(p.x, p.z)) return true;
+            return terr.IsInside2D(p.x + slack, p.z) || terr.IsInside2D(p.x - slack, p.z)
+                || terr.IsInside2D(p.x, p.z + slack) || terr.IsInside2D(p.x, p.z - slack);
         }
 
         private static void RPC_TerritoryClientEntered(long sender, long playerId, string playerName, string platformId, string platform, int territoryUid, string territoryName)
@@ -389,11 +404,39 @@ namespace FiresRPGmaker.Modules.Territories
                            ?? TerritoryLedger.Territories.FirstOrDefault(t => string.Equals(t.Name, territoryName, StringComparison.OrdinalIgnoreCase));
                 if (terr == null)
                 {
-                    Debug.Log($"[FiresRPGmaker] Territory entry RPC: territory not found (uid {territoryUid}, name '{territoryName}') from {playerName} ({playerId})");
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Territory entry RPC: territory not found (uid {territoryUid}, name '{territoryName}') from {playerName} ({playerId})");
                     return;
                 }
 
-                Debug.Log($"[FiresRPGmaker] Territory entry RPC: spawning for '{terr.Name}' (UID {terr.UID}) from {playerName} ({playerId}) platformId={platformId}");
+                // The sender's character (as the server sees it) must actually be in that territory; the packet's
+                // player id/name are only logged. A small slack covers the ZDO position lagging the client's crossing.
+                // Spawn/login/teleport inside a territory: the server's copy may not have caught up yet, and the client
+                // never re-sends, so re-check for up to TerritoryEntryRecheckSeconds before refusing (one log line).
+                bool SenderInside() => global::FiresRPGmaker.Managers.RpcSender.SenderPosition(sender, out Vector3 sp) && IsInsideWithSlack(terr, sp, TerritoryEntrySlack);
+                if (!SenderInside())
+                {
+                    var t = terr;
+                    global::FiresRPGmaker.Managers.RpcSender.RetryUntil("FiresRPGmaker_Territory_ClientEntered", sender, TerritoryEntryRecheckSeconds, SenderInside,
+                        () => RunEntrySpawners(t, playerName, playerId, platformId),
+                        $"sender is not inside '{terr.Name}' (UID {terr.UID}) after {TerritoryEntryRecheckSeconds:0}s");
+                    return;
+                }
+                RunEntrySpawners(terr, playerName, playerId, platformId);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FiresRPGmaker] Territory entry RPC handler failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>How long the entry check waits for the server's view of the sender to reach the territory.</summary>
+        private const float TerritoryEntryRecheckSeconds = 5f;
+
+        private static void RunEntrySpawners(Territory terr, string playerName, long playerId, string platformId)
+        {
+            try
+            {
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Territory entry RPC: spawning for '{terr.Name}' (UID {terr.UID}) from {playerName} ({playerId}) platformId={platformId}");
 
                 try
                 {
@@ -415,6 +458,9 @@ namespace FiresRPGmaker.Modules.Territories
         private static void ZNet_Awake_Postfix()
         {
             try { EnsureTerritoryEntryRpc(); } catch { }
+            // re-register RPCs per connection: the AdminBypass handler was bound only from the LOCAL player's update, which
+            // never runs on a dedicated server, so the server never had it. Bind it on every new ZRoutedRpc too.
+            try { EnsureAdminBypassRpc(); } catch { }
         }
     }
 }

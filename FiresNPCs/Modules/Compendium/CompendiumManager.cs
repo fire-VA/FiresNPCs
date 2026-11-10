@@ -37,7 +37,7 @@ namespace FiresRPGmaker.Modules.Compendium
             CompendiumEntries.RegisterAbilityEntries();
 
             _initialized = true;
-            Debug.Log($"[CompendiumManager] Initialized with {CompendiumCore.Count} entries");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[CompendiumManager] Initialized with {CompendiumCore.Count} entries");
         }
 
         // Stamps the mod label so the engine groups this mod's entries together, then registers with Core.
@@ -54,7 +54,7 @@ namespace FiresRPGmaker.Modules.Compendium
         public static void SyncOnPlayerSpawn(Player player)
         {
             CompendiumCore.SyncOnPlayerSpawn(player);
-            Debug.Log($"[CompendiumManager] Synced {CompendiumCore.DiscoveredCount} discovered entries");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[CompendiumManager] Synced {CompendiumCore.DiscoveredCount} discovered entries");
         }
 
         private static void OnEntryDiscovered(CompendiumEntry entry, Player player)

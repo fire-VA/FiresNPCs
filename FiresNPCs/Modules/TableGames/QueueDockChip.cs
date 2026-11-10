@@ -24,6 +24,8 @@ namespace FiresRPGmaker.Modules.TableGames
         private Image _bkg;
         private TMP_Text _txt;
         private float _beatT, _pollT, _pulseT;
+        private const float HeartbeatInterval = 5f;
+        private const float ReadyPollInterval = 0.6f;
         private bool _ready;
 
         private static readonly Color Idle = new Color(0.13f, 0.10f, 0.07f, 0.97f);
@@ -103,10 +105,10 @@ namespace FiresRPGmaker.Modules.TableGames
             if (ZNet.instance == null || Player.m_localPlayer == null) { Hide(); return; }
 
             _beatT += Time.unscaledDeltaTime;
-            if (_beatT > 5f) { _beatT = 0f; try { _onBeat?.Invoke(); } catch { } }
+            if (_beatT > HeartbeatInterval) { _beatT = 0f; try { _onBeat?.Invoke(); } catch { } }
 
             _pollT += Time.unscaledDeltaTime;
-            if (_pollT > 0.6f && !_ready)
+            if (_pollT > ReadyPollInterval && !_ready)
             {
                 _pollT = 0f;
                 bool ready = false;

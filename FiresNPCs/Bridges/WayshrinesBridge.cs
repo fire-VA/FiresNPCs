@@ -89,7 +89,7 @@ namespace FiresRPGmaker.Bridges
                 _openSelection = api.GetMethod("OpenSelection", BindingFlags.Public | BindingFlags.Static);
                 _teleportToNamed = api.GetMethod("TeleportToNamed", BindingFlags.Public | BindingFlags.Static);
 
-                Debug.Log("[FiresRPGmaker] WayshrinesBridge resolved FiresWayshrines.WayshrinesApi");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] WayshrinesBridge resolved FiresWayshrines.WayshrinesApi");
             }
             catch (Exception ex)
             {

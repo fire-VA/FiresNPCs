@@ -13,10 +13,10 @@ namespace FiresRPGmaker.Modules.Territories
     /// </summary>
     internal static class TerritoryEntryBanner
     {
-        // 0.0.499 (Fire 10-05): the title is per NAME, not per territory. A road is many disks with one name and different
-        // UIDs, and every disk crossing used to reach here (only the old 5 s throttle held it back, so it re-showed every few
-        // seconds down a road). Now: shown when the name differs from the last one shown, or when the player has been out of
-        // that name for longer than LeftGrace (so a short gap between two disks never re-triggers it).
+        // The title is per NAME, not per territory. A road is many disks with one name and different UIDs, and every disk
+        // crossing used to reach here (only the old 5 s throttle held it back, so it re-showed every few seconds down a
+        // road). Now: shown when the name differs from the last one shown, or when the player has been out of that name for
+        // longer than LeftGrace (so a short gap between two disks never re-triggers it).
         private const float LeftGrace = 4f;
         private static string _lastShownName;
         private static float _leftLastShownAt = -1f;   // < 0 while still inside a territory of that name
@@ -73,8 +73,7 @@ namespace FiresRPGmaker.Modules.Territories
             }
         }
 
-        // Fire (10-08): "fix the framing around our text, the decorative top and bottom borders don't fit when it's a double
-        // line name". Vanilla's plaque has a 400x57 title and the two braids fixed at y = +-40 (550 wide), sized for a one-line
+        // Vanilla's plaque has a 400x57 title and the two braids fixed at y = +-40 (550 wide), sized for a one-line
         // biome name; a long territory name wrapped to two lines and the braids cut through it.
         private const float TitleWidth = 520f;   // inside the 550-wide braids
         private const int MaxLines = 2;

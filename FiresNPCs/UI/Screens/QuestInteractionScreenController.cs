@@ -30,7 +30,7 @@ namespace FiresRPGmaker.UI.Screens
             if (string.IsNullOrEmpty(npc.GetEffectiveQuestProfile()))
             {
                 var _loaded = global::FiresRPGmaker.UI.QuestProfileManager.GetAllProfileNames();
-                Debug.Log($"[QuestInteractionScreenController] NPC '{npc.GetDisplayName()}' resolved NO quest profile (explicit='{npc.questProfile}'; {_loaded.Count} profiles loaded client-side: {string.Join(",", _loaded)})");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[QuestInteractionScreenController] NPC '{npc.GetDisplayName()}' resolved NO quest profile (explicit='{npc.questProfile}'; {_loaded.Count} profiles loaded client-side: {string.Join(",", _loaded)})");
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, $"{npc.GetDisplayName()} has no quests available.");
                 return;
             }
@@ -149,6 +149,13 @@ namespace FiresRPGmaker.UI.Screens
                 // kg-parity: accept is a LOCAL, immediate, per-quest write via ActiveQuestStore — no server round-trip
                 // (that round-trip caused the first-click race AND rebuilt the whole list from a stale copy, wiping
                 // siblings). The store owns the client-local active set in per-quest m_customData keys.
+                // 0.0.807: the store's own "already active" was the one refusal with no message (ActiveQuestStore.Accept logs it at Info only)
+                if (global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.HasQuest(questId))
+                {
+                    MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Quest already active!");
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[QuestPipe] accept of {questId} refused: already in the active store (the book now shows it as active)");
+                    return false;
+                }
                 if (!global::FiresRPGmaker.Modules.Vault.ActiveQuestStore.Accept(questId, quest))
                     return false;
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Quest accepted: {quest.Name}");
@@ -184,26 +191,5 @@ namespace FiresRPGmaker.UI.Screens
         }
     }
 
-    /// <summary>Drag handler on a popup's header strip; moves the assigned <see cref="target"/> by the pointer delta.</summary>
-    internal class PopupDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler
-    {
-        public RectTransform target;
-        private Vector2 _dragOffset;
-
-        public void OnBeginDrag(PointerEventData eventData)
-        {
-            if (target == null) return;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                target.parent as RectTransform, eventData.position, eventData.pressEventCamera, out _dragOffset);
-            _dragOffset = target.anchoredPosition - _dragOffset;
-        }
-
-        public void OnDrag(PointerEventData eventData)
-        {
-            if (target == null) return;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                target.parent as RectTransform, eventData.position, eventData.pressEventCamera, out Vector2 localPoint);
-            target.anchoredPosition = localPoint + _dragOffset;
-        }
-    }
+    // Core's live panel replaces the local drag handler (PopupDragHandler removed, no users left)
 }

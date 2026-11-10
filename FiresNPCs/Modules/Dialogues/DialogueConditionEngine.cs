@@ -12,11 +12,11 @@ namespace FiresRPGmaker.Modules.Dialogues
 {
     /// <summary>
     /// Evaluates dialogue option conditions at runtime.
-    /// 
+    ///
     /// Condition format: "ConditionType,Param1,Param2,..."
     /// Supports both comma and colon as param separators.
     /// Prefix with ! to negate any condition.
-    /// 
+    ///
     /// Multiple conditions on an option use AND logic between groups, OR within each group.
     /// See <see cref="RawPlayerOption.Conditions"/> for the grouping structure.
     /// </summary>
@@ -38,8 +38,8 @@ namespace FiresRPGmaker.Modules.Dialogues
         /// Evaluates all condition groups for an option.
         /// Groups are AND'd together; conditions within a group are OR'd.
         /// </summary>
-        // 0.0.532 (Fire 10-08): conditions fail CLOSED. An unknown type, a missing or unreadable value, an unsupported
-        // check, or one that throws used to PASS, so a single typo un-gated the option. Each distinct problem is
+        // Conditions fail CLOSED: an unknown type, a missing or unreadable value, an unsupported check, or one that
+        // throws locks the option, so a single typo can't un-gate it. Each distinct problem is
         // logged once, naming the condition line, and the option stays locked.
         private static readonly HashSet<string> s_warnedConditions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static ConditionResult Malformed(string line, string problem)
@@ -294,7 +294,7 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         private static ConditionResult CheckGuildLevel(Player player, string[] parts, bool more)
         {
-            // Guild levels don't exist (FiresGuilds has none); 0.0.532 fails closed instead of passing.
+            // Guild levels don't exist (FiresGuilds has none), so this fails closed instead of passing.
             return Malformed(string.Join(",", parts), "guild levels aren't supported");
         }
 
@@ -545,7 +545,11 @@ namespace FiresRPGmaker.Modules.Dialogues
         {
             if (parts.Length < 2) return Malformed(string.Join(",", parts), "needs a value");
             string key = parts[1].Trim();
-            bool has = ZoneSystem.instance != null && ZoneSystem.instance.GetGlobalKey(key);
+            // 0.0.771: with private progression a boss key lives in the player's private keys (or a unique key), not the world's
+            // global list, so a dialogue condition checks all three.
+            bool has = (ZoneSystem.instance != null && ZoneSystem.instance.GetGlobalKey(key))
+                || global::FiresRPGmaker.Modules.Progression.PrivateKeyManager.HasPrivateKey(key.ToLower())
+                || (Player.m_localPlayer != null && Player.m_localPlayer.HaveUniqueKey(key));
             if (invert)
                 return has ? ConditionResult.Fail($"Global key must not be set: {key}") : ConditionResult.Pass();
             return has ? ConditionResult.Pass() : ConditionResult.Fail($"Requires global key: {key}");

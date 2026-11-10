@@ -168,9 +168,8 @@ namespace FiresRPGmaker.Modules.Quest
         }
 
         /// <summary>Move-quest distance check (x/z within ~10 m of the quest's "x,y,z" target), applied on the player's
-        /// own client like every other objective type. 0.0.532: it used to go to the server, which read the vault blob of
-        /// a remote Player; vanilla never sends Player.m_customData to the server, so Move quests never progressed on a
-        /// dedicated server (and on a host it read the vault blob, not the active-quest store the accept writes).</summary>
+        /// own client like every other objective type. Vanilla never sends Player.m_customData to the server, so a
+        /// server-side check could not see the active-quest store the accept writes.</summary>
         public static void SendMoveCheck(Vector3 position)
         {
             try

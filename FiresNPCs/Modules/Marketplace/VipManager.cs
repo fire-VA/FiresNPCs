@@ -29,6 +29,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         private static float _tax = 0f, _vipTax = 0f, _bankerVipMult = 1f;
         private static bool _loaded;
         private static float _nextStaleCheck;
+        private const float StaleCheckIntervalSeconds = 5f;
         private static DateTime _seenWrite = DateTime.MinValue;
 
         /// <summary>True when the given user id / display name is on the VIP list.</summary>
@@ -70,12 +71,12 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             if (_loaded && Time.unscaledTime >= _nextStaleCheck)
             {
-                _nextStaleCheck = Time.unscaledTime + 5f;
+                _nextStaleCheck = Time.unscaledTime + StaleCheckIntervalSeconds;
                 try { if (File.Exists(CfgPath) && File.GetLastWriteTimeUtc(CfgPath) > _seenWrite) _loaded = false; } catch { }
             }
             if (_loaded) return;
             _loaded = true;
-            _nextStaleCheck = Time.unscaledTime + 5f;
+            _nextStaleCheck = Time.unscaledTime + StaleCheckIntervalSeconds;
             _vipTokens.Clear();
             _tax = 0f; _vipTax = 0f; _bankerVipMult = 1f;
 

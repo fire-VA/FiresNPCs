@@ -31,6 +31,7 @@ namespace FiresRPGmaker.UI.ContextMenu
         private const float VisualLift = 0.3f;   // node spheres sit 0.3m above the saved route point
 
         // Terrain + pieces the placement ray can land on when mouse-following (bridges/floors included).
+        private const float MaxRayDistance = 3000f;
         private static readonly int PlacementMask =
             UnityEngine.LayerMask.GetMask("Default", "static_solid", "piece", "terrain", "vehicle", "Default_small");
 
@@ -45,6 +46,7 @@ namespace FiresRPGmaker.UI.ContextMenu
         private bool _mouse;          // mouse-driven placement (Shift+Alt+LMB / Grab button) vs pure key-nudge
         private bool _armed;          // set once the initiating click is released, so we don't place on the pick click
         private float _heightOffset;  // PageUp/Down height applied on top of the cursor's surface point
+        private Vector3 _up = Vector3.up;   // 0.0.772: the ring's up on a halo ring, else world up
 
         public static void Begin(string route, int index, bool mouse = false)
         {
@@ -75,8 +77,10 @@ namespace FiresRPGmaker.UI.ContextMenu
             if (string.IsNullOrEmpty(_route) || !PatrolRouteVisualizer.IsShowing(_route)) { End(); return; }
 
             var cam = Camera.main;
-            Vector3 fwd = cam != null ? Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up) : Vector3.forward;
-            Vector3 right = cam != null ? Vector3.ProjectOnPlane(cam.transform.right, Vector3.up) : Vector3.right;
+            // 0.0.772 (halo ring): the node moves in the ring's frame; world up off the ring
+            _up = global::FiresRPGmaker.Utilities.RingUp.Up(Player.m_localPlayer != null ? Player.m_localPlayer.transform.position : (cam != null ? cam.transform.position : Vector3.zero));
+            Vector3 fwd = cam != null ? Vector3.ProjectOnPlane(cam.transform.forward, _up) : Vector3.forward;
+            Vector3 right = cam != null ? Vector3.ProjectOnPlane(cam.transform.right, _up) : Vector3.right;
             fwd = fwd.sqrMagnitude < 0.001f ? Vector3.forward : fwd.normalized;
             right = right.sqrMagnitude < 0.001f ? Vector3.right : right.normalized;
 
@@ -91,7 +95,7 @@ namespace FiresRPGmaker.UI.ContextMenu
                 if (Fire(_binds.Down, ref _tDown)) _heightOffset -= amt;
                 if (RaycastWorld(cam, out var p))
                 {
-                    _working = new Vector3(p.x, p.y + _heightOffset, p.z) + Vector3.up * VisualLift;
+                    _working = p + _up * _heightOffset + _up * VisualLift;
                     PatrolRouteVisualizer.PreviewNode(_index, _working);
                 }
             }
@@ -99,8 +103,8 @@ namespace FiresRPGmaker.UI.ContextMenu
             {
                 // Pure key-nudge: the legacy arrow mode, or a frozen mouse grab being fine-tuned (camera-relative).
                 Vector3 move = Vector3.zero;
-                if (Fire(_binds.Up, ref _tUp)) move += Vector3.up * amt;
-                if (Fire(_binds.Down, ref _tDown)) move += Vector3.down * amt;
+                if (Fire(_binds.Up, ref _tUp)) move += _up * amt;
+                if (Fire(_binds.Down, ref _tDown)) move -= _up * amt;
                 if (Fire(_binds.Left, ref _tLeft)) move += -right * amt;
                 if (Fire(_binds.Right, ref _tRight)) move += right * amt;
                 if (Fire(_binds.Forward, ref _tFwd)) move += fwd * amt;
@@ -113,7 +117,7 @@ namespace FiresRPGmaker.UI.ContextMenu
             }
 
             if ((Input.GetKeyDown(KeyCode.Keypad0) || Input.GetKeyDown(KeyCode.Home))
-                && !FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
+                && !FiresCore.Input.FiresInputBlock.IsTyping()) // typing gate
             {
                 _working = _original;
                 _heightOffset = 0f;
@@ -132,7 +136,7 @@ namespace FiresRPGmaker.UI.ContextMenu
         private bool Fire(KeyCode key, ref float timer)
         {
             if (key == KeyCode.None) { timer = 0f; return false; }
-            if (FiresCore.Input.FiresInputBlock.IsTyping()) { timer = 0f; return false; } // 0.0.550 typing gate (Fire 10-09)
+            if (FiresCore.Input.FiresInputBlock.IsTyping()) { timer = 0f; return false; } // typing gate
             if (Input.GetKeyDown(key)) { timer = 0f; return true; }
             if (Input.GetKey(key))
             {
@@ -151,7 +155,7 @@ namespace FiresRPGmaker.UI.ContextMenu
             point = Vector3.zero;
             if (cam == null) return false;
             var ray = cam.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out var hit, 3000f, PlacementMask, QueryTriggerInteraction.Ignore))
+            if (Physics.Raycast(ray, out var hit, MaxRayDistance, PlacementMask, QueryTriggerInteraction.Ignore))
             {
                 point = hit.point;
                 return true;
@@ -166,7 +170,7 @@ namespace FiresRPGmaker.UI.ContextMenu
             if (r != null && _index >= 0 && _index < r.Points.Count)
             {
                 var pts = new List<Vector3>(r.Points);
-                pts[_index] = _working - Vector3.up * VisualLift;
+                pts[_index] = _working - _up * VisualLift;
                 PatrolRouteManager.SaveRoute(route, pts);
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Placed node {_index + 1}");
             }

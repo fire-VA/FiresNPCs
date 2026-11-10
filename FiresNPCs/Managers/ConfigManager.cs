@@ -1,4 +1,4 @@
-﻿using BepInEx.Configuration;
+using BepInEx.Configuration;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -31,20 +31,20 @@ namespace FiresRPGmaker.Managers
     {
         /// <summary>Retro 80s pixel-style font (Valheim default HUD font)</summary>
         Valheim_Prstartk,
-        
+
         /// <summary>Elegant serif font - clean and readable</summary>
         Valheim_AveriaSerif,
-        
+
         /// <summary>Viking runic decorative font - great for headers</summary>
         Valheim_Norse,
-        
+
         /// <summary>Clean sans-serif font - modern look</summary>
         Valheim_AveriaSans,
-        
+
         /// <summary>Runic symbols font - for special decorative use</summary>
         Valheim_Rune
     }
-    
+
     public class ConfigManager
     {
         private static ConfigManager _instance;
@@ -79,25 +79,40 @@ namespace FiresRPGmaker.Managers
         public ConfigEntry<KeyboardShortcut> configQuestJournalHotkey;
         public ConfigEntry<float> configQuestBookOpenSpeed;
         public ConfigEntry<float> configBookScale;
-        public ConfigEntry<float> configMapRoutePointSpacing;   // 0.0.605
-        public ConfigEntry<bool> configLiveMap;                 // 0.0.608
-        public ConfigEntry<int> configLiveMapFps;              // 0.0.608
-        public ConfigEntry<float> configLiveMapMaxView;        // 0.0.608
-        public ConfigEntry<int> configLiveMapResolution;       // 0.0.608
+        public ConfigEntry<float> configMapRoutePointSpacing;
+        public ConfigEntry<bool> configLiveMap;
+        public ConfigEntry<int> configLiveMapFps;
+        public ConfigEntry<bool> configLiveMinimap;
+        public ConfigEntry<int> configLiveMinimapFps;
+        public ConfigEntry<float> configLiveMapMaxView;
+        public ConfigEntry<bool> configLiveMapAuto;   // 0.0.843
+        public ConfigEntry<int> configLiveMapResolution;
         public ConfigEntry<string> configQuestRewardOverflow;
         public ConfigEntry<KeyboardShortcut> configLeaderboardHotkey;
         public ConfigEntry<bool> configLeaderboardBackgroundToggle;
         public ConfigEntry<string> configLeaderboardBackground;
         public ConfigEntry<string> configAchievementProfile;
 
-        // ────── Guilds ──────  0.0.527: removed with RPG Maker's guild module (FiresGuilds owns guilds and their settings).
+        // ────── Guilds ────── removed with RPG Maker's guild module (FiresGuilds owns guilds and their settings).
 
         // ────── Territories ──────
         public ConfigEntry<bool> configAdminBypassTerritory;
+        public ConfigEntry<int> configMaxTerritoriesPerPlayer;   // Claim limit, server-synced
+        public ConfigEntry<string> configLedgerPlayerFlags;   // Territory Ledger: the flags owners may change, server-synced
         public ConfigEntry<bool> configTerritoryVisualizers;
         public ConfigEntry<bool> configTerritoryOverlay;
         public ConfigEntry<bool> configDeepNorthMapOverlay;
         public ConfigEntry<bool> configCompactMapOverlayBuffers;
+        public ConfigEntry<bool> configSpreadMapOverlayPaint;
+        public ConfigEntry<bool> configBackgroundTerritoryCacheWrite;
+        public ConfigEntry<bool> configBackgroundVaultReceive;
+        public ConfigEntry<bool> configRedrawOverlayAfterLoad;
+        public ConfigEntry<bool> configDebounceStatSaves;
+        public ConfigEntry<bool> configBackgroundVaultWrites;
+        public ConfigEntry<bool> configLoadBundlesFromFiles;
+        public ConfigEntry<bool> configPerfNameplateSleeps, configPerfPatrolKeyRevision, configPerfHotkeyGate;
+        public ConfigEntry<bool> configFrameCostProbe;
+        public ConfigEntry<bool> configVisEquipmentProbe;
 
         // ────── Companions ──────
         public ConfigEntry<bool> configShowCompanionBillboard;
@@ -234,9 +249,13 @@ namespace FiresRPGmaker.Managers
             configQuestBookOpenSpeed = config.Bind("UI", "QuestBookOpenSpeed", 1f, new BepInEx.Configuration.ConfigDescription("Speed multiplier for the quest book's opening animation (1 = normal, 2 = twice as fast). The UI reveal delay scales with it automatically.", new BepInEx.Configuration.AcceptableValueRange<float>(0.1f, 5f)));
             configMapRoutePointSpacing = config.Bind("Dressing", "Map route point spacing", 6f,
                 new BepInEx.Configuration.ConfigDescription("Patrol map editor (Set Patrol Route > Draw on map): metres between the points a drag drops. Walk-recorded routes keep 1.5 m.",
-                    new BepInEx.Configuration.AcceptableValueRange<float>(1f, 50f)));   // 0.0.605
-            // 0.0.608 (Fire 10-15): the large map (M) can show a live top-down miniature of the loaded area when zoomed in.
-            configLiveMap = config.Bind("Live map", "Enabled", false, "Large map (M): when zoomed in, show a LIVE top-down render of the loaded area (players, creatures, NPCs, ships, day/night) over the painted map. The header at the top of the map cycles Live map / Default. Costs one extra camera render at the capped rate below while the map is open.");
+                    new BepInEx.Configuration.AcceptableValueRange<float>(1f, 50f)));
+            // The large map (M) can show a live top-down miniature of the loaded area when zoomed in.
+            configLiveMinimap = config.Bind("Live map", "Replace minimap", false, "Show the live map in the small minimap instead of the painted map (off until its cost is measured).");
+            configLiveMinimapFps = config.Bind("Live map", "Minimap frames per second", 10, new BepInEx.Configuration.ConfigDescription("How often the live minimap redraws.", new BepInEx.Configuration.AcceptableValueRange<int>(1, 30)));
+            configLiveMap = config.Bind("Live map", "Enabled", false, "Large map (M): when zoomed in, show a LIVE top-down render of the loaded area (players, creatures, NPCs, ships, day/night) over the painted map. The header at the top of the map cycles Auto / Live map / Default. Costs one extra camera render at the capped rate below while the map is open.");
+            // 0.0.843 (Fire 11-08: "properly gated behind a config toggle ... if live map is toggled off it only zooms in to the default level"): read live
+            configLiveMapAuto = config.Bind("Live map", "Auto live map when zoomed in", true, "Large map, header on Auto (the default): zooming in past the closest painted zoom crossfades into the live view of the loaded area; zooming back out returns to the painted map. Off (or Enabled off): the map only zooms in to the game's default closest level.");
             configLiveMapFps = config.Bind("Live map", "Frames per second", 15, new BepInEx.Configuration.ConfigDescription("How often the live map re-renders while it is shown.", new BepInEx.Configuration.AcceptableValueRange<int>(1, 60)));
             configLiveMapMaxView = config.Bind("Live map", "Max view width", 400f, new BepInEx.Configuration.ConfigDescription("Metres across the map view below which the live render replaces the painted map (zoom in past this).", new BepInEx.Configuration.AcceptableValueRange<float>(50f, 2000f)));
             configLiveMapResolution = config.Bind("Live map", "Resolution", 1024, new BepInEx.Configuration.ConfigDescription("Longest side of the live render in pixels.", new BepInEx.Configuration.AcceptableValueRange<int>(256, 2048)));
@@ -248,7 +267,7 @@ namespace FiresRPGmaker.Managers
                 new BepInEx.Configuration.ConfigDescription(
                     "Where quest reward items go when your inventory is FULL. Mail = mailed to you with attachments (check a mailbox), Bank = queued into your bank items (visit a banker), Ground = dropped at your feet (kg Marketplace behavior). Rewards that fit in your inventory always go there first.",
                     new BepInEx.Configuration.AcceptableValueList<string>("Mail", "Bank", "Ground")));
-            configLeaderboardHotkey = config.Bind("Hotkeys", "LeaderboardKey", new KeyboardShortcut(KeyCode.L),
+            configLeaderboardHotkey = config.Bind("Hotkeys", "LeaderboardKey", KeyboardShortcut.Empty,   // Unbound by default (was L); the hub has a Leaderboard tab
                 "Hotkey to open the Leaderboard. Supports chords (e.g. L + LeftAlt). Set to None to disable.");
             configLeaderboardBackgroundToggle = config.Bind("UI", "LeaderboardBackgroundToggle", false,
                 "If true, the Leaderboard panel uses a PNG/JPG you drop into BepInEx/config/FiresUIBackgrounds/ as its background instead of the built-in art.");
@@ -263,6 +282,12 @@ namespace FiresRPGmaker.Managers
             // ────── Territories ──────
             configAdminBypassTerritory = config.Bind("Territories", "AdminBypassTerritoryRestrictions", true,
                 "Allow admins to bypass territory restrictions such as NoBuild, NoTool, and pushback.");
+            // Checked by the server when a player buys or is given a territory.
+            configMaxTerritoriesPerPlayer = config.Bind("Territories", "Max territories per player", 0,
+                new ConfigDescription("How many territories one player may own; 0 = no limit. [Synced with Server]",
+                    new AcceptableValueRange<int>(0, 1000)));
+            configLedgerPlayerFlags = config.Bind("Territory Ledger", "Player flags", Modules.Territories.TerritoryLedgerEdit.DefaultPlayerFlags,
+                "The territory flags an owner may turn on or off at a Territory Ledger, comma separated. Admin-only flags (Force Biome, height, spawners, god mode and the like) are refused even when listed here. [Synced with Server]");
             configTerritoryVisualizers = config.Bind("Territories", "EnableWorldVisualizers", false,
                 "Draw 3D world debug visualizers for territories (for overlap/height debugging).");
             configTerritoryOverlay = config.Bind("Territories", "EnableMapOverlay", true,
@@ -270,16 +295,41 @@ namespace FiresRPGmaker.Managers
             configDeepNorthMapOverlay = config.Bind("Territories", "EnableDeepNorthMapOverlay", true,
                 "Draw the Deep North icy-blue tint and water line on the minimap. " +
                 "Disable if using Better Continents or another mod that provides its own map visuals for the Deep North.");
+            configVisEquipmentProbe = config.Bind("Debug", "VisEquipmentProbe", false,
+                "Measuring rounds only (a per-frame probe costs fps): logs (Debug, every 10 s) VisEquipment.CustomUpdate and Character.FixedUpdate cost per kind of body (player / companion / RPGM NPC / creature), the top 5 bodies, and which equipment slots re-equipped. Needs a restart.");
+            configFrameCostProbe = config.Bind("Debug", "FrameCostProbe", false,
+                "Logs (Debug, every 10 s) how much frame time RPGM\x27s own per-frame components cost, top 10 by ms/s. For the standing-fps sweep; turn off when done. Needs a restart.");
+            configPerfNameplateSleeps = config.Bind("Performance", "NPC hover nameplate sleeps", true,
+                "Perf fix: an NPC's hover nameplate does no per-frame work unless the nameplate style is HoverName. Off = it checks every frame. Needs a restart.");
+            configPerfPatrolKeyRevision = config.Bind("Performance", "Patrol key reads only on change", true,
+                "Perf fix: on a client an NPC re-reads its patrol route only when its network data changed. Off = once a second regardless.");
+            configPerfHotkeyGate = config.Bind("Performance", "Hotkey checks only on key press", true,
+                "Perf fix: the quest journal and leaderboard hotkeys check the game state only in the frame their key goes down. Off = every frame.");
+            configLoadBundlesFromFiles = config.Bind("General", "LoadBundlesFromFiles", true,
+                "RAM fix: load the asset bundles from the files next to the DLL (no in-memory copies). Off = the bundles embedded in the DLL (about 130 MB more RAM). Needs a restart.");
+            configBackgroundVaultWrites = config.Bind("Vault", "BackgroundVaultWrites", true,
+                "Perf fix: the debounced vault save writes its file on a background thread (the snapshot stays on the main thread; world save, logout and quit still wait for it). Off = write on the main thread.");
+            configDebounceStatSaves = config.Bind("Vault", "DebounceStatSaves", true,
+                "Perf fix: a kill updates the stat at once but writes the vault file at most every 5 s per player (and always on world save, logout and quit). Off = write the file on every kill.");
+            configRedrawOverlayAfterLoad = config.Bind("Territories", "RedrawMapOverlayAfterLoad", true,
+                "Fix: redraw the territory map overlay once the territory files have loaded. Without it a host whose map drew before the load showed no territories until something else changed them.");
+            // 0.0.806 (Fire 10-31: "spread between frames and budgeted"; off until its A/B proves it)
+            configSpreadMapOverlayPaint = config.Bind("Territories", "Spread map overlay paint", false,
+                "Paint the territory overlay onto the map over several frames (about 2 ms each) instead of in one frame. " +
+                "The old overlay stays on screen until the new one is complete; the map shows the change a fraction of a second later.");
+            configBackgroundTerritoryCacheWrite = config.Bind("Territories", "Write territory cache in the background", false,
+                "Write the local copy of the server's territories to disk on a background thread after a sync, instead of in the game frame.");
+            configBackgroundVaultReceive = config.Bind("Vault", "Serialize received vault data in the background", false,
+                "Prepare your quest / vault data received from the server on a background thread instead of in the game frame (a frame or two later in your save).");
             configCompactMapOverlayBuffers = config.Bind("Territories", "CompactMapOverlayBuffers", true,
                 "Keep the map overlay's copies of the minimap in their own pixel formats instead of full colour. " +
                 "On a 2048 map that is about 50 MB instead of about 270 MB, with identical output. " +
                 "Turn it off to compare the two; the overlay logs which one it used and how much it holds.");
 
             // ────── Companions ──────
-            configShowCompanionBillboard = config.Bind("Companions", "ShowBillboardHealthBar", true,
-                "Show the health bar and name floating above companions' heads.");
-            configShowGroupHud = config.Bind("Companions", "ShowGroupHud", true,
-                "Show the group HUD panel on the right side of the screen with companion health/stamina bars.");
+            // 0.0.804: the dead [Companions] ShowGroupHud copy is gone (nothing read it); the real switch is [UI.Hud] GroupHud Show (GroupHudOwned)
+            configShowGroupHud = config.Bind("UI.Hud", "GroupHud Show", true,
+                "Show the group HUD: the panel under the minimap listing your companions and party with name, distance and health / stamina / eitr bars.");
             configGlobeFoodRow = config.Bind("UI", "Food row", false,
                 "Shows your three active foods under the globe HUD: icon, time left (m:ss) and a radial fill of the time left; a food blinks in its last minute. Follows the globe HUD's position and scale.");
             configGlobeOverfillPulse = config.Bind("UI", "Overfill pulse", false,
@@ -353,22 +403,6 @@ namespace FiresRPGmaker.Managers
             configTerritoryHudPosY = config.Bind("UI.Hud", "Territory PosY", -8f, new BepInEx.Configuration.ConfigDescription("Territory box Y offset from the minimap's bottom-right anchor. Set by dragging with the pause menu open.", new BepInEx.Configuration.AcceptableValueRange<float>(-4000f, 4000f)));
 
             // Companion Behavior Settings
-            configCompanionIdleWanderRadius = config.Bind("Companions.Behavior", "IdleWanderRadius", 20f, new BepInEx.Configuration.ConfigDescription("Default radius (in meters) that companions will wander from their home position when in Stay mode. " +
-                "Range: 5-100. Individual NPCs can override this via their ZDO settings.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
-            configCompanionReturnHomeRadius = config.Bind("Companions.Behavior", "ReturnHomeRadius", 25f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) beyond which companions will automatically return to their home position. " +
-                "This is the single source of truth for all return-home logic. Range: 10-100.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 500f)));
-            configCompanionChestSearchRadius = config.Bind("Companions.Behavior", "ChestSearchRadius", 50f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) to search for chests when companions operate smelters, kilns, or deposit items. " +
-                "Range: 5-100.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
-            configCompanionStayModeWorkRadius = config.Bind("Companions.Behavior", "StayModeWorkRadius", 50f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) that staying companions search for work opportunities (smelters, fires, resources, etc.). " +
-                "Range: 10-100.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
-            configChestAutoSortRadius = config.Bind("Companions.Behavior", "ChestAutoSortRadius", 10f, new BepInEx.Configuration.ConfigDescription("Radius (in meters) for auto-sorting items across multiple chests when interacting with a single chest. " +
-                "Range: 5-30.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 100f)));
-            configCompanionStationedDefendRange = config.Bind("Companions.Behavior", "StationedDefendRange", 14f, new BepInEx.Configuration.ConfigDescription("Aggro radius (in meters) around a stationed/patrol NPC's post within which it engages hostile enemies. " +
-                "Range: 4-40.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 100f)));
-            configCompanionStationedLeashRange = config.Bind("Companions.Behavior", "StationedLeashRange", 24f, new BepInEx.Configuration.ConfigDescription("Distance (in meters) from its post past which a stationed/patrol NPC gives up pursuit and returns to guard. " +
-                "Keep this larger than StationedDefendRange. Range: 6-60.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 200f)));
-            configCompanionStationedCombatHold = config.Bind("Companions.Behavior", "StationedCombatHold", 10f, new BepInEx.Configuration.ConfigDescription("How long (in seconds) a stationed/patrol NPC stays engaged/alert after the last threat clears before " +
-                "resuming patrol/idle. Range: 0-60.", new BepInEx.Configuration.AcceptableValueRange<float>(0f, 120f)));
 
             // ────── Companion Persistence (Synced) ──────
             // True (default): companions live in the world like vanilla tames. Logout
@@ -383,26 +417,12 @@ namespace FiresRPGmaker.Managers
             // can't be persistent participants in the world (e.g. die to a graydwarf
             // attack while their owner is offline). Recommended only for low-spec
             // dedicated hosts.
-            configPersistentCompanions = config.Bind("Companions.Persistence", "PersistentCompanions", true,
-                "When enabled, companions persist in the world across logouts (like vanilla tames) " +
-                "instead of being destroyed and re-spawned. Server-authoritative — set on the host. " +
-                "Set to false to revert to legacy destroy-on-logout behavior on low-spec servers. " +
-                "[Synced with Server]");
-            configKeepZonesLoadedForOfflinePlayers = config.Bind("Companions.Persistence", "KeepZonesLoadedForOfflinePlayers", true,
-                "When enabled (and PersistentCompanions is true), the server keeps zones loaded " +
-                "around every tamed companion in the world — including those belonging to offline " +
-                "players. Required for companions to behave as living entities (combat, idle behaviors, " +
-                "wandering) while their owner is logged out. Costs server memory and CPU proportional " +
-                "to total tamed-companion count. Disable for low-spec servers; companions still " +
-                "persist as dormant ZDOs and reanimate when somebody is nearby. [Synced with Server]");
 
             configStaticNpcInvulnerable = config.Bind("Companions.StaticNpcs", "StaticNpcInvulnerable", true,
-                "The master switch for whether hammer-placed static NPCs can die. When enabled (default), " +
-                "static NPCs are invulnerable — they cannot be killed by combat, the K/killall debug commands, " +
-                "or anything else — AND the death-respawn + never-vanish auto-revive are both OFF, so an admin " +
-                "hammer-delete stays permanent no matter which tool removed it. When disabled, static NPCs are " +
-                "killable and automatically respawn at their placed position after 60 seconds (the old behavior, " +
-                "kept so the respawn method can be refined later). Admin-controlled, server-authoritative. [Synced with Server]");
+                // The default for NPCs whose Invincible toggle was never set in the NPC book.
+                "Default for placed NPCs whose Invincible toggle was never set in the NPC book. On (default): they can't be killed " +
+                "and aren't auto-revived, so a hammer-delete stays permanent. Off: they can be killed and come back at their placed " +
+                "spot after 60 seconds. An NPC's own Invincible toggle overrides this. [Synced with Server]");
 
             configStaticNpcNameplateMode = config.Bind("Companions.StaticNpcs", "NameplateStyle", StaticNpcNameplateMode.HealthBar,
                 "How static NPCs display their overhead identity. HealthBar = the vanilla floating plate " +
@@ -517,11 +537,12 @@ namespace FiresRPGmaker.Managers
 
             ValidateConfigs();
             RemoveRetiredEntries(config);
-            ConfigMoves.Apply(config);   // 0.0.571: merged sections keep their values
+            ConfigMoves.Apply(config);   // Merged sections keep their values
+            GroupHudOwned.Bind(this, config);   // 0.0.804: Core's group HUD keys are owned here now
             SetupConfigWatcher(config);
         }
 
-        // 0.0.570 (Fire 10-13, Tools\CONFIG_AUDIT_20261013.md): entries this mod no longer binds stay in the .cfg forever and read like live
+        // Entries this mod no longer binds stay in the .cfg forever and read like live
         // settings - the [Guilds] block and [Hotkeys] GuildScreenKey (guilds moved to FiresGuilds, which owns G now). Removed once, logged.
         // Pure dead keys: nothing reads them, so there is nothing to migrate.
         private static void RemoveRetiredEntries(ConfigFile config)
@@ -530,11 +551,12 @@ namespace FiresRPGmaker.Managers
             {
                 var orphans = HarmonyLib.AccessTools.Property(typeof(ConfigFile), "OrphanedEntries")?.GetValue(config, null) as Dictionary<ConfigDefinition, string>;
                 if (orphans == null) return;
-                var dead = orphans.Keys.Where(d => d.Section == "Guilds" || (d.Section == "Hotkeys" && d.Key == "GuildScreenKey")).ToList();
+                var dead = orphans.Keys.Where(d => d.Section == "Guilds" || (d.Section == "Hotkeys" && d.Key == "GuildScreenKey")
+                    || (d.Section == "Companions" && d.Key == "ShowGroupHud")).ToList();   // 0.0.804: the dead group HUD copy
                 if (dead.Count == 0) return;
                 foreach (var d in dead) orphans.Remove(d);
                 config.Save();
-                Debug.Log($"[FiresRPGmaker] config: removed {dead.Count} retired entr{(dead.Count == 1 ? "y" : "ies")} (guilds moved to FiresGuilds): {string.Join(", ", dead.Select(d => $"[{d.Section}] {d.Key}").ToArray())}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] config: removed {dead.Count} retired entr{(dead.Count == 1 ? "y" : "ies")} (guilds moved to FiresGuilds): {string.Join(", ", dead.Select(d => $"[{d.Section}] {d.Key}").ToArray())}");
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] config: retired-entry cleanup skipped: {ex.Message}"); }
         }
@@ -577,9 +599,12 @@ namespace FiresRPGmaker.Managers
             };
         }
 
+        private const float ReloadDelaySeconds = 2f;
+        private const int MinReloadIntervalMs = 2000;
+
         private IEnumerator ReloadConfigAfterDelay()
         {
-            yield return new WaitForSeconds(2f);
+            yield return new WaitForSeconds(ReloadDelaySeconds);
 
             if (_isShuttingDown || ConfigSync.ProcessingServerUpdate)
             {
@@ -588,7 +613,7 @@ namespace FiresRPGmaker.Managers
             }
 
             if (IsRecentSelfWrite()) { _reloadCoroutine = null; yield break; }
-            if ((DateTime.Now - _lastConfigUpdate).TotalMilliseconds < 2000)
+            if ((DateTime.Now - _lastConfigUpdate).TotalMilliseconds < MinReloadIntervalMs)
             {
                 _reloadCoroutine = null;
                 yield break;
@@ -637,7 +662,7 @@ namespace FiresRPGmaker.Managers
             }
 
             if (configVerboseLogging.Value)
-                Debug.Log($"{FiresRPGmaker.PluginName}: Config reloaded — recipes preserved.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Config reloaded — recipes preserved.");
 
             _reloadCoroutine = null;
         }
@@ -652,7 +677,7 @@ namespace FiresRPGmaker.Managers
                 if (!valid)
                     kv.Value.Value = (string)kv.Value.DefaultValue;
             }
-            
+
             // Re-apply bubble config after validation
 
             // Re-apply auto water config after validation
@@ -660,7 +685,7 @@ namespace FiresRPGmaker.Managers
             // Re-apply progression config after validation
             ApplyProgressionConfig();
         }
-        
+
 
 
         /// <summary>
@@ -716,7 +741,7 @@ namespace FiresRPGmaker.Managers
             VARecipeManager.UpdatePieceRequirements();
 
             if (configVerboseLogging.Value)
-                Debug.Log($"{FiresRPGmaker.PluginName}: Config lock changed.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"{FiresRPGmaker.PluginName}: Config lock changed.");
         }
 
         public void Dispose()

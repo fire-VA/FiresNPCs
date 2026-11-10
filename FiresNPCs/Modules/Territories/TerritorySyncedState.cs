@@ -91,6 +91,8 @@ namespace FiresRPGmaker.Modules.Territories
                 pkg.Write(count);
                 if (data != null)
                     for (int i = 0; i < count; i++) data[i].Serialize(pkg);
+                // An access-only change must change the fingerprint too.
+                if (data != null) Territory.WriteAccessBlock(pkg, data, 0, count);
                 byte[] bytes = TryGetPackageBytes(pkg) ?? Array.Empty<byte>();
                 return ManifestDiffSync.ComputeSha256(bytes);
             }
@@ -119,7 +121,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             EnsureRpcs();
             bool isServer = ZNet.instance != null && ZNet.instance.IsServer();
-            Debug.Log($"[FiresRPGmaker] TerritorySyncedState.Init — ZNet={(ZNet.instance != null)} IsServer={isServer}; {(isServer ? "loading territory ledger from disk" : "client: hydrating from per-server cache")}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] TerritorySyncedState.Init — ZNet={(ZNet.instance != null)} IsServer={isServer}; {(isServer ? "loading territory ledger from disk" : "client: hydrating from per-server cache")}");
             // server loads data once
             if (isServer)
             {
@@ -170,6 +172,7 @@ namespace FiresRPGmaker.Modules.Territories
                 TryRegister(RpcFileUpdate, (Action<long, ZPackage>)RPC_FileUpdate);
                 _registeredOn = current;
                 FiresLogger.LogVerbose("[FiresRPGmaker] Territory RPCs registered");
+                global::FiresRPGmaker.Managers.RpcRegistration.Logged("TerritorySyncedState", 4);   // re-register RPCs per connection
             }
             catch (System.Exception ex)
             {
@@ -180,10 +183,9 @@ namespace FiresRPGmaker.Modules.Territories
         private static void TryRegister(string name, Action<long, ZPackage> handler)
         {
             try { ZRoutedRpc.instance.Register<ZPackage>(name, handler); }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Duplicate registrations will throw; log once and continue
-                // Debug.LogWarning($"[FiresRPGmaker] RPC register '{name}' skipped: {ex.Message}");
+                // A duplicate registration throws; the first handler stays registered
             }
         }
 
@@ -224,7 +226,7 @@ namespace FiresRPGmaker.Modules.Territories
                 _requestRetryCount++;
                 var pkg = new ZPackage();
                 WriteClientManifest(pkg);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcRequest, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcRequest), RpcRequest, pkg);   // client->server RPCs target the server
                 FiresLogger.LogVerbose($"[FiresRPGmaker] Territory RequestFromServer sent to server (attempt {_requestRetryCount}, have {ClientTerritories.Count} in cache)");
             }
             catch (System.Exception ex)
@@ -492,6 +494,7 @@ namespace FiresRPGmaker.Modules.Territories
         {
             try
             {
+                if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("TerritoryReceive", sender); return; }
                 HandleReceive(sender, pkg);
             }
             catch (System.Exception ex)
@@ -504,8 +507,11 @@ namespace FiresRPGmaker.Modules.Territories
         {
             try
             {
+                if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("TerritoryReceive", sender); return; }
                 var compressed = pkg.ReadByteArray();
+                var swInflate = Stopwatch.StartNew();
                 var decompressed = DecompressBytes(compressed);
+                s_inflateMs = swInflate.Elapsed.TotalMilliseconds;   // 0.0.806: phase timing (Debug line in HandleReceive)
                 if (decompressed == null) return;
                 HandleReceive(sender, new ZPackage(decompressed));
             }
@@ -532,7 +538,10 @@ namespace FiresRPGmaker.Modules.Territories
                     _pendingChunks[sender] = agg;
                 }
 
+                int aggStart = agg.Count;
                 for (int i = 0; i < chunkCount; i++) agg.Add(Territory.Deserialize(pkg));
+                Territory.ReadAccessBlock(pkg, agg, aggStart, chunkCount);
+                double deserMs = sw.Elapsed.TotalMilliseconds;
 
                 bool isFinal = chunkIndex >= chunkTotal - 1 || agg.Count >= totalCount;
                 if (isFinal)
@@ -541,17 +550,24 @@ namespace FiresRPGmaker.Modules.Territories
                     _pendingChunks.Remove(sender);
                     ResetRetryState();
                     RebuildCombinedClient();
+                    double rebuildMs = sw.Elapsed.TotalMilliseconds - deserMs;
 
                     // Persist THIS server's snapshot so the next login to this server
                     // starts populated; the live per-server fingerprint then lets the
                     // server fast-path a 0-count ack. (Cache + fingerprint are keyed by
                     // server, so nothing bleeds to another server's profile reuse.)
+                    double t0 = sw.Elapsed.TotalMilliseconds;
                     SaveClientCacheToDisk();
+                    double saveMs = sw.Elapsed.TotalMilliseconds - t0;
 
                     sw.Stop();
                     FiresLogger.LogVerbose($"[FiresRPGmaker] Received {ClientTerritories.Count} territories from server (chunked) in {sw.ElapsedMilliseconds}ms. First: {(ClientTerritories.Count > 0 ? ClientTerritories[0].Name : "none")}");
+                    var swRecv = Stopwatch.StartNew();
                     OnTerritoriesReceived();
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TerritorySync] final chunk {chunkIndex + 1}/{chunkTotal}: inflate {s_inflateMs:0.0} ms, deserialize {deserMs:0.0} ms ({chunkCount}), rebuild {rebuildMs:0.0} ms, cache save {saveMs:0.0} ms ({(BackgroundCacheWrite ? "background write" : "main thread")}), receive handlers (overlay + ledger) {swRecv.Elapsed.TotalMilliseconds:0.0} ms");
                 }
+                else global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[TerritorySync] chunk {chunkIndex + 1}/{chunkTotal}: inflate {s_inflateMs:0.0} ms, deserialize {deserMs:0.0} ms ({chunkCount} territories)");
+                s_inflateMs = 0;
                 return;
             }
 
@@ -577,6 +593,7 @@ namespace FiresRPGmaker.Modules.Territories
 
             var list = new List<Territory>(count);
             for (int i = 0; i < count; i++) list.Add(Territory.Deserialize(pkg));
+            Territory.ReadAccessBlock(pkg, list, 0, count);
             ClientTerritories = list;
             ResetRetryState();
             RebuildCombinedClient();
@@ -596,6 +613,8 @@ namespace FiresRPGmaker.Modules.Territories
         /// </summary>
         private static void OnTerritoriesReceived()
         {
+            try { TerritoryRuntime.ProbeAfterSync(); } catch { }
+            try { TerritoryLedgerEdit.OnTerritoriesChanged(); } catch (Exception ex) { Debug.LogWarning("[TerritoryLedger] refresh after sync: " + ex.Message); }   // Diagnostic: [BiomeProbe] 3 s later
             var sw = Stopwatch.StartNew();
             HasReceivedThisSession = true;
             try
@@ -667,6 +686,9 @@ namespace FiresRPGmaker.Modules.Territories
                     minY = terr.Y[0];
                     maxY = terr.Y[0] + (terr.Y.Length > 1 ? terr.Y[1] : 0);
                     break;
+                case TerritoryShape.Polygon:
+                    if (terr.IsPolygon) return (terr.PolyMin, terr.PolyMax);
+                    goto default;
                 case TerritoryShape.Square:
                 case TerritoryShape.Circle:
                 default:
@@ -684,6 +706,8 @@ namespace FiresRPGmaker.Modules.Territories
             return aMin.x <= bMax.x && aMax.x >= bMin.x && aMin.y <= bMax.y && aMax.y >= bMin.y;
         }
 
+        private const int MaxTerritoryFileNameLength = 160;
+        private const int MaxTerritoryFileChars = 4 * 1024 * 1024;
         private static void RPC_FileUpdate(long sender, ZPackage pkg)
         {
             try
@@ -701,11 +725,28 @@ namespace FiresRPGmaker.Modules.Territories
                     Debug.LogWarning($"[FiresRPGmaker] Non-admin {sender} attempted territory cfg write — denied");
                     return;
                 }
-                if (string.IsNullOrEmpty(name) || name.Contains("..") || System.IO.Path.IsPathRooted(name)) return;
+                if (!isServer && !global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender))
+                {
+                    global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("TerritoryFileUpdate", sender);
+                    return;
+                }
+                // A territory .cfg inside the Territories folder (subfolders such as drawn/ allowed): no "..", drive, stream or rooted path
+                if (string.IsNullOrEmpty(name) || name.Length > MaxTerritoryFileNameLength || name.Contains("..") || name.IndexOf(':') >= 0
+                    || System.IO.Path.IsPathRooted(name) || !name.EndsWith(".cfg", StringComparison.OrdinalIgnoreCase))
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] territory cfg write refused: unsafe name '{name}' from peer {sender}");
+                    return;
+                }
+                if (content != null && content.Length > MaxTerritoryFileChars) { Debug.LogWarning($"[FiresRPGmaker] territory cfg write refused: {content.Length} chars from peer {sender}"); return; }
 
-                string baseDir = System.IO.Path.Combine(Paths.ConfigPath, "FiresRPGmaker", folder);
+                string baseDir = System.IO.Path.GetFullPath(System.IO.Path.Combine(Paths.ConfigPath, "FiresRPGmaker", folder));
+                var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, name));
+                if (!fullPath.StartsWith(baseDir + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    Debug.LogWarning($"[FiresRPGmaker] territory cfg write refused: '{name}' resolves outside the Territories folder");
+                    return;
+                }
                 System.IO.Directory.CreateDirectory(baseDir);
-                var fullPath = System.IO.Path.Combine(baseDir, name);
                 var parentDir = System.IO.Path.GetDirectoryName(fullPath);
                 if (!string.IsNullOrEmpty(parentDir)) System.IO.Directory.CreateDirectory(parentDir);
                 if (string.IsNullOrEmpty(content))
@@ -797,7 +838,7 @@ namespace FiresRPGmaker.Modules.Territories
                 TerritoryRuntime.ApplyAllCustomPaints(clearCache: true);
                 BroadcastTerritories();
                 try { if (ZNet.instance != null && !ZNet.instance.IsDedicated()) TerritoryMapOverlay.ForceRedraw(); } catch { }
-                Debug.Log("[FiresRPGmaker] Territory debounced reload+broadcast complete");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[FiresRPGmaker] Territory debounced reload+broadcast complete");
             }
             catch (Exception ex)
             {
@@ -894,6 +935,7 @@ namespace FiresRPGmaker.Modules.Territories
                 {
                     data[start + i].Serialize(pkg);
                 }
+                Territory.WriteAccessBlock(pkg, data, start, count);   // After the chunk's list
 
                 var payload = TryGetPackageBytes(pkg);
                 var compressed = CompressBytes(payload);
@@ -1022,6 +1064,12 @@ namespace FiresRPGmaker.Modules.Territories
             }
         }
 
+        private static double s_inflateMs;
+        private static int s_cacheWriteSeq;
+        private static readonly object s_cacheWriteLock = new object();
+        private static bool BackgroundCacheWrite => global::FiresRPGmaker.Managers.ConfigManager.Instance?.configBackgroundTerritoryCacheWrite?.Value ?? false;
+        private static void VaultStatSaverBridge(Action a) => global::FiresRPGmaker.Modules.Vault.VaultStatSaver.OnMain(a);
+
         private static void SaveClientCacheToDisk()
         {
             try
@@ -1037,10 +1085,27 @@ namespace FiresRPGmaker.Modules.Territories
                 if (n > 0)
                 {
                     for (int i = 0; i < n; i++) ClientTerritories[i].Serialize(pkg);
+                    Territory.WriteAccessBlock(pkg, ClientTerritories, 0, n);
                 }
                 byte[] bytes = TryGetPackageBytes(pkg);
                 if (bytes == null) return;
-                System.IO.File.WriteAllBytes(ClientCachePath, bytes);
+                // 0.0.806 ([Territories] Write territory cache in the background, default off until its A/B): the snapshot is built
+                // here (main thread, same data as before); only the file write moves to a pool thread. A newer write supersedes an
+                // older one still queued (sequence number), so the file always ends at the last snapshot.
+                if (BackgroundCacheWrite)
+                {
+                    string path = ClientCachePath; int seq = System.Threading.Interlocked.Increment(ref s_cacheWriteSeq);
+                    System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        lock (s_cacheWriteLock)
+                        {
+                            if (seq != System.Threading.Volatile.Read(ref s_cacheWriteSeq)) return;   // a newer snapshot follows
+                            try { System.IO.File.WriteAllBytes(path, bytes); }
+                            catch (Exception e) { VaultStatSaverBridge(() => Debug.LogWarning($"[FiresRPGmaker] SaveClientCacheToDisk (background) failed: {e.Message}")); }
+                        }
+                    });
+                }
+                else System.IO.File.WriteAllBytes(ClientCachePath, bytes);
                 FiresLogger.LogVerbose($"[FiresRPGmaker] Saved {n} territories to client cache ({bytes.Length} bytes)");
             }
             catch (Exception ex)
@@ -1069,6 +1134,7 @@ namespace FiresRPGmaker.Modules.Territories
                 if (n < 0 || n > 100_000) return; // sanity
                 var list = new List<Territory>(n);
                 for (int i = 0; i < n; i++) list.Add(Territory.Deserialize(pkg));
+                Territory.ReadAccessBlock(pkg, list, 0, n);   // Absent in older caches
                 ClientTerritories = list;
                 RebuildCombinedClient();
                 FiresLogger.LogVerbose($"[FiresRPGmaker] Loaded {ClientTerritories.Count} territories from {System.IO.Path.GetFileName(ClientCachePath)}");
@@ -1105,22 +1171,39 @@ namespace FiresRPGmaker.Modules.Territories
                 using var inputMs = new MemoryStream(input);
                 using var ds = new DeflateStream(inputMs, CompressionMode.Decompress);
                 using var output = new MemoryStream();
-                ds.CopyTo(output);
+                var buffer = new byte[81920];
+                int read;
+                while ((read = ds.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    if (output.Length + read > MaxTerritoryPayloadBytes) { Debug.LogWarning($"[FiresRPGmaker] territory data refused: it unpacks to more than {MaxTerritoryPayloadBytes / (1024 * 1024)} MB"); return null; }
+                    output.Write(buffer, 0, read);
+                }
                 return output.ToArray();
             }
             catch { return null; }
         }
 
-        // 0.0.535 (Fire 10-08): where territories overlap, the highest Priority wins; at equal priority the SMALLER area wins,
-        // then the newer one (later in the list). This was "first in the list", so one stray big circle could mask every
-        // smaller area under it (round 16's leftover 'No Interact Chests' over the test pad).
+        private const int MaxTerritoryPayloadBytes = 32 * 1024 * 1024;
+
+        // Where territories overlap, the highest Priority wins; at equal priority the SMALLER area wins, then the newer one
+        // (later in the list). This was "first in the list", so one stray big circle could mask every smaller area under it.
         public static Territory GetCurrent(Vector3 pos)
         {
             Territory best = null;
             if (ZNet.instance != null && ZNet.instance.IsServer())
             {
-                foreach (var t in TerritoryLedger.Territories)
+                // The server looks only at the territories whose bounds touch pos's grid cell
+                var list = TerritoryLedger.Territories;
+                EnsureServerIndex(list);
+                Vector2Int cell = ServerCell(pos.x, pos.z);
+                s_serverIndex.TryGetValue(cell, out var inCell);
+                int a = 0, b = 0, na = inCell?.Count ?? 0, nb = s_serverBig.Count;
+                while (a < na || b < nb)   // both lists hold list indices in ascending order: merged, "later in the list wins ties" holds
+                {
+                    int i = b >= nb || (a < na && inCell[a] < s_serverBig[b]) ? inCell[a++] : s_serverBig[b++];
+                    var t = list[i];
                     if (t.IsInside(pos) && Beats(t, best)) best = t;
+                }
                 return best;
             }
 
@@ -1133,10 +1216,53 @@ namespace FiresRPGmaker.Modules.Territories
                     foreach (var t in group.Members)
                         if (t.IsInside(pos) && Beats(t, best)) best = t;
                 }
-                return best;
+                return WithExternal(pos, best);
             }
 
             foreach (var t in ClientTerritories)
+                if (t.IsInside(pos) && Beats(t, best)) best = t;
+            return WithExternal(pos, best);
+        }
+
+        // Server lookup grid - each territory's index sits in every 64 m cell its bounds touch; one wider than 32 cells a side goes to
+        // the always-checked "big" list instead. Rebuilt when the ledger changes (Version / count / list identity).
+        private const float ServerCellSize = 64f;
+        private const int ServerBigCells = 32;
+        private static readonly Dictionary<Vector2Int, List<int>> s_serverIndex = new();
+        private static readonly List<int> s_serverBig = new();
+        private static int s_serverIndexVersion = int.MinValue, s_serverIndexCount = -1;
+        private static Vector2Int ServerCell(float x, float z) => new Vector2Int(Mathf.FloorToInt(x / ServerCellSize), Mathf.FloorToInt(z / ServerCellSize));
+
+        private static void EnsureServerIndex(IReadOnlyList<Territory> list)
+        {
+            if (s_serverIndexVersion == TerritoryLedger.Version && s_serverIndexCount == list.Count) return;
+            var sw = Stopwatch.StartNew();
+            s_serverIndex.Clear(); s_serverBig.Clear();
+            for (int i = 0; i < list.Count; i++)
+            {
+                var t = list[i];
+                Vector2 min, max;
+                try { (min, max) = GetBounds(t); } catch { s_serverBig.Add(i); continue; }
+                var c0 = ServerCell(min.x, min.y); var c1 = ServerCell(max.x, max.y);
+                if (c1.x - c0.x > ServerBigCells || c1.y - c0.y > ServerBigCells) { s_serverBig.Add(i); continue; }
+                for (int cx = c0.x; cx <= c1.x; cx++)
+                    for (int cz = c0.y; cz <= c1.y; cz++)
+                    {
+                        var key = new Vector2Int(cx, cz);
+                        if (!s_serverIndex.TryGetValue(key, out var l)) s_serverIndex[key] = l = new List<int>();
+                        l.Add(i);
+                    }
+            }
+            s_serverIndexVersion = TerritoryLedger.Version; s_serverIndexCount = list.Count;
+            global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[Territory] server lookup index built: {list.Count} territories in {s_serverIndex.Count} cell(s) of {ServerCellSize:0} m, {s_serverBig.Count} big, {sw.Elapsed.TotalMilliseconds:0.0} ms");
+        }
+
+        // height_priority FAIL: a client's synced lists never hold TerritoryApi boxes (each peer registers them locally),
+        // so they join here with the same IsInside/Beats rules the server list uses.
+        private static Territory WithExternal(Vector3 pos, Territory best)
+        {
+            if (TerritoryApi.ExternalCount == 0) return best;
+            foreach (var t in TerritoryApi.External)
                 if (t.IsInside(pos) && Beats(t, best)) best = t;
             return best;
         }
@@ -1149,13 +1275,14 @@ namespace FiresRPGmaker.Modules.Territories
             return Area(candidate) <= Area(best);
         }
 
-        private static float Area(Territory t)
+        internal static float Area(Territory t)   // Internal (regen picks the innermost territory by area)
         {
             switch (t.Shape)
             {
                 case TerritoryShape.Circle: return Mathf.PI * t.Radius * t.Radius;
                 case TerritoryShape.Square: return 4f * t.Radius * t.Radius;
                 case TerritoryShape.Rectangle: return t.X != null && t.Y != null && t.X.Length > 1 && t.Y.Length > 1 ? Mathf.Abs((float)t.X[1] * t.Y[1]) : float.MaxValue;
+                case TerritoryShape.Polygon: return t.IsPolygon ? t.PolyArea : float.MaxValue;
                 default: return float.MaxValue;
             }
         }

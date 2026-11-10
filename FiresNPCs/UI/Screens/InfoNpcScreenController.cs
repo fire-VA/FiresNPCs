@@ -102,7 +102,7 @@ namespace FiresRPGmaker.UI.Screens
 
        screenGo.SetActive(false);
 
-       Debug.Log($"[InfoNpcScreenController] WireFromCodegen - Instructions={instructionsText != null}, " +
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[InfoNpcScreenController] WireFromCodegen - Instructions={instructionsText != null}, " +
                  $"HeaderInput={headerTextInput != null}, PngInput={pngPathInput != null}, " +
                  $"InfoArea={infoTextArea != null}, CharCount={characterCountText != null}, " +
                  $"ApplyBtn={_applyButton != null}");
@@ -160,7 +160,7 @@ _hasUnsavedChanges = true;
             {
    int count = infoTextArea.text?.Length ?? 0;
       characterCountText.text = $"Characters: {count} / 5000";
-     
+
           if (count > 4500)
         characterCountText.color = UIFontConfig.Colors.Red;
         else if (count > 4000)
@@ -190,7 +190,7 @@ _hasUnsavedChanges = true;
 
         // Check if this profile already exists and belongs to a different NPC.
         // If the NPC's infoProfile is already set to this name, it's updating its own profile - allow it.
-        bool isNewProfileForThisNpc = string.IsNullOrEmpty(_currentNpc.infoProfile) || 
+        bool isNewProfileForThisNpc = string.IsNullOrEmpty(_currentNpc.infoProfile) ||
             !_currentNpc.infoProfile.Equals(profileName, StringComparison.OrdinalIgnoreCase);
 
         if (isNewProfileForThisNpc)
@@ -252,7 +252,7 @@ _hasUnsavedChanges = true;
                 pkg.Write("ServerInfos");
                 pkg.Write("ServerInfos.cfg");
                 pkg.Write(fileContent);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_SyncFiles", pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_SyncFiles"), "FiresRPGmaker_SyncFiles", pkg);   // (client->server RPCs target the server)
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, "Config synced to server");
             }
             catch (Exception ex)

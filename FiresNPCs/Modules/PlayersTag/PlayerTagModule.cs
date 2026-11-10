@@ -31,7 +31,7 @@ namespace FiresRPGmaker.Modules.PlayersTag
                     string tag = args.Length > 2 ? string.Join(" ", System.Linq.Enumerable.Skip(args.Args, 2)) : "none";
                     PlayerTagManager.AdminSet(who, tag);
                     args.Context.AddString($"[tag] requested '{tag}' for {who}");
-                }, optionsFetcher: OnlinePlayerNames);
+                }, optionsFetcher: OnlinePlayerNames, isCheat: true);
             }
         }
 

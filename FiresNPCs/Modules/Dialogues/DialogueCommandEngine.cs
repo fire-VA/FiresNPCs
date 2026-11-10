@@ -26,6 +26,20 @@ namespace FiresRPGmaker.Modules.Dialogues
     /// </summary>
     public static class DialogueCommandEngine
     {
+        // 0.0.772 (halo ring): a dialogue spawn scattered around the player. On a ring the scatter stays in the ring's floor plane,
+        // the floor is found along -up and the spawn stands to the ring's up; off it, vanilla's FindFloor and no rotation, as before.
+        private static Quaternion RingSnap(Vector3 basePos, ref Vector3 pos)
+        {
+            if (global::FiresRPGmaker.Utilities.RingUp.OnRing(basePos, out Vector3 up))
+            {
+                pos = basePos + Vector3.ProjectOnPlane(pos - basePos, up);
+                if (global::FiresRPGmaker.Utilities.RingUp.Floor(pos, out Vector3 floor, 20f, 60f, "dialogue spawn")) pos = floor;
+                return Quaternion.FromToRotation(Vector3.up, up);
+            }
+            if (ZoneSystem.instance != null) ZoneSystem.instance.FindFloor(pos, out pos.y);
+            return Quaternion.identity;
+        }
+
         /// <summary>Text replacement tokens applied to dialogue/option text and ConsoleCommand.</summary>
         public static readonly Dictionary<string, Func<string>> TextReplacements = new Dictionary<string, Func<string>>
         {
@@ -177,7 +191,7 @@ namespace FiresRPGmaker.Modules.Dialogues
                 itemData.m_stack = 1;
                 if (!inv.AddItem(itemData))
                 {
-                    ItemDrop.DropItem(itemData, 1, player.transform.position + player.transform.forward + Vector3.up, Quaternion.identity);
+                    ItemDrop.DropItem(itemData, 1, player.transform.position + player.transform.forward + global::FiresRPGmaker.Utilities.RingUp.Up(player.transform.position), Quaternion.identity);
                 }
             }
         }
@@ -189,7 +203,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (parts.Length < 2) return;
             string name = parts[1].Trim();
             if (string.IsNullOrEmpty(name)) return;
-            global::FiresRPGmaker.Modules.Territories.TerritoryOwnership.RequestGrant(name, true);
+            // Reward path: free, never charged (TerritoryOwnership routes it on its own RPC; same rules as before).
+            global::FiresRPGmaker.Modules.Territories.TerritoryOwnership.RequestRewardGrant(name);
         }
 
         private static void Cmd_RemoveTerritory(string[] parts)
@@ -327,9 +342,9 @@ namespace FiresRPGmaker.Modules.Dialogues
                 float rx = Random.Range(-15f, 15f);
                 float rz = Random.Range(-15f, 15f);
                 Vector3 pos = new Vector3(basePos.x + rx, basePos.y, basePos.z + rz);
-                if (ZoneSystem.instance != null) ZoneSystem.instance.FindFloor(pos, out pos.y);
+                Quaternion ringRot = RingSnap(basePos, ref pos);   // 0.0.772 (halo ring)
 
-                var spawned = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
+                var spawned = UnityEngine.Object.Instantiate(prefab, pos, ringRot);
                 var character = spawned.GetComponent<Character>();
                 if (character != null) character.SetLevel(Mathf.Max(1, level + 1));
                 var itemDrop = spawned.GetComponent<ItemDrop>();
@@ -359,9 +374,9 @@ namespace FiresRPGmaker.Modules.Dialogues
                 float rx = Random.Range(-15f, 15f);
                 float rz = Random.Range(-15f, 15f);
                 Vector3 pos = new Vector3(basePos.x + rx, basePos.y, basePos.z + rz);
-                if (ZoneSystem.instance != null) ZoneSystem.instance.FindFloor(pos, out pos.y);
+                Quaternion ringRot = RingSnap(basePos, ref pos);   // 0.0.772 (halo ring)
 
-                var spawned = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
+                var spawned = UnityEngine.Object.Instantiate(prefab, pos, ringRot);
                 if (spawned == null) continue;
                 var character = spawned.GetComponent<Character>();
                 if (character != null) character.SetLevel(Mathf.Max(1, level + 1));
@@ -561,7 +576,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             // OpenUI,UIType,Profile - opens an NPC UI screen from a dialogue command.
             string uiType = parts.Length > 1 ? parts[1].Trim() : "";
             string profile = parts.Length > 2 ? parts[2].Trim() : "";
-            Debug.Log($"[DialogueCommandEngine] OpenUI requested: type={uiType}, profile={profile}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DialogueCommandEngine] OpenUI requested: type={uiType}, profile={profile}");
 
             // Close the dialogue first so it doesn't overlap with the new screen
             DialogueUI.Hide();
@@ -807,7 +822,7 @@ namespace FiresRPGmaker.Modules.Dialogues
             if (inv == null) return;
             for (int i = 0; i < amount; i++)
             {
-                var spawned = UnityEngine.Object.Instantiate(prefab, player.transform.position + Vector3.up, Quaternion.identity);
+                var spawned = UnityEngine.Object.Instantiate(prefab, player.transform.position + global::FiresRPGmaker.Utilities.RingUp.Up(player.transform.position), Quaternion.identity);
                 var drop = spawned.GetComponent<ItemDrop>();
                 var nview = spawned.GetComponent<ZNetView>();
                 if (drop != null && nview != null && nview.IsValid())
@@ -854,8 +869,8 @@ namespace FiresRPGmaker.Modules.Dialogues
             for (int i = 0; i < amount; i++)
             {
                 Vector3 pos = new Vector3(basePos.x + Random.Range(-15f, 15f), basePos.y, basePos.z + Random.Range(-15f, 15f));
-                if (ZoneSystem.instance != null) ZoneSystem.instance.FindFloor(pos, out pos.y);
-                var spawned = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
+                Quaternion ringRot = RingSnap(basePos, ref pos);   // 0.0.772 (halo ring)
+                var spawned = UnityEngine.Object.Instantiate(prefab, pos, ringRot);
                 var nview = spawned.GetComponent<ZNetView>();
                 spawned.GetComponent<Character>()?.SetLevel(Mathf.Max(1, level + 1));
                 var drop = spawned.GetComponent<ItemDrop>();

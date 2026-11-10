@@ -21,13 +21,13 @@ namespace FiresRPGmaker.Modules.Buffer
             _registered = true;
 
             new Terminal.ConsoleCommand("firesnpcs_buffer_dump",
-                "Reload buffer configs and list parsed profiles + buffs.", DumpCmd);
+                "Reload buffer configs and list parsed profiles + buffs.", DumpCmd, isCheat: true);
 
             new Terminal.ConsoleCommand("firesnpcs_buffer_list_se",
-                "List every status effect (vanilla + modded) with its strength badge. Optional name filter.", ListSeCmd);
+                "List every status effect (vanilla + modded) with its strength badge. Optional name filter.", ListSeCmd, isCheat: true);
 
             new Terminal.ConsoleCommand("firesnpcs_buff_apply",
-                "Apply a buff to yourself: firesnpcs_buff_apply <UniqueName|@StatusEffectName> [seconds] [strength%]", ApplyCmd);
+                "Apply a buff to yourself: firesnpcs_buff_apply <UniqueName|@StatusEffectName> [seconds] [strength%]", ApplyCmd, isCheat: true);
 
             new Terminal.ConsoleCommand("firesnpcs_buff_buy",
                 "Server-validated buy: firesnpcs_buff_buy <UniqueName> [profileKey] [seconds] [strength%] — routes through the grant RPC (profile + caps enforced server-side, cost consumed).", BuyCmd);
@@ -36,7 +36,7 @@ namespace FiresRPGmaker.Modules.Buffer
                 "Open the buff shop UI for a profile: firesnpcs_buff_shop [profileKey]", ShopCmd);
 
             new Terminal.ConsoleCommand("firesnpcs_buff_admin",
-                "Open the admin buff-profile builder (browse every status effect, assemble a profile).", AdminCmd);
+                "Open the admin buff-profile builder (browse every status effect, assemble a profile).", AdminCmd, isCheat: true);
         }
 
         /// <summary>Admin gate for the debug/config commands. The shop + server-validated buy stay
@@ -71,7 +71,7 @@ namespace FiresRPGmaker.Modules.Buffer
             }
             string uniqueName = args[1];
             string profileKey = args.Length > 2 ? args[2] : "";
-            // Without a profile it is the admin's un-gated apply (the server checks too, 0.0.532).
+            // Without a profile it is the admin's un-gated apply (the server checks too).
             if (string.IsNullOrEmpty(profileKey) && !RequireAdmin(args)) return;
             int secs = args.Length > 3 && int.TryParse(args[3], out var sc) ? sc : 0;
             float strength = args.Length > 4 && float.TryParse(args[4], out var st) ? Mathf.Clamp01(st / 100f) : 1f;

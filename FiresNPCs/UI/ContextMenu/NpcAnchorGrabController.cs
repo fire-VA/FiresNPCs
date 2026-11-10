@@ -32,6 +32,8 @@ namespace FiresRPGmaker.UI.ContextMenu
         private const float VisualLift = 0.35f;
         private const float RotateStepDegrees = 22.5f;   // vanilla build-piece rotation step
 
+        private const float MaxRayDistance = 3000f;
+
         private static readonly int PlacementMask =
             LayerMask.GetMask("Default", "static_solid", "piece", "terrain", "vehicle", "Default_small");
 
@@ -53,7 +55,7 @@ namespace FiresRPGmaker.UI.ContextMenu
             Instance = go.AddComponent<NpcAnchorGrabController>();
             Instance._guid = guid;
             Instance._aim = NpcAnchorOrbViz.IsShowing && NpcAnchorOrbViz.ActiveGuid == guid
-                ? NpcAnchorOrbViz.CurrentWorld - Vector3.up * VisualLift
+                ? NpcAnchorOrbViz.CurrentWorld - global::FiresRPGmaker.Utilities.RingUp.Up(NpcAnchorOrbViz.CurrentWorld) * VisualLift   // 0.0.772: ring up
                 : Player.m_localPlayer.transform.position;
 
             FiresContextMenu.Close();
@@ -149,11 +151,11 @@ namespace FiresRPGmaker.UI.ContextMenu
 
             // Aim from the crosshair (camera-forward ray) like the hammer's place-ray — camera stays free.
             var cam = Camera.main;
-            if (cam != null && Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, 3000f, PlacementMask, QueryTriggerInteraction.Ignore))
+            if (cam != null && Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, MaxRayDistance, PlacementMask, QueryTriggerInteraction.Ignore))
                 _aim = hit.point;
 
             float step = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) ? StepLarge : StepSmall;
-            if (!FiresCore.Input.FiresInputBlock.IsTyping()) // 0.0.550 typing gate (Fire 10-09)
+            if (!FiresCore.Input.FiresInputBlock.IsTyping()) // typing gate
             {
                 if (Input.GetKeyDown(KeyCode.PageUp)) _height += step;
                 if (Input.GetKeyDown(KeyCode.PageDown)) _height -= step;
@@ -166,11 +168,11 @@ namespace FiresRPGmaker.UI.ContextMenu
             if (scroll > 0.0001f) _yaw += RotateStepDegrees;
             else if (scroll < -0.0001f) _yaw -= RotateStepDegrees;
 
-            _pos = _aim + Vector3.up * _height;
+            _pos = _aim + global::FiresRPGmaker.Utilities.RingUp.Up(_aim) * _height;   // 0.0.772 (halo ring): lifted along the ring's up; world up off it
             if (_preview != null)
             {
                 _preview.transform.position = _pos;
-                _preview.transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
+                _preview.transform.rotation = global::FiresRPGmaker.Utilities.RingUp.Upright(_pos, _yaw);   // the orb (local up) follows
             }
 
             if (!Input.GetMouseButton(0)) _armed = true;
@@ -182,7 +184,7 @@ namespace FiresRPGmaker.UI.ContextMenu
         {
             Managers.SavedNpcManager.RequestAnchorMove(_guid, _pos, _yaw);
             if (NpcAnchorOrbViz.IsShowing && NpcAnchorOrbViz.ActiveGuid == _guid)
-                NpcAnchorOrbViz.PreviewWorld(_pos + Vector3.up * VisualLift);
+                NpcAnchorOrbViz.PreviewWorld(_pos + global::FiresRPGmaker.Utilities.RingUp.Up(_pos) * VisualLift);
             Player.m_localPlayer?.Message(MessageHud.MessageType.TopLeft, "Anchor placed — the NPC re-homes there within a few seconds.");
             End();
         }

@@ -207,7 +207,7 @@ namespace FiresRPGmaker.UI
             _opt = option;
             _onDone = onDone;
             _dialogueUid = dialogueUid;
-            Debug.Log($"[BookOptionPopup] Open: type={option.Type} text='{option.Text}' " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[BookOptionPopup] Open: type={option.Type} text='{option.Text}' " +
                       $"cmds={option.Commands?.Length ?? 0} randCmds={(option.RandomCommands != null ? 1 : 0)} " +
                       $"conds={option.Conditions?.Count ?? 0} randTrans={option.RandomTransition?.Length ?? 0}");
             EnsureBuilt(bookPanelRect);
@@ -328,7 +328,7 @@ namespace FiresRPGmaker.UI
             headerBg.sprite = FiresRoundedSkin.RoundedSprite(7, HeaderBg);
             headerBg.type = Image.Type.Sliced;
             headerBg.color = Color.white; headerBg.raycastTarget = true;
-            // 0.0.655 (UI audit): the header is Core's drag handle (live panel), no own PopupDragHandler
+            // the header is Core's drag handle (live panel), no own PopupDragHandler
             CoreUiBridge.RegisterLivePanel("FiresRPGmaker:BookOption", "rpgmaker.bookoption", _popupRect, headerGo.GetComponent<RectTransform>(), "Edit option", "FiresRPGmaker");
 
             var titleGo = CreateChild(headerGo.transform, "TitleText");
@@ -368,6 +368,8 @@ namespace FiresRPGmaker.UI
             checkImg.type = Image.Type.Sliced;
             checkImg.color = Color.white; checkImg.raycastTarget = false;
             _alwaysToggle.graphic = checkImg;
+            bool kitAlways = KitControlsAdapter.Kitize(_alwaysToggle, 110f);   // Core kit ON/OFF switch
+            if (kitAlways) boxLe.preferredWidth = boxLe.minWidth = 110f;
 
             var lblGo = new GameObject("L");
             lblGo.transform.SetParent(row.transform, false);
@@ -376,6 +378,7 @@ namespace FiresRPGmaker.UI
             lt.text = "Always Visible"; lt.fontSize = SMALL_FONT; lt.color = LabelCol;
             lt.alignment = TextAlignmentOptions.MidlineLeft; lt.raycastTarget = false;
             ApplyFont(lt);
+            if (kitAlways) boxGo.transform.SetAsLastSibling();   // config-window order, label left, switch right
 
             FiresHoverTip.Attach(lblGo, "Always Visible",
                 "Show this option even when its conditions fail — it appears greyed out with the failure text instead of being hidden.");

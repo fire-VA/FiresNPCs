@@ -25,6 +25,8 @@ namespace FiresRPGmaker.UI.Screens
 
         // Equipment slot UI elements (public so patches can access)
         public Dictionary<EquipmentSlot, EquipmentSlotUI> Slots => _slots;
+        internal NpcController CurrentNpc => _currentNpc;   // firesnpcs_dressing_proof
+        internal string LiveWornFor(EquipmentSlot s) => LiveWorn(s);
         private Dictionary<EquipmentSlot, EquipmentSlotUI> _slots = new Dictionary<EquipmentSlot, EquipmentSlotUI>();
 
         // Reference to current NPC being dressed
@@ -118,10 +120,10 @@ Shoulder,
             LeftHand,
    RightBack,
     LeftBack,
-            Pet   // 0.0.559: cosmetic pet (not gear; never in _pendingEquipment)
+            Pet   // cosmetic pet (not gear; never in _pendingEquipment)
         }
 
-        // 0.0.659 (Fire 10-16: "slots = FiresSkin.ApplySlotLook exactly like every other grid square"): Core's ONE pouch-cell look;
+        // Core's ONE pouch-cell look;
         // the old empty / filled tints only for a Core older than 0.2.572. Drag-hover valid / invalid tints are kept as feedback.
         private static void SlotFace(EquipmentSlotUI slot)
         {
@@ -145,7 +147,7 @@ Shoulder,
      // Handle Escape key to go back
        if (Input.GetKeyDown(KeyCode.Escape))
     {
-     Debug.Log("[DressingRoomScreen] Escape key pressed - closing");
+     global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Escape key pressed - closing");
                 Hide();
        return;
             }
@@ -172,9 +174,11 @@ Shoulder,
 
     // Mouse-wheel scroll for the NPC stats strip (native ScrollRect is dead while the inventory is open).
     HandleStatsScroll();
+            TickStatsLive();
 
     // Keep the fashion scrollbar visible + its handle in sync (also creates it on first run).
     UpdateFashionScrollbar();
+    TickItemDrag();   // drag from the Wardrobe / between slots / out to unequip
 
       // Get current drag state for visual feedback only
             var draggedItem = GetDraggedItemFromInventory();
@@ -217,8 +221,8 @@ Shoulder,
             return true;
         }
 
-        private void OnApplyEvent() { if (TakeButtonClick()) { Debug.Log("[DressingRoomScreen] Apply button clicked (EventSystem)"); HandleApplyClicked(); } }
-        private void OnClearAllEvent() { if (TakeButtonClick()) { Debug.Log("[DressingRoomScreen] Clear All button clicked (EventSystem)"); HandleClearAllClicked(); } }
+        private void OnApplyEvent() { if (TakeButtonClick()) { global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Apply button clicked (EventSystem)"); HandleApplyClicked(); } }
+        private void OnClearAllEvent() { if (TakeButtonClick()) { global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Clear All button clicked (EventSystem)"); HandleClearAllClicked(); } }
 
         private void HandleManualButtonClick()
   {
@@ -227,7 +231,7 @@ Shoulder,
             // Check Apply button
             if (_applyButtonRect != null && RectTransformUtility.RectangleContainsScreenPoint(_applyButtonRect, mousePos, null))
             {
- Debug.Log("[DressingRoomScreen] Apply button clicked via manual detection!");
+ global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Apply button clicked via manual detection!");
            if (TakeButtonClick()) HandleApplyClicked();
     return;
         }
@@ -235,7 +239,7 @@ Shoulder,
     // Check Clear All button
     if (_clearAllButtonRect != null && RectTransformUtility.RectangleContainsScreenPoint(_clearAllButtonRect, mousePos, null))
  {
-                Debug.Log("[DressingRoomScreen] Clear All button clicked via manual detection!");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Clear All button clicked via manual detection!");
          if (TakeButtonClick()) HandleClearAllClicked();
          return;
   }
@@ -243,7 +247,7 @@ Shoulder,
    // Check main panel Close button
      if (_closeButtonRect != null && RectTransformUtility.RectangleContainsScreenPoint(_closeButtonRect, mousePos, null))
      {
-      Debug.Log("[DressingRoomScreen] Close button clicked via manual detection!");
+      global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Close button clicked via manual detection!");
          OnCloseButtonClicked();
              return;
        }
@@ -251,7 +255,7 @@ Shoulder,
             // Check main panel Prev/Back button
           if (_prevButtonRect != null && RectTransformUtility.RectangleContainsScreenPoint(_prevButtonRect, mousePos, null))
             {
-      Debug.Log("[DressingRoomScreen] Back button clicked via manual detection!");
+      global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Back button clicked via manual detection!");
    OnBackClicked();
          return;
  }
@@ -259,7 +263,7 @@ Shoulder,
             // Check main panel Size button
             if (_sizeButtonRect != null && RectTransformUtility.RectangleContainsScreenPoint(_sizeButtonRect, mousePos, null))
    {
-       Debug.Log("[DressingRoomScreen] Size button clicked via manual detection!");
+       global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Size button clicked via manual detection!");
      OnSizeButtonClicked();
           return;
             }
@@ -275,7 +279,7 @@ Shoulder,
     {
    try
         {
-   Debug.Log($"[DressingRoomScreen] Focusing input field: {input.gameObject.name}");
+   global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Focusing input field: {input.gameObject.name}");
          EventSystem.current?.SetSelectedGameObject(input.gameObject);
             input.ActivateInputField();
             input.Select();
@@ -291,7 +295,8 @@ Shoulder,
 
             // NPC stats toggles/sliders (scroll strip) — manual click, guarded to the visible viewport so a
             // control scrolled out of view isn't hit through the mask.
-            if (_statsViewportRect != null && RectTransformUtility.RectangleContainsScreenPoint(_statsViewportRect, mousePos, null))
+            // D4: with Core's kit controls the clicks/drags reach them through the EventSystem; the manual hit-test is the fallback only
+            if (!_kitStats && _statsViewportRect != null && RectTransformUtility.RectangleContainsScreenPoint(_statsViewportRect, mousePos, null))
             {
                 foreach (var tg in _statToggles)
                 {
@@ -299,7 +304,10 @@ Shoulder,
                     var rt = tg.GetComponent<RectTransform>();
                     if (rt != null && RectTransformUtility.RectangleContainsScreenPoint(rt, mousePos, null))
                     {
-                        tg.isOn = !tg.isOn;
+                        // in the kit shell the Dressing room no longer
+                        // opens InventoryGui, so the EventSystem ALSO delivers this click to the Toggle; manual + EventSystem flipped it
+                        // twice = no change. One flip per click: the EventSystem's flip this frame wins, else the manual one.
+                        ManualToggle(tg);
                         return;
                     }
                 }
@@ -340,7 +348,7 @@ Shoulder,
        int idx = Mathf.FloorToInt(scrolledY / itemHeight);
  idx = Mathf.Clamp(idx, 0, dd.options.Count - 1);
 
-      Debug.Log($"[DressingRoomScreen] Dropdown click: localY={localPoint.y:F1}, scrollY={content.anchoredPosition.y:F1}, calculated idx={idx}, options={dd.options.Count}");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Dropdown click: localY={localPoint.y:F1}, scrollY={content.anchoredPosition.y:F1}, calculated idx={idx}, options={dd.options.Count}");
 
               try
             {
@@ -349,7 +357,7 @@ Shoulder,
            dd.onValueChanged?.Invoke(idx);
           // Hide template
  dd.Hide();
-        Debug.Log($"[DressingRoomScreen] Selected dropdown item {idx}: {dd.options[idx].text}");
+        global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Selected dropdown item {idx}: {dd.options[idx].text}");
     }
         catch (Exception ex)
 {
@@ -376,7 +384,7 @@ Shoulder,
             {
         try
            {
-                Debug.Log($"[DressingRoomScreen] Opening dropdown: {dd.gameObject.name}, options count: {dd.options.Count}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Opening dropdown: {dd.gameObject.name}, options count: {dd.options.Count}");
       dd.Show();
     }
          catch (Exception ex)
@@ -398,7 +406,7 @@ Shoulder,
        var slot = GetSlotUnderMouse();
     if (slot != null && (slot.SlotType == EquipmentSlot.Pet || !string.IsNullOrEmpty(slot.CurrentPrefab)))
        {
-  Debug.Log($"[DressingRoomScreen] Right-click on slot {slot.SlotType} - clearing and returning item");
+  global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Right-click on slot {slot.SlotType} - clearing and returning item");
      OnSlotCleared(slot.SlotType);
 }
    }
@@ -590,7 +598,7 @@ Shoulder,
           else
       {
       // Reset to appropriate color
-             SlotFace(slot);   // 0.0.659
+             SlotFace(slot);
              }
             }
         }
@@ -638,7 +646,7 @@ Shoulder,
                 WireEquipmentSlot(gridTransform, "Slot_LeftHand", EquipmentSlot.LeftHand);
                 WireEquipmentSlot(gridTransform, "Slot_RightBack", EquipmentSlot.RightBack);
                 WireEquipmentSlot(gridTransform, "Slot_LeftBack", EquipmentSlot.LeftBack);
-                WirePetSlot(gridTransform);   // 0.0.559
+                WirePetSlot(gridTransform);
             }
 
             // Fashion Panel Right (animation/sounds)
@@ -683,7 +691,7 @@ Shoulder,
                 _skinColorDropdown = FindDropdownInContainer(fashionLeft, "Skin Tone_Container");
                 _eyeColorDropdown = FindDropdownInContainer(fashionLeft, "Eye Color_Container");
                 _modelScaleInput = FindInputInContainer(fashionLeft, "ModelScale_Container", 0);
-                HookLivePreview();   // 0.0.659
+                HookLivePreview();
 
                 if (_hairItemDropdown != null) _dropdowns.Add(_hairItemDropdown);
                 if (_hairColorDropdown != null) _dropdowns.Add(_hairColorDropdown);
@@ -700,6 +708,15 @@ Shoulder,
                 _statsContentRect = statsContent.GetComponent<RectTransform>();
                 _statsViewportRect = statsContent.parent as RectTransform;
 
+                // N1 ("static npcs should at least TRY to defend themselves ... a meter or two from their anchor ...
+                // make them adjustable in the npc stats screen"): two rows cloned from the baked Hide Nameplate / Nameplate Height rows,
+                // so they get the same kit switch / slider, live apply and layout as every other stats row
+                CloneStatRow(statsContent, "HideNameplate_Container", "Defend_Container", "Defend when attacked", 0f, 0f);
+                CloneStatRow(statsContent, "NameplateHeight_Container", "DefendRange_Container", "Defend range (m)", 0.5f, 5f);
+                _defendToggle = FindToggleInContainer(statsContent, "Defend_Container");
+                _defendRangeSlider = FindSliderInContainer(statsContent, "DefendRange_Container");
+                if (_defendToggle != null) _statToggles.Add(_defendToggle);
+                if (_defendRangeSlider != null) HookStatSlider(_defendRangeSlider, "DefendRange_Container", statsContent, false);
                 _infiniteHealthToggle = FindToggleInContainer(statsContent, "InfiniteHealth_Container");
                 _hideNameplateToggle = FindToggleInContainer(statsContent, "HideNameplate_Container");
                 _maxHealthSlider = FindSliderInContainer(statsContent, "MaxHealth_Container");
@@ -709,10 +726,12 @@ Shoulder,
 
                 if (_infiniteHealthToggle != null) _statToggles.Add(_infiniteHealthToggle);
                 if (_hideNameplateToggle != null) _statToggles.Add(_hideNameplateToggle);
+                foreach (var tg in _statToggles) HookStatToggle(tg);
                 HookStatSlider(_maxHealthSlider, "MaxHealth_Container", statsContent, true);
                 HookStatSlider(_respawnDelaySlider, "RespawnDelay_Container", statsContent, true);
                 HookStatSlider(_nameplateSizeSlider, "NameplateSize_Container", statsContent, false);
                 HookStatSlider(_nameplateYSlider, "NameplateHeight_Container", statsContent, false);
+                BuildKitStatControls(statsContent);   // D3/D4
             }
 
             // Track input fields for manual click handling
@@ -728,7 +747,7 @@ Shoulder,
 
             screenGo.SetActive(false);
 
-            Debug.Log($"[DressingRoomScreenController] WireFromCodegen - " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreenController] WireFromCodegen - " +
                       $"Instructions={instructionsText != null}, " +
                       $"ClearAll={_clearAllButton != null}, Apply={_applyButton != null}, " +
                       $"Slots={_slots.Count}, Dropdowns={_dropdowns.Count}, Inputs={_inputFields.Count}, " +
@@ -746,7 +765,7 @@ Shoulder,
             var slotGO = slotTransform.gameObject;
             var slotRect = slotGO.GetComponent<RectTransform>();
             var iconImage = slotTransform.Find("Icon")?.GetComponent<Image>();
-            // 0.0.569 (R-1012G NRE in ClearSlotVisual): a slot whose background is a child, not an Image on the slot itself
+            // a slot whose background is a child, not an Image on the slot itself
             var slotBg = slotGO.GetComponent<Image>()
                 ?? slotTransform.Find("Background")?.GetComponent<Image>()
                 ?? System.Linq.Enumerable.FirstOrDefault(slotGO.GetComponentsInChildren<Image>(true), i => i != iconImage);
@@ -765,8 +784,8 @@ Shoulder,
                 CurrentPrefab = null
             };
 
-            if (iconImage != null && iconImage.sprite == null) iconImage.color = new Color(1f, 1f, 1f, 0f);   // 0.0.659: no grey placeholder
-            SlotFace(slotUI);   // 0.0.659: Core's slot look from the start
+            if (iconImage != null && iconImage.sprite == null) iconImage.color = new Color(1f, 1f, 1f, 0f);   // no grey placeholder
+            SlotFace(slotUI);   // Core's slot look from the start
             var clickHandler = slotGO.AddComponent<SlotClickHandler>();
             clickHandler.Initialize(this, slotUI);
 
@@ -895,6 +914,27 @@ Shoulder,
             return input;
         }
 
+        private Toggle _defendToggle;          // N1
+        private Slider _defendRangeSlider;     // N1
+
+        // N1: a copy of a baked stats row (once per screen), renamed and relabelled, added after the last row
+        private static void CloneStatRow(Transform content, string src, string name, string label, float min, float max)
+        {
+            if (content == null || content.Find(name) != null) return;
+            var from = content.Find(src);
+            if (from == null) { Debug.LogWarning($"[DressingRoomScreen] 0.0.715 stats row '{src}' not found: '{label}' not added"); return; }
+            var copy = UnityEngine.Object.Instantiate(from.gameObject, content, false);
+            copy.name = name;
+            copy.transform.SetAsLastSibling();
+            foreach (var t in copy.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                if (t.GetComponentInParent<Slider>() == null && t.GetComponentInParent<Toggle>() == null && t.name != "Val") { t.text = label; break; }
+            foreach (var t in copy.GetComponentsInChildren<Text>(true))
+                if (t.GetComponentInParent<Slider>() == null && t.GetComponentInParent<Toggle>() == null && t.name != "Val") { t.text = label; break; }
+            var sl = copy.GetComponentInChildren<Slider>(true);
+            if (sl != null && max > min) { sl.wholeNumbers = false; sl.minValue = min; sl.maxValue = max; sl.SetValueWithoutNotify(2f); }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] 0.0.715 NPC stats row added: '{label}' (copy of {src})");
+        }
+
         private static Toggle FindToggleInContainer(Transform parent, string containerName)
         {
             var container = parent.Find(containerName);
@@ -905,6 +945,155 @@ Shoulder,
         {
             var container = parent.Find(containerName);
             return container?.GetComponentInChildren<Slider>(true);
+        }
+
+        // one flip per click for the stats toggles, whichever path (EventSystem or the manual hit-test) sees it first.
+        // The manual hit-test runs on mouse DOWN, the Toggle's own OnPointerClick on mouse UP (a later frame), so "the same click" is a
+        // 0.6 s window, not one frame.
+        private const float ToggleClickWindow = 0.6f;
+        private readonly Dictionary<Toggle, float> _toggleEvTime = new Dictionary<Toggle, float>();
+        private readonly Dictionary<Toggle, (float time, bool val)> _toggleManual = new Dictionary<Toggle, (float, bool)>();
+        private void HookStatToggle(Toggle tg)
+        {
+            if (tg == null) return;
+            tg.onValueChanged.AddListener(v =>
+            {
+                if (_toggleManual.TryGetValue(tg, out var m) && Time.unscaledTime - m.time <= ToggleClickWindow)
+                {
+                    if (v != m.val) { tg.SetIsOnWithoutNotify(m.val); _toggleManual.Remove(tg); global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] stats toggle '{tg.name}': EventSystem flip of the same click undone (stays {m.val})"); }
+                    return;
+                }
+                _toggleEvTime[tg] = Time.unscaledTime;
+            });
+        }
+        internal void ManualToggle(Toggle tg)
+        {
+            if (tg == null) return;
+            if (_toggleEvTime.TryGetValue(tg, out var f) && Time.unscaledTime - f <= ToggleClickWindow) return;   // the EventSystem already flipped it
+            bool nv = !tg.isOn;
+            _toggleManual[tg] = (Time.unscaledTime, nv);
+            tg.isOn = nv;
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] stats toggle '{tg.name}' -> {nv} (manual hit-test)");
+        }
+        internal Toggle TestInfiniteHealthToggle => _infiniteHealthToggle;   // rpg_npc_fire_list_test
+        internal Slider TestMaxHealthSlider => _maxHealthSlider;
+        internal Slider TestRespawnDelaySlider => _respawnDelaySlider;
+        internal Transform TestStatsContent => _statsContentRect;
+        internal void TestApplyStats() => ApplyStatControlsToNpc();
+
+        // ---- D3/D4 (toggles dead-looking, sliders a different style than the config window) ----------
+        // Each stats row gets Core's KitControls switch / slider (the config window's own implementation, via KitControlsAdapter);
+        // the baked Toggle / Slider stays as the value holder (Apply, tests and Restore keep reading it) with its visuals hidden.
+        // There is no Apply on the NPC stats section, so every control APPLIES LIVE: toggles on change, sliders on release.
+        // Older Core (no KitControls): the baked controls stay, with a visible checkmark (D3 fallback), and also apply live.
+        private bool _kitStats;
+        private readonly Dictionary<Selectable, object> _kitHandles = new Dictionary<Selectable, object>();
+        private void BuildKitStatControls(Transform statsContent)
+        {
+            if (KitControlsAdapter.Available)
+            {
+                int n = 0;
+                n += KitToggleRow(_infiniteHealthToggle);
+                n += KitToggleRow(_hideNameplateToggle);
+                n += KitSliderRow(_maxHealthSlider, statsContent, "MaxHealth_Container", true);
+                n += KitSliderRow(_respawnDelaySlider, statsContent, "RespawnDelay_Container", true);
+                n += KitSliderRow(_nameplateSizeSlider, statsContent, "NameplateSize_Container", false);
+                n += KitSliderRow(_nameplateYSlider, statsContent, "NameplateHeight_Container", false);
+                n += KitToggleRow(_defendToggle);   // N1
+                n += KitSliderRow(_defendRangeSlider, statsContent, "DefendRange_Container", false);
+                _kitStats = n > 0;
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] 0.0.705 NPC stats: {n}/6 control(s) are Core KitControls (manual hit-test {(_kitStats ? "off" : "kept")})");
+            }
+            if (!_kitStats)
+            {
+                KitControlsAdapter.FixCheckmark(_infiniteHealthToggle);
+                KitControlsAdapter.FixCheckmark(_hideNameplateToggle);
+            }
+            // live apply (both paths): toggles at once; sliders on release (kit onEnd) or, on the baked fallback, 0.4 s after the last change
+            if (_infiniteHealthToggle != null) _infiniteHealthToggle.onValueChanged.AddListener(v => ApplyStatsLive("Infinite Health " + (v ? "ON" : "OFF")));
+            if (_hideNameplateToggle != null) _hideNameplateToggle.onValueChanged.AddListener(v => ApplyStatsLive("Hide Nameplate " + (v ? "ON" : "OFF")));
+            if (_defendToggle != null) _defendToggle.onValueChanged.AddListener(v => ApplyStatsLive("Defend when attacked " + (v ? "ON" : "OFF")));   // N1
+            if (!_kitStats)
+                foreach (var sl in _statSliders) if (sl != null) sl.onValueChanged.AddListener(_ => { if (!_restoringStats) _statsLiveAt = Time.unscaledTime + 0.4f; });
+        }
+
+        private static RectTransform KitHost(RectTransform over, string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(KitControlHost));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(over.parent, false);
+            rt.anchorMin = over.anchorMin; rt.anchorMax = over.anchorMax; rt.pivot = new Vector2(0f, 1f);
+            rt.offsetMin = over.offsetMin; rt.offsetMax = over.offsetMax;
+            rt.SetSiblingIndex(over.GetSiblingIndex() + 1);
+            return rt;
+        }
+
+        private int KitToggleRow(Toggle tg)
+        {
+            if (tg == null) return 0;
+            // N1: the ONE adapter placement (label left, switch right-aligned in the row like the config window); the old
+            // KitHost overlay put the switch + "OFF" on top of the label (the label is a child of the Toggle, so the shift never ran)
+            var handle = KitControlsAdapter.SwitchFor(tg, "stat_" + tg.name);
+            if (handle == null) return 0;
+            _kitHandles[tg] = handle;
+            return 1;
+        }
+
+        private int KitSliderRow(Slider sl, Transform statsContent, string containerName, bool whole)
+        {
+            if (sl == null) return 0;
+            var rt = sl.transform as RectTransform;
+            var row = statsContent.Find(containerName) as RectTransform;
+            var val = row != null ? row.Find("Val") as RectTransform : null;
+            var host = KitHost(rt, sl.name + "_Kit");
+            // the kit slider carries its own value column (right 52 px): the host spans the baked track AND the baked value label
+            if (val != null && val.parent == rt.parent) { host.anchorMax = new Vector2(Mathf.Max(rt.anchorMax.x, val.anchorMax.x), host.anchorMax.y); host.offsetMax = new Vector2(val.offsetMax.x, host.offsetMax.y); }
+            Canvas.ForceUpdateCanvases();
+            float w = Mathf.Max(160f, host.rect.width), h = Mathf.Max(26f, host.rect.height);
+            var handle = KitControlsAdapter.Slider(host, "stat_" + sl.name, sl.minValue, sl.maxValue, sl.value, 0f, (h - 26f) * 0.5f, w,
+                v => { if (sl != null) sl.SetValueWithoutNotify(v); },
+                () => { if (sl != null) { sl.onValueChanged.Invoke(sl.value); ApplyStatsLive(sl.name + " " + sl.value.ToString(whole ? "0" : "0.0")); } },
+                whole ? 1f : 0.1f, whole ? "0" : "0.0", 26f);
+            if (handle == null) { Destroy(host.gameObject); return 0; }
+            KitControlsAdapter.HideBaked(sl);
+            if (val != null) val.gameObject.SetActive(false);
+            _kitHandles[sl] = handle;
+            return 1;
+        }
+
+        private void SyncKitStats()
+        {
+            foreach (var kv in _kitHandles)
+            {
+                if (kv.Key is Toggle t) KitControlsAdapter.Set(kv.Value, t.isOn);
+                else if (kv.Key is Slider s) KitControlsAdapter.Set(kv.Value, s.value);
+            }
+        }
+
+        private bool _restoringStats;
+        private float _statsLiveAt;
+        /// <summary>the stats section has no Apply, so a change goes to the NPC now through the same path as the Dressing Apply
+        /// (ApplyStatControlsToNpc -> npc fields + ApplyMaxHealth's owner-correct path; SaveToZDO syncs npc_infinite_health +
+        /// npc_invincible_set, npc_name_hidden, npc_text_size ...). Infinite Health is recorded as an explicit choice whenever changed.</summary>
+        private void ApplyStatsLive(string what)
+        {
+            if (_restoringStats || _currentNpc == null) return;
+            try
+            {
+                if (_infiniteHealthToggle != null && _infiniteHealthToggle.isOn != _invincibleShown)
+                {
+                    ApplyInvincibleChoice(_currentNpc, _invincibleShown, _infiniteHealthToggle.isOn);
+                    _invincibleShown = _infiniteHealthToggle.isOn;   // the next flip is a change again
+                }
+                ApplyStatControlsToNpc();   // its Invincible step is a no-op now (shown == chosen)
+                _currentNpc.SaveToZDO();
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] 0.0.705 NPC stats applied live ({what}) on '{_currentNpc.GetDisplayName()}': invincible {_currentNpc.infiniteHealth} (set {_currentNpc.infiniteHealthSet}), hide plate {_currentNpc.hideNameplate}, max hp {_currentNpc.maxHealth:0}, respawn {_currentNpc.respawnDelay:0}, plate {_currentNpc.nameplateScale:0.0}/{_currentNpc.nameplateYOffset:0.0}");
+            }
+            catch (Exception ex) { Debug.LogWarning("[DressingRoomScreen] live stats apply failed: " + ex.Message); }
+        }
+        private void TickStatsLive()
+        {
+            if (_statsLiveAt > 0f && Time.unscaledTime >= _statsLiveAt) { _statsLiveAt = 0f; ApplyStatsLive("slider"); }
         }
 
         // Registers a stats slider for manual handling and keeps its right-side value label in sync.
@@ -952,7 +1141,7 @@ Shoulder,
 
   rootGO.SetActive(false);
 
-         Debug.Log($"[DressingRoomScreen] Created screen with Apply button: {controller._applyButton != null}");
+         global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Created screen with Apply button: {controller._applyButton != null}");
          return controller;
  }
 
@@ -1107,7 +1296,7 @@ Shoulder,
 
         private void CreateButtons(Transform parent)
     {
-      Debug.Log($"[DressingRoomScreen] CreateButtons called, parent: {parent?.name}");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] CreateButtons called, parent: {parent?.name}");
 
              _clearAllButton = CreateDressingRoomButton(parent, "ClearAllButton", "Clear All",
            new Vector2(0.12f, 0.01f), new Vector2(0.38f, 0.06f));
@@ -1117,7 +1306,7 @@ Shoulder,
         new Vector2(0.62f, 0.01f), new Vector2(0.88f, 0.06f));
    _applyButtonRect = _applyButton.GetComponent<RectTransform>();
 
-             Debug.Log($"[DressingRoomScreen] CreateButtons complete - Apply: {_applyButton != null}, Clear: {_clearAllButton != null}");
+             global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] CreateButtons complete - Apply: {_applyButton != null}, Clear: {_clearAllButton != null}");
          }
 
         private Button CreateDressingRoomButton(Transform parent, string name, string text, Vector2 anchorMin, Vector2 anchorMax)
@@ -1545,7 +1734,7 @@ _inputFields.Add(input);
    PopulateSkinColorDropdown(_skinColorDropdown);
         PopulateEyeColorDropdown(_eyeColorDropdown);
 
-   Debug.Log("[DressingRoomScreen] Created fashion panels with inputs/dropdowns");
+   global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Created fashion panels with inputs/dropdowns");
         }
 
         /// <summary>
@@ -1644,19 +1833,56 @@ _inputFields.Add(input);
 
    screenRoot.SetActive(true);
    screenRoot.transform.SetAsLastSibling();
-            // 0.0.635 (Fire: the inventory grid, the crafting panel and an icon wall sat on top of the kit book): in the kit shell the
+            // in the kit shell the
             // three-panel's own inventory panel (beside the book) is the only inventory; vanilla's full InventoryGui stays closed.
             if (!DressingThreePanel.ShellMode) OpenPlayerInventory();
 
-        Debug.Log($"[DressingRoomScreen] Opened for NPC: {npc?.GetDisplayName()}");
-            DressingThreePanel.Attach(this, npc);   // 0.0.597: grid / live preview / gear browser around the book
+        global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Opened for NPC: {npc?.GetDisplayName()}");
+            DressingThreePanel.Attach(this, npc);   // grid / live preview / gear browser around the book
+        }
+
+        // (option B): the Invincible value the toggle was shown with on load.
+        private bool _invincibleShown;
+
+        /// <summary>(option B): what the damage gate really does for this NPC. Explicitly set (npc_invincible_set) -> its own
+        /// flag; never set -> default: own flag, or static stage, or server StaticNpcInvulnerable (wander/patrol).</summary>
+        internal static bool EffectiveInvincible(NpcController npc)
+        {
+            if (npc == null) return false;
+            var nview = npc.GetComponent<ZNetView>();
+            var zdo = nview != null && nview.IsValid() ? nview.GetZDO() : null;
+            bool set = zdo != null ? zdo.GetBool("npc_invincible_set", false) : npc.infiniteHealthSet;
+            bool own = zdo != null ? zdo.GetBool("npc_infinite_health", false) : npc.infiniteHealth;
+            if (set || own) return own;
+            var ch = npc.GetComponent<Character>();
+            if (ch != null && global::FiresRPGmaker.UI.Patches.StaticNpcProtection.IsStaticStage(ch)) return true;
+            bool cfg = false;
+            try { cfg = global::FiresRPGmaker.Managers.ConfigManager.Instance?.configStaticNpcInvulnerable?.Value ?? false; } catch { }
+            return cfg;
+        }
+
+        /// <summary>(option B): records Invincible as explicit (value + npc_invincible_set via SaveToZDO) ONLY when the admin
+        /// changed the toggle from the value it was shown with; otherwise the NPC stays unset and npc_infinite_health is untouched.</summary>
+        internal static void ApplyInvincibleChoice(NpcController npc, bool shown, bool chosen)
+        {
+            if (npc == null || chosen == shown) return;
+            npc.infiniteHealth = chosen;
+            npc.infiniteHealthSet = true;
         }
 
         // Pushes the NPC's stats values onto the scroll-strip controls when the dressing room opens.
         private void RestoreStatControlsFromNpc(NpcController npc)
         {
             if (npc == null) return;
-            if (_infiniteHealthToggle != null) _infiniteHealthToggle.isOn = npc.infiniteHealth;
+            _restoringStats = true;   // showing the NPC's values is not a change (no live apply)
+            try { RestoreStatControlsCore(npc); } finally { _restoringStats = false; }
+            SyncKitStats();   // D3: the kit switches/sliders show the NPC's state on open
+        }
+        private void RestoreStatControlsCore(NpcController npc)
+        {
+            // (option B): show the EFFECTIVE value; remember it so Apply only records an explicit choice when the admin changed it.
+            _invincibleShown = EffectiveInvincible(npc);
+            if (_infiniteHealthToggle != null) _infiniteHealthToggle.isOn = _invincibleShown;
             if (_hideNameplateToggle != null) _hideNameplateToggle.isOn = npc.hideNameplate;
             if (_maxHealthSlider != null)
             {
@@ -1672,18 +1898,22 @@ _inputFields.Add(input);
             if (_respawnDelaySlider != null) _respawnDelaySlider.value = Mathf.Clamp(npc.respawnDelay, _respawnDelaySlider.minValue, _respawnDelaySlider.maxValue);
             if (_nameplateSizeSlider != null) _nameplateSizeSlider.value = Mathf.Clamp(npc.nameplateScale <= 0f ? 1f : npc.nameplateScale, _nameplateSizeSlider.minValue, _nameplateSizeSlider.maxValue);
             if (_nameplateYSlider != null) _nameplateYSlider.value = Mathf.Clamp(npc.nameplateYOffset, _nameplateYSlider.minValue, _nameplateYSlider.maxValue);
+            if (_defendToggle != null) _defendToggle.isOn = npc.defendWhenAttacked;   // N1
+            if (_defendRangeSlider != null) _defendRangeSlider.value = Mathf.Clamp(npc.defendLeash <= 0f ? 2f : npc.defendLeash, _defendRangeSlider.minValue, _defendRangeSlider.maxValue);
         }
 
         // Reads the scroll-strip controls back onto the NPC on Apply.
         private void ApplyStatControlsToNpc()
         {
             if (_currentNpc == null) return;
-            if (_infiniteHealthToggle != null) _currentNpc.infiniteHealth = _infiniteHealthToggle.isOn;
+            if (_infiniteHealthToggle != null) ApplyInvincibleChoice(_currentNpc, _invincibleShown, _infiniteHealthToggle.isOn);   // (option B): explicit only when changed
             if (_maxHealthSlider != null) _currentNpc.maxHealth = _maxHealthSlider.value;
             if (_respawnDelaySlider != null) _currentNpc.respawnDelay = _respawnDelaySlider.value;
             if (_hideNameplateToggle != null) _currentNpc.hideNameplate = _hideNameplateToggle.isOn;
             if (_nameplateSizeSlider != null) _currentNpc.nameplateScale = _nameplateSizeSlider.value;
             if (_nameplateYSlider != null) _currentNpc.nameplateYOffset = _nameplateYSlider.value;
+            if (_defendToggle != null) _currentNpc.defendWhenAttacked = _defendToggle.isOn;   // N1
+            if (_defendRangeSlider != null) _currentNpc.defendLeash = _defendRangeSlider.value;
             _currentNpc.ApplyMaxHealth();
         }
 
@@ -1812,7 +2042,7 @@ _inputFields.Add(input);
             if (_periodicSoundTimeInput != null && !string.IsNullOrEmpty(fashion.PeriodicSoundTime))
      _periodicSoundTimeInput.text = fashion.PeriodicSoundTime;
 
-         Debug.Log($"[DressingRoomScreen] Restored fashion selections from NPC - Hair: {fashion.HairItem}, Beard: {fashion.BeardItem}");
+         global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Restored fashion selections from NPC - Hair: {fashion.HairItem}, Beard: {fashion.BeardItem}");
     }
             catch (Exception ex)
          {
@@ -1830,8 +2060,11 @@ _inputFields.Add(input);
 
   public void Hide()
         {
+            try
+            {
      screenRoot.SetActive(false);
-            EndLivePreview(false);   // 0.0.659: left without Apply = the stored look back
+            EndLivePreview(false);   // left without Apply = the stored look back
+            EndIconDrag();
             _currentNpc = null;
         _pendingEquipment.Clear();
           _lastDraggedItem = null;
@@ -1848,11 +2081,15 @@ _sizeButtonRect = null;
       ClearSlotVisual(slot);
             }
 
-            DressingThreePanel.Detach();   // 0.0.597
+            }
+            catch (Exception ex) { Debug.LogWarning("[DressingRoomScreen] hide step failed (the side windows are still released): " + ex.Message); }
+            // an exception above used to skip
+            // this, and the caller swallows it; the Dressing room's windows are now ALWAYS released
+            try { DressingThreePanel.Detach(); } catch (Exception ex) { Debug.LogWarning("[DressingRoomScreen] detach: " + ex.Message); }
      ClosePlayerInventory();
             RestoreMainPanelButtons();
 
-      Debug.Log("[DressingRoomScreen] Hidden");
+      global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Hidden");
   }
 
         private void RestoreMainPanelButtons()
@@ -1868,8 +2105,8 @@ _sizeButtonRect = null;
                 if (InventoryGui.instance != null && !InventoryGui.IsVisible())
        {
          InventoryGui.instance.Show(null);
-                    SetInventoryDropButton(false);   // 0.0.545: its full-screen drop button (canvas 600) ate every click on the book (210)
-           Debug.Log("[DressingRoomScreen] Opened player inventory");
+                    SetInventoryDropButton(false);   // its full-screen drop button (canvas 600) ate every click on the book (210)
+           global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Opened player inventory");
            }
          }
     catch (Exception ex)
@@ -1878,7 +2115,7 @@ _sizeButtonRect = null;
      }
         }
 
-        // 0.0.545 ([visual]'s npc_looks: "Apply ... hit IngameGui/Inventory_screen/root/dropButton"): the inventory's root drop
+        // ([visual]'s npc_looks: "Apply ... hit IngameGui/Inventory_screen/root/dropButton"): the inventory's root drop
         // button stretches over the whole screen above the NPC book, so no click reached the dressing room while the
         // inventory was open. It is switched off while the dressing room uses the inventory, and back on when it closes.
         private static GameObject _droppedButton;
@@ -1906,7 +2143,7 @@ _sizeButtonRect = null;
   {
         SetInventoryDropButton(true);
                     InventoryGui.instance.Hide();
-         Debug.Log("[DressingRoomScreen] Closed player inventory");
+         global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Closed player inventory");
           }
          }
             catch (Exception ex)
@@ -1959,13 +2196,198 @@ _sizeButtonRect = null;
         {
             foreach (var slot in _slots.Values)
     {
-            SlotFace(slot);   // 0.0.659
+            SlotFace(slot);
     }
         }
 
         #endregion
 
  #region Equipment Management
+
+        // ----  rig hand test: "the slots don't show what the NPC spawned with; a dropped weapon / armour shows only
+        // after Apply"): a static NPC is DRESSED by Core's CompanionInventory (its humanoid cells -> VisEquipment), not by NpcController's
+        // equip fields. The room now READS the slots from CompanionInventory.GetEquippedItem when it opens, and EQUIPS through
+        // CompanionInventory.EquipItem / UnequipSlot on every drop, browser pick and clear, so the NPC and the live preview change at once.
+        // NpcController's fields are still written (SetEquipmentData + SaveToZDO) so a reload agrees. Reused: Core CompanionInventory.
+        private FiresCore.Npc.CompanionInventory LiveInventory()
+        {
+            try { return _currentNpc != null ? _currentNpc.GetComponent<FiresCore.Npc.CompanionInventory>() : null; } catch { return null; }
+        }
+        private static bool CoreSlot(EquipmentSlot slot, out FiresCore.Npc.CompanionInventory.EquipmentSlot core)
+            => Enum.TryParse(slot.ToString(), out core);
+
+        /// <summary>The prefab the NPC is actually wearing in a slot (Core CompanionInventory), "" when empty, null when unknown.</summary>
+        private string LiveWorn(EquipmentSlot slot)
+        {
+            var ci = LiveInventory();
+            if (ci == null || !CoreSlot(slot, out var cs)) return null;
+            try
+            {
+                var it = ci.GetEquippedItem(cs);
+                return it == null ? "" : (it.m_dropPrefab != null ? it.m_dropPrefab.name : "");
+            }
+            catch { return null; }
+        }
+
+        // on a client the server-owned body only changed after the equip round-tripped
+        // the owner and the VisEquipment ZDO synced back. The admin's client now takes ownership first when the server (or nobody) owns
+        // it, the same rule as 's Max Health (NpcController.ApplyMaxHealth), so Core equips on the local body and VisEquipment +
+        // the live preview update this frame; SaveToZDO then syncs out in the background. A body owned by another player is left alone.
+        private void ClaimBodyIfServerOwned()
+        {
+            try
+            {
+                var nv = _currentNpc != null ? _currentNpc.GetComponent<ZNetView>() : null;
+                if (nv == null || !nv.IsValid() || nv.IsOwner()) return;
+                long owner = nv.GetZDO().GetOwner();
+                var srv = ZNet.instance != null && !ZNet.instance.IsServer() ? ZNet.instance.GetServerPeer() : null;
+                if (owner == 0L || (srv != null && srv.m_uid == owner))
+                {
+                    nv.ClaimOwnership();
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] 0.0.705 claimed '{_currentNpc.GetDisplayName()}' from server {owner} so gear shows at once");
+                }
+            }
+            catch (Exception ex) { Debug.LogWarning("[DressingRoomScreen] claim body failed: " + ex.Message); }
+        }
+
+        /// <summary>Puts the prefab on the NPC NOW through Core (empty = take it off). True when Core took it.</summary>
+        private bool WearNow(EquipmentSlot slot, string prefabName)
+        {
+            var ci = LiveInventory();
+            if (ci == null || !CoreSlot(slot, out var cs)) return false;
+            ClaimBodyIfServerOwned();   // D2
+            try
+            {
+                if (string.IsNullOrEmpty(prefabName)) { ci.UnequipSlot(cs); return true; }
+                var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(prefabName) : null;
+                var drop = prefab != null ? prefab.GetComponent<ItemDrop>() : null;
+                if (drop == null) return false;
+                var item = drop.m_itemData.Clone();
+                item.m_dropPrefab = prefab; item.m_stack = 1;
+                if (item.m_quality < 1) item.m_quality = 1;
+                item.m_durability = item.GetMaxDurability();
+                bool ok = ci.EquipItem(cs, item);
+                // a refusal tries the paired slot
+                // (right / left hand, right / left back) the way the player's own equip would place it, then says so when nothing takes it
+                if (!ok)
+                {
+                    EquipmentSlot alt = slot == EquipmentSlot.RightHand ? EquipmentSlot.LeftHand : slot == EquipmentSlot.LeftHand ? EquipmentSlot.RightHand
+                        : slot == EquipmentSlot.RightBack ? EquipmentSlot.LeftBack : slot == EquipmentSlot.LeftBack ? EquipmentSlot.RightBack : slot;
+                    if (alt != slot && CoreSlot(alt, out var cs2))
+                    {
+                        var item2 = drop.m_itemData.Clone(); item2.m_dropPrefab = prefab; item2.m_stack = 1;
+                        if (item2.m_quality < 1) item2.m_quality = 1;
+                        item2.m_durability = item2.GetMaxDurability();
+                        ok = ci.EquipItem(cs2, item2);
+                        if (ok) global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] wear now: {prefabName} does not fit {slot}, worn in {alt} instead");
+                    }
+                    if (!ok) Player.m_localPlayer?.Message(MessageHud.MessageType.Center, $"{(drop.m_itemData.m_shared.m_name ?? prefabName)} doesn't fit that slot");
+                }
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] wear now: {slot} = {prefabName} on '{_currentNpc.GetDisplayName()}' via Core CompanionInventory -> {(ok ? "worn" : "REFUSED")}; now worn '{LiveWorn(slot)}'");
+                return ok;
+            }
+            catch (Exception ex) { Debug.LogWarning($"[DressingRoomScreen] wear now {slot} failed: " + ex.Message); return false; }
+        }
+
+        // after any wear / clear, every slot shows what the NPC REALLY wears (a two-hander also clears the other hand; a refused
+        // item never stays in a slot), the editable fields + ZDO follow, and the live preview redraws at once.
+        private void ResyncFromLive()
+        {
+            if (_currentNpc == null || LiveInventory() == null) return;
+            int changed = 0;
+            foreach (var kv in _slots)
+            {
+                if (kv.Key == EquipmentSlot.Pet) continue;
+                string w = LiveWorn(kv.Key);
+                if (w == null) continue;
+                if ((kv.Value.CurrentPrefab ?? "") != w) { SetSlotItem(kv.Value, w); changed++; }
+                _pendingEquipment[kv.Key] = w;
+            }
+            try { _currentNpc.SetEquipmentData(_pendingEquipment); _currentNpc.SaveToZDO(); } catch { }
+            global::FiresRPGmaker.UI.Screens.DressingThreePanel.RefreshPreviewNow();
+            if (changed > 0) global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] slots resynced to the worn gear ({changed} slot(s) corrected)");
+        }
+
+        // ----  "click-DRAG items from the Wardrobe into a specific slot, and drag between slots / back out to unequip,
+        // like the player inventory"). Reuses the room's own pieces: GetSlotUnderMouse (the manual hit-test the room already uses because
+        // InventoryGui swallows events), SetFromBrowser (wear now + resync, no refund) and the clear path. Only the icon that follows the
+        // cursor is new. Sources: a Wardrobe item (FATI ItemDragStarted -> BeginBrowserDrag) or a filled slot (press + 6 px).
+        private string _dragPrefab;                 // what is being dragged
+        private EquipmentSlotUI _dragFromSlot;      // null = from the Wardrobe
+        private GameObject _dragIconGo;
+        private EquipmentSlotUI _pressSlot; private Vector2 _pressPos;
+
+        internal void BeginBrowserDrag(GameObject prefab)
+        {
+            if (prefab == null || _currentNpc == null) return;
+            StartIconDrag(prefab.name, null, prefab.GetComponent<ItemDrop>()?.m_itemData?.GetIcon());
+        }
+
+        private void StartIconDrag(string prefabName, EquipmentSlotUI from, Sprite icon)
+        {
+            _dragPrefab = prefabName; _dragFromSlot = from;
+            var canvas = screenRoot != null ? screenRoot.GetComponentInParent<Canvas>()?.rootCanvas : null;
+            if (canvas != null && icon != null)
+            {
+                _dragIconGo = new GameObject("DressDragIcon", typeof(RectTransform), typeof(Image));
+                var rt = (RectTransform)_dragIconGo.transform; rt.SetParent(canvas.transform, false); rt.SetAsLastSibling();
+                rt.sizeDelta = new Vector2(64f, 64f);
+                var im = _dragIconGo.GetComponent<Image>(); im.sprite = icon; im.raycastTarget = false; im.preserveAspect = true;
+            }
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] drag start: {prefabName} from {(from != null ? from.SlotType.ToString() : "the Wardrobe")}");
+        }
+
+        private void EndIconDrag()
+        {
+            if (_dragIconGo != null) Destroy(_dragIconGo);
+            _dragIconGo = null; _dragPrefab = null; _dragFromSlot = null;
+        }
+
+        /// <summary>Called every frame from Update while the room is open.</summary>
+        private void TickItemDrag()
+        {
+            Vector2 mouse = Input.mousePosition;
+            // a press on a filled slot becomes a drag after 6 px
+            if (_dragPrefab == null)
+            {
+                if (Input.GetMouseButtonDown(0)) { var s = GetSlotUnderMouse(); _pressSlot = s != null && s.SlotType != EquipmentSlot.Pet && !string.IsNullOrEmpty(s.CurrentPrefab) ? s : null; _pressPos = mouse; }
+                if (_pressSlot != null && Input.GetMouseButton(0) && (mouse - _pressPos).sqrMagnitude > 36f)
+                {
+                    var p = _pressSlot; _pressSlot = null;
+                    StartIconDrag(p.CurrentPrefab, p, p.Icon != null ? p.Icon.sprite : null);
+                }
+                if (!Input.GetMouseButton(0)) _pressSlot = null;
+                if (_dragPrefab == null) return;
+            }
+            if (_dragIconGo != null) _dragIconGo.transform.position = mouse;
+            if (Input.GetMouseButton(0)) return;
+            // released
+            var target = GetSlotUnderMouse();
+            string prefab = _dragPrefab; var from = _dragFromSlot;
+            EndIconDrag();
+            if (target != null && target == from) return;   // dropped back where it came from
+            if (target != null)
+            {
+                if (from != null) OnSlotClearedNoRefund(from.SlotType);   // slot -> slot: a move
+                SetFromBrowser(target.SlotType, prefab);
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] drag drop: {prefab} -> {target.SlotType}{(from != null ? $" (moved from {from.SlotType})" : "")}");
+            }
+            else if (from != null)
+            {
+                OnSlotClearedNoRefund(from.SlotType);   // dragged out of the slots: unequip
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] drag drop: {prefab} dragged out of {from.SlotType} -> unequipped");
+            }
+        }
+
+        /// <summary>Clears a slot (the NPC takes it off now) without handing the item to the player: a drag move / drag-out.</summary>
+        private void OnSlotClearedNoRefund(EquipmentSlot slotType)
+        {
+            if (!_slots.TryGetValue(slotType, out var slot)) return;
+            ClearSlotVisual(slot);
+            _pendingEquipment.Remove(slotType);
+            WearNow(slotType, "");
+            ResyncFromLive();
+        }
 
         private void LoadEquipmentFromNpc(NpcController npc)
         {
@@ -1984,16 +2406,27 @@ _sizeButtonRect = null;
 
             foreach (EquipmentSlot slot in Enum.GetValues(typeof(EquipmentSlot)))
             {
-                if (slot == EquipmentSlot.Pet) { LoadPetSlot(npc); continue; }   // 0.0.559
+                if (slot == EquipmentSlot.Pet) { LoadPetSlot(npc); continue; }
                 string fieldVal = equipment.TryGetValue(slot, out var v) ? (v ?? "") : "";
                 string liveVal = (zdo != null) ? GetVanillaEquipName(zdo, slot) : "";
 
-                string used = fieldVal;
-                string source = "field";
+                // what the NPC is ACTUALLY wearing (Core CompanionInventory) wins; then the editable field; then VisEquipment
+                string worn = LiveWorn(slot);
+                string used = worn ?? fieldVal;
+                string source = worn != null ? "worn" : "field";
+                // Core's CompanionInventory reported "" (empty cell) while
+                // the body wears the field/VisEquipment item, and "" won over both. An empty worn cell now falls back to the field, then
+                // VisEquipment, and the item is put INTO Core's cell (WearNow) so clearing the slot really unequips it.
+                if (string.IsNullOrEmpty(used) && !string.IsNullOrEmpty(fieldVal)) { used = fieldVal; source = "field"; }
                 if (string.IsNullOrEmpty(used) && !string.IsNullOrEmpty(liveVal))
                 {
                     used = liveVal;
                     source = "visEquip";
+                }
+                if (worn == "" && !string.IsNullOrEmpty(used))
+                {
+                    bool took = WearNow(slot, used);
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] 0.0.705 slot {slot}: Core cell empty, NPC wears '{used}' ({source}) -> adopted into Core cell: {took}");
                 }
 
                 if (_slots.TryGetValue(slot, out var slotUI))
@@ -2001,10 +2434,10 @@ _sizeButtonRect = null;
                 _pendingEquipment[slot] = used;
 
                 string zdoStr = (zdo != null) ? zdo.GetString(ZdoEquipStringKey(slot), "<none>") : "<no-zdo>";
-                Debug.Log($"[WeaponDiag] {slot}: field='{fieldVal}' zdoStr='{zdoStr}' visEquip='{liveVal}' -> '{used}' ({source})");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[WeaponDiag] {slot}: field='{fieldVal}' zdoStr='{zdoStr}' visEquip='{liveVal}' -> '{used}' ({source})");
             }
 
-            Debug.Log($"[WeaponDiag] owner={(zdo != null && zdo.IsOwner())} " +
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[WeaponDiag] owner={(zdo != null && zdo.IsOwner())} " +
                       $"server={(ZNet.instance != null && ZNet.instance.IsServer())} npc={npc.GetDisplayName()}");
         }
 
@@ -2077,7 +2510,7 @@ if (itemDrop == null)
             return;
        }
             ReportMissingParts(slot);
-            SlotFace(slot);   // 0.0.659
+            SlotFace(slot);
 
         if (itemDrop.m_itemData?.m_shared?.m_icons != null &&
    itemDrop.m_itemData.m_shared.m_icons.Length > 0)
@@ -2093,10 +2526,10 @@ if (itemDrop == null)
    displayName = Localization.instance?.Localize(displayName) ?? displayName;
             if (slot.ItemName != null) { slot.ItemName.text = displayName; slot.ItemName.gameObject.SetActive(true); }
 
-            Debug.Log($"[DressingRoomScreen] Set slot {slot.SlotType} to {prefabName}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Set slot {slot.SlotType} to {prefabName}");
         }
 
-        // 0.0.569: a slot whose wiring found no Background / Icon / ItemName (a cloned or reskinned slot) is drawn with what it has;
+        // a slot whose wiring found no Background / Icon / ItemName (a cloned or reskinned slot) is drawn with what it has;
         // which parts are missing is logged once per slot instead of a NullReferenceException that aborted the whole dressing load.
         private readonly HashSet<EquipmentSlot> _reportedSlotParts = new HashSet<EquipmentSlot>();
         private void ReportMissingParts(EquipmentSlotUI slot)
@@ -2108,25 +2541,37 @@ if (itemDrop == null)
         public void ClearSlotVisual(EquipmentSlotUI slot)
         {
          if (slot == null) return;
-            ReportMissingParts(slot);   // 0.0.569 (R-1012G NRE: a slot without its Background / Icon / ItemName)
+            ReportMissingParts(slot);
             slot.CurrentPrefab = null;
-            SlotFace(slot);   // 0.0.659
-            if (slot.Icon != null) { slot.Icon.sprite = null; slot.Icon.color = new Color(1f, 1f, 1f, 0f); }   // 0.0.659 (Fire: no grey placeholder in an empty slot)
+            SlotFace(slot);
+            if (slot.Icon != null) { slot.Icon.sprite = null; slot.Icon.color = new Color(1f, 1f, 1f, 0f); }
 
       if (slot.Label != null)
     slot.Label.gameObject.SetActive(true);
             if (slot.ItemName != null) { slot.ItemName.text = ""; slot.ItemName.gameObject.SetActive(false); }
    }
 
-        public void OnSlotCleared(EquipmentSlot slotType)
+        public void OnSlotCleared(EquipmentSlot slotType) => OnSlotCleared(slotType, false);
+
+        /// <summary>Takes the slot's item off the NPC into the player's inventory; with <paramref name="pickUp"/> it then rides
+        /// the cursor, as a click in the player grid picks an item up (drop it on another slot or a cell to place/swap).</summary>
+        public void OnSlotCleared(EquipmentSlot slotType, bool pickUp)
  {
-            if (slotType == EquipmentSlot.Pet) { OpenPetPicker(); return; }   // 0.0.559: right-click on the Pet slot picks
+            if (slotType == EquipmentSlot.Pet && !pickUp) { OpenPetPicker(); return; }   // right-click on the Pet slot picks
             if (_slots.TryGetValue(slotType, out var slot))
           {
-          ReturnItemToInventory(slot.CurrentPrefab);
+          string takenPrefab = slot.CurrentPrefab;
+          var returned = ReturnItemToInventory(takenPrefab);
+          if (pickUp)
+          {
+              bool onCursor = PutOnCursor(returned, Player.m_localPlayer?.GetInventory());
+              global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] picked up {takenPrefab} from slot {slotType}: {(onCursor ? "on the cursor" : returned == null ? "not returned (inventory full: dropped)" : "in your inventory (cursor busy)")}");
+          }
      ClearSlotVisual(slot);
  _pendingEquipment.Remove(slotType);
-       Debug.Log($"[DressingRoomScreen] Cleared slot {slotType}");
+            WearNow(slotType, "");   // off the NPC now
+            ResyncFromLive();   // the preview redraws the moment it comes off
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Cleared slot {slotType}");
 
            if (_currentNpc != null)
                 {
@@ -2144,35 +2589,35 @@ if (itemDrop == null)
             }
         }
 
-        private void ReturnItemToInventory(string prefabName)
+        private ItemDrop.ItemData ReturnItemToInventory(string prefabName)
         {
-    if (string.IsNullOrEmpty(prefabName)) return;
+    if (string.IsNullOrEmpty(prefabName)) return null;
 
        var player = Player.m_localPlayer;
-            if (player == null) return;
+            if (player == null) return null;
 
     var inventory = player.GetInventory();
-        if (inventory == null) return;
+        if (inventory == null) return null;
 
   var itemPrefab = ObjectDB.instance?.GetItemPrefab(prefabName);
     if (itemPrefab == null)
             {
                 Debug.LogWarning($"[DressingRoomScreen] Cannot return item - prefab not found: {prefabName}");
-     return;
+     return null;
             }
 
             var itemDrop = itemPrefab.GetComponent<ItemDrop>();
        if (itemDrop == null)
    {
              Debug.LogWarning($"[DressingRoomScreen] Cannot return item - no ItemDrop component: {prefabName}");
-              return;
+              return null;
      }
 
      var addedItem = inventory.AddItem(prefabName, 1, itemDrop.m_itemData.m_quality, itemDrop.m_itemData.m_variant, 0, "", false);
 
    if (addedItem != null)
    {
-                Debug.Log($"[DressingRoomScreen] Returned {prefabName} to player inventory");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Returned {prefabName} to player inventory");
           MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, $"Returned {GetItemDisplayName(prefabName)} to inventory");
             }
             else
@@ -2181,6 +2626,18 @@ if (itemDrop == null)
      MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center, "Inventory full! Item dropped on ground.");
    DropItemOnGround(prefabName);
  }
+            return addedItem;
+        }
+
+        // Puts an item of the player's own inventory on vanilla's cursor, exactly as a click in the player grid does (a drag from
+        // the player's inventory is never cancelled by InventoryGui.UpdateContainer).
+        private static readonly System.Reflection.MethodInfo s_setupDragItem = HarmonyLib.AccessTools.Method(typeof(InventoryGui), "SetupDragItem");
+
+        private static bool PutOnCursor(ItemDrop.ItemData item, Inventory from)
+        {
+            if (item == null || from == null || InventoryGui.instance == null || s_setupDragItem == null || !from.ContainsItem(item)) return false;
+            s_setupDragItem.Invoke(InventoryGui.instance, new object[] { item, from, item.m_stack });
+            return true;
         }
 
         private void DropItemOnGround(string prefabName)
@@ -2194,7 +2651,7 @@ if (itemDrop == null)
             var dropPos = player.transform.position + player.transform.forward * 1.5f + Vector3.up * 0.5f;
             UnityEngine.Object.Instantiate(itemPrefab, dropPos, Quaternion.identity);
 
-       Debug.Log($"[DressingRoomScreen] Dropped {prefabName} on ground at {dropPos}");
+       global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Dropped {prefabName} on ground at {dropPos}");
         }
 
         private string GetItemDisplayName(string prefabName)
@@ -2212,9 +2669,34 @@ if (itemDrop == null) return prefabName;
  return displayName;
      }
 
+        // a Wardrobe (FATI) or gear-browser pick only set the
+        // slot icon (SetSlotItem), never _pendingEquipment, so the NPC never wore it and Apply never saved it. Now it is the same path
+        // as a drag-drop: pending + worn at once + saved to the ZDO, minus the drop's "give the old item back" (browser items are
+        // admin spawns, not the player's).
+        public void SetFromBrowser(EquipmentSlot slotType, string prefabName)
+        {
+            if (slotType == EquipmentSlot.Pet) { OnPetDropped(prefabName); return; }
+            if (!_slots.TryGetValue(slotType, out var slot)) return;
+            SetSlotItem(slot, prefabName);
+            _pendingEquipment[slotType] = prefabName;
+            if (_currentNpc == null) return;
+            WearNow(slotType, prefabName);
+            ResyncFromLive();
+            try
+            {
+                _currentNpc.SetEquipmentData(_pendingEquipment);
+                if (slotType == EquipmentSlot.RightHand || slotType == EquipmentSlot.LeftHand) _currentNpc.SetEquipmentItemData(slotType, "");
+                _currentNpc.ApplyVisualEquipment();
+                _currentNpc.Invoke("ApplyVisualEquipment", 0.05f);
+                _currentNpc.SaveToZDO();
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] browser pick: slot {slotType} = {prefabName} (worn + saved, pending {_pendingEquipment.Count})");
+            }
+            catch (Exception ex) { Debug.LogWarning("[DressingRoomScreen] browser pick apply failed: " + ex.Message); }
+        }
+
         public void OnItemDropped(EquipmentSlot slotType, string prefabName)
         {
-            if (slotType == EquipmentSlot.Pet) { OnPetDropped(prefabName); return; }   // 0.0.559
+            if (slotType == EquipmentSlot.Pet) { OnPetDropped(prefabName); return; }
  if (_slots.TryGetValue(slotType, out var slot))
             {
      if (!string.IsNullOrEmpty(slot.CurrentPrefab))
@@ -2224,7 +2706,9 @@ if (itemDrop == null) return prefabName;
 
   SetSlotItem(slot, prefabName);
   _pendingEquipment[slotType] = prefabName;
- Debug.Log($"[DressingRoomScreen] OnItemDropped - slot {slotType} = {prefabName}, pending count: {_pendingEquipment.Count}");
+            WearNow(slotType, prefabName);   // on the NPC (and the live preview) NOW, not at Apply
+            ResyncFromLive();
+ global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] OnItemDropped - slot {slotType} = {prefabName}, pending count: {_pendingEquipment.Count}");
 
      if (_currentNpc != null)
           {
@@ -2256,7 +2740,7 @@ if (itemDrop == null) return prefabName;
 }
         }
 
-        // 0.0.659 (Fire 10-16: "appearance changes do not show in the preview until Apply Changes"): the fashion the dropdowns hold, built
+        // the fashion the dropdowns hold, built
         // once here for Apply AND the live preview. Fields the UI has no control for carry the NPC's current values.
         private NPCFashionData BuildFashion(NpcFashionComponent existingComp)
         {
@@ -2319,7 +2803,7 @@ if (itemDrop == null) return prefabName;
 
         public void HandleApplyClicked()
         {
-            Debug.Log("[DressingRoomScreen] Apply button clicked!");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Apply button clicked!");
 
  if (_currentNpc == null)
         {
@@ -2328,15 +2812,15 @@ if (itemDrop == null) return prefabName;
                 return;
  }
 
-   Debug.Log($"[DressingRoomScreen] Applying {_pendingEquipment.Count} equipment items to NPC: {_currentNpc.GetDisplayName()}");
+   global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Applying {_pendingEquipment.Count} equipment items to NPC: {_currentNpc.GetDisplayName()}");
 
         foreach (var kvp in _pendingEquipment)
    {
-     Debug.Log($"[DressingRoomScreen] Pending: {kvp.Key} = {kvp.Value}");
+     global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Pending: {kvp.Key} = {kvp.Value}");
             }
 
     _currentNpc.SetEquipmentData(_pendingEquipment);
-            Debug.Log("[DressingRoomScreen] Called SetEquipmentData");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Called SetEquipmentData");
 
     // Collect fashion settings - now using dropdowns for colors
   string fashionJson = null;
@@ -2346,7 +2830,7 @@ if (itemDrop == null) return prefabName;
     // carry the NPC's current values through instead of blanking them (blanking broke migrated
     // kg NPCs: crafting pose lost + LookAtPlayer forced true on every admin Apply).
     var existingComp = _currentNpc.GetComponent<NpcFashionComponent>();
-    var fashion = BuildFashion(existingComp);   // 0.0.659: one builder for Apply and the live preview
+    var fashion = BuildFashion(existingComp);   // one builder for Apply and the live preview
 
             _currentNpc.hairItem = NormalizeDropdownValue(fashion.HairItem);
             _currentNpc.hairColor = NormalizeDropdownValue(fashion.HairColor);
@@ -2355,11 +2839,11 @@ if (itemDrop == null) return prefabName;
 
       fashionJson = JsonConvert.SerializeObject(fashion);
    NpcFashionManager.ApplyFashionJsonToNpc(fashionJson, _currentNpc);
-            Debug.Log("[DressingRoomScreen] Applied fashion JSON to NPC from UI");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Applied fashion JSON to NPC from UI");
 
                 _currentNpc.SetPendingFashionJson(fashionJson);
-                EndLivePreview(true);   // 0.0.659: the previewed look is now the stored one
- Debug.Log("[DressingRoomScreen] Stored fashion JSON in NPC for persistence");
+                EndLivePreview(true);   // the previewed look is now the stored one
+ global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Stored fashion JSON in NPC for persistence");
        }
       catch (Exception ex)
         {
@@ -2367,13 +2851,13 @@ if (itemDrop == null) return prefabName;
     }
 
             _currentNpc.ApplyVisualEquipment();
- Debug.Log("[DressingRoomScreen] Called ApplyVisualEquipment");
+ global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Called ApplyVisualEquipment");
 
             ApplyStatControlsToNpc();
 
             _currentNpc.SaveToZDO();
-            global::FiresRPGmaker.Managers.SavedNpcManager.RedressNow(_currentNpc, "dressing Apply");   // 0.0.508: the owner writes the look now
- Debug.Log("[DressingRoomScreen] Called SaveToZDO");
+            global::FiresRPGmaker.Managers.SavedNpcManager.RedressNow(_currentNpc, "dressing Apply");   // the owner writes the look now
+ global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Called SaveToZDO");
 
           int equippedCount = 0;
   foreach (var kvp in _pendingEquipment)
@@ -2387,16 +2871,16 @@ if (itemDrop == null) return prefabName;
     : "NPC equipment cleared!";
 
             MessageHud.instance?.ShowMessage(MessageHud.MessageType.TopLeft, message);
-            Debug.Log($"[DressingRoomScreen] Applied {equippedCount} equipment items to NPC: {_currentNpc.GetDisplayName()}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[DressingRoomScreen] Applied {equippedCount} equipment items to NPC: {_currentNpc.GetDisplayName()}");
         }
 
  public void HandleClearAllClicked()
         {
-      Debug.Log("[DressingRoomScreen] Clear All button clicked");
+      global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Clear All button clicked");
 
             foreach (var slot in _slots.Values)
      {
-                if (slot.SlotType == EquipmentSlot.Pet) { SetNpcPet("", "clear all"); continue; }   // 0.0.559
+                if (slot.SlotType == EquipmentSlot.Pet) { SetNpcPet("", "clear all"); continue; }
         if (!string.IsNullOrEmpty(slot.CurrentPrefab))
     {
                   ReturnItemToInventory(slot.CurrentPrefab);
@@ -2405,7 +2889,7 @@ if (itemDrop == null) return prefabName;
             }
 
         _pendingEquipment.Clear();
-  Debug.Log("[DressingRoomScreen] Cleared all equipment slots and returned items to inventory");
+  global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Cleared all equipment slots and returned items to inventory");
 
       if (_currentNpc != null)
             {
@@ -2424,14 +2908,14 @@ if (itemDrop == null) return prefabName;
 
         private void OnBackClicked()
         {
-            Debug.Log("[DressingRoomScreen] Back button clicked");
+            global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Back button clicked");
    Hide();
 
         }
 
         private void OnCloseButtonClicked()
         {
-Debug.Log("[DressingRoomScreen] Close button clicked");
+global::FiresRPGmaker.FiresLogger.LogDebug("[DressingRoomScreen] Close button clicked");
      Hide();
 
       }
@@ -2476,6 +2960,8 @@ Debug.Log("[DressingRoomScreen] Close button clicked");
                 {
                     var dragItem = HarmonyLib.AccessTools.Field(typeof(InventoryGui), "m_dragItem")?.GetValue(InventoryGui.instance) as ItemDrop.ItemData;
                     if (dragItem != null) global::FiresRPGmaker.UI.Patches.InventoryGui_OnSelectedItem_Patch.HandleDressingRoomDrop(InventoryGui.instance, dragItem, _slot);
+                    // An empty cursor picks the slot's item up, like the player grid does
+                    else if (!string.IsNullOrEmpty(_slot.CurrentPrefab)) _controller.OnSlotCleared(_slot.SlotType, pickUp: true);
                 }
          }
         }
@@ -2511,11 +2997,10 @@ Debug.Log("[DressingRoomScreen] Close button clicked");
          EquipmentSlot.Utility => itemType == ItemDrop.ItemData.ItemType.Utility,
        EquipmentSlot.RightHand => itemType == ItemDrop.ItemData.ItemType.OneHandedWeapon ||
    itemType == ItemDrop.ItemData.ItemType.TwoHandedWeapon ||
-        itemType == ItemDrop.ItemData.ItemType.TwoHandedWeaponLeft ||
-        itemType == ItemDrop.ItemData.ItemType.Bow ||
         itemType == ItemDrop.ItemData.ItemType.Tool ||
         itemType == ItemDrop.ItemData.ItemType.Torch,
-     EquipmentSlot.LeftHand => itemType == ItemDrop.ItemData.ItemType.Shield ||
+     EquipmentSlot.LeftHand => itemType == ItemDrop.ItemData.ItemType.Shield ||   // vanilla Humanoid: Bow + TwoHandedWeaponLeft go to m_leftItem
+        itemType == ItemDrop.ItemData.ItemType.Bow || itemType == ItemDrop.ItemData.ItemType.TwoHandedWeaponLeft ||
            itemType == ItemDrop.ItemData.ItemType.Torch ||
      itemType == ItemDrop.ItemData.ItemType.OneHandedWeapon,
   EquipmentSlot.RightBack => itemType == ItemDrop.ItemData.ItemType.OneHandedWeapon ||

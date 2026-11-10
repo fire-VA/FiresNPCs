@@ -13,7 +13,7 @@ namespace FiresRPGmaker.Modules.Dialogues
     /// <summary>
     /// In-game dialogue panel for NPC conversations.
     /// Built programmatically following the UIPrefabFactory pattern.
-    /// 
+    ///
     /// Features:
     /// - NPC name + dialogue text display (Marketplace-style bottom-center panel)
     /// - Optional background image
@@ -960,12 +960,12 @@ namespace FiresRPGmaker.Modules.Dialogues
 
         /// <summary>The player is typing somewhere: chat, the console, or a text prompt.</summary>
         private static bool Typing() =>
-            FiresCore.Input.FiresInputBlock.IsTyping() // 0.0.550 typing gate (Fire 10-09)
+            FiresCore.Input.FiresInputBlock.IsTyping() // typing gate
             || (Chat.instance != null && Chat.instance.HasFocus()) || Console.IsVisible() || TextInput.IsVisible();
 
         private static void HandleHotkeys()
         {
-            if (Typing()) return; // 0.0.550 typing gate (Fire 10-09)
+            if (Typing()) return; // typing gate
             // Keys 1-9 map to options 0-8; key 0 maps to option 9. Options are numbered by their VISIBLE position, so the
             // key, the badge and a click all reach the same row.
             for (int i = 0; i < 10 && i < _activeOptions.Count; i++)

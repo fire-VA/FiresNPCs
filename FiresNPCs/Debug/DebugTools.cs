@@ -31,7 +31,21 @@ namespace FiresRPGmaker
         /// </summary>
         public static void RegisterConsoleCommands()
         {
-            FiresNpcsTest.Register();   // 0.0.613: firesnpcs_test (area test for the runner)
+#if FIRES_TESTS
+            FiresNpcsTest.Register();   // firesnpcs_test (area test for the runner)
+            DressingProofTest.Register();   // firesnpcs_dressing_proof
+            ChatScrollTest.Register();   // rpg_chat_scroll_test
+            FiresNpcsTest.RegisterUiTour();   // rpg_ui_tour_test
+            FiresNpcsTest.RegisterDamageTest();   // npc_damage_test
+            FiresNpcsTest.RegisterStaleRecordTest();   // npc_stale_record_test
+            StudioOpsTest.Register();   // rpgm_studio_test
+            TerritoryToolsTest.Register();   // territory_tools_test
+            TerritoryLedgerTest.Register();   // territory_ledger_test
+            TerritoryLedgerSealTest.Register();   // territory_ledger_seal_test
+            FiresNpcsTest.RegisterLeaderboardUiTest();   // rpg_leaderboard_ui_test
+            FiresNpcsTest.RegisterNpcBookCloseTest();   // rpg_npcbook_close_test
+            FiresNpcsTest.RegisterFireListTest();   // rpg_npc_fire_list_test
+#endif
 // Load last push time from disk if available
             try
             {
@@ -75,12 +89,12 @@ namespace FiresRPGmaker
             // NPC UI DEBUG COMMANDS
      // ============================================================
 
-     // 0.0.606 ([lead] 10-15): scripted patrol-map check for seasons_round (admin only)
+     // scripted patrol-map check for seasons_round (admin only)
       new Terminal.ConsoleCommand("firesnpcs_patrolmap", "Opens the patrol map view on the nearest NPC. Usage: firesnpcs_patrolmap [x z [halfSize]]",
           (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsoleOpen(args));
       new Terminal.ConsoleCommand("firesnpcs_patrolmap_shot", "Saves the patrol map render as PNG and logs pixel shares. Usage: firesnpcs_patrolmap_shot <file.png>",
-          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsoleShot(args));
-      // 0.0.611 ([lead] scripted proof): the same path as Shift+E -> book, and the map view's Preview
+          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsoleShot(args), isCheat: true);
+      // the same path as Shift+E -> book, and the map view's Preview
       new Terminal.ConsoleCommand("firesnpcs_npcbook", "Opens the NPC book on the nearest NPC (admin; the Shift+E path)",
           (Terminal.ConsoleEventArgs args) =>
           {
@@ -95,12 +109,12 @@ namespace FiresRPGmaker
               var npc = global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.NearestNpc();
               if (npc == null) { args.Context?.AddString("no NPC loaded near you"); return; }
               global::FiresRPGmaker.UI.PatrolRoutePopup.Open(npc, global::FiresRPGmaker.UI.NpcBookController.Instance != null && global::FiresRPGmaker.UI.NpcBookController.Instance.IsOpen ? global::FiresRPGmaker.UI.NpcBookController.Instance : null);
-              Debug.Log($"[PatrolRoutePopup] console open on '{npc.GetDisplayName()}'");
+              global::FiresRPGmaker.FiresLogger.LogDebug($"[PatrolRoutePopup] console open on '{npc.GetDisplayName()}'");
               args.Context?.AddString($"[PatrolRoutePopup] console open on '{npc.GetDisplayName()}'");
           });
       new Terminal.ConsoleCommand("firesnpcs_patrolmap_preview", "Starts / pauses the patrol map Preview (map view must be open with 2+ points)",
-          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsolePreview(args));
-      // 0.0.620 (Fire 10-15: prove the Live map): opens the large map with the « Live map » header on, or closes it
+          (Terminal.ConsoleEventArgs args) => global::FiresRPGmaker.UI.Screens.Patrol.PatrolMapView.ConsolePreview(args), isCheat: true);
+      // opens the large map with the « Live map » header on, or closes it
       new Terminal.ConsoleCommand("firesnpcs_livemap", "Opens the large map with the Live map header on (or 'off' closes it). Usage: firesnpcs_livemap [on|off]",
           (Terminal.ConsoleEventArgs args) =>
           {
@@ -135,9 +149,9 @@ namespace FiresRPGmaker
           Debug.LogError($"[FiresRPGmaker] testnpcui exception: {ex}");
            args.Context.AddString($"[FiresRPGmaker] testnpcui error: {ex.Message}");
     }
-       });
+       }, isCheat: true);
 
-            // 0.0.543 (the lead, for [visual]'s rpg_economy_test): the supported way to give a placed NPC a role from the
+            // the supported way to give a placed NPC a role from the
             // console, instead of writing its ZDO keys. Same path as the NPC book's Apply: set the controller's fields, then
             // SavedNpcManager.SaveFromNpc (server record + every client refreshed). Targets the nearest NPC within 10 m.
             new Terminal.ConsoleCommand("firesnpcs_setrole",
@@ -164,7 +178,7 @@ namespace FiresRPGmaker
                         if (pi >= 0) { int end = ni > pi ? ni : rest.Length; profile = rest.Substring(pi + 8, end - pi - 8).Trim(); }
                         if (ni >= 0) { int end = pi > ni ? pi : rest.Length; name = rest.Substring(ni + 5, end - ni - 5).Trim(); }
                         best.npcType = role;
-                        // 0.0.548: profile= goes to the ROLE's own profile field (it only ever set the trader's, so a Banker kept '').
+                        // profile= goes to the ROLE's own profile field (it only ever set the trader's, so a Banker kept '').
                         if (!string.IsNullOrEmpty(profile))
                             switch (role)
                             {
@@ -187,12 +201,12 @@ namespace FiresRPGmaker
                         string line = $"[FiresRPGmaker] firesnpcs_setrole: NPC at {best.transform.position:F1} ({bestD:F1} m) -> role {role}"
                             + (profile != null ? $", {role} profile '{profile}'" : "") + (name != null ? $", name '{name}'" : "") + " (saved like the NPC book's Apply)";
                         args.Context.AddString(line);
-                        Debug.Log(line);
+                        global::FiresRPGmaker.FiresLogger.LogDebug(line);
                     }
                     catch (Exception ex) { args.Context.AddString($"[FiresRPGmaker] firesnpcs_setrole error: {ex.Message}"); }
                 }, isCheat: true);
 
-            // 0.0.547 (Fire: NPC-driven ships, step 1): bind the nearest ship within 20 m to a saved patrol route. The ship is
+            // bind the nearest ship within 20 m to a saved patrol route. The ship is
             // then sailed by vanilla physics with its controls worked by NpcShipDriver (owner side). "none" unbinds.
             new Terminal.ConsoleCommand("firesnpcs_shipdrive",
                 "firesnpcs_shipdrive <patrol route|none> - the nearest ship (20 m) sails that patrol route point to point (real sailing). Admin.",
@@ -210,7 +224,7 @@ namespace FiresRPGmaker
                         if (best == null) { args.Context.AddString("[FiresRPGmaker] no ship within 20 m"); return; }
                         global::FiresRPGmaker.Modules.Vehicles.NpcShipDriver.Bind(best, route);
                         string line = $"[FiresRPGmaker] firesnpcs_shipdrive: {best.name} at {best.transform.position:F0} -> route '{(route.Length > 0 ? route : "none")}'";
-                        args.Context.AddString(line); Debug.Log(line);
+                        args.Context.AddString(line); global::FiresRPGmaker.FiresLogger.LogDebug(line);
                     }
                     catch (Exception ex) { args.Context.AddString($"[FiresRPGmaker] firesnpcs_shipdrive error: {ex.Message}"); }
                 }, isCheat: true);
@@ -234,7 +248,7 @@ try
        {
     args.Context.AddString($"[FiresRPGmaker] closenpcui error: {ex.Message}");
      }
-            });
+            }, isCheat: true);
 
        // Command: reloadui - Reloads UI config (dialogues, quest profiles)
    new Terminal.ConsoleCommand("reloadui", "Reloads UI configuration (dialogues, quest profiles)", (Terminal.ConsoleEventArgs args) =>
@@ -248,7 +262,7 @@ try
                 {
          args.Context.AddString($"[FiresRPGmaker] reloadui error: {ex.Message}");
                 }
-    });
+    }, isCheat: true);
 
         // Command: listdialogues - Lists all loaded dialogue profiles
    new Terminal.ConsoleCommand("listdialogues", "Lists all loaded dialogue profiles", (Terminal.ConsoleEventArgs args) =>
@@ -446,8 +460,8 @@ var localDef = QuestManager.Instance?.GetQuestDefinition(questId);
     }
  catch { try { pkg.Write(false); } catch { } }
 
- ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_Vault_UpdateQuestFlag", pkg);
-         Debug.Log($"[FiresRPGmaker] Client sent UpdateQuestFlag RPC to server for player {playerId}, quest {questId}");
+ ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Vault_UpdateQuestFlag"), "FiresRPGmaker_Vault_UpdateQuestFlag", pkg);
+         global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Client sent UpdateQuestFlag RPC to server for player {playerId}, quest {questId}");
                args.Context.AddString($"[FiresRPGmaker] Requested server to start quest '{questId}'");
      }
   else
@@ -486,7 +500,7 @@ catch (Exception ex)
         Debug.LogError($"[FiresRPGmaker] startsamplequest handler exception: {ex}");
  try { args.Context.AddString($"[FiresRPGmaker] startsamplequest exception: {ex.Message}"); } catch { }
         }
-         });
+         }, isCheat: true);
 
             // Command: queststatus
          new Terminal.ConsoleCommand("queststatus", "Shows current quest status for local player", (Terminal.ConsoleEventArgs args) =>
@@ -554,7 +568,7 @@ catch (Exception ex)
 
   VaultOfKnowledge.Instance.SaveAllDirty();
   args.Context.AddString("[FiresRPGmaker] Vault data force-saved");
-    });
+    }, isCheat: true);
 
             // Command: startquest <QuestName>
             new Terminal.ConsoleCommand("startquest", "Starts a quest by display name. Usage: startquest=Quest Name", (Terminal.ConsoleEventArgs args) =>
@@ -708,7 +722,7 @@ var vaultData = VaultOfKnowledge.Instance.GetPlayerData(playerId);
                          }
                          catch { try { pkg.Write(false); } catch { } }
 
-                         ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_Vault_UpdateQuestFlag", pkg);
+                         ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Vault_UpdateQuestFlag"), "FiresRPGmaker_Vault_UpdateQuestFlag", pkg);
                          args.Context.AddString($"[FiresRPGmaker] Requested server to start quest '{questId}'");
                      }
                      else
@@ -733,7 +747,7 @@ catch (Exception ex)
              Debug.LogError($"[FiresRPGmaker] startquest handler exception: {ex}");
         try { args.Context.AddString($"[FiresRPGmaker] startquest exception: {ex.Message}"); } catch { }
          }
-            });
+            }, isCheat: true);
 
         // Command: listquests [filter]
  new Terminal.ConsoleCommand("listquests", "Lists loaded quests (optional filter). Usage: listquests [term]", (Terminal.ConsoleEventArgs args) =>
@@ -746,7 +760,7 @@ if (QuestManager.Instance == null)
  args.Context.AddString("[FiresRPGmaker] QuestManager initialized on demand");
              }
 
-         string filter = (args.Args != null && args.Args.Length > 1) ? string.Join(" ", args.Args.Skip(1)).Trim() : string.Empty;   // 0.0.544: Args[0] is the command word ("Quests (0)" bug)
+         string filter = (args.Args != null && args.Args.Length > 1) ? string.Join(" ", args.Args.Skip(1)).Trim() : string.Empty;   // Args[0] is the command word ("Quests (0)" bug)
         var all = QuestManager.Instance.GetAllQuests();
     var list = string.IsNullOrEmpty(filter) ? all : all.Where(t => (t.Name ?? t.QuestId).IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 || t.QuestId.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
 
@@ -887,7 +901,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
      Debug.LogWarning($"[FiresRPGmaker] vaultclean handler exception: {ex.Message}");
          try { args.Context.AddString($"[FiresRPGmaker] vaultclean exception: {ex.Message}"); } catch { }
           }
-    });
+    }, isCheat: true);
 
         // Command: firesnpcs_dialogue_cooldown_reset [optionKeyOrUID]
         // Clears dialogue-option cooldowns from the server store. With no arg, clears everything;
@@ -932,7 +946,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
                 Debug.LogWarning($"[FiresRPGmaker] dialogue_cooldown_reset handler exception: {ex.Message}");
                 try { args.Context.AddString($"[FiresRPGmaker] reset exception: {ex.Message}"); } catch { }
             }
-        });
+        }, isCheat: true);
 
         // Command: pushcfgs - send local Quests, QuestProfiles, and Territories cfgs to server (admin only)
      Terminal.ConsoleEvent pushCfgHandler = (Terminal.ConsoleEventArgs args) =>
@@ -1127,7 +1141,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
                  var rpcName = string.Equals(entry.folder, "Territories", StringComparison.OrdinalIgnoreCase)
                      ? "FiresRPGmaker_Territory_FileUpdate"
                      : "FiresRPGmaker_SyncFiles";
-                 ZRoutedRpc.instance.InvokeRoutedRPC(0L, rpcName, pkg);
+                 ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(rpcName), rpcName, pkg);
              }
              catch { }
          }
@@ -1165,7 +1179,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
     var rpcName = string.Equals(entry.folder, "Territories", StringComparison.OrdinalIgnoreCase)
  ? "FiresRPGmaker_Territory_FileUpdate"
 : "FiresRPGmaker_SyncFiles";
-            VaultOfKnowledge.SafeInvokeRoutedRPC(0L, rpcName, pkg);
+            VaultOfKnowledge.SafeInvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(rpcName), rpcName, pkg);
            sent++;
  if (string.Equals(entry.folder, "Territories", StringComparison.OrdinalIgnoreCase)) territoriesChanged = true;
         if (string.Equals(entry.folder, "ServerInfos", StringComparison.OrdinalIgnoreCase)) serverInfosChanged = true;
@@ -1222,8 +1236,8 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
      try { args.Context.AddString($"[FiresRPGmaker] pushcfgs exception: {ex.Message}"); } catch { }
             }
  };
-            new Terminal.ConsoleCommand("pushcfgs", "Push modified cfg files to server. Use --force to push all. (admin only)", pushCfgHandler);
-         new Terminal.ConsoleCommand("pushquests", "(alias) pushcfgs", pushCfgHandler);
+            new Terminal.ConsoleCommand("pushcfgs", "Push modified cfg files to server. Use --force to push all. (admin only)", pushCfgHandler, isCheat: true);
+         new Terminal.ConsoleCommand("pushquests", "(alias) pushcfgs", pushCfgHandler, isCheat: true);
 
           // ============================================================
     // COMPANION DEBUG COMMANDS
@@ -1242,7 +1256,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
 
              // Default prefab name
     string prefabName = "CompanionNpc";
-         
+
          // args.Args[0] is the command name "spawncompanion", actual arguments start at index 1
           if (args.Args != null && args.Args.Length > 1)
      {
@@ -1254,7 +1268,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
         }
             }
 
-            Debug.Log($"[FiresRPGmaker] spawncompanion: Using prefab name '{prefabName}'");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] spawncompanion: Using prefab name '{prefabName}'");
 
          Vector3 playerPos = Player.m_localPlayer.transform.position;
   Vector3 playerForward = Player.m_localPlayer.transform.forward;
@@ -1289,7 +1303,7 @@ var matches = Directory.GetFiles(playersDir, "*.json").Where(f =>
           Debug.LogError($"[FiresRPGmaker] spawncompanion exception: {ex}");
        args.Context.AddString($"[FiresRPGmaker] spawncompanion error: {ex.Message}");
            }
-            });
+            }, isCheat: true);
 
     // Command: listcompanions - Lists all loaded companion prefabs
       new Terminal.ConsoleCommand("listcompanions", "Lists all loaded companion PREFABS (not your saved companions - use 'companioninfo' for that)", (Terminal.ConsoleEventArgs args) =>
@@ -1329,7 +1343,7 @@ args.Context.AddString($"[FiresRPGmaker] listcompanions error: {ex.Message}");
           args.Context.AddString("[FiresRPGmaker] No local player - cannot restore companions");
          return;
    }
-            
+
             args.Context.AddString("[FiresRPGmaker] NOTE: This only restores companions with IsFollowing=true");
             args.Context.AddString("[FiresRPGmaker] Use 'recovercompanion <name>' to recover specific companions by name");
 
@@ -1361,7 +1375,7 @@ args.Context.AddString($"[FiresRPGmaker] listcompanions error: {ex.Message}");
 
 long playerId = Player.m_localPlayer.GetPlayerID();
    var companions = VaultOfKnowledge.Instance.GetCompanions(playerId);
-      
+
       args.Context.AddString($"=== Companion Info (Player {playerId}) ===");
         args.Context.AddString($"Companions in vault: {companions.Count}");
 
@@ -1370,7 +1384,7 @@ long playerId = Player.m_localPlayer.GetPlayerID();
  args.Context.AddString($"  - {c.CompanionName} (ID: {c.CompanionId})");
       args.Context.AddString($"    Prefab: {c.PrefabName}, Following: {c.IsFollowing}");
     }
-        
+
        // Also show companions currently in world
 int worldCount = 0;
    foreach (var controller in UnityEngine.Object.FindObjectsByType<CompanionController>(UnityEngine.FindObjectsSortMode.None))
@@ -1382,7 +1396,7 @@ int worldCount = 0;
      args.Context.AddString($"  [WORLD] {controller.GetDisplayName()} (ID: {controller.companionId}) - {status}");
       }
    }
-      
+
     args.Context.AddString($"Companions in world: {worldCount}");
     args.Context.AddString("=====================================");
        }
@@ -1410,8 +1424,8 @@ int worldCount = 0;
                 }
 
                 // Get companion name from args
-                string searchName = (args.Args != null && args.Args.Length > 1) 
-                    ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim() 
+                string searchName = (args.Args != null && args.Args.Length > 1)
+                    ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim()
                     : string.Empty;
 
                 if (string.IsNullOrEmpty(searchName))
@@ -1423,10 +1437,10 @@ int worldCount = 0;
 
                 long playerId = Player.m_localPlayer.GetPlayerID();
                 args.Context.AddString($"[FiresRPGmaker] Searching vault for player ID: {playerId}");
-                
+
                 // Get companions from vault
                 var companions = VaultOfKnowledge.Instance.GetCompanions(playerId);
-                
+
                 // Debug: Also check the raw player data
                 var playerData = VaultOfKnowledge.Instance.GetPlayerData(playerId);
                 if (playerData != null)
@@ -1439,7 +1453,7 @@ int worldCount = 0;
                 {
                     args.Context.AddString("[FiresRPGmaker] No companions found in vault for this player");
                     args.Context.AddString("[FiresRPGmaker] DEBUG: Check if vault data is synced from server");
-                    
+
                     // Try to load directly from player's customData
                     if (Player.m_localPlayer.m_customData.TryGetValue("FiresRPGmaker_Vault", out string vaultJson))
                     {
@@ -1455,11 +1469,11 @@ int worldCount = 0;
                     }
                     return;
                 }
-                
+
                 args.Context.AddString($"[FiresRPGmaker] Found {companions.Count} companions in vault");
 
                 // Find matching companion (case-insensitive partial match)
-                var matches = companions.Where(c => 
+                var matches = companions.Where(c =>
                     (c.CompanionName != null && c.CompanionName.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                     (c.DisplayNameOverride != null && c.DisplayNameOverride.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                     (c.CompanionId != null && c.CompanionId.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -1500,7 +1514,11 @@ int worldCount = 0;
                     }
                 }
 
-                // Spawn the companion
+                // Spawn the companion (Fire 11-05: never a second copy. The server looks through every zone first; only if it has none does the vault copy spawn.)
+
+                System.Action spawnFromVault = () =>
+
+                {
                 string prefabName = companionData.PrefabName ?? "CompanionNpc";
                 Vector3 playerPos = Player.m_localPlayer.transform.position;
                 Vector3 playerForward = Player.m_localPlayer.transform.forward;
@@ -1568,7 +1586,7 @@ int worldCount = 0;
                             {
                                 var slot = (CompanionInventory.EquipmentSlot)Enum.Parse(
                                     typeof(CompanionInventory.EquipmentSlot), kvp.Key);
-                                var quality = companionData.EquipmentQualities != null && 
+                                var quality = companionData.EquipmentQualities != null &&
                                     companionData.EquipmentQualities.ContainsKey(kvp.Key)
                                     ? companionData.EquipmentQualities[kvp.Key] : 1;
                                 inventory.RestoreEquipmentFromVault(slot, kvp.Value, quality);
@@ -1615,6 +1633,16 @@ int worldCount = 0;
                     args.Context.AddString("[FiresRPGmaker] Failed to configure recovered companion");
                     CompanionNetworkHelper.Destroy(companionGO);
                 }
+            };
+                Vector3 recallAt = Player.m_localPlayer.transform.position + Player.m_localPlayer.transform.forward * 3f;
+                global::FiresCore.Npc.Vault.CompanionRestoreService.RequestRecall(playerId, companionData.CompanionId, recallAt, (recalled, why) =>
+                {
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[recovercompanion] {companionData.CompanionId}: server answered {recalled}, {why}");
+                    if (recalled) { args.Context?.AddString($"[FiresRPGmaker] {companionData.CompanionName} is on the way to you"); return; }
+                    if (why != "no such companion") { args.Context?.AddString($"[FiresRPGmaker] Could not recover {companionData.CompanionName}: {why}"); return; }
+                    try { spawnFromVault(); }
+                    catch (Exception ex2) { args.Context?.AddString($"[FiresRPGmaker] recovercompanion error: {ex2.Message}"); }
+                });
             }
             catch (Exception ex)
             {
@@ -1675,7 +1703,7 @@ int worldCount = 0;
                     string following = c.IsFollowing ? " (was following)" : " (was staying)";
                     args.Context.AddString($"  - {c.CompanionName}{status}{following}");
                     args.Context.AddString($"    ID: {c.CompanionId}");
-                    
+
                     int equipCount = c.EquipmentPrefabs?.Count ?? 0;
                     if (equipCount > 0)
                     {
@@ -1713,8 +1741,8 @@ int worldCount = 0;
                 }
 
                 // Get companion name from args
-                string searchName = (args.Args != null && args.Args.Length > 1) 
-                    ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim() 
+                string searchName = (args.Args != null && args.Args.Length > 1)
+                    ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim()
                     : string.Empty;
 
                 if (string.IsNullOrEmpty(searchName))
@@ -1735,7 +1763,7 @@ int worldCount = 0;
                 }
 
                 // Find matching companion (case-insensitive partial match)
-                var matches = companions.Where(c => 
+                var matches = companions.Where(c =>
                     (c.CompanionName != null && c.CompanionName.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                     (c.DisplayNameOverride != null && c.DisplayNameOverride.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                     (c.CompanionId != null && c.CompanionId.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -1821,8 +1849,8 @@ int worldCount = 0;
                 }
 
                 // Get companion name from args
-                string searchName = (args.Args != null && args.Args.Length > 1) 
-                    ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim() 
+                string searchName = (args.Args != null && args.Args.Length > 1)
+                    ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim()
                     : string.Empty;
 
                 long playerId = Player.m_localPlayer.GetPlayerID();
@@ -1841,12 +1869,12 @@ int worldCount = 0;
                             float dist = Vector3.Distance(Player.m_localPlayer.transform.position, pos);
                             string status = controller.IsFollowing ? "Following" : "Staying";
                             args.Context.AddString($"  - {controller.GetDisplayName()} ({status}) - {dist:F0}m away at ({pos.x:F0}, {pos.z:F0})");
-                            
+
                             // Add temporary map pin
                             AddTemporaryMapPin(pos, controller.GetDisplayName());
                         }
                     }
-                    
+
                     if (found == 0)
                     {
                         args.Context.AddString("[FiresRPGmaker] No companions found in world");
@@ -1864,10 +1892,10 @@ int worldCount = 0;
                 foreach (var controller in UnityEngine.Object.FindObjectsByType<CompanionController>(UnityEngine.FindObjectsSortMode.None))
                 {
                     if (controller == null) continue;
-                    
+
                     string name = controller.GetDisplayName() ?? "";
                     string id = controller.companionId ?? "";
-                    
+
                     if (name.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         id.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
@@ -1879,14 +1907,14 @@ int worldCount = 0;
                 if (target == null)
                 {
                     args.Context.AddString($"[FiresRPGmaker] No companion found in world matching '{searchName}'");
-                    
+
                     // Check vault for lost companions
                     if (VaultOfKnowledge.Instance != null)
                     {
                         var companions = VaultOfKnowledge.Instance.GetCompanions(playerId);
-                        var vaultMatch = companions?.FirstOrDefault(c => 
+                        var vaultMatch = companions?.FirstOrDefault(c =>
                             (c.CompanionName != null && c.CompanionName.IndexOf(searchName, StringComparison.OrdinalIgnoreCase) >= 0));
-                        
+
                         if (vaultMatch != null)
                         {
                             args.Context.AddString($"[FiresRPGmaker] Found '{vaultMatch.CompanionName}' in vault but not in world");
@@ -1928,9 +1956,9 @@ int worldCount = 0;
                 }
 
                 // Require confirmation
-                bool confirmed = args.Args != null && args.Args.Length > 1 && 
+                bool confirmed = args.Args != null && args.Args.Length > 1 &&
                     string.Equals(args.Args[1], "CONFIRM", StringComparison.OrdinalIgnoreCase);
-                
+
                 if (!confirmed)
                 {
                     args.Context.AddString("[FiresRPGmaker] WARNING: This will permanently delete ALL your companions!");
@@ -1977,7 +2005,7 @@ int worldCount = 0;
                 {
                     var allControllers = UnityEngine.Object.FindObjectsByType<CompanionController>(UnityEngine.FindObjectsSortMode.None);
                     var toDestroy = new List<GameObject>();
-                    
+
                     foreach (var controller in allControllers)
                     {
                         if (controller != null && controller.ownerPlayerId == playerId)
@@ -2048,7 +2076,7 @@ int worldCount = 0;
                                 int cleared = vaultData.Companions?.Count ?? 0;
                                 vaultData.Companions = new List<object>();
                                 vaultData.IsDirty = true;
-                                
+
                                 var capturedVault = vaultData;
                                 int capturedCleared = cleared;
                                 PlayerSpawnGate.RunWhenLocalReady(5f, lp =>
@@ -2083,7 +2111,7 @@ int worldCount = 0;
                 args.Context.AddString($"[FiresRPGmaker] Destroyed {destroyedWorld} from world, removed {removedVault} from vault");
                 args.Context.AddString("[FiresRPGmaker] IMPORTANT: Save your game and relog for changes to fully take effect");
                 args.Context.AddString("[FiresRPGmaker] The world save still contains the ZDO data until the world is saved");
-                
+
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
                     $"Purged all companions: {destroyedWorld} from world, {removedVault} from vault");
             }
@@ -2092,7 +2120,7 @@ int worldCount = 0;
                 Debug.LogError($"[FiresRPGmaker] purgeallcompanions exception: {ex}");
                 args.Context.AddString($"[FiresRPGmaker] purgeallcompanions error: {ex.Message}");
             }
-        });
+        }, isCheat: true);
 
         // Command: destroyallcompanionnpcs - Destroys ALL CompanionNpc objects in the loaded world (admin only)
         new Terminal.ConsoleCommand("destroyallcompanionnpcs", "ADMIN: Destroys ALL CompanionNpc objects in loaded chunks. Type 'destroyallcompanionnpcs CONFIRM' to execute.", (Terminal.ConsoleEventArgs args) =>
@@ -2106,9 +2134,9 @@ int worldCount = 0;
                 }
 
                 // Require confirmation
-                bool confirmed = args.Args != null && args.Args.Length > 1 && 
+                bool confirmed = args.Args != null && args.Args.Length > 1 &&
                     string.Equals(args.Args[1], "CONFIRM", StringComparison.OrdinalIgnoreCase);
-                
+
                 if (!confirmed)
                 {
                     args.Context.AddString("[FiresRPGmaker] WARNING: This will destroy ALL CompanionNpc objects in loaded chunks!");
@@ -2126,13 +2154,13 @@ int worldCount = 0;
                 foreach (var controller in allControllers)
                 {
                     if (controller == null) continue;
-                    
+
                     try
                     {
                         string name = controller.GetDisplayName() ?? "Unknown";
                         string id = controller.companionId ?? "NoID";
                         long owner = controller.ownerPlayerId;
-                        
+
                         args.Context.AddString($"[FiresRPGmaker] Destroying: {name} (ID: {id}, Owner: {owner})");
 
                         CompanionNetworkHelper.Destroy(controller.gameObject);
@@ -2146,7 +2174,7 @@ int worldCount = 0;
 
                 args.Context.AddString($"[FiresRPGmaker] Destroyed {destroyed} CompanionNpc object(s)");
                 args.Context.AddString("[FiresRPGmaker] IMPORTANT: Save your game for the world ZDO data to be updated!");
-                
+
                 MessageHud.instance?.ShowMessage(MessageHud.MessageType.Center,
                     $"Destroyed {destroyed} CompanionNpc objects");
             }
@@ -2155,7 +2183,7 @@ int worldCount = 0;
                 Debug.LogError($"[FiresRPGmaker] destroyallcompanionnpcs exception: {ex}");
                 args.Context.AddString($"[FiresRPGmaker] destroyallcompanionnpcs error: {ex.Message}");
             }
-        });
+        }, isCheat: true);
 
         // ============================================================
         // TERRAIN/HEIGHTMAP DEBUG COMMANDS
@@ -2173,7 +2201,7 @@ int worldCount = 0;
                 Debug.LogError($"[FiresRPGmaker] dumpskybox exception: {ex}");
                 args.Context.AddString($"[FiresRPGmaker] dumpskybox error: {ex.Message}");
             }
-        });
+        }, isCheat: true);
 
         // Command: listshaders - Lists all loaded shaders in the game
         new Terminal.ConsoleCommand("listshaders", "Lists all loaded shaders that can be used for custom materials. Optional filter: listshaders <filter>", (Terminal.ConsoleEventArgs args) =>
@@ -2201,7 +2229,7 @@ int worldCount = 0;
                 Debug.LogError($"[FiresRPGmaker] dumpenvironments exception: {ex}");
                 args.Context.AddString($"[FiresRPGmaker] dumpenvironments error: {ex.Message}");
             }
-        });
+        }, isCheat: true);
 
         // Command: dumpglobalshaders - Dumps all global shader properties currently set
         new Terminal.ConsoleCommand("dumpglobalshaders", "Dumps all global shader properties (snow, fog, lighting, etc.) to a file", (Terminal.ConsoleEventArgs args) =>
@@ -2215,7 +2243,7 @@ int worldCount = 0;
                 Debug.LogError($"[FiresRPGmaker] dumpglobalshaders exception: {ex}");
                 args.Context.AddString($"[FiresRPGmaker] dumpglobalshaders error: {ex.Message}");
             }
-        });
+        }, isCheat: true);
 
         // ============================================================
         // END TERRAIN/HEIGHTMAP DEBUG COMMANDS
@@ -2325,7 +2353,7 @@ int worldCount = 0;
                 Debug.LogError($"[FiresRPGmaker] dump_chat_ui exception: {ex}");
                 args.Context.AddString($"[FiresRPGmaker] dump_chat_ui error: {ex.Message}");
             }
-        });
+        }, isCheat: true);
 
         // Register Recipe Dumper commands (craftable item recipe dump)
         try
@@ -2408,7 +2436,7 @@ int worldCount = 0;
             if (EnvMan.instance != null)
             {
                 sb.AppendLine($"Instance: EXISTS");
-                
+
                 // Get forced environment via reflection since it may be private
                 try
                 {
@@ -2418,7 +2446,7 @@ int worldCount = 0;
                         var forceEnv = forceEnvField.GetValue(EnvMan.instance) as string;
                         sb.AppendLine($"Forced Environment: \"{forceEnv ?? ""}\"");
                     }
-                    
+
                     var debugEnvField = typeof(EnvMan).GetField("m_debugEnv", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
                     if (debugEnvField != null)
                     {
@@ -2430,7 +2458,7 @@ int worldCount = 0;
                 {
                     sb.AppendLine($"(Could not read force/debug env: {ex.Message})");
                 }
-                
+
                 var currentEnv = EnvMan.instance.GetCurrentEnvironment();
                 if (currentEnv != null)
                 {
@@ -2447,7 +2475,7 @@ int worldCount = 0;
                     sb.AppendLine($"  Light Intensity Day: {currentEnv.m_lightIntensityDay:F3}");
                     sb.AppendLine($"  Wind Min/Max: {currentEnv.m_windMin:F2}/{currentEnv.m_windMax:F2}");
                 }
-                
+
                 // List all environments
                 sb.AppendLine();
                 sb.AppendLine("=== ALL ENVIRONMENT NAMES ===");
@@ -2483,7 +2511,7 @@ int worldCount = 0;
                 sb.AppendLine($"    Force: {zone.m_force}");
                 sb.AppendLine($"    Position: {zone.transform.position}");
                 sb.AppendLine($"    Scale: {zone.transform.lossyScale}");
-                
+
                 // Check for collider
                 var collider = zone.GetComponent<Collider>();
                 if (collider != null)
@@ -2495,7 +2523,7 @@ int worldCount = 0;
                         sb.AppendLine($"    Box Center: {box.center}");
                     }
                 }
-                
+
                 // Check for renderer/material
                 var renderer = zone.GetComponent<MeshRenderer>();
                 if (renderer != null && renderer.sharedMaterial != null)
@@ -2504,7 +2532,7 @@ int worldCount = 0;
                     sb.AppendLine($"    Material: {mat.name}");
                     sb.AppendLine($"    Shader: {mat.shader?.name ?? "NULL"}");
                 }
-                
+
                 if (zone.m_exteriorMesh != null)
                 {
                     sb.AppendLine($"    Exterior Mesh: {zone.m_exteriorMesh.gameObject.name}");
@@ -2522,7 +2550,7 @@ int worldCount = 0;
             sb.AppendLine();
             sb.AppendLine("For semi-transparent box visualization, try these shaders:");
             sb.AppendLine();
-            
+
             string[] shadersToCheck = {
                 "Standard",
                 "Unlit/Color",
@@ -2546,7 +2574,7 @@ int worldCount = 0;
                 "Custom/WaterMask",
                 "Custom/Trilinear"
             };
-            
+
             foreach (var shaderName in shadersToCheck)
             {
                 var shader = Shader.Find(shaderName);
@@ -2575,9 +2603,9 @@ private static Material CreateTransparentMaterial(Color color)
         // Fallback to Unlit/Color
         shader = Shader.Find(""Unlit/Color"");
     }
-    
+
     var mat = new Material(shader);
-    
+
     // For Standard shader, set up transparency
     if (shader.name == ""Standard"")
     {
@@ -2590,7 +2618,7 @@ private static Material CreateTransparentMaterial(Color color)
         mat.DisableKeyword(""_ALPHAPREMULTIPLY_ON"");
         mat.renderQueue = 3000;
     }
-    
+
     mat.color = color;
     return mat;
 }
@@ -2603,7 +2631,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
     {
         shader = Shader.Find(""Sprites/Default""); // Fallback
     }
-    
+
     var mat = new Material(shader);
     mat.color = color;
     mat.renderQueue = 3000; // Transparent queue
@@ -2616,11 +2644,11 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "SkyboxEnvironmentReference.txt");
-            
+
             File.WriteAllText(outputPath, sb.ToString());
-            
+
             args.Context.AddString($"[FiresRPGmaker] Skybox/Environment reference saved to: {outputPath}");
-            Debug.Log($"[FiresRPGmaker] Skybox/Environment reference saved to: {outputPath}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Skybox/Environment reference saved to: {outputPath}");
         }
 
         /// <summary>
@@ -2632,19 +2660,19 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine($"  Shader: {mat.shader?.name ?? "NULL"}");
             sb.AppendLine($"  Render Queue: {mat.renderQueue}");
             sb.AppendLine($"  Pass Count: {mat.passCount}");
-            
+
             if (mat.shader != null && mat.shader.isSupported)
             {
                 int propCount = mat.shader.GetPropertyCount();
                 sb.AppendLine($"  Property Count: {propCount}");
-                
+
                 for (int i = 0; i < propCount && i < 30; i++) // Limit to first 30
                 {
                     try
                     {
                         string propName = mat.shader.GetPropertyName(i);
                         var propType = mat.shader.GetPropertyType(i);
-                        
+
                         string value = "";
                         switch (propType)
                         {
@@ -2672,13 +2700,13 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                                 }
                                 break;
                         }
-                        
+
                         sb.AppendLine($"    {propName} ({propType}): {value}");
                     }
                     catch { }
                 }
             }
-            
+
             // Keywords
             var keywords = mat.shaderKeywords;
             if (keywords != null && keywords.Length > 0)
@@ -2692,14 +2720,14 @@ private static Material CreateLegacyTransparentMaterial(Color color)
         /// </summary>
         private static void ListAllShaders(Terminal.ConsoleEventArgs args)
         {
-            string filter = (args.Args != null && args.Args.Length > 1) 
+            string filter = (args.Args != null && args.Args.Length > 1)
                 ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim().ToLower()
                 : "";
 
             args.Context.AddString("[FiresRPGmaker] Scanning for loaded shaders...");
 
             var foundShaders = new HashSet<string>();
-            
+
             // Method 1: Check all materials in scene
             var allMaterials = Resources.FindObjectsOfTypeAll<Material>();
             foreach (var mat in allMaterials)
@@ -2709,7 +2737,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                     foundShaders.Add(mat.shader.name);
                 }
             }
-            
+
             // Method 2: Check common shader names
             string[] commonShaders = {
                 "Standard", "Standard (Specular setup)",
@@ -2729,7 +2757,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                 "Custom/creature", "Custom/yggdrasil", "Custom/SkyboxProcedural",
                 "Custom/InteriorSide"
             };
-            
+
             foreach (var name in commonShaders)
             {
                 var shader = Shader.Find(name);
@@ -2738,13 +2766,13 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                     foundShaders.Add(name);
                 }
             }
-            
+
             // Filter and sort
             var results = foundShaders
                 .Where(s => string.IsNullOrEmpty(filter) || s.ToLower().Contains(filter))
                 .OrderBy(s => s)
                 .ToList();
-            
+
             // Build output for file
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("=============================================================");
@@ -2760,7 +2788,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine();
             sb.AppendLine("=== ALL AVAILABLE SHADERS ===");
             sb.AppendLine();
-            
+
             foreach (var shaderName in results)
             {
                 var shader = Shader.Find(shaderName);
@@ -2768,53 +2796,53 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                 sb.AppendLine($"  {shaderName} {status}");
             }
             sb.AppendLine();
-            
+
             // Categorize shaders
             sb.AppendLine("=== SHADERS BY CATEGORY ===");
             sb.AppendLine();
-            
+
             sb.AppendLine("  [Standard/Built-in]");
             foreach (var s in results.Where(s => s.StartsWith("Standard") || s.StartsWith("Unlit/") || s.StartsWith("Legacy")))
             {
                 sb.AppendLine($"    - {s}");
             }
             sb.AppendLine();
-            
+
             sb.AppendLine("  [UI/Sprites]");
             foreach (var s in results.Where(s => s.StartsWith("UI/") || s.StartsWith("Sprites/")))
             {
                 sb.AppendLine($"    - {s}");
             }
             sb.AppendLine();
-            
+
             sb.AppendLine("  [Custom/Valheim]");
             foreach (var s in results.Where(s => s.StartsWith("Custom/")))
             {
                 sb.AppendLine($"    - {s}");
             }
             sb.AppendLine();
-            
+
             sb.AppendLine("  [Skybox]");
             foreach (var s in results.Where(s => s.Contains("Skybox") || s.Contains("skybox")))
             {
                 sb.AppendLine($"    - {s}");
             }
             sb.AppendLine();
-            
+
             sb.AppendLine("  [Particles/Effects]");
             foreach (var s in results.Where(s => s.StartsWith("Particles/") || s.Contains("Particle")))
             {
                 sb.AppendLine($"    - {s}");
             }
             sb.AppendLine();
-            
+
             sb.AppendLine("  [Nature/Environment]");
             foreach (var s in results.Where(s => s.StartsWith("Nature/") || s.Contains("Vegetation") || s.Contains("Water")))
             {
                 sb.AppendLine($"    - {s}");
             }
             sb.AppendLine();
-            
+
             // Recommended shaders for specific uses
             sb.AppendLine("=== RECOMMENDED SHADERS FOR MOD USE ===");
             sb.AppendLine();
@@ -2833,19 +2861,19 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine("    - Custom/SkyboxProcedural");
             sb.AppendLine("    - Custom/InteriorSide (dungeon interior)");
             sb.AppendLine();
-            
+
             // Write to file
             string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "ShaderReference.txt");
-            
+
             File.WriteAllText(outputPath, sb.ToString());
-            
+
             // Also output to console
-            args.Context.AddString($"[FiresRPGmaker] Found {results.Count} shaders" + 
+            args.Context.AddString($"[FiresRPGmaker] Found {results.Count} shaders" +
                 (string.IsNullOrEmpty(filter) ? "" : $" matching '{filter}'"));
             args.Context.AddString($"[FiresRPGmaker] Full list saved to: {outputPath}");
-            
+
             // Show first 20 in console
             int shown = 0;
             foreach (var shaderName in results.Take(20))
@@ -2855,12 +2883,12 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                 args.Context.AddString($"  {shaderName}{status}");
                 shown++;
             }
-            
+
             if (results.Count > 20)
             {
                 args.Context.AddString($"  ... and {results.Count - 20} more (see file for full list)");
             }
-            
+
             args.Context.AddString("[FiresRPGmaker] Use: listshaders <filter> to search");
         }
 
@@ -2889,7 +2917,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine();
             sb.AppendLine("Environment Name                      | Flags");
             sb.AppendLine("--------------------------------------|---------------------------");
-            
+
             var environments = EnvMan.instance.m_environments;
             if (environments == null || environments.Count == 0)
             {
@@ -2906,7 +2934,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                     if (env.m_isFreezingAtNight) flags += "[FREEZE@NIGHT]";
                     if (env.m_isCold) flags += "[COLD]";
                     if (env.m_isColdAtNight) flags += "[COLD@NIGHT]";
-                    
+
                     string name = env.m_name.PadRight(38);
                     sb.AppendLine($"{name}| {flags}");
                 }
@@ -2921,7 +2949,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             {
                 sb.AppendLine($"--- {env.m_name} ---");
                 sb.AppendLine();
-                
+
                 // Basic flags
                 sb.AppendLine("  [Flags]");
                 sb.AppendLine($"    Is Wet: {env.m_isWet}");
@@ -3009,11 +3037,11 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine();
             sb.AppendLine("Wind values from environments for reference:");
             sb.AppendLine();
-            
+
             var windGroups = environments
                 .GroupBy(e => $"{e.m_windMin:F2}-{e.m_windMax:F2}")
                 .OrderBy(g => float.Parse(g.Key.Split('-')[0]));
-            
+
             foreach (var group in windGroups)
             {
                 sb.AppendLine($"  Wind {group.Key}:");
@@ -3067,12 +3095,12 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "EnvironmentReference.txt");
-            
+
             File.WriteAllText(outputPath, sb.ToString());
-            
+
             args.Context.AddString($"[FiresRPGmaker] Environment reference saved to: {outputPath}");
             args.Context.AddString($"[FiresRPGmaker] Found {environments.Count} environments");
-            Debug.Log($"[FiresRPGmaker] Environment reference saved to: {outputPath}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Environment reference saved to: {outputPath}");
         }
 
         /// <summary>
@@ -3163,7 +3191,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
 
             // Persist so we don't bootstrap again next session
             SavePushManifest(_lastPushHashes);
-            Debug.Log($"[FiresRPGmaker] Bootstrapped push manifest from {_lastPushHashes.Count} existing config files");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Bootstrapped push manifest from {_lastPushHashes.Count} existing config files");
         }
 
         /// <summary>
@@ -3191,7 +3219,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
                     var rpcName = string.Equals(entry.folder, "Territories", StringComparison.OrdinalIgnoreCase)
                         ? "FiresRPGmaker_Territory_FileUpdate"
                         : "FiresRPGmaker_SyncFiles";
-                    ZRoutedRpc.instance.InvokeRoutedRPC(0L, rpcName, pkg);
+                    ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(rpcName), rpcName, pkg);
                     sent++;
                 }
                 catch
@@ -3207,7 +3235,7 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             string msg = $"[FiresRPGmaker] Push complete: {sent} file(s) sent";
             if (failed > 0) msg += $", {failed} failed";
             try { terminal?.AddString(msg); } catch { }
-            Debug.Log(msg);
+            global::FiresRPGmaker.FiresLogger.LogDebug(msg);
         }
 
         /// <summary>
@@ -3232,11 +3260,11 @@ private static Material CreateLegacyTransparentMaterial(Color color)
             sb.AppendLine();
             sb.AppendLine("| Biome        | Color32 (RGBA)       | Hex        | Channel Used     |");
             sb.AppendLine("|--------------|----------------------|------------|------------------|");
-            
+
             foreach (Heightmap.Biome biome in Enum.GetValues(typeof(Heightmap.Biome)))
             {
                 if (biome == Heightmap.Biome.None) continue;
-                
+
                 var color = Heightmap.GetBiomeColor(biome);
                 string hex = $"#{color.r:X2}{color.g:X2}{color.b:X2}{color.a:X2}";
                 string channel = GetDominantChannel(color);
@@ -3273,7 +3301,7 @@ renderMesh.SetColors(tempColors);
             sb.AppendLine("=== GLOBAL SHADER PROPERTIES FOR SNOW ===");
             sb.AppendLine();
             sb.AppendLine("Current values:");
-            
+
             string[] snowProps = { "_GlobalSnowAmount", "_SnowAmount", "_AddSnow", "_SnowHeight", "_SnowBlending" };
             foreach (var prop in snowProps)
             {
@@ -3288,7 +3316,7 @@ renderMesh.SetColors(tempColors);
                 }
             }
             sb.AppendLine();
-            
+
             sb.AppendLine("To force snow on building pieces:");
             sb.AppendLine(@"
 Shader.SetGlobalFloat(""_GlobalSnowAmount"", 1f);
@@ -3300,20 +3328,20 @@ Shader.SetGlobalFloat(""_AddSnow"", 1f);  // CRITICAL: Bypasses altitude check f
             // Section 4: Heightmap Corner Biomes
             sb.AppendLine("=== HEIGHTMAP CORNER BIOMES (via Reflection) ===");
             sb.AppendLine();
-            
+
             Heightmap nearbyHeightmap = null;
             if (Player.m_localPlayer != null)
             {
                 nearbyHeightmap = Heightmap.FindHeightmap(Player.m_localPlayer.transform.position);
             }
-            
+
             if (nearbyHeightmap != null)
             {
                 sb.AppendLine($"Heightmap at player position: {nearbyHeightmap.transform.position}");
-                
+
                 try
                 {
-                    var cornerBiomesField = typeof(Heightmap).GetField("m_cornerBiomes", 
+                    var cornerBiomesField = typeof(Heightmap).GetField("m_cornerBiomes",
                         BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                     if (cornerBiomesField != null)
                     {
@@ -3341,7 +3369,7 @@ Shader.SetGlobalFloat(""_AddSnow"", 1f);  // CRITICAL: Bypasses altitude check f
             // Section 5: Terrain Material Properties
             sb.AppendLine("=== TERRAIN MATERIAL TEXTURE SLOTS ===");
             sb.AppendLine();
-            
+
             Material heightmapMaterial = null;
             if (nearbyHeightmap != null)
             {
@@ -3351,16 +3379,16 @@ Shader.SetGlobalFloat(""_AddSnow"", 1f);  // CRITICAL: Bypasses altitude check f
                     heightmapMaterial = renderer.sharedMaterial;
                 }
             }
-            
+
             if (heightmapMaterial != null)
             {
                 sb.AppendLine($"Shader: {heightmapMaterial.shader?.name ?? "NULL"}");
                 sb.AppendLine();
-                
+
                 // List all texture properties
-                string[] texProps = { "_MainTex", "_ClearedMaskTex", "_DiffuseTex0", "_DiffuseTex1", "_DiffuseTex2", 
+                string[] texProps = { "_MainTex", "_ClearedMaskTex", "_DiffuseTex0", "_DiffuseTex1", "_DiffuseTex2",
                     "_DiffuseTex3", "_NormalTex", "_BumpMap", "_DetailTex", "_BlendTex" };
-                
+
                 foreach (var prop in texProps)
                 {
                     if (heightmapMaterial.HasProperty(prop))
@@ -3455,11 +3483,11 @@ while paint mask only gives dirt/cultivated/paved appearances.
             string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "BiomeVisualsReference.txt");
-            
+
             File.WriteAllText(outputPath, sb.ToString());
-            
+
             args.Context.AddString($"[FiresRPGmaker] Biome visuals reference saved to: {outputPath}");
-            Debug.Log($"[FiresRPGmaker] Biome visuals reference saved to: {outputPath}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Biome visuals reference saved to: {outputPath}");
         }
 
         /// <summary>
@@ -3514,14 +3542,14 @@ while paint mask only gives dirt/cultivated/paved appearances.
             int exported = 0;
 
             // Try to export common texture properties
-            string[] texProps = { "_MainTex", "_ClearedMaskTex", "_DiffuseTex0", "_DiffuseTex1", "_DiffuseTex2", 
-                "_DiffuseTex3", "_NormalTex", "_BumpMap", "_DetailTex", "_BlendTex", 
+            string[] texProps = { "_MainTex", "_ClearedMaskTex", "_DiffuseTex0", "_DiffuseTex1", "_DiffuseTex2",
+                "_DiffuseTex3", "_NormalTex", "_BumpMap", "_DetailTex", "_BlendTex",
                 "_Tex0", "_Tex1", "_Tex2", "_Tex3" };
 
             foreach (var prop in texProps)
             {
                 if (!mat.HasProperty(prop)) continue;
-                
+
                 var tex = mat.GetTexture(prop);
                 if (tex == null) continue;
 
@@ -3529,7 +3557,7 @@ while paint mask only gives dirt/cultivated/paved appearances.
                 {
                     // Try to read texture data
                     Texture2D tex2D = null;
-                    
+
                     if (tex is Texture2D t2d)
                     {
                         // Need to make it readable
@@ -3546,10 +3574,10 @@ while paint mask only gives dirt/cultivated/paved appearances.
                         string filename = $"{prop.TrimStart('_')}_{tex.name}.png";
                         string path = Path.Combine(outputDir, filename);
                         File.WriteAllBytes(path, pngData);
-                        
+
                         args.Context.AddString($"  Exported: {filename} ({tex2D.width}x{tex2D.height})");
                         exported++;
-                        
+
                         // Clean up temporary texture
                         if (tex2D != tex)
                         {
@@ -3574,12 +3602,12 @@ while paint mask only gives dirt/cultivated/paved appearances.
             sb.AppendLine($"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine();
             sb.AppendLine("Exported files:");
-            
+
             foreach (var file in Directory.GetFiles(outputDir, "*.png"))
             {
                 sb.AppendLine($"  - {Path.GetFileName(file)}");
             }
-            
+
             File.WriteAllText(Path.Combine(outputDir, "_README.txt"), sb.ToString());
 
             args.Context.AddString($"[FiresRPGmaker] Exported {exported} textures to: {outputDir}");
@@ -3595,17 +3623,17 @@ while paint mask only gives dirt/cultivated/paved appearances.
             // Create a temporary RenderTexture
             RenderTexture rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32);
             Graphics.Blit(source, rt);
-            
+
             RenderTexture previous = RenderTexture.active;
             RenderTexture.active = rt;
-            
+
             Texture2D readable = new Texture2D(source.width, source.height, TextureFormat.ARGB32, false);
             readable.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
             readable.Apply();
-            
+
             RenderTexture.active = previous;
             RenderTexture.ReleaseTemporary(rt);
-            
+
             return readable;
         }
 
@@ -3616,11 +3644,11 @@ while paint mask only gives dirt/cultivated/paved appearances.
         {
             RenderTexture previous = RenderTexture.active;
             RenderTexture.active = rt;
-            
+
             Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.ARGB32, false);
             tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
             tex.Apply();
-            
+
             RenderTexture.active = previous;
             return tex;
         }
@@ -3664,7 +3692,7 @@ while paint mask only gives dirt/cultivated/paved appearances.
             }
             sb.AppendLine();
 
-            // Vector properties  
+            // Vector properties
             sb.AppendLine("=== VECTOR PROPERTIES ===");
             sb.AppendLine();
             string[] vectorProps = {
@@ -3723,7 +3751,7 @@ while paint mask only gives dirt/cultivated/paved appearances.
                     sb.AppendLine($"Ambient Color Day: {FormatColor(currentEnv.m_ambColorDay)}");
                     sb.AppendLine($"Sun Color Day: {FormatColor(currentEnv.m_sunColorDay)}");
                 }
-                
+
                 // Get current biome
                 if (Player.m_localPlayer != null)
                 {
@@ -3774,9 +3802,9 @@ IMPLEMENTATION FOR ENV BOX:
             string outputDir = Path.Combine(FiresCore.Storage.FiresConfigPaths.Debug);
             Directory.CreateDirectory(outputDir);
             string outputPath = Path.Combine(outputDir, "GlobalShaderProperties.txt");
-            
+
             File.WriteAllText(outputPath, sb.ToString());
-            
+
             args.Context.AddString($"[FiresRPGmaker] Global shader properties saved to: {outputPath}");
         }
 
@@ -3791,8 +3819,8 @@ IMPLEMENTATION FOR ENV BOX:
                 return;
             }
 
-            string biomeName = (args.Args != null && args.Args.Length > 1) 
-                ? args.Args[1].Trim() 
+            string biomeName = (args.Args != null && args.Args.Length > 1)
+                ? args.Args[1].Trim()
                 : "";
 
             if (string.IsNullOrEmpty(biomeName))
@@ -3809,7 +3837,7 @@ IMPLEMENTATION FOR ENV BOX:
                 Shader.SetGlobalFloat("_SnowAmount", 0f);
                 Shader.SetGlobalFloat("_AddSnow", 0f);
                 args.Context.AddString("[FiresRPGmaker] Cleared shader overrides");
-                
+
                 // Force heightmap refresh
                 var hm = Heightmap.FindHeightmap(Player.m_localPlayer.transform.position);
                 if (hm != null)
@@ -3856,16 +3884,16 @@ IMPLEMENTATION FOR ENV BOX:
             // Try to modify corner biomes
             try
             {
-                var cornerBiomesField = typeof(Heightmap).GetField("m_cornerBiomes", 
+                var cornerBiomesField = typeof(Heightmap).GetField("m_cornerBiomes",
                     BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                
+
                 if (cornerBiomesField != null)
                 {
                     var cornerBiomes = cornerBiomesField.GetValue(heightmap) as Heightmap.Biome[];
                     if (cornerBiomes != null && cornerBiomes.Length >= 4)
                     {
                         args.Context.AddString($"  Original corners: [{cornerBiomes[0]}, {cornerBiomes[1]}, {cornerBiomes[2]}, {cornerBiomes[3]}]");
-                        
+
                         // Set all corners to target biome
                         for (int i = 0; i < 4; i++)
                         {
@@ -3873,9 +3901,9 @@ IMPLEMENTATION FOR ENV BOX:
                         }
                         cornerBiomesField.SetValue(heightmap, cornerBiomes);
                         args.Context.AddString($"  Set all corners to: {targetBiome}");
-                        
+
                         // Force rebuild
-                        var rebuildMethod = typeof(Heightmap).GetMethod("RebuildRenderMesh", 
+                        var rebuildMethod = typeof(Heightmap).GetMethod("RebuildRenderMesh",
                             BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                         if (rebuildMethod != null)
                         {
@@ -4340,13 +4368,13 @@ byte[] data = pkg.GetArray();
 
       if (list.Count > 0)
      {
-        Debug.Log($"[FiresRPGmaker] Built snapshot from Inventory.Save: {list.Count} items");
+        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Built snapshot from Inventory.Save: {list.Count} items");
      return list;
             }
      }
     catch (Exception ex)
       {
-      Debug.Log($"[FiresRPGmaker] Inventory.Save path failed: {ex.Message}");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Inventory.Save path failed: {ex.Message}");
    }
 
            // Fallback: use GetAllItems
@@ -4364,14 +4392,14 @@ byte[] data = pkg.GetArray();
           }
      catch (Exception ex)
  {
-              Debug.Log($"[FiresRPGmaker] GetAllItems fallback failed: {ex.Message}");
+              global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] GetAllItems fallback failed: {ex.Message}");
  }
 
-             Debug.Log($"[FiresRPGmaker] Inventory snapshot: {list.Count} entries");
+             global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Inventory snapshot: {list.Count} entries");
             }
             catch (Exception ex)
    {
-        Debug.Log($"[FiresRPGmaker] BuildInventorySnapshot failed: {ex.Message}");
+        global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] BuildInventorySnapshot failed: {ex.Message}");
             }
 
     return list;
@@ -4395,7 +4423,7 @@ byte[] data = pkg.GetArray();
                 if (pin != null)
                 {
                     _temporaryPins.Add(pin);
-                    
+
                     // Start coroutine to remove after 60 seconds
                     if (Player.m_localPlayer != null)
                     {
@@ -4412,7 +4440,7 @@ byte[] data = pkg.GetArray();
         private static System.Collections.IEnumerator RemovePinAfterDelay(Minimap.PinData pin, float delay)
         {
             yield return new WaitForSeconds(delay);
-            
+
             try
             {
                 if (Minimap.instance != null && pin != null)
@@ -4452,27 +4480,27 @@ controller.npcProfileName = "Test Merchant";
         if (dialogueProfiles != null && dialogueProfiles.Count > 0)
      {
       controller.dialogueProfile = dialogueProfiles[0];
-      Debug.Log($"[DebugTools] Mock NPC using dialogue profile: {controller.dialogueProfile}");
+      global::FiresRPGmaker.FiresLogger.LogDebug($"[DebugTools] Mock NPC using dialogue profile: {controller.dialogueProfile}");
      }
                 else
              {
      controller.dialogueProfile = "test_dialogue";
-       Debug.Log("[DebugTools] No dialogue profiles found, using placeholder");
+       global::FiresRPGmaker.FiresLogger.LogDebug("[DebugTools] No dialogue profiles found, using placeholder");
        }
 
          var questProfiles = QuestProfileManager.GetAllProfileNames();
                 if (questProfiles != null && questProfiles.Count > 0)
  {
     controller.questProfile = questProfiles[0];
-   Debug.Log($"[DebugTools] Mock NPC using quest profile: {controller.questProfile}");
+   global::FiresRPGmaker.FiresLogger.LogDebug($"[DebugTools] Mock NPC using quest profile: {controller.questProfile}");
     }
                 else
  {
             controller.questProfile = "test_quests";
-       Debug.Log("[DebugTools] No quest profiles found, using placeholder");
+       global::FiresRPGmaker.FiresLogger.LogDebug("[DebugTools] No quest profiles found, using placeholder");
 }
 
-      Debug.Log("[DebugTools] Created mock NPC controller for UI testing");
+      global::FiresRPGmaker.FiresLogger.LogDebug("[DebugTools] Created mock NPC controller for UI testing");
                 return controller;
         }
             catch (Exception ex)
@@ -4491,7 +4519,7 @@ public static void CleanupMockNpc()
             {
     UnityEngine.Object.Destroy(_mockNpcObject);
      _mockNpcObject = null;
- Debug.Log("[DebugTools] Mock NPC cleaned up");
+ global::FiresRPGmaker.FiresLogger.LogDebug("[DebugTools] Mock NPC cleaned up");
             }
         }
 
@@ -4504,7 +4532,7 @@ public static void CleanupMockNpc()
         /// </summary>
         private static void DumpAvailableSprites(Terminal.ConsoleEventArgs args)
         {
-            string filter = (args.Args != null && args.Args.Length > 1) 
+            string filter = (args.Args != null && args.Args.Length > 1)
                 ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim().ToLower()
                 : "";
 
@@ -4556,7 +4584,7 @@ public static void CleanupMockNpc()
             {
                 sb.AppendLine($"=== {kvp.Key.ToUpper()} SPRITES ({kvp.Value.Count}) ===");
                 sb.AppendLine();
-                
+
                 foreach (var (name, width, height, source) in kvp.Value.OrderBy(s => s.name))
                 {
                     sb.AppendLine($"  {name} ({width}x{height}) [Texture: {source}]");
@@ -4649,7 +4677,7 @@ public static Sprite GetHudSprite(string elementName)
 
             File.WriteAllText(outputPath, sb.ToString());
 
-            args.Context.AddString($"[FiresRPGmaker] Found {totalCount} sprites" + 
+            args.Context.AddString($"[FiresRPGmaker] Found {totalCount} sprites" +
                 (string.IsNullOrEmpty(filter) ? "" : $" matching '{filter}'"));
             args.Context.AddString($"[FiresRPGmaker] Full list saved to: {outputPath}");
 
@@ -4672,7 +4700,7 @@ public static Sprite GetHudSprite(string elementName)
         /// </summary>
         private static void DumpIconSprites(Terminal.ConsoleEventArgs args)
         {
-            string filter = (args.Args != null && args.Args.Length > 1) 
+            string filter = (args.Args != null && args.Args.Length > 1)
                 ? string.Join(" ", args.Args, 1, args.Args.Length - 1).Trim().ToLower()
                 : "";
 
@@ -4706,9 +4734,9 @@ public static Sprite GetHudSprite(string elementName)
 
                     string prefabName = prefab.name;
                     string displayName = itemDrop.m_itemData?.m_shared?.m_name ?? prefabName;
-                    
-                    if (!string.IsNullOrEmpty(filter) && 
-                        !prefabName.ToLower().Contains(filter) && 
+
+                    if (!string.IsNullOrEmpty(filter) &&
+                        !prefabName.ToLower().Contains(filter) &&
                         !displayName.ToLower().Contains(filter) &&
                         !icon.name.ToLower().Contains(filter))
                         continue;
@@ -4726,11 +4754,11 @@ public static Sprite GetHudSprite(string elementName)
                     foreach (var skillDef in skills.m_skills)
                     {
                         if (skillDef == null || skillDef.m_icon == null) continue;
-                        
+
                         var icon = skillDef.m_icon;
                         var skillType = skillDef.m_skill;
-                        
-                        if (!string.IsNullOrEmpty(filter) && 
+
+                        if (!string.IsNullOrEmpty(filter) &&
                             !skillType.ToString().ToLower().Contains(filter) &&
                             !icon.name.ToLower().Contains(filter))
                             continue;
@@ -4748,14 +4776,14 @@ public static Sprite GetHudSprite(string elementName)
                 if (img == null || img.sprite == null) continue;
                 string spriteName = img.sprite.name;
                 if (string.IsNullOrEmpty(spriteName) || seenIcons.Contains(spriteName)) continue;
-                
+
                 // Look for icon-like sprites (typically square, small)
                 float width = img.sprite.rect.width;
                 float height = img.sprite.rect.height;
-                
+
                 // Skip very large sprites (backgrounds, etc)
                 if (width > 256 || height > 256) continue;
-                
+
                 if (!string.IsNullOrEmpty(filter) && !spriteName.ToLower().Contains(filter))
                     continue;
 
@@ -4806,7 +4834,7 @@ public static Sprite GetHudSprite(string elementName)
             // Section 4: Recommended icons for radial menu actions
             sb.AppendLine("=== RECOMMENDED ICONS FOR RADIAL MENU ===");
             sb.AppendLine();
-            
+
             // Search for specific useful icons
             var recommendations = new Dictionary<string, List<string>>
             {
@@ -4831,7 +4859,7 @@ public static Sprite GetHudSprite(string elementName)
             {
                 string p = prefab.ToLower();
                 string d = displayName.ToLower();
-                
+
                 if (p.Contains("axe") && !p.Contains("pickaxe"))
                     recommendations["Gathering (axe/pickaxe)"].Add($"{prefab} -> {spriteName}");
                 if (p.Contains("pickaxe"))
@@ -4858,7 +4886,7 @@ public static Sprite GetHudSprite(string elementName)
             foreach (var (skill, spriteName, _, _) in skillIcons)
             {
                 string s = skill.ToString().ToLower();
-                
+
                 if (s.Contains("woodcutting"))
                     recommendations["Gathering (axe/pickaxe)"].Add($"Skill:{skill} -> {spriteName}");
                 if (s.Contains("pickaxe") || s.Contains("mining"))
@@ -4960,7 +4988,7 @@ public static Sprite FindSprite(string spriteName)
             // Show some recommended items in console
             args.Context.AddString("[FiresRPGmaker] Sample item icons found:");
             var sampleItems = itemIcons
-                .Where(i => i.prefab.Contains("Axe") || i.prefab.Contains("Pickaxe") || 
+                .Where(i => i.prefab.Contains("Axe") || i.prefab.Contains("Pickaxe") ||
                            i.prefab.Contains("Torch") || i.prefab.Contains("Hammer") ||
                            i.prefab.Contains("Chest") || i.prefab.Contains("Sword"))
                 .Take(10);
@@ -4976,7 +5004,7 @@ public static Sprite FindSprite(string spriteName)
         private static string CategorizeSprite(string name)
         {
             string lower = name.ToLower();
-            
+
             if (lower.Contains("icon") || lower.Contains("item_"))
                 return "Icons/Items";
             if (lower.Contains("skill"))
@@ -4999,7 +5027,7 @@ public static Sprite FindSprite(string spriteName)
                 return "Effects";
             if (lower.Contains("creature") || lower.Contains("monster") || lower.Contains("enemy"))
                 return "Creatures";
-            
+
             return "Other";
         }
 
@@ -5094,7 +5122,7 @@ public static Sprite FindSprite(string spriteName)
             File.WriteAllText(outputPath, sb.ToString());
 
             args.Context.AddString($"[FiresRPGmaker] Chat UI hierarchy saved to: {outputPath}");
-            Debug.Log($"[FiresRPGmaker] Chat UI hierarchy saved to: {outputPath}");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Chat UI hierarchy saved to: {outputPath}");
         }
 
         private static void WalkHierarchy(System.Text.StringBuilder sb, Transform t, int depth, int maxDepth)

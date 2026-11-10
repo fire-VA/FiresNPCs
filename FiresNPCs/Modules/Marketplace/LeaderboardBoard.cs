@@ -94,7 +94,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 return;
             }
             if (ZRoutedRpc.instance == null) return;
-            try { ZRoutedRpc.instance.InvokeRoutedRPC(0L, RollSeasonRpc, new ZPackage()); }
+            try { ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RollSeasonRpc), RollSeasonRpc, new ZPackage()); }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Leaderboard RequestRollSeason failed: {ex.Message}"); }
         }
 
@@ -108,7 +108,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 return;
             }
             int archived = LeaderboardBridge.RollSeason();
-            Debug.Log($"[FiresRPGmaker] Leaderboard season rolled by admin {sender} (archived season {archived}).");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Leaderboard season rolled by admin {sender} (archived season {archived}).");
         }
 
         /// <summary>Admin action: HARD-WIPE the entire leaderboard — scores, skills, deaths, appearance, the season
@@ -119,7 +119,7 @@ namespace FiresRPGmaker.Modules.Marketplace
         {
             if (ZNet.instance != null && ZNet.instance.IsServer()) { ServerWipe(); return; }
             if (ZRoutedRpc.instance == null) return;
-            try { ZRoutedRpc.instance.InvokeRoutedRPC(0L, WipeRpc, new ZPackage()); }
+            try { ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(WipeRpc), WipeRpc, new ZPackage()); }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Leaderboard RequestWipe failed: {ex.Message}"); }
         }
 
@@ -133,7 +133,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 return;
             }
             ServerWipe();
-            Debug.Log($"[FiresRPGmaker] Leaderboard fully wiped by admin {sender} (fresh season 1).");
+            global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Leaderboard fully wiped by admin {sender} (fresh season 1).");
         }
 
         // Server: drop all leaderboard/appearance/season data, reset local season state, refresh the host's own open
@@ -174,7 +174,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             {
                 var pkg = new ZPackage();
                 pkg.Write(season);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RequestRpc, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RequestRpc), RequestRpc, pkg);
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Leaderboard RequestBoard failed: {ex.Message}"); }
         }

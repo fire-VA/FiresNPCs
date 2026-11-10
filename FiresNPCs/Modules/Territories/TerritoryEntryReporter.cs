@@ -75,7 +75,7 @@ namespace FiresRPGmaker.Modules.Territories
             var id = ResolveIdentity(player);
             try
             {
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, "FiresRPGmaker_Territory_ClientEntered",
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer("FiresRPGmaker_Territory_ClientEntered"), "FiresRPGmaker_Territory_ClientEntered",
                     id.PlayerId,
                     id.PlayerName ?? string.Empty,
                     id.PlatformId ?? string.Empty,

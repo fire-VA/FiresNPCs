@@ -49,7 +49,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 var pkg = new ZPackage();
                 pkg.Write(name);
                 pkg.Write(season);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RequestRpc, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RequestRpc), RequestRpc, pkg);
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] RequestAchievements failed: {ex.Message}"); }
         }

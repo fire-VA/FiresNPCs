@@ -8,7 +8,7 @@ namespace FiresRPGmaker.Modules.Vault
     /// <summary>
     /// ChroniclesOfTime - Sister class to VaultOfKnowledge that handles all time-based quest calculations.
     /// Manages cooldowns, availability windows, and time conversions between Valheim in-game time and real time.
-    /// 
+    ///
     /// Valheim Time Conversion:
     /// - 1 in-game day = 30 real-world minutes
   /// - CooldownDays in quest configs refers to in-game days

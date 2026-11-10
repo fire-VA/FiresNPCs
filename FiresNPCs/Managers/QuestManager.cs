@@ -33,6 +33,7 @@ namespace FiresRPGmaker.Modules.Quest
             // Create sample files if folders are empty
             Instance.CreateSampleQuestIfNeeded();
             Instance.CreateSampleProfileIfNeeded();
+            Instance.CreateExampleWolfHuntIfMissing();   // 0.0.814
 
             Instance.LoadQuestDatabase();
             Instance.LoadQuestProfiles();
@@ -89,6 +90,40 @@ Autocomplete = true
             {
                 Debug.LogError($"[FiresRPGmaker] Failed to create sample quest file: {ex.Message}");
             }
+        }
+
+        // 0.0.814 (Fire 10-31: a starter example "clearly named and valid", never overwriting an existing one): the NPC book's
+        // quest page used to show the UI bundle's baked wolf text, which admins saved thinking it was an example. A real, valid
+        // example quest now ships as its own file: Kill Wolf x10, Coins reward, no commands, no requirement. Written only when no
+        // quest file in the database already holds [example_wolf_hunt] (so an admin's edit or delete of it is never undone by
+        // a re-create into the same file, and nothing existing is overwritten).
+        private void CreateExampleWolfHuntIfMissing()
+        {
+            try
+            {
+                foreach (var f in Directory.GetFiles(QuestsDir, "*.cfg", SearchOption.AllDirectories))
+                {
+                    string text;
+                    try { text = File.ReadAllText(f); } catch { continue; }
+                    if (text.IndexOf("[example_wolf_hunt", StringComparison.OrdinalIgnoreCase) >= 0) return;
+                }
+                string path = Path.Combine(QuestsDir, "ExampleQuests.cfg");
+                if (File.Exists(path)) return;   // the admin's file: never overwritten, even without the quest in it
+                File.WriteAllText(path,
+@"; Example quest shipped with Fires RPG Maker. Edit or delete it freely; it is only created when missing.
+[example_wolf_hunt]
+QuestType = Kill
+QuestName = Example: Wolf Hunt
+Description = Slay 10 wolves to prove your strength.
+QuestTarget = Wolf,10
+QuestReward = Coins,50
+CooldownDays = 0
+TimeLimitMinutes = 0
+Autocomplete = false
+");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] example quest 'example_wolf_hunt' created: {path}");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] example quest not created: {ex.Message}"); }
         }
 
         // Creates a sample profile file if no .cfg files exist in QuestProfiles folder
@@ -177,7 +212,7 @@ Quests = KillBoarSample
             return targets;
         }
 
-        /// <summary>0.0.532: a Move objective's target is a POSITION, "x y z [amount]" (separators: space, ',', ':' or
+        /// <summary>A Move objective's target is a POSITION, "x y z [amount]" (separators: space, ',', ':' or
         /// ';'; decimals and negatives allowed), with or without a "Move:" prefix. It becomes the "x,y,z" Prefab the Move
         /// check reads. Both target parsers used to split it like "Prefab, amount", so no Move target could ever be
         /// written. A target only counts as a position when its first three tokens are numbers, or it has "Move:".</summary>
@@ -187,7 +222,7 @@ Quests = KillBoarSample
             if (string.IsNullOrWhiteSpace(part)) return false;
             var tokens = part.Split(new[] { ' ', ',', ':', ';' }, StringSplitOptions.RemoveEmptyEntries).ToList();
             bool isMove = string.Equals(objType, "move", StringComparison.OrdinalIgnoreCase);
-            // 0.0.544 ([visual]'s bug_move): a "Move: x y z" line reached here with its prefix still on, the "Move" token broke
+            // A "Move: x y z" line reached here with its prefix still on, the "Move" token broke
             // the number scan at once, and the line fell through to the prefab parser (coordinates read as a prefab name).
             if (tokens.Count > 0 && string.Equals(tokens[0].Trim(), "move", StringComparison.OrdinalIgnoreCase)) { tokens.RemoveAt(0); isMove = true; }
             var nums = new List<float>();
@@ -774,7 +809,7 @@ Quests = KillBoarSample
         /// iteration yields; that's fine because server + client both round-trip the same
         /// serialised string, so the hashes still match even if order drifts.
         /// </summary>
-        // Serialising the quest DB cost ~38 ms on the rig dedi, inside the join frame (2026-09-28 R20), and again for every
+        // Serialising the quest DB cost ~38 ms on a dedicated server, inside the join frame, and again for every
         // manifest fingerprint. The JSON and its hash are kept until the DB changes; every change (LoadQuestDatabase, a received
         // DB, an applied quest file, ValidateQuestDatabase, the parity test's sentinels) drops them.
         private string _serialisedQuestDb;
@@ -887,15 +922,22 @@ Quests = KillBoarSample
             FiresLogger.LogVerbose($"Broadcasted QuestDB to peer {peerUid} (entries={questDatabase.Count}, {json.Length} chars)");
         }
 
+        /// <summary>Upper bound for a received quest DB (chars); a real DB is far smaller.</summary>
+        private const int MaxQuestDbJsonChars = 16 * 1024 * 1024;
+
         // RPC handler: receive full quest DB JSON from server and apply locally
         public static void HandleQuestDB(long sender, ZPackage pkg)
         {
             try
             {
                 if (pkg == null) return;
+                // The server owns the quest DB: never let any peer replace it there.
+                if (ZNet.instance != null && ZNet.instance.IsServer()) { global::FiresRPGmaker.Managers.RpcSender.Refuse("FiresRPGmaker_QuestDB", sender, "the server never accepts a quest DB"); return; }
+                if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer("FiresRPGmaker_QuestDB", sender); return; }
                 string json = string.Empty;
                 try { json = pkg.ReadString(); } catch { json = string.Empty; }
                 if (string.IsNullOrEmpty(json)) return;
+                if (json.Length > MaxQuestDbJsonChars) { global::FiresRPGmaker.Managers.RpcSender.Refuse("FiresRPGmaker_QuestDB", sender, $"json too long ({json.Length} > {MaxQuestDbJsonChars})"); return; }
 
                 // Ensure instance exists
                 if (Instance == null) Init();
@@ -979,7 +1021,6 @@ Quests = KillBoarSample
             try
             {
                 // debounce multiple events
-                // debounce multiple events
                 string key = fullPath.ToLowerInvariant();
                 var now = DateTime.UtcNow;
                 lock (lastEvent)
@@ -1030,10 +1071,10 @@ Quests = KillBoarSample
         // The wait YIELDS (a coroutine on the plugin). It used to poll with Thread.Sleep(50) x5 per folder on the
         // caller's thread, which is the MAIN thread (RPC_PeerInfo postfix, spawn handler). A manifest reply is a
         // routed RPC that only the main thread dispatches, so it could never arrive during that wait: every join
-        // blocked the dedi ~500 ms for nothing and then shipped every file anyway (R2 2026-09-28: 512-581 ms inside
-        // RPC_PeerInfo on 3 of 3 joins). A manifest reply also proves the client's handlers are registered, which the
+        // blocked the dedi ~500 ms for nothing and then shipped every file anyway (~500 ms inside
+        // RPC_PeerInfo on every join). A manifest reply also proves the client's handlers are registered, which the
         // T+0 send used to race.
-        // A joining client answers only once it has loaded, often 5-10 s after RPC_PeerInfo with fresh caches (rig R22b/R23);
+        // A joining client answers only once it has loaded, often 5-10 s after RPC_PeerInfo with fresh caches;
         // the config watcher pre-waits 10 s on the same manifests for the same reason.
         private const float QuestManifestWaitSeconds = 10f;
 
@@ -1119,9 +1160,9 @@ Quests = KillBoarSample
             }
 
             if (haveManifest && (sent > 0 || skipped > 0))
-                Debug.Log($"[FiresRPGmaker] Quest folder '{folderName}' diff-sync to peer {peerUid}: sent {sent}, skipped {skipped} unchanged.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Quest folder '{folderName}' diff-sync to peer {peerUid}: sent {sent}, skipped {skipped} unchanged.");
             else if (!haveManifest && sent > 0)
-                Debug.Log($"[FiresRPGmaker] Quest folder '{folderName}': no manifest from peer {peerUid} within {QuestManifestWaitSeconds:0} s, sent all {sent} file(s).");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Quest folder '{folderName}': no manifest from peer {peerUid} within {QuestManifestWaitSeconds:0} s, sent all {sent} file(s).");
         }
 
         private void SendFileToPeer(long peerUid, string folderName, string fileName, string content)
@@ -1189,7 +1230,7 @@ Quests = KillBoarSample
                     SendFileToPeer(peerUid, "QuestProfiles", rel, content);
                     sent++;
                 }
-                Debug.Log($"[FiresRPGmaker] Broadcast {sent} quest-profile file(s) to peer {peerUid} (blind reliable send).");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Broadcast {sent} quest-profile file(s) to peer {peerUid} (blind reliable send).");
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] SendQuestProfilesBlind failed: {ex.Message}"); }
         }
@@ -1445,6 +1486,16 @@ Quests = KillBoarSample
         }
 
         // Check quest requirements for a player. Returns true if all met, false otherwise and fills missing list with human-readable missing items.
+        /// <summary>0.0.812: true for a Requirements entry that only holds a placeholder (dashes, dots, underscores or "none").</summary>
+        internal static bool IsPlaceholderRequirement(string part)
+        {
+            if (string.IsNullOrWhiteSpace(part)) return true;
+            string s = part.Trim();
+            if (s.Equals("none", StringComparison.OrdinalIgnoreCase) || s.Equals("n/a", StringComparison.OrdinalIgnoreCase)) return true;
+            foreach (char ch in s) if (ch != '-' && ch != '—' && ch != '–' && ch != '.' && ch != '_' && !char.IsWhiteSpace(ch)) return false;
+            return true;
+        }
+
         public bool CheckRequirements(long playerId, QuestDefinition def, out System.Collections.Generic.List<string> missing, System.Collections.Generic.List<StoredBankItem> inventorySnapshot = null)
         {
             missing = new System.Collections.Generic.List<string>();
@@ -1476,6 +1527,14 @@ Quests = KillBoarSample
                 var partsGroup = reqRaw.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim());
                 foreach (var part in partsGroup)
                 {
+                    // 0.0.812 (Fire 10-31: the wolves example quest kept "-" in its Requirements field, and a quest saved with it could
+                    // never be accepted): a placeholder-only entry ("-", "--", "—", "none", ...) is no requirement. Also fixes quests
+                    // already saved with it, with no admin action.
+                    if (IsPlaceholderRequirement(part))
+                    {
+                        global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[QuestPipe] quest {def.QuestId}: requirement '{part}' is a placeholder, ignored (no requirement)");
+                        continue;
+                    }
                     // kg progression gate: "QuestFinished: X" (or "QuestFinished, X") = quest X must already be
                     // completed. This is what chains SnorriOne → SnorriOne2 etc. Handle it before the ',' tokenizer
                     // since the arg is colon-separated.
@@ -1541,7 +1600,7 @@ Quests = KillBoarSample
                         float minDur = -1f; if (tokens.Length >4) float.TryParse(tokens[4], out minDur);
 
                         int found =0;
-                        // 0.0.532: count the live inventory through vanilla's own API. The reflection here called
+                        // Count the live inventory through vanilla's own API. The reflection here called
                         // Inventory.CountItems with 1 argument (it takes 3), and the fallback read m_items / m_inventory as
                         // properties (they are fields), so every HasItem requirement failed from the inventory.
                         try
@@ -2024,7 +2083,7 @@ Quests = KillBoarSample
   {
     Debug.LogWarning($"[FiresRPGmaker] Failed to apply profile content via QuestProfileManager: {ex.Message}");
    }
-   
+
    // Also update local QuestManager.questProfiles for backward compatibility
          try
       {

@@ -34,7 +34,7 @@ namespace FiresRPGmaker.Modules.Compendium
                 // Unlock basic companion entries
                 CompendiumManager.DiscoverByTrigger("companion_recruited", player);
                 
-                Debug.Log("[CompendiumDiscoveryTracker] Triggered companion_recruited discovery");
+                global::FiresRPGmaker.FiresLogger.LogDebug("[CompendiumDiscoveryTracker] Triggered companion_recruited discovery");
             }
             catch (Exception ex)
             {
@@ -56,7 +56,7 @@ namespace FiresRPGmaker.Modules.Compendium
                 string triggerKey = $"archetype_seen_{archetype.ToString().ToLower()}";
                 CompendiumManager.DiscoverByTrigger(triggerKey, player);
                 
-                Debug.Log($"[CompendiumDiscoveryTracker] Triggered {triggerKey} discovery");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[CompendiumDiscoveryTracker] Triggered {triggerKey} discovery");
             }
             catch (Exception ex)
             {
@@ -81,7 +81,7 @@ namespace FiresRPGmaker.Modules.Compendium
                 // Also trigger generic hybrid discovery
                 CompendiumManager.DiscoverByTrigger("hybrid_system_seen", player);
                 
-                Debug.Log($"[CompendiumDiscoveryTracker] Triggered {triggerKey} discovery");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[CompendiumDiscoveryTracker] Triggered {triggerKey} discovery");
             }
             catch (Exception ex)
             {
@@ -102,7 +102,7 @@ namespace FiresRPGmaker.Modules.Compendium
                 string triggerKey = $"ability_unlocked_{abilityName.ToLower().Replace(" ", "_")}";
                 CompendiumManager.DiscoverByTrigger(triggerKey, player);
                 
-                Debug.Log($"[CompendiumDiscoveryTracker] Triggered {triggerKey} discovery");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[CompendiumDiscoveryTracker] Triggered {triggerKey} discovery");
             }
             catch (Exception ex)
             {
@@ -123,7 +123,7 @@ namespace FiresRPGmaker.Modules.Compendium
                 // Unlock synergy system entry
                 CompendiumManager.DiscoverByTrigger("synergy_system_seen", player);
                 
-                Debug.Log($"[CompendiumDiscoveryTracker] Triggered synergy discovery for {synergyName}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[CompendiumDiscoveryTracker] Triggered synergy discovery for {synergyName}");
             }
             catch (Exception ex)
             {

@@ -89,7 +89,7 @@ namespace FiresRPGmaker.Modules.Vault
  {
  instance.timers[key] = expiry;
  }
- Debug.Log($"[FiresRPGmaker] Scheduled quest timer for player {playerId} quest {questId} expiry {expiry:o}");
+ global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Scheduled quest timer for player {playerId} quest {questId} expiry {expiry:o}");
  }
 
  // Schedule a timer to a specific absolute expiry time
@@ -102,7 +102,7 @@ namespace FiresRPGmaker.Modules.Vault
  {
  instance.timers[key] = expiry.ToUniversalTime();
  }
- Debug.Log($"[FiresRPGmaker] Scheduled quest timer (absolute) for player {playerId} quest {questId} expiry {expiry:o}");
+ global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Scheduled quest timer (absolute) for player {playerId} quest {questId} expiry {expiry:o}");
  }
 
  // Load a set of persisted timers (expiry ticks). Called by server on startup.
@@ -134,7 +134,7 @@ namespace FiresRPGmaker.Modules.Vault
  {
  if (instance.timers.ContainsKey(key)) instance.timers.Remove(key);
  }
- Debug.Log($"[FiresRPGmaker] Cancelled quest timer for player {playerId} quest {questId}");
+ global::FiresRPGmaker.FiresLogger.LogDebug($"[FiresRPGmaker] Cancelled quest timer for player {playerId} quest {questId}");
  }
  }
 }

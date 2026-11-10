@@ -30,7 +30,7 @@ namespace FiresRPGmaker.Modules.ChatSystem
 
         /// <summary>
         /// Intercepts outgoing chat text BEFORE vanilla processing.
-        /// 
+        ///
         /// If the player typed a slash command (starts with '/'), let vanilla handle it.
         /// Otherwise, route the message based on the active channel:
         ///   Local  -> "say {text}"     -> Talker.Type.Normal (vanilla default)

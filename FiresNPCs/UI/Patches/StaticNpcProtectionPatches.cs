@@ -62,6 +62,33 @@ namespace FiresRPGmaker.UI.Patches
         private static bool Prefix(Character __instance, HitData hit)
         {
             if (!StaticNpcProtection.IsStaticNpc(__instance)) return true;
+            bool pass = PassDamage(__instance, hit);
+            // when this prefix BLOCKS
+            // the hit, the damage never reaches Character.RPC_Damage, where Core 0.2.681 tells the NPC who hit it. A blocked NPC with
+            // "Defend when attacked" ON (ZDO npc_defend) is told here instead - players included - so an unkillable fixture still fights back.
+            // Defend OFF: unchanged (the monster-only alert below for wander/patrol bodies).
+            if (!pass && IsDefendOn(__instance))
+            {
+                var attacker = hit != null ? hit.GetAttacker() : null;
+                var module = __instance.GetComponent<global::FiresCore.Npc.NpcMode.CompanionNpcModule>();
+                if (attacker != null && attacker != __instance && module != null)
+                {
+                    module.OnDirectlyAttacked(attacker);
+                    global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] '{__instance.m_name}' hit by {attacker.m_name} while unkillable: Core told (Defend when attacked ON)");
+                }
+            }
+            return pass;
+        }
+
+        private static bool IsDefendOn(Character c)
+        {
+            var nview = c.GetComponent<ZNetView>();
+            var zdo = nview != null && nview.IsValid() ? nview.GetZDO() : null;
+            return zdo != null && zdo.GetBool("npc_defend", false);
+        }
+
+        private static bool PassDamage(Character __instance, HitData hit)
+        {
             // Per-NPC "infinite health": block all damage before any calculation runs. Blocking here
             // means the damage RPC never reaches the owner-side alert hook, so an unkillable
             // patrol/wander body would never notice it was attacked — ping the alert directly for
@@ -80,10 +107,12 @@ namespace FiresRPGmaker.UI.Patches
                 }
                 return false;
             }
-            // STATIC-stage bodies (no idle wander, no patrol route) are unconditional fixtures —
-            // immune to combat and the K/killall/killenemies debug commands (all route through
-            // Character.Damage) regardless of the master config. Wander/patrol bodies are killable;
-            // the anchor keeper owns their respawn.
+            // an Invincible toggle the admin SET in the NPC book (ZDO npc_invincible_set, synced) decides
+            // alone, live on every machine: ON was blocked above, OFF = normal damage. Never set -> the default below, unchanged.
+            if (IsInvincibleSet(__instance)) return true;
+            // Never set (behaviour): STATIC-stage bodies (no idle wander, no patrol route) are unconditional fixtures —
+            // immune to combat and the K/killall/killenemies debug commands (all route through Character.Damage) regardless of
+            // the master config. Wander/patrol bodies are blocked while StaticNpcInvulnerable is on (its default).
             if (StaticNpcProtection.IsStaticStage(__instance)) return false;
             bool invulnerable = false;
             try { invulnerable = global::FiresRPGmaker.Managers.ConfigManager.Instance?.configStaticNpcInvulnerable?.Value ?? false; }
@@ -91,19 +120,28 @@ namespace FiresRPGmaker.UI.Patches
             return !invulnerable; // invulnerable → skip Damage (block); otherwise let it through (killable)
         }
 
+        /// <summary>(option B): true when an admin set this NPC's Invincible toggle in the NPC book (ZDO npc_invincible_set;
+        /// the synced ZDO first, the controller field only as fallback). Migration/defaults never write it.</summary>
+        internal static bool IsInvincibleSet(Character c)
+        {
+            var nview = c.GetComponent<ZNetView>();
+            var zdo = nview != null && nview.IsValid() ? nview.GetZDO() : null;
+            if (zdo != null) return zdo.GetBool("npc_invincible_set", false);
+            var npc = c.GetComponent<global::FiresRPGmaker.UI.NpcController>();
+            return npc != null && npc.infiniteHealthSet;
+        }
+
         /// <summary>True if this NPC's per-NPC infinite-health flag is set. Reads the ZDO bool (reliable on
         /// every machine from the first frame) with the NpcController as a fast fallback.</summary>
         private static bool IsInfiniteHealth(Character c)
         {
-            var npc = c.GetComponent<global::FiresRPGmaker.UI.NpcController>();
-            if (npc != null && npc.infiniteHealth) return true;
+            // the synced ZDO is authoritative when present (toggles apply live on every machine); the controller field,
+            // loaded once from the ZDO on this peer, is only the fallback. Before, a stale controller "true" OR'ed in kept blocking.
             var nview = c.GetComponent<ZNetView>();
-            if (nview != null && nview.IsValid())
-            {
-                var zdo = nview.GetZDO();
-                if (zdo != null && zdo.GetBool("npc_infinite_health", false)) return true;
-            }
-            return false;
+            var zdo = nview != null && nview.IsValid() ? nview.GetZDO() : null;
+            if (zdo != null) return zdo.GetBool("npc_infinite_health", false);
+            var npc = c.GetComponent<global::FiresRPGmaker.UI.NpcController>();
+            return npc != null && npc.infiniteHealth;
         }
     }
 
@@ -154,11 +192,24 @@ namespace FiresRPGmaker.UI.Patches
                 if (zdo == null) return;
                 string anchorGuid = zdo.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "");
                 if (string.IsNullOrEmpty(anchorGuid))
+                {
+                    // a body made this session (birth-stamped) that is removed before its anchor exists
+                    // left its SavedNPCs record on the cell for the next NPC there. Route the same full delete for it; any other
+                    // anchorless body is left alone exactly as before.
+                    if (zdo.GetLong(global::FiresRPGmaker.UI.NpcController.BornTicksKey, 0L) != 0L && !DyingUids.Remove(zdo.m_uid))
+                    {
+                        Vector3 cell = zdo.GetVec3("npc_placed_anchor", zdo.GetVec3("npc_stationed_pos", go.transform.position));
+                        global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] removal of a new body before its anchor existed ({go.name} @ {cell}) - dropping its saved record");
+                        SuppressRouting = true;
+                        try { global::FiresRPGmaker.Managers.SavedNpcManager.AdminDeletePlacedNpc(cell, null); }
+                        finally { SuppressRouting = false; }
+                    }
                     return;   // not an anchor-owned body
+                }
                 if (DyingUids.Remove(zdo.m_uid)) return;   // vanilla death — keeper owns the respawn
 
                 Vector3 anchor = zdo.GetVec3("npc_placed_anchor", zdo.GetVec3("npc_stationed_pos", go.transform.position));
-                Debug.Log($"[StaticNpc] deliberate external removal of anchored body ({go.name} @ {anchor}, guid {anchorGuid}) — routing full NPC delete");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] deliberate external removal of anchored body ({go.name} @ {anchor}, guid {anchorGuid}) — routing full NPC delete");
                 SuppressRouting = true;
                 try { global::FiresRPGmaker.Managers.SavedNpcManager.AdminDeletePlacedNpc(anchor, anchorGuid); }
                 finally { SuppressRouting = false; }
@@ -179,8 +230,21 @@ namespace FiresRPGmaker.UI.Patches
         /// <summary>Called from <see cref="Modules.RpgVanillaHooks.Character_OnDeath"/> (prefix).</summary>
         internal static void OnCharacterDeath(Character __instance)
         {
-            if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+            if (ZNet.instance == null) return;
             if (!StaticNpcProtection.IsStaticNpc(__instance)) return;
+            // MP-2b (rpg_npc_fire_list 11: a killed NPC was DELETED, "deliberate external removal ... routing full NPC delete"): the death's
+            // ZNetScene.Destroy runs on the body's OWNER, which is a client whenever one opened its Dressing room (claims it) or owns
+            // the zone. This used to return on clients BEFORE marking the death, so the catch-all there read the death as an admin delete.
+            // The death is marked on every machine; the keeper notify / respawn bookkeeping below stay server-only.
+            try
+            {
+                var nv0 = __instance.GetComponent<ZNetView>();
+                var z0 = nv0 != null && nv0.IsValid() ? nv0.GetZDO() : null;
+                if (z0 != null && !string.IsNullOrEmpty(z0.GetString(global::FiresCore.Npc.Anchor.NpcAnchorFields.BodyGuidBackRef, "")))
+                    StaticNpc_DeliberateRemoveCatchAll.DyingUids.Add(z0.m_uid);
+            }
+            catch { }
+            if (!ZNet.instance.IsServer()) return;
 
             // Anchor-owned body: the anchor keeper owns respawn. Stamp WHERE it died (patrol mode
             // respawns at the route checkpoint closest to the death spot), mark the uid as inside
@@ -236,7 +300,7 @@ namespace FiresRPGmaker.UI.Patches
             var cam = GameCamera.instance;
             if (cam == null) return true;
 
-            // 0.0.590 (R-C1, dedi: "gate line MISSING", the NPC stayed): vanilla's m_removeRayMask has no character layers, so the ray
+            // (R-C1, dedi: "gate line MISSING", the NPC stayed): vanilla's m_removeRayMask has no character layers, so the ray
             // went THROUGH the NPC's own colliders, hit the ground behind it, found no Piece and fell back to vanilla (which can't remove
             // a Character). A second ray on the character layers finds the NPC; it wins when it is the nearer hit. Every exit logs at
             // Debug, so a miss names its reason.
@@ -290,10 +354,10 @@ namespace FiresRPGmaker.UI.Patches
                 StaticNpc_DeliberateRemoveCatchAll.SuppressRouting = true;
                 try { ZNetScene.instance.Destroy(character.gameObject); }
                 finally { StaticNpc_DeliberateRemoveCatchAll.SuppressRouting = false; }
-                // 0.0.583 (Fire 10-14): the anchor orb of THIS npc goes at once, not on a zone reload.
+                // the anchor orb of THIS npc goes at once, not on a zone reload.
                 bool orb = !string.IsNullOrEmpty(anchorGuid) && global::FiresRPGmaker.UI.NpcAnchorOrbViz.ActiveGuid == anchorGuid;
                 if (orb) global::FiresRPGmaker.UI.NpcAnchorOrbViz.Hide();
-                Debug.Log($"[StaticNpc] hammer removed npc '{character.m_name}' and anchor {(string.IsNullOrEmpty(anchorGuid) ? "<cell match>" : anchorGuid)}{(orb ? " (+orb)" : "")}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[StaticNpc] hammer removed npc '{character.m_name}' and anchor {(string.IsNullOrEmpty(anchorGuid) ? "<cell match>" : anchorGuid)}{(orb ? " (+orb)" : "")}");
                 __instance.Message(MessageHud.MessageType.Center, "Removed static NPC.");
                 __result = true;
             }
@@ -303,7 +367,7 @@ namespace FiresRPGmaker.UI.Patches
             }
             return false; // skip vanilla
         }
-        // 0.0.650 (Fire 10-15: a placed scale_wall_2x2 would not come off with the hammer; IH's "remove anything" took it): one line
+        // one line
         // per refused removal naming what refused it - the piece's own removal fields, vanilla's checks and every patch on RemovePiece.
         private static float s_lastRefusal;
         private static bool SafeCanBeRemoved(Piece p) { try { return p.CanBeRemoved(); } catch { return true; } }
@@ -332,7 +396,7 @@ namespace FiresRPGmaker.UI.Patches
                     if (info != null) owners = string.Join(", ", System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(info.Prefixes, p => p.owner + ":" + p.PatchMethod.DeclaringType?.Name)));
                 }
                 catch { }
-                global::FiresRPGmaker.FiresRPGmaker.Log?.LogInfo($"[RemovePiece] REFUSED '{piece.name}' at {hit.distance:0.0} m: m_canBeRemoved {piece.m_canBeRemoved}, CheckCanRemovePiece {canRemove}, piece.CanBeRemoved {SafeCanBeRemoved(piece)}, no-build location {Location.IsInsideNoBuildLocation(piece.transform.position)}, station {station}, ward access {ward}, creator {piece.GetCreator()} (me {piece.IsCreator()}), placed by player {piece.IsPlacedByPlayer()}, WearNTear {(piece.GetComponent<WearNTear>() != null)}, ZNetView {(nview != null && nview.IsValid() ? (nview.IsOwner() ? "valid, owner" : "valid, not owner") : "INVALID")}, collider '{hit.collider.name}' layer {LayerMask.LayerToName(hit.collider.gameObject.layer)}; RemovePiece prefixes: {owners}");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[RemovePiece] REFUSED '{piece.name}' at {hit.distance:0.0} m: m_canBeRemoved {piece.m_canBeRemoved}, CheckCanRemovePiece {canRemove}, piece.CanBeRemoved {SafeCanBeRemoved(piece)}, no-build location {Location.IsInsideNoBuildLocation(piece.transform.position)}, station {station}, ward access {ward}, creator {piece.GetCreator()} (me {piece.IsCreator()}), placed by player {piece.IsPlacedByPlayer()}, WearNTear {(piece.GetComponent<WearNTear>() != null)}, ZNetView {(nview != null && nview.IsValid() ? (nview.IsOwner() ? "valid, owner" : "valid, not owner") : "INVALID")}, collider '{hit.collider.name}' layer {LayerMask.LayerToName(hit.collider.gameObject.layer)}; RemovePiece prefixes: {owners}");
             }
             catch (System.Exception ex) { global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug("[RemovePiece] refusal probe threw: " + ex.Message); }
         }

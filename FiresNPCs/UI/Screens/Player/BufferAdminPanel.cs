@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace FiresRPGmaker.UI.Screens.PlayerPanels
 {
-    /// <summary>Admin: Buffer Setup (10-09, Fire approved Tools\Mockups\rpg_buffer_admin_mockup.png). One page edits a whole
+    /// <summary>Admin: Buffer Setup (mockup: Tools\Mockups\rpg_buffer_admin_mockup.png). One page edits a whole
     /// buffer profile and EVERY FiresBuffData field of its buffs:
     /// - the profile row: name, a picker of the saved profiles, New / Duplicate / Delete (press twice) / Preview as player;
     /// - the left pane: the profile's buffs (click to edit), "+ Stat buff", and the status-effect catalog (search, filters, Add);
@@ -129,6 +129,7 @@ namespace FiresRPGmaker.UI.Screens.PlayerPanels
                 _strength.minValue = 0; _strength.maxValue = 100; _strength.wholeNumbers = true;
                 _strength.onValueChanged.RemoveAllListeners();
                 _strength.onValueChanged.AddListener(v => { if (_strValue != null) _strValue.text = Mathf.RoundToInt(v) + "%"; if (!_filling) PullEditor(); });
+                global::FiresRPGmaker.UI.KitControlsAdapter.Kitize(_strength, "0", 1f);   // Core kit slider (config-window look), same binding
             }
             foreach (var (node, flag) in Stats) { var f = Field(t, node); if (f != null) _stat[flag] = f; }
         }

@@ -18,8 +18,16 @@ namespace FiresRPGmaker.Integration
         internal static void Register()
         {
             global::FiresCore.Bridge.NpcAnchorBridge.SeedBody = (anchorZdo, bodyZdo) => Copy(anchorZdo, bodyZdo);
-            global::FiresCore.Bridge.NpcAnchorBridge.CaptureToAnchor = (bodyZdo, anchorZdo) => Copy(bodyZdo, anchorZdo);
+            global::FiresCore.Bridge.NpcAnchorBridge.CaptureToAnchor = (bodyZdo, anchorZdo) =>
+            {
+                // Core's keeper refreshes the anchor from
+                // the live body every tick; a dying/dead body (health <= 0: the death flow strips/drops its gear before the ZDO is
+                // destroyed) must never overwrite the anchor's last good payload, or the respawn is seeded from the stripped body.
+                if (bodyZdo != null && bodyZdo.GetFloat(ZDOVars.s_health, 1f) <= 0f) { SkippedDeadCaptures++; return; }
+                Copy(bodyZdo, anchorZdo);
+            };
         }
+        internal static int SkippedDeadCaptures;
 
         private static readonly string[] StringFields =
         {
@@ -36,23 +44,34 @@ namespace FiresRPGmaker.Integration
             "npc_equip_helmet", "npc_equip_chest", "npc_equip_legs", "npc_equip_shoulder", "npc_equip_utility",
             "npc_equip_righthand", "npc_equip_lefthand", "npc_equip_rightback", "npc_equip_leftback",
             "npc_equip_righthand_data", "npc_equip_lefthand_data",
+            // Core CompanionInventory's bag record - the worn Dressing-room
+            // gear lives here as real items (13 before the kill). The seeded body had none, so Core's load ran UnequipAllItems and
+            // reconciled to PlayerUnarmed only ("storage loaded from its ZDO, 1 item(s)") and the Humanoid wrote the naked look over
+            // npc_equip_*. Same record a companion keeps across its respawn (it carries its own ZDO); the dead-body capture guard
+            // above keeps the stripped bag out of the anchor.
+            "companion_inventory",
         };
 
         private static readonly string[] BoolFields =
         {
             "npc_allow_idle_wander", "npc_infinite_health", "npc_no_face_player", "npc_exact_placement",
             "npc_name_hidden", "npc_isfemale", "npc_use_territory_bounds",
+            "npc_defend",           // The respawned body keeps its defend setting
+            "npc_invincible_set",   // Clones keep an explicit NPC-book Invincible choice
         };
 
         private static readonly string[] FloatFields =
         {
             "npc_max_health", "npc_respawn_delay", "npc_text_size", "npc_text_height", "npc_scale",
             "npc_idle_wander_radius", "npc_wander_buffer_zone",
+            "npc_defend_leash",
         };
 
         private static readonly string[] IntFields =
         {
             "npc_type",
+            "npc_gear_in_bag",    // The old outfit names were already moved into Core's bag; a respawned body must not move them again
+            "companion_grid_v",   // Core's grid-layout version, so the seeded bag is not re-run through the legacy-equipment migration
         };
 
         private static void Copy(ZDO from, ZDO to)

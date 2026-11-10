@@ -51,6 +51,14 @@ namespace FiresRPGmaker.Modules.Marketplace
     {
         public const string RpcName = "Fires_Leaderboard_RecordStat";
 
+        /// <summary>Per-event clamps on the client-sent amount (honest clients send 1 per event, except below).</summary>
+        private const int MaxAmountPerEvent = 1;
+        /// <summary>Hoe/cultivator ops coalesced over ~3 s (ToolUseCoalescer).</summary>
+        private const int MaxToolOpsPerEvent = 500;
+        /// <summary>MapExplored is a fraction in basis points (0..10000).</summary>
+        private const int MaxMapExploredBasisPoints = 10000;
+        private const int MaxPrefabLength = 128;
+
         public static void RegisterRpc(ZRoutedRpc rpc)
         {
             rpc?.Register(RpcName, new Action<long, ZPackage>(RPC_RecordStat));
@@ -87,7 +95,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                 pkg.Write((int)stat);
                 pkg.Write(prefab ?? string.Empty);
                 pkg.Write(amount);
-                ZRoutedRpc.instance.InvokeRoutedRPC(0L, RpcName, pkg);
+                ZRoutedRpc.instance.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcName), RpcName, pkg);
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] Leaderboard Send failed: {ex.Message}"); }
         }
@@ -104,11 +112,33 @@ namespace FiresRPGmaker.Modules.Marketplace
                 int amount = pkg.ReadInt();
                 if (string.IsNullOrEmpty(playerName)) return;
 
+                // The row is the routed sender's, never the packet's name; amounts are clamped per event.
+                string senderName = global::FiresRPGmaker.Managers.RpcSender.IsServerSelf(sender)
+                    ? playerName : global::FiresRPGmaker.Managers.RpcSender.SenderName(sender);
+                if (string.IsNullOrEmpty(senderName)) { global::FiresRPGmaker.Managers.RpcSender.Refuse(RpcName, sender, "unknown sender name"); return; }
+                // A mismatched name is dropped, never rewritten: e.g. a companion kill credited to its owner by another
+                // client must not land on the sender's row.
+                if (!string.Equals(senderName.Trim(), playerName.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[FiresRPGmaker] {RpcName}: dropped {stat} for '{playerName}' sent by peer {sender} ('{senderName}')");
+                    return;
+                }
+                if (prefab != null && prefab.Length > MaxPrefabLength) { global::FiresRPGmaker.Managers.RpcSender.Refuse(RpcName, sender, "prefab too long"); return; }
+                int cap = stat == LeaderboardStat.MapExplored ? MaxMapExploredBasisPoints
+                        : (stat == LeaderboardStat.Terraformed || stat == LeaderboardStat.Cultivated) ? MaxToolOpsPerEvent
+                        : MaxAmountPerEvent;
+                if (amount <= 0 || amount > cap)
+                {
+                    global::FiresRPGmaker.Managers.RpcSender.Refuse(RpcName, sender, $"{stat} amount {amount} clamped to 1..{cap}");
+                    amount = Mathf.Clamp(amount, 1, cap);
+                }
+
                 // Coalesce into a periodic server-side summary instead of logging every single event (a busy
                 // player terraforming / building generated hundreds of lines a minute).
                 LeaderboardActivitySummary.Note(stat);
 
                 string ownerKey = OwnerKey(playerName);
+                var swProbe = System.Diagnostics.Stopwatch.StartNew();   // 0.0.796 perf probe (lead 10-29)
                 switch (stat)
                 {
                     case LeaderboardStat.KilledCreature: LeaderboardBridge.RecordKilledCreature(ownerKey, playerName, prefab, amount); break;
@@ -126,6 +156,7 @@ namespace FiresRPGmaker.Modules.Marketplace
                     case LeaderboardStat.Cultivated:     LeaderboardBridge.RecordCultivated(ownerKey, playerName, amount); break;
                     case LeaderboardStat.KilledBy:       LeaderboardBridge.RecordKilledBy(ownerKey, playerName, prefab, amount); break;
                 }
+                global::FiresRPGmaker.FiresRPGmaker.Log?.LogDebug($"[PerfProbe] RPC_RecordStat {stat}: Core LeaderboardBridge write {swProbe.Elapsed.TotalMilliseconds:0.00} ms (why: lead 10-29, ~7.7 ms per call in RpcCensus)");
             }
             catch (Exception ex) { Debug.LogWarning($"[FiresRPGmaker] RPC_RecordStat failed: {ex.Message}"); }
         }
@@ -157,7 +188,7 @@ namespace FiresRPGmaker.Modules.Marketplace
             var parts = new List<string>();
             foreach (var kv in _counts) parts.Add(kv.Key + "x" + kv.Value);
             _counts.Clear();
-            Debug.Log("[Leaderboard] activity (last 30s): " + string.Join(", ", parts));
+            global::FiresRPGmaker.FiresLogger.LogDebug("[Leaderboard] activity (last 30s): " + string.Join(", ", parts));
         }
     }
 
@@ -428,12 +459,14 @@ namespace FiresRPGmaker.Modules.Marketplace
         [HarmonyPatch(typeof(Tameable), "Tame")]
         public static class Tameable_Tame
         {
+            private const float TameCreditRadius = 40f;
+
             [HarmonyPostfix]
             private static void Postfix(Tameable __instance)
             {
                 var local = Player.m_localPlayer;
                 if (local == null || __instance == null) return;
-                if (Vector3.Distance(local.transform.position, __instance.transform.position) > 40f) return;
+                if (Vector3.Distance(local.transform.position, __instance.transform.position) > TameCreditRadius) return;
                 LeaderboardServerFeed.Send(LeaderboardStat.Tamed, local.GetPlayerName(), null, 1);
             }
         }

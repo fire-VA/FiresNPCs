@@ -53,7 +53,7 @@ namespace FiresRPGmaker.Modules.Poker
                 if (session == null) return false;
                 host.BindSession(session, humans);
                 FiresTableNet.SendInvites(session);
-                Debug.Log($"[PokerLobby] table {tableId} formed — {humans.Count} player(s) + AI fill.");
+                global::FiresRPGmaker.FiresLogger.LogDebug($"[PokerLobby] table {tableId} formed — {humans.Count} player(s) + AI fill.");
                 return true;
             }
             catch (System.Exception ex)

@@ -47,7 +47,7 @@ namespace FiresRPGmaker.Modules.Migration
             { 1, NpcType.Trader },      // Trader
             { 2, NpcType.InfoNpc },     // Info
             { 3, NpcType.Teleporter },  // Teleporter
-            { 4, NpcType.Feedback },    // Feedback (first-class since 0.0.431)
+            { 4, NpcType.Feedback },    // Feedback
             { 5, NpcType.Banker },      // Banker
             { 6, NpcType.Gambler },     // Gambler
             { 7, NpcType.QuestNpc },    // Quests
@@ -162,25 +162,27 @@ namespace FiresRPGmaker.Modules.Migration
                             foreach (var line in Run(mode))
                             {
                                 args.Context?.AddString(line);
-                                Debug.Log("[fires_migrate_kg] " + line);
+                                global::FiresRPGmaker.FiresLogger.LogDebug("[fires_migrate_kg] " + line);
                             }
                         }
                         else
                         {
                             // Bridge to the server (full ZDO view lives there); result prints when the reply lands.
                             args.Context.AddString("[fires_migrate_kg] sent '" + mode + "' to the server...");
-                            ZRoutedRpc.instance?.InvokeRoutedRPC(ZRoutedRpc.Everybody, RpcRun, mode);
+                            ZRoutedRpc.instance?.InvokeRoutedRPC(global::FiresRPGmaker.Managers.RpcRegistration.ServerPeer(RpcRun), RpcRun, mode);   // client->server RPCs target the server
                         }
-                    }, isCheat: false, isNetwork: false, onlyServer: false);
+                    }, isCheat: true, isNetwork: false, onlyServer: false);
             }
         }
 
         [HarmonyPatch(typeof(ZNet), "Start")]
         private static class RegisterRpcs
         {
+            private static ZRoutedRpc s_regOn;   // re-register RPCs per connection
             private static void Postfix()
             {
-                if (ZRoutedRpc.instance == null) return;
+                if (!global::FiresRPGmaker.Managers.RpcRegistration.Needed(s_regOn)) return;   // re-register RPCs per connection: by instance
+                s_regOn = ZRoutedRpc.instance;
                 ZRoutedRpc.instance.Register<string>(RpcRun, OnRunRequest);
                 ZRoutedRpc.instance.Register<string>(RpcResult, (sender, text) =>
                 {
@@ -188,6 +190,7 @@ namespace FiresRPGmaker.Modules.Migration
                     foreach (var line in text.Split('\n')) Console.instance.AddString(line);
                 });
                 ZRoutedRpc.instance.Register<ZPackage>(RpcTemplate, OnTemplateData);
+                global::FiresRPGmaker.Managers.RpcRegistration.Logged("KgNpcMigrator", 3);
             }
         }
 
@@ -211,7 +214,7 @@ namespace FiresRPGmaker.Modules.Migration
             var sb = new StringBuilder();
             foreach (var line in lines)
             {
-                Debug.Log("[fires_migrate_kg] " + line);
+                global::FiresRPGmaker.FiresLogger.LogDebug("[fires_migrate_kg] " + line);
                 if (sb.Length + line.Length > 14000) { sb.AppendLine("... (truncated - full report on the server)"); break; }
                 sb.AppendLine(line);
             }
@@ -384,7 +387,7 @@ namespace FiresRPGmaker.Modules.Migration
                 global::FiresRPGmaker.Managers.TraderProfileManager.Reset();
                 global::FiresRPGmaker.Managers.TraderProfileManager.Initialize();
                 global::FiresRPGmaker.Modules.Dialogues.DialogueCodex.Reload();
-                // Quests too (0.0.493, rpgmaker_migrate_test L1): imported quest profiles only reached the server's quest
+                // Quests too: imported quest profiles only reached the server's quest
                 // caches on the config watcher's later pass, so quest NPCs offered nothing straight after a migrate-all.
                 global::FiresRPGmaker.Modules.Quest.QuestManager.Instance?.LoadQuestDatabase();
                 global::FiresRPGmaker.Modules.Quest.QuestManager.Instance?.LoadQuestProfiles();
@@ -589,6 +592,8 @@ namespace FiresRPGmaker.Modules.Migration
         private static void OnTemplateData(long sender, ZPackage pkg)
         {
             if (pkg == null) return;
+            // Only the server sends converted templates (checked before any chunk is buffered).
+            if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.IsFromServer(sender)) { global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.RefuseNotServer(RpcTemplate, sender); return; }
             try
             {
                 if (!global::FiresRPGmaker.Modules.Dialogues.DialogueSyncRPC.TryReadFilePacket(pkg, "tpl:", out _, out string fileName, out string content))
@@ -796,7 +801,7 @@ namespace FiresRPGmaker.Modules.Migration
             // SetRotation stuck, rather than assuming. Client-side StaticNpcInitializer logs the FINAL
             // applied transform.rotation — the two together bracket the whole rotation path end to end.
             Quaternion readBack = zdo.GetRotation();
-            Debug.Log(string.Format(CultureInfo.InvariantCulture,
+            global::FiresRPGmaker.FiresLogger.LogDebug(string.Format(CultureInfo.InvariantCulture,
                 "[fires_migrate_kg][rot] '{0}' @({1:F0},{2:F0}) kgRaw=({3:F3},{4:F3},{5:F3},{6:F3}) kgYaw={7:F1} -> wroteYaw={8:F1} dbReadbackYaw={9:F1}",
                 rec.Str("KGnpcNameOverride"), rec.Pos.x, rec.Pos.z,
                 rec.Rot.x, rec.Rot.y, rec.Rot.z, rec.Rot.w,
@@ -924,7 +929,7 @@ namespace FiresRPGmaker.Modules.Migration
             // Ground-truth hair/beard trace: the RAW kg values and what we actually wrote. Brenja rendering
             // bald means one of: kg stored no KGhairItem (source blank), PrefixStyle produced a name with no
             // live style, or a helmet hides it. This line makes the source vs written values provable per NPC.
-            Debug.Log(string.Format(CultureInfo.InvariantCulture,
+            global::FiresRPGmaker.FiresLogger.LogDebug(string.Format(CultureInfo.InvariantCulture,
                 "[fires_migrate_kg][hair] '{0}' KGhairItem='{1}' KGbeardItem='{2}' -> npc_hair='{3}' npc_beard='{4}' hairColor='{5}' helmet='{6}'",
                 rec.Str("KGnpcNameOverride"), rec.Str("KGhairItem"), rec.Str("KGbeardItem"),
                 hair ?? "", beard ?? "", rec.Str("KGhairItemColor"), helmet ?? ""));
